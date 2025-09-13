@@ -1,50 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { clientAuth } from "~/lib/auth-client";
 import { api } from "~/trpc/react";
-import { FileSystemManager, type GoalsData } from "~/lib/file-system";
+import type { Value, Goal, Task, Connection, WeeklyReview } from "~/lib/api/types";
 
-export interface Value {
-  id: string;
-  name: string;
-  color: string;
-}
-
-export interface Task {
-  id: string;
-  title: string;
-  difficulty: 1 | 2 | 3;
-  completed: boolean;
-}
-
-export interface Goal {
-  id: string;
-  title: string;
-  description: string;
-  valueIds: string[];
-  importance: number;
-  tasks: Task[];
-  parentId?: string;
-  position: { x: number; y: number };
-}
-
-export interface Connection {
-  id: string;
-  source: string;
-  target: string;
-  weight: number;
-}
-
-export interface WeeklyReview {
-  id: string;
-  week: string;
-  goalIds: string[];
-  notes: string;
-  photos: string[];
-  categories: string[];
-}
+// Re-export types from the shared API types
+export type { Value, Goal, Task, Connection, WeeklyReview } from "~/lib/api/types";
 
 interface GoalsContextType {
   isAuthenticated: boolean;
@@ -53,36 +16,33 @@ interface GoalsContextType {
   goals: Goal[];
   connections: Connection[];
   weeklyReviews: WeeklyReview[];
-  currentFileName: string | null;
-  hasUnsavedChanges: boolean;
+  isDataLoading: boolean;
 
   authenticate: (password: string) => Promise<boolean>;
   logout: () => void;
   checkAuthentication: () => Promise<void>;
 
-  openFile: () => Promise<void>;
-  saveFile: (isUserActivated?: boolean) => Promise<boolean>;
-  saveAsNewFile: () => Promise<void>;
+  refreshData: () => Promise<void>;
 
-  addValue: (value: Omit<Value, "id">) => void;
-  updateValue: (id: string, value: Partial<Value>) => void;
-  deleteValue: (id: string) => void;
+  addValue: (value: Omit<Value, "id">) => Promise<void>;
+  updateValue: (id: string, value: Partial<Value>) => Promise<void>;
+  deleteValue: (id: string) => Promise<void>;
 
-  addGoal: (goal: Omit<Goal, "id">) => void;
-  updateGoal: (id: string, goal: Partial<Goal>) => void;
-  deleteGoal: (id: string) => void;
+  addGoal: (goal: Omit<Goal, "id">) => Promise<void>;
+  updateGoal: (id: string, goal: Partial<Goal>) => Promise<void>;
+  deleteGoal: (id: string) => Promise<void>;
 
-  addTask: (goalId: string, task: Omit<Task, "id">) => void;
-  updateTask: (goalId: string, taskId: string, task: Partial<Task>) => void;
-  deleteTask: (goalId: string, taskId: string) => void;
+  addTask: (goalId: string, task: Omit<Task, "id">) => Promise<void>;
+  updateTask: (goalId: string, taskId: string, task: Partial<Task>) => Promise<void>;
+  deleteTask: (goalId: string, taskId: string) => Promise<void>;
 
-  addConnection: (connection: Omit<Connection, "id">) => void;
-  updateConnection: (id: string, connection: Partial<Connection>) => void;
-  deleteConnection: (id: string) => void;
+  addConnection: (connection: Omit<Connection, "id">) => Promise<void>;
+  updateConnection: (id: string, connection: Partial<Connection>) => Promise<void>;
+  deleteConnection: (id: string) => Promise<void>;
 
-  addWeeklyReview: (review: Omit<WeeklyReview, "id">) => void;
-  updateWeeklyReview: (id: string, review: Partial<WeeklyReview>) => void;
-  deleteWeeklyReview: (id: string) => void;
+  addWeeklyReview: (review: Omit<WeeklyReview, "id">) => Promise<void>;
+  updateWeeklyReview: (id: string, review: Partial<WeeklyReview>) => Promise<void>;
+  deleteWeeklyReview: (id: string) => Promise<void>;
 
   getGoalCompletion: (goalId: string) => number;
   getPathCompletion: (goalId: string) => number;
@@ -98,15 +58,12 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [weeklyReviews, setWeeklyReviews] = useState<WeeklyReview[]>([]);
-  const [currentFileName, setCurrentFileName] = useState<string | null>(null);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-
-  const fileManager = useRef(new FileSystemManager());
+  const [isDataLoading, setIsDataLoading] = useState(false);
 
   // Initialize token state
   const [token, setToken] = useState<string | null>(null);
 
-  // Use tRPC to verify token
+  // tRPC queries and mutations
   const verifyQuery = api.auth.verify.useQuery(
     { token: token ?? "" },
     {
@@ -114,6 +71,47 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       retry: false,
     },
   );
+
+  const dataQuery = api.goals.data.getAll.useQuery(
+    undefined,
+    {
+      enabled: isAuthenticated,
+      refetchOnWindowFocus: false,
+    }
+  );
+
+  const authMutation = api.auth.authenticate.useMutation();
+
+  // Mutations for data operations
+  const valuesMutations = {
+    create: api.goals.values.create.useMutation(),
+    update: api.goals.values.update.useMutation(),
+    delete: api.goals.values.delete.useMutation(),
+  };
+
+  const goalsMutations = {
+    create: api.goals.goals.create.useMutation(),
+    update: api.goals.goals.update.useMutation(),
+    delete: api.goals.goals.delete.useMutation(),
+  };
+
+  const tasksMutations = {
+    create: api.goals.tasks.create.useMutation(),
+    update: api.goals.tasks.update.useMutation(),
+    delete: api.goals.tasks.delete.useMutation(),
+  };
+
+  const connectionsMutations = {
+    create: api.goals.connections.create.useMutation(),
+    update: api.goals.connections.update.useMutation(),
+    delete: api.goals.connections.delete.useMutation(),
+  };
+
+  const weeklyReviewsMutations = {
+    create: api.goals.weeklyReviews.create.useMutation(),
+    update: api.goals.weeklyReviews.update.useMutation(),
+    delete: api.goals.weeklyReviews.delete.useMutation(),
+  };
 
   // Initialize token on mount (client-side only)
   useEffect(() => {
@@ -139,98 +137,22 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     if (verifyQuery.data?.isValid) {
       setIsAuthenticated(true);
       setIsLoading(false);
-
-      // Restore files
-      const initializeFile = async () => {
-        try {
-          const data = await fileManager.current.initialize();
-          if (data) {
-            setValues(data.values ?? []);
-            setGoals(data.goals ?? []);
-            setConnections(data.connections ?? []);
-            setWeeklyReviews(data.weeklyReviews ?? []);
-            setCurrentFileName(fileManager.current.getFileName());
-            setHasUnsavedChanges(false);
-          }
-        } catch (error) {
-          // Ignore errors
-        }
-      };
-      void initializeFile();
     } else if (verifyQuery.data !== undefined) {
       setIsAuthenticated(false);
       setIsLoading(false);
     }
   }, [token, verifyQuery.data, verifyQuery.isLoading]);
 
-  // File operations
-  const openFile = useCallback(async () => {
-    const data = await fileManager.current.openFile();
-    if (data) {
-      setValues(data.values ?? []);
-      setGoals(data.goals ?? []);
-      setConnections(data.connections ?? []);
-      setWeeklyReviews(data.weeklyReviews ?? []);
-      setCurrentFileName(fileManager.current.getFileName());
-      setHasUnsavedChanges(false);
-    }
-  }, []);
-
-  const saveFile = useCallback(
-    async (isUserActivated = false) => {
-      const data: GoalsData = {
-        version: "1.0.0",
-        values,
-        goals,
-        connections,
-        weeklyReviews,
-        lastModified: new Date().toISOString(),
-      };
-
-      const success = await fileManager.current.saveToFile(data, isUserActivated);
-      if (success) {
-        setHasUnsavedChanges(false);
-        setCurrentFileName(fileManager.current.getFileName());
-      }
-      return success;
-    },
-    [values, goals, connections, weeklyReviews],
-  );
-
-  const saveAsNewFile = useCallback(async () => {
-    // Create empty data for new file
-    const data: GoalsData = {
-      version: "1.0.0",
-      values: [],
-      goals: [],
-      connections: [],
-      weeklyReviews: [],
-      lastModified: new Date().toISOString(),
-    };
-
-    const success = await fileManager.current.saveAsNewFile(data);
-    if (success) {
-      // Clear current data and set up new file
-      setValues([]);
-      setGoals([]);
-      setConnections([]);
-      setWeeklyReviews([]);
-      setHasUnsavedChanges(false);
-      setCurrentFileName(fileManager.current.getFileName());
-    }
-  }, []);
-
-  // Mark as changed when data changes (only if file is open and data actually changed)
+  // Handle data loading when authenticated
   useEffect(() => {
-    if (
-      fileManager.current.hasOpenFile() &&
-      (values.length > 0 || goals.length > 0 || connections.length > 0 || weeklyReviews.length > 0)
-    ) {
-      setHasUnsavedChanges(true);
+    if (dataQuery.data) {
+      setValues(dataQuery.data.values ?? []);
+      setGoals(dataQuery.data.goals ?? []);
+      setConnections(dataQuery.data.connections ?? []);
+      setWeeklyReviews(dataQuery.data.weeklyReviews ?? []);
     }
-  }, [values, goals, connections, weeklyReviews]);
-
-  const authMutation = api.auth.authenticate.useMutation();
+    setIsDataLoading(dataQuery.isLoading);
+  }, [dataQuery.data, dataQuery.isLoading]);
 
   const authenticate = async (password: string): Promise<boolean> => {
     try {
@@ -270,89 +192,153 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     await verifyQuery.refetch();
   };
 
-  const addValue = (value: Omit<Value, "id">) => {
-    const newValue = { ...value, id: crypto.randomUUID() };
-    setValues((prev) => [...prev, newValue]);
-  };
+  const refreshData = useCallback(async () => {
+    if (isAuthenticated) {
+      await dataQuery.refetch();
+    }
+  }, [isAuthenticated, dataQuery]);
 
-  const updateValue = (id: string, value: Partial<Value>) => {
-    setValues((prev) => prev.map((v) => (v.id === id ? { ...v, ...value } : v)));
-  };
+  // Value operations
+  const addValue = useCallback(async (value: Omit<Value, "id">) => {
+    try {
+      await valuesMutations.create.mutateAsync(value);
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to add value:", error);
+    }
+  }, [valuesMutations.create, refreshData]);
 
-  const deleteValue = (id: string) => {
-    setValues((prev) => prev.filter((v) => v.id !== id));
-    setGoals((prev) =>
-      prev.map((g) => ({
-        ...g,
-        valueIds: g.valueIds.filter((vid) => vid !== id),
-      })),
-    );
-  };
+  const updateValue = useCallback(async (id: string, value: Partial<Value>) => {
+    try {
+      await valuesMutations.update.mutateAsync({ id, ...value });
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to update value:", error);
+    }
+  }, [valuesMutations.update, refreshData]);
 
-  const addGoal = (goal: Omit<Goal, "id">) => {
-    const newGoal = { ...goal, id: crypto.randomUUID() };
-    setGoals((prev) => [...prev, newGoal]);
-  };
+  const deleteValue = useCallback(async (id: string) => {
+    try {
+      await valuesMutations.delete.mutateAsync({ id });
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to delete value:", error);
+    }
+  }, [valuesMutations.delete, refreshData]);
 
-  const updateGoal = (id: string, goal: Partial<Goal>) => {
-    setGoals((prev) => prev.map((g) => (g.id === id ? { ...g, ...goal } : g)));
-  };
+  // Goal operations
+  const addGoal = useCallback(async (goal: Omit<Goal, "id">) => {
+    try {
+      await goalsMutations.create.mutateAsync(goal);
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to add goal:", error);
+    }
+  }, [goalsMutations.create, refreshData]);
 
-  const deleteGoal = (id: string) => {
-    setGoals((prev) => prev.filter((g) => g.id !== id));
-    setConnections((prev) => prev.filter((c) => c.source !== id && c.target !== id));
-  };
+  const updateGoal = useCallback(async (id: string, goal: Partial<Goal>) => {
+    try {
+      await goalsMutations.update.mutateAsync({ id, ...goal });
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to update goal:", error);
+    }
+  }, [goalsMutations.update, refreshData]);
 
-  const addTask = (goalId: string, task: Omit<Task, "id">) => {
-    const newTask = { ...task, id: crypto.randomUUID() };
-    setGoals((prev) => prev.map((g) => (g.id === goalId ? { ...g, tasks: [...g.tasks, newTask] } : g)));
-  };
+  const deleteGoal = useCallback(async (id: string) => {
+    try {
+      await goalsMutations.delete.mutateAsync({ id });
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to delete goal:", error);
+    }
+  }, [goalsMutations.delete, refreshData]);
 
-  const updateTask = (goalId: string, taskId: string, task: Partial<Task>) => {
-    setGoals((prev) =>
-      prev.map((g) =>
-        g.id === goalId
-          ? {
-              ...g,
-              tasks: g.tasks.map((t) => (t.id === taskId ? { ...t, ...task } : t)),
-            }
-          : g,
-      ),
-    );
-  };
+  // Task operations
+  const addTask = useCallback(async (goalId: string, task: Omit<Task, "id">) => {
+    try {
+      await tasksMutations.create.mutateAsync({ ...task, goalId });
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to add task:", error);
+    }
+  }, [tasksMutations.create, refreshData]);
 
-  const deleteTask = (goalId: string, taskId: string) => {
-    setGoals((prev) =>
-      prev.map((g) => (g.id === goalId ? { ...g, tasks: g.tasks.filter((t) => t.id !== taskId) } : g)),
-    );
-  };
+  const updateTask = useCallback(async (goalId: string, taskId: string, task: Partial<Task>) => {
+    try {
+      await tasksMutations.update.mutateAsync({ id: taskId, goalId, ...task });
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to update task:", error);
+    }
+  }, [tasksMutations.update, refreshData]);
 
-  const addConnection = (connection: Omit<Connection, "id">) => {
-    const newConnection = { ...connection, id: crypto.randomUUID() };
-    setConnections((prev) => [...prev, newConnection]);
-  };
+  const deleteTask = useCallback(async (goalId: string, taskId: string) => {
+    try {
+      await tasksMutations.delete.mutateAsync({ id: taskId, goalId });
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to delete task:", error);
+    }
+  }, [tasksMutations.delete, refreshData]);
 
-  const updateConnection = (id: string, connection: Partial<Connection>) => {
-    setConnections((prev) => prev.map((c) => (c.id === id ? { ...c, ...connection } : c)));
-  };
+  // Connection operations
+  const addConnection = useCallback(async (connection: Omit<Connection, "id">) => {
+    try {
+      await connectionsMutations.create.mutateAsync(connection);
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to add connection:", error);
+    }
+  }, [connectionsMutations.create, refreshData]);
 
-  const deleteConnection = (id: string) => {
-    setConnections((prev) => prev.filter((c) => c.id !== id));
-  };
+  const updateConnection = useCallback(async (id: string, connection: Partial<Connection>) => {
+    try {
+      await connectionsMutations.update.mutateAsync({ id, ...connection });
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to update connection:", error);
+    }
+  }, [connectionsMutations.update, refreshData]);
 
-  const addWeeklyReview = (review: Omit<WeeklyReview, "id">) => {
-    const newReview = { ...review, id: crypto.randomUUID() };
-    setWeeklyReviews((prev) => [...prev, newReview]);
-  };
+  const deleteConnection = useCallback(async (id: string) => {
+    try {
+      await connectionsMutations.delete.mutateAsync({ id });
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to delete connection:", error);
+    }
+  }, [connectionsMutations.delete, refreshData]);
 
-  const updateWeeklyReview = (id: string, review: Partial<WeeklyReview>) => {
-    setWeeklyReviews((prev) => prev.map((r) => (r.id === id ? { ...r, ...review } : r)));
-  };
+  // Weekly Review operations
+  const addWeeklyReview = useCallback(async (review: Omit<WeeklyReview, "id">) => {
+    try {
+      await weeklyReviewsMutations.create.mutateAsync(review);
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to add weekly review:", error);
+    }
+  }, [weeklyReviewsMutations.create, refreshData]);
 
-  const deleteWeeklyReview = (id: string) => {
-    setWeeklyReviews((prev) => prev.filter((r) => r.id !== id));
-  };
+  const updateWeeklyReview = useCallback(async (id: string, review: Partial<WeeklyReview>) => {
+    try {
+      await weeklyReviewsMutations.update.mutateAsync({ id, ...review });
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to update weekly review:", error);
+    }
+  }, [weeklyReviewsMutations.update, refreshData]);
 
+  const deleteWeeklyReview = useCallback(async (id: string) => {
+    try {
+      await weeklyReviewsMutations.delete.mutateAsync({ id });
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to delete weekly review:", error);
+    }
+  }, [weeklyReviewsMutations.delete, refreshData]);
+
+  // Progress calculation functions (unchanged logic)
   const getGoalCompletion = (goalId: string): number => {
     const goal = goals.find((g) => g.id === goalId);
     if (!goal || goal.tasks.length === 0) return 0;
@@ -434,14 +420,11 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     goals,
     connections,
     weeklyReviews,
-    currentFileName,
-    hasUnsavedChanges,
+    isDataLoading,
     authenticate,
     logout,
     checkAuthentication,
-    openFile,
-    saveFile,
-    saveAsNewFile,
+    refreshData,
     addValue,
     updateValue,
     deleteValue,

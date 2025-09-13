@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background: black;
+    color: white;
+    font-family: var(--font-space-grotesk), sans-serif;
+    overflow-x: hidden;
+  }
+}

@@ -1,5 +1,6 @@
 services:
-  web:
+  app:
+    container_name: goals-app
     build: .
     ports:
       - "14711:80"
@@ -11,6 +12,7 @@ services:
       - db
 
   db:
+    container_name: goals-db
     # Migrate to Postgres 18 when it's stable
     image: postgres:17.6
     restart: unless-stopped

@@ -40,3 +40,6 @@ public/.s3-local/.bucket
 
 # Mac files
 .DS_Store
+
+# Local image files
+uploads

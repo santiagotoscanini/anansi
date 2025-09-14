@@ -28,6 +28,7 @@ import {
   type Connection,
   type WeeklyReview,
 } from "../types";
+import { saveImageToFile, deleteImageFile, isValidBase64Image } from "../../image-upload";
 
 export const goalsRouter = createTRPCRouter({
   // Values operations
@@ -389,5 +390,71 @@ export const goalsRouter = createTRPCRouter({
         weeklyReviews: mappedWeeklyReviews,
       };
     }),
+  }),
+
+  // Image operations
+  images: createTRPCRouter({
+    upload: publicProcedure
+      .input(z.object({
+        base64Data: z.string(),
+        fileName: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        // Validate base64 image
+        if (!isValidBase64Image(input.base64Data)) {
+          throw new Error("Invalid base64 image data");
+        }
+
+        // Save image to file system
+        const result = await saveImageToFile(input.base64Data, input.fileName);
+
+        return {
+          url: result.url,
+          fileName: result.fileName,
+          filePath: result.filePath,
+        };
+      }),
+
+    uploadMultiple: publicProcedure
+      .input(z.object({
+        images: z.array(z.object({
+          base64Data: z.string(),
+          fileName: z.string().optional(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const results = [];
+
+        for (const image of input.images) {
+          // Validate base64 image
+          if (!isValidBase64Image(image.base64Data)) {
+            throw new Error(`Invalid base64 image data for ${image.fileName || "unknown file"}`);
+          }
+
+          // Save image to file system
+          const result = await saveImageToFile(image.base64Data, image.fileName);
+          results.push({
+            url: result.url,
+            fileName: result.fileName,
+            filePath: result.filePath,
+          });
+        }
+
+        return results;
+      }),
+
+    delete: publicProcedure
+      .input(z.object({
+        filePath: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const success = await deleteImageFile(input.filePath);
+
+        if (!success) {
+          throw new Error("Failed to delete image file");
+        }
+
+        return { success: true };
+      }),
   }),
 });

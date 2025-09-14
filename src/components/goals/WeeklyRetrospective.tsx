@@ -3,10 +3,14 @@
 import { useState, useRef } from "react";
 import { Calendar, Plus, Upload, Target, ChevronLeft, ChevronRight, Trash2, Edit2, X } from "lucide-react";
 import { useGoals } from "~/contexts/GoalsContext";
+import { api } from "~/trpc/react";
 import toast from "react-hot-toast";
 
 export default function WeeklyRetrospective() {
   const { weeklyReviews, goals, addWeeklyReview, updateWeeklyReview, deleteWeeklyReview } = useGoals();
+
+  // Image upload mutation
+  const imageUploadMutation = api.goals.images.uploadMultiple.useMutation();
 
   const [selectedWeek, setSelectedWeek] = useState(() => {
     const now = new Date();
@@ -124,23 +128,52 @@ export default function WeeklyRetrospective() {
     }
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files) {
-      const newPhotos: string[] = [];
-      Array.from(files).forEach((file) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          if (reader.result) {
-            newPhotos.push(reader.result as string);
-            if (newPhotos.length === files.length) {
-              setPhotos([...photos, ...newPhotos]);
-              toast.success(`${files.length} photo(s) uploaded`);
+    if (!files || files.length === 0) return;
+
+    try {
+      toast.loading("Uploading photos...", { id: "photo-upload" });
+
+      // Convert files to base64
+      const imagePromises = Array.from(files).map((file) => {
+        return new Promise<{ base64Data: string; fileName: string }>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            if (reader.result) {
+              resolve({
+                base64Data: reader.result as string,
+                fileName: file.name,
+              });
+            } else {
+              reject(new Error("Failed to read file"));
             }
-          }
-        };
-        reader.readAsDataURL(file);
+          };
+          reader.onerror = () => reject(new Error("Failed to read file"));
+          reader.readAsDataURL(file);
+        });
       });
+
+      const imageData = await Promise.all(imagePromises);
+
+      // Upload images to server
+      const uploadResults = await imageUploadMutation.mutateAsync({
+        images: imageData,
+      });
+
+      // Add the file URLs to photos array
+      const newPhotoUrls = uploadResults.map(result => result.url);
+      setPhotos([...photos, ...newPhotoUrls]);
+
+      toast.success(`${files.length} photo(s) uploaded successfully`, { id: "photo-upload" });
+
+      // Clear the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (error) {
+      console.error("Photo upload failed:", error);
+      toast.error("Failed to upload photos", { id: "photo-upload" });
     }
   };
 

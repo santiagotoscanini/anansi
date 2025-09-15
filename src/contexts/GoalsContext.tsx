@@ -18,7 +18,7 @@ interface GoalsContextType {
   weeklyReviews: WeeklyReview[];
   isDataLoading: boolean;
 
-  authenticate: (password: string) => Promise<boolean>;
+  authenticate: (password: string, userName: string) => Promise<boolean>;
   logout: () => void;
   checkAuthentication: () => Promise<void>;
 
@@ -154,9 +154,9 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     setIsDataLoading(dataQuery.isLoading);
   }, [dataQuery.data, dataQuery.isLoading]);
 
-  const authenticate = async (password: string): Promise<boolean> => {
+  const authenticate = async (password: string, userName: string): Promise<boolean> => {
     try {
-      const result = await authMutation.mutateAsync({ password });
+      const result = await authMutation.mutateAsync({ password, userName });
 
       if (result.success && result.token) {
         // Store token in cookie

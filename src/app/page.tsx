@@ -11,20 +11,30 @@ import { api } from "~/trpc/react";
 function GoalsPageContent() {
   const { isAuthenticated, isLoading, authenticate } = useGoals();
   const [password, setPassword] = useState("");
+  const [selectedUser, setSelectedUser] = useState("");
   const [error, setError] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+
+  // Fetch available users
+  const { data: users, isLoading: usersLoading } = api.auth.getUsers.useQuery();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsAuthenticating(true);
 
-    const success = await authenticate(password);
+    if (!selectedUser) {
+      toast.error("Please select a user");
+      setIsAuthenticating(false);
+      return;
+    }
+
+    const success = await authenticate(password, selectedUser);
     if (success) {
-      toast.success("Welcome to your Goals Dashboard!");
+      toast.success(`Welcome to your Goals Dashboard, ${selectedUser}!`);
       setError(false);
     } else {
       setError(true);
-      toast.error("Incorrect password");
+      toast.error("Incorrect password or user not found");
     }
     setPassword("");
     setIsAuthenticating(false);
@@ -65,7 +75,33 @@ function GoalsPageContent() {
             </div>
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+              {/* User Selection */}
               <div>
+                <label className="block text-sm font-light text-white/70 mb-2">Select User</label>
+                {usersLoading ? (
+                  <div className="w-full rounded-lg border border-white/20 bg-transparent px-4 py-3 text-white/50">
+                    Loading users...
+                  </div>
+                ) : (
+                  <select
+                    value={selectedUser}
+                    onChange={(e) => setSelectedUser(e.target.value)}
+                    className="w-full rounded-lg border border-white/20 bg-black px-4 py-3 text-white outline-none transition-all focus:border-white/40"
+                    required
+                  >
+                    <option value="">Choose a user...</option>
+                    {users?.map((user) => (
+                      <option key={user.id} value={user.name} className="bg-black text-white">
+                        {user.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Password Input */}
+              <div>
+                <label className="block text-sm font-light text-white/70 mb-2">Password</label>
                 <input
                   type="password"
                   value={password}
@@ -74,9 +110,9 @@ function GoalsPageContent() {
                   className={`w-full rounded-lg border bg-transparent px-4 py-3 text-white placeholder-white/30 outline-none transition-all ${
                     error ? "border-red-500 focus:border-red-400" : "border-white/20 focus:border-white/40"
                   }`}
-                  autoFocus
+                  required
                 />
-                {error && <p className="mt-2 text-sm text-red-400">Incorrect password. Please try again.</p>}
+                {error && <p className="mt-2 text-sm text-red-400">Incorrect password or user not found. Please try again.</p>}
               </div>
 
               <button

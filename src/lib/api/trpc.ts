@@ -1,6 +1,7 @@
 import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
+import { verifyAuthToken } from "../auth-server";
 
 /**
  * 1. Context
@@ -8,8 +9,27 @@ import { ZodError } from "zod";
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
+  // Extract auth token from cookies
+  const cookies = opts.headers.get("cookie");
+  let user: { userId?: string; userName?: string } = {};
+
+  if (cookies) {
+    const authCookie = cookies
+      .split(";")
+      .find((cookie) => cookie.trim().startsWith("goals-auth="));
+
+    if (authCookie) {
+      const token = authCookie.split("=")[1];
+      const authResult = await verifyAuthToken(token);
+      if (authResult.isValid) {
+        user = { userId: authResult.userId, userName: authResult.userName };
+      }
+    }
+  }
+
   return {
     ...opts,
+    user,
   };
 };
 
@@ -57,3 +77,23 @@ export const createTRPCRouter = trpcBuilder.router;
  * are logged in.
  */
 export const publicProcedure = trpcBuilder.procedure;
+
+/**
+ * Protected (authenticated) procedure
+ *
+ * This is a procedure that requires a user to be authenticated.
+ */
+export const protectedProcedure = trpcBuilder.procedure.use(
+  trpcBuilder.middleware(({ ctx, next }) => {
+    if (!ctx.user.userId) {
+      throw new Error("Unauthorized");
+    }
+
+    return next({
+      ctx: {
+        ...ctx,
+        user: ctx.user as { userId: string; userName: string },
+      },
+    });
+  })
+);

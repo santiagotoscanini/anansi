@@ -10,13 +10,17 @@ export interface ImageUploadResult {
 }
 
 /**
- * Saves a base64 image to the server file system organized by date
+ * Saves a base64 image to the server file system organized by user and date
  * @param base64Data - The base64 image data (with or without data URL prefix)
+ * @param userId - The user ID to organize files by user
+ * @param userName - The user name for directory naming
  * @param originalFileName - Optional original file name for extension detection
  * @returns Promise with file path information
  */
 export async function saveImageToFile(
   base64Data: string,
+  userId: string,
+  userName: string,
   originalFileName?: string
 ): Promise<ImageUploadResult> {
   try {
@@ -41,7 +45,7 @@ export async function saveImageToFile(
       }
     }
 
-    // Create date-based directory structure
+    // Create user and date-based directory structure
     const today = new Date();
     const dateString = today.toISOString().split("T")[0]; // YYYY-MM-DD format
 
@@ -49,13 +53,20 @@ export async function saveImageToFile(
       throw new Error("Failed to generate date string");
     }
 
-    // Define paths
+    // Sanitize user name for directory name
+    const sanitizedUserName = userName.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+    // Define paths - uploads/userId_userName/YYYY-MM-DD/
     const uploadsDir = path.join(process.cwd(), "uploads");
-    const dateDir = path.join(uploadsDir, dateString);
+    const userDir = path.join(uploadsDir, `${userId}_${sanitizedUserName}`);
+    const dateDir = path.join(userDir, dateString);
 
     // Ensure directories exist
     if (!existsSync(uploadsDir)) {
       await mkdir(uploadsDir, { recursive: true });
+    }
+    if (!existsSync(userDir)) {
+      await mkdir(userDir, { recursive: true });
     }
     if (!existsSync(dateDir)) {
       await mkdir(dateDir, { recursive: true });
@@ -70,7 +81,7 @@ export async function saveImageToFile(
     await writeFile(filePath, buffer);
 
     // Return path information
-    const relativePath = path.join("uploads", dateString, fileName);
+    const relativePath = path.join("uploads", `${userId}_${sanitizedUserName}`, dateString, fileName);
     const url = `/${relativePath.replace(/\\/g, "/")}`; // Ensure forward slashes for URLs
 
     return {

@@ -2,6 +2,16 @@ import { pgTable, text, integer, real, boolean, timestamp, json } from "drizzle-
 import { relations } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 
+// Users table
+export const users = pgTable("users", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Values table
 export const values = pgTable("values", {
   id: text("id")
@@ -9,6 +19,9 @@ export const values = pgTable("values", {
     .$defaultFn(() => createId()),
   name: text("name").notNull(),
   color: text("color").notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -24,6 +37,9 @@ export const goals = pgTable("goals", {
   parentId: text("parent_id"),
   positionX: real("position_x").notNull(),
   positionY: real("position_y").notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -68,6 +84,9 @@ export const weeklyReviews = pgTable("weekly_reviews", {
   notes: text("notes").notNull(),
   photos: json("photos").$type<string[]>().notNull().default([]),
   categories: json("categories").$type<string[]>().notNull().default([]),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -101,11 +120,25 @@ export const weeklyReviewGoals = pgTable("weekly_review_goals", {
 });
 
 // Relations
-export const valuesRelations = relations(values, ({ many }) => ({
+export const usersRelations = relations(users, ({ many }) => ({
+  values: many(values),
+  goals: many(goals),
+  weeklyReviews: many(weeklyReviews),
+}));
+
+export const valuesRelations = relations(values, ({ one, many }) => ({
+  user: one(users, {
+    fields: [values.userId],
+    references: [users.id],
+  }),
   goalValues: many(goalValues),
 }));
 
 export const goalsRelations = relations(goals, ({ one, many }) => ({
+  user: one(users, {
+    fields: [goals.userId],
+    references: [users.id],
+  }),
   parent: one(goals, {
     fields: [goals.parentId],
     references: [goals.id],
@@ -142,7 +175,11 @@ export const connectionsRelations = relations(connections, ({ one }) => ({
   }),
 }));
 
-export const weeklyReviewsRelations = relations(weeklyReviews, ({ many }) => ({
+export const weeklyReviewsRelations = relations(weeklyReviews, ({ one, many }) => ({
+  user: one(users, {
+    fields: [weeklyReviews.userId],
+    references: [users.id],
+  }),
   weeklyReviewGoals: many(weeklyReviewGoals),
 }));
 

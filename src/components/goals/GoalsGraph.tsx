@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState, useEffect } from "react";
-import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState } from "@xyflow/react";
+import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, getOutgoers } from "@xyflow/react";
 import type { Connection, Edge, Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Plus, Target } from "lucide-react";
@@ -67,27 +67,63 @@ export default function GoalsGraph() {
     setEdges(newEdges);
   }, [connections, selectedEdges, setEdges]);
 
+  // Validate connection to prevent cycles and duplicates
+  const isValidConnection = useCallback(
+    (connection: Connection | Edge) => {
+      if (!connection.source || !connection.target) {
+        return false;
+      }
+
+      // Prevent self-connections
+      if (connection.source === connection.target) {
+        return false;
+      }
+
+      // Check if connection already exists
+      const exists = edges.some((edge) => edge.source === connection.source && edge.target === connection.target);
+      if (exists) {
+        return false;
+      }
+
+      // Find the target node
+      const target = nodes.find((node) => node.id === connection.target);
+      if (!target) return false;
+
+      // Cycle detection using DFS
+      const hasCycle = (node: Node, visited = new Set<string>()) => {
+        if (visited.has(node.id)) return false;
+
+        visited.add(node.id);
+
+        for (const outgoer of getOutgoers(node, nodes, edges)) {
+          if (outgoer.id === connection.source) return true;
+          if (hasCycle(outgoer, visited)) return true;
+        }
+
+        return false;
+      };
+
+      return !hasCycle(target);
+    },
+    [nodes, edges],
+  );
+
   const onConnect = useCallback(
     (params: Connection) => {
       if (params.source && params.target) {
-        // Check if connection already exists
-        const exists = connections.some((c) => c.source === params.source && c.target === params.target);
-
-        if (!exists) {
-          addConnection({
-            source: params.source,
-            target: params.target,
-            weight: 1,
-          });
-          toast.success("Goals connected");
-        }
+        addConnection({
+          source: params.source,
+          target: params.target,
+          weight: 1,
+        });
+        toast.success("Goals connected");
       }
     },
-    [connections, addConnection],
+    [addConnection],
   );
 
   const onNodeDragStop = useCallback(
-    (event: React.MouseEvent, node: Node) => {
+    (_event: React.MouseEvent, node: Node) => {
       updateGoal(node.id, { position: node.position });
     },
     [updateGoal],
@@ -237,6 +273,7 @@ export default function GoalsGraph() {
           onNodeDragStop={onNodeDragStop}
           onEdgesDelete={onEdgeDelete}
           onSelectionChange={onSelectionChange}
+          isValidConnection={isValidConnection}
           nodeTypes={nodeTypes}
           fitView
           proOptions={{ hideAttribution: true }}

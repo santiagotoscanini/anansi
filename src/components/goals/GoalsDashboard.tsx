@@ -40,81 +40,71 @@ export default function GoalsDashboard() {
   const activeTabComponent = tabs.find((tab) => tab.id === activeTab)?.component;
 
   return (
-    <div className="min-h-screen bg-black">
+    <main className="min-h-screen bg-black text-white">
       <Toaster position="top-right" />
 
       {/* Header */}
-      <div className="border-b border-slate-700 bg-slate-800/90 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Link
-                href="/"
-                className="flex items-center text-slate-300 hover:text-white transition-colors mr-8"
-              >
-                <ArrowLeft className="h-5 w-5 mr-2" />
-                Back to Home
-              </Link>
-              <h1 className="text-xl font-bold text-white">Goals Dashboard</h1>
-            </div>
+      <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/10 bg-black/80 backdrop-blur-md">
+        <div className="flex items-center justify-between px-8 py-4">
+          <div className="flex items-center gap-8">
+            <Link href="/" className="mr-8 flex items-center text-slate-300 transition-colors hover:text-white">
+              <ArrowLeft className="mr-2 h-5 w-5" />
+              Back to Home
+            </Link>
+            <h1 className="text-xl font-light">Goals Dashboard</h1>
+          </div>
 
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={handleRefresh}
-                disabled={isDataLoading}
-                className="flex items-center px-3 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isDataLoading ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={isDataLoading}
+              className="flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 text-sm transition-all hover:bg-white hover:text-black"
+            >
+              <RefreshCw className={`h-4 w-4 ${isDataLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
 
-              <button
-                onClick={handleLogout}
-                className="flex items-center px-3 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </button>
-            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 text-sm transition-all hover:bg-white hover:text-black"
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </button>
           </div>
         </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Tab Navigation */}
-        <div className="flex space-x-1 bg-slate-800/50 p-1 rounded-lg mb-8">
+        {/* Main Content */}
+        <div className="flex gap-1 border-t border-white/10 px-8">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                  activeTab === tab.id
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "text-slate-300 hover:text-white hover:bg-slate-700"
+                className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm transition-all ${
+                  activeTab === tab.id ? "border-white text-white" : "border-transparent text-white/60 hover:text-white"
                 }`}
               >
-                <Icon className="h-4 w-4 mr-2" />
+                <Icon className="mr-2 h-4" />
                 {tab.name}
               </button>
             );
           })}
         </div>
+      </header>
 
-        {/* Tab Content */}
-        <div className="bg-slate-800/30 rounded-lg border border-slate-700 overflow-hidden">
-          {isDataLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <RefreshCw className="h-8 w-8 animate-spin text-blue-400" />
-              <span className="ml-3 text-slate-300">Loading data...</span>
-            </div>
-          ) : (
-            activeTabComponent
-          )}
-        </div>
+      {/* Tab Content */}
+      <div className="pt-28">
+        {isDataLoading ? (
+          <div className="flex h-64 items-center justify-center">
+            <RefreshCw className="h-8 w-8 animate-spin text-blue-400" />
+            <span className="ml-3 text-slate-300">Loading data...</span>
+          </div>
+        ) : (
+          activeTabComponent
+        )}
       </div>
-    </div>
+    </main>
   );
 }

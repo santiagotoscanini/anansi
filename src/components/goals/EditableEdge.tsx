@@ -4,13 +4,11 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from "@xyflow/react";
 import { useGoals } from "~/contexts/GoalsContext";
 
-const DEFAULT_WEIGHT = 100;
+const DEFAULT_WEIGHT = 1;
 
 // Calculate the total percentage for all connections to a specific target
 const getTargetPercentageSum = (targetId: string, connections: any[]) => {
-  return connections
-    .filter(conn => conn.target === targetId)
-    .reduce((sum, conn) => sum + (conn.weight || 0), 0);
+  return connections.filter((conn) => conn.target === targetId).reduce((sum, conn) => sum + (conn.weight || 0), 0);
 };
 
 // Get validation color based on percentage sum
@@ -25,9 +23,9 @@ const lightenColor = (hex: string, amount: number) => {
   const color = hex.replace("#", "");
   const num = parseInt(color, 16);
   const r = Math.min(255, Math.floor((num >> 16) + (255 - (num >> 16)) * amount));
-  const g = Math.min(255, Math.floor(((num >> 8) & 0x00FF) + (255 - ((num >> 8) & 0x00FF)) * amount));
-  const b = Math.min(255, Math.floor((num & 0x0000FF) + (255 - (num & 0x0000FF)) * amount));
-  return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, '0')}`;
+  const g = Math.min(255, Math.floor(((num >> 8) & 0x00ff) + (255 - ((num >> 8) & 0x00ff)) * amount));
+  const b = Math.min(255, Math.floor((num & 0x0000ff) + (255 - (num & 0x0000ff)) * amount));
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
 };
 
 export default function EditableEdge({

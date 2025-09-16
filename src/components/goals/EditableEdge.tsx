@@ -6,6 +6,20 @@ import { useGoals } from "~/contexts/GoalsContext";
 
 const DEFAULT_WEIGHT = 100;
 
+// Calculate the total percentage for all connections to a specific target
+const getTargetPercentageSum = (targetId: string, connections: any[]) => {
+  return connections
+    .filter(conn => conn.target === targetId)
+    .reduce((sum, conn) => sum + (conn.weight || 0), 0);
+};
+
+// Get validation color based on percentage sum
+const getValidationColor = (percentageSum: number) => {
+  if (percentageSum === 100) return "#999"; // Normal gray
+  if (percentageSum < 100) return "#eab308"; // Yellow for under 100%
+  return "#ef4444"; // Red for over 100%
+};
+
 export default function EditableEdge({
   id,
   sourceX,
@@ -28,6 +42,10 @@ export default function EditableEdge({
 
   const { updateConnection, connections } = useGoals();
   const connection = connections.find((conn) => conn.id === id);
+
+  // Calculate validation color based on target percentage sum
+  const targetPercentageSum = connection ? getTargetPercentageSum(connection.target, connections) : 0;
+  const validationColor = getValidationColor(targetPercentageSum);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(connection?.weight || DEFAULT_WEIGHT);
@@ -78,9 +96,15 @@ export default function EditableEdge({
     handleInputSubmit();
   }, [handleInputSubmit]);
 
+  // Use validation color regardless of selection state
+  const edgeStyle = {
+    ...style,
+    stroke: validationColor,
+  };
+
   return (
     <>
-      <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />
+      <BaseEdge path={edgePath} markerEnd={markerEnd} style={edgeStyle} />
       <EdgeLabelRenderer>
         <div
           className="nodrag nopan pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 transform"
@@ -104,7 +128,7 @@ export default function EditableEdge({
               className="flex h-6 min-w-[20px] cursor-pointer items-center justify-center rounded border border-white/20 bg-black/80 px-2 text-xs font-medium text-white transition-colors hover:border-white/40"
               title="Click to edit"
             >
-              {connection?.weight || DEFAULT_WEIGHT}
+              {connection?.weight || DEFAULT_WEIGHT}%
             </div>
           )}
         </div>

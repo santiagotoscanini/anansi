@@ -64,7 +64,6 @@ export default function GoalsGraph() {
       selectable: true,
       style: {
         strokeWidth: 2,
-        stroke: selectedEdges.includes(conn.id) ? "#ffffff" : "#999",
         cursor: "pointer",
       },
       type: "editableEdge",

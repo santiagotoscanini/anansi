@@ -248,22 +248,6 @@ export default function GoalsGraph() {
           <span className="ml-1 text-xs opacity-60">(Ctrl+G)</span>
         </button>
 
-        {/* Legend */}
-        <div className="absolute right-8 top-8 z-10 space-y-2 rounded-lg border border-white/20 bg-black/80 p-4 text-xs">
-          <div className="font-semibold">Goal Completion</div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-red-500" />
-            <span>0-33%</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-yellow-500" />
-            <span>34-66%</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-green-500" />
-            <span>67-100%</span>
-          </div>
-        </div>
 
         {/* React Flow Graph */}
         <ReactFlow

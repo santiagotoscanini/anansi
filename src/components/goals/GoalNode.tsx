@@ -23,14 +23,17 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
 
   // Calculate goal difficulty based on tasks
   const calculateDifficulty = () => {
-    if (data.tasks.length === 0) return "easy";
+    if (data.tasks.length === 0) return { level: "easy", average: 1 };
 
     const totalDifficulty = data.tasks.reduce((sum, task) => sum + task.difficulty, 0);
     const averageDifficulty = totalDifficulty / data.tasks.length;
 
-    if (averageDifficulty < 1.5) return "easy";
-    if (averageDifficulty >= 1.5 && averageDifficulty < 2.5) return "medium";
-    return "hard";
+    let level: "easy" | "medium" | "hard";
+    if (averageDifficulty < 1.5) level = "easy";
+    else if (averageDifficulty >= 1.5 && averageDifficulty < 2.5) level = "medium";
+    else level = "hard";
+
+    return { level, average: averageDifficulty };
   };
 
   const difficulty = calculateDifficulty();
@@ -38,13 +41,33 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
   // Get importance from stored data
   const importance = data.importance || "Low";
 
-  // Difficulty display component
-  const DifficultyInfo = () => (
-    <div className="mt-1 flex items-center gap-2">
-      <span className="w-8 text-[9px] text-white/40">Diff</span>
-      <span className="text-[9px] capitalize text-white/60">{difficulty}</span>
-    </div>
-  );
+  // Difficulty display component with colored bar
+  const DifficultyInfo = () => {
+    const getDifficultyColor = () => {
+      switch (difficulty.level) {
+        case "easy": return "bg-green-500";
+        case "medium": return "bg-yellow-500";
+        case "hard": return "bg-red-500";
+        default: return "bg-gray-500";
+      }
+    };
+
+    // Calculate bar width based on difficulty average (1-3 scale, convert to percentage)
+    const barWidth = Math.min(100, Math.max(0, (difficulty.average / 3) * 100));
+
+    return (
+      <div className="mt-1 flex items-center gap-2">
+        <span className="w-8 text-[9px] text-white/40">Diff</span>
+        <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+          <div
+            className={`h-full ${getDifficultyColor()} transition-all`}
+            style={{ width: `${barWidth}%` }}
+          />
+        </div>
+        <span className="w-8 text-right text-[9px] text-white/60">{difficulty.average.toFixed(1)}</span>
+      </div>
+    );
+  };
 
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent node selection
@@ -53,10 +76,14 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
     }
   };
 
-  const getCompletionColor = (percent: number) => {
-    if (percent < 33) return "border-red-500 bg-red-500/10";
-    if (percent < 67) return "border-yellow-500 bg-yellow-500/10";
-    return "border-green-500 bg-green-500/10";
+  // Get importance-based colors
+  const getImportanceColor = () => {
+    switch (importance) {
+      case "High": return "border-red-500 bg-red-500/10";
+      case "Medium": return "border-yellow-500 bg-yellow-500/10";
+      case "Low": return "border-gray-500 bg-gray-500/10";
+      default: return "border-gray-500 bg-gray-500/10";
+    }
   };
 
   const getProgressBarColor = (percent: number) => {
@@ -67,7 +94,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
 
   return (
     <div
-      className={`relative min-w-[200px] max-w-[300px] rounded-lg border-2 p-4 transition-all hover:shadow-lg ${getCompletionColor(completion)} ${
+      className={`relative min-w-[200px] max-w-[300px] rounded-lg border-2 p-4 transition-all hover:shadow-lg ${getImportanceColor()} ${
         selected ? "ring-2 ring-white ring-offset-2 ring-offset-black" : ""
       }`}
     >

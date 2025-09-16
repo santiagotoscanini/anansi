@@ -8,6 +8,7 @@ import { Plus, Target } from "lucide-react";
 import { useGoals, type Goal } from "~/contexts/GoalsContext";
 import GoalNodeComponent from "./GoalNode";
 import GoalModal from "./GoalModal";
+import EditableEdge from "./EditableEdge";
 import toast from "react-hot-toast";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -15,6 +16,10 @@ type GoalNode = Node<any>;
 
 const nodeTypes = {
   goalNode: GoalNodeComponent,
+};
+
+const edgeTypes = {
+  editableEdge: EditableEdge,
 };
 
 export default function GoalsGraph() {
@@ -58,11 +63,11 @@ export default function GoalsGraph() {
       selected: selectedEdges.includes(conn.id),
       selectable: true,
       style: {
-        strokeWidth: conn.weight * 2,
+        strokeWidth: 2,
         stroke: selectedEdges.includes(conn.id) ? "#ffffff" : "#999",
         cursor: "pointer",
       },
-      type: "default",
+      type: "editableEdge",
     }));
     setEdges(newEdges);
   }, [connections, selectedEdges, setEdges]);
@@ -275,6 +280,7 @@ export default function GoalsGraph() {
           onSelectionChange={onSelectionChange}
           isValidConnection={isValidConnection}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           fitView
           proOptions={{ hideAttribution: true }}
           className="bg-black"

@@ -1,15 +1,15 @@
 services:
-  app:
-    container_name: goals-app
-    build: .
-    ports:
-      - "14711:80"
-    volumes:
-      - ./src:/app/src
-    environment:
-      - DATABASE_URL=postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:${DB_PORT:-15822}/${DB_NAME:-goals_db}
-    depends_on:
-      - db
+  # app:
+  #   container_name: goals-app
+  #   build: .
+  #   ports:
+  #     - "14711:80"
+  #   volumes:
+  #     - ./src:/app/src
+  #   environment:
+  #     - DATABASE_URL=postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:${DB_PORT:-15822}/${DB_NAME:-goals_db}
+  #   depends_on:
+  #     - db
 
   db:
     container_name: goals-db

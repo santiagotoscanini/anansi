@@ -20,6 +20,16 @@ const getValidationColor = (percentageSum: number) => {
   return "#ef4444"; // Red for over 100%
 };
 
+// Lighten a hex color by a given amount (0-1, where 1 is white)
+const lightenColor = (hex: string, amount: number) => {
+  const color = hex.replace("#", "");
+  const num = parseInt(color, 16);
+  const r = Math.min(255, Math.floor((num >> 16) + (255 - (num >> 16)) * amount));
+  const g = Math.min(255, Math.floor(((num >> 8) & 0x00FF) + (255 - ((num >> 8) & 0x00FF)) * amount));
+  const b = Math.min(255, Math.floor((num & 0x0000FF) + (255 - (num & 0x0000FF)) * amount));
+  return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, '0')}`;
+};
+
 export default function EditableEdge({
   id,
   sourceX,
@@ -30,6 +40,7 @@ export default function EditableEdge({
   targetPosition,
   style = {},
   markerEnd,
+  selected = false,
 }: EdgeProps) {
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -96,10 +107,11 @@ export default function EditableEdge({
     handleInputSubmit();
   }, [handleInputSubmit]);
 
-  // Use validation color regardless of selection state
+  // Use lighter color when selected, normal validation color otherwise
+  const edgeColor = selected ? lightenColor(validationColor, 0.4) : validationColor;
   const edgeStyle = {
     ...style,
-    stroke: validationColor,
+    stroke: edgeColor,
   };
 
   return (

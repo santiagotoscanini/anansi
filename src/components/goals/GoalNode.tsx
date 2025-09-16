@@ -13,27 +13,49 @@ interface GoalNodeProps {
 const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
   const { values, getGoalProgress, connections } = useGoals();
   const associatedValues = values.filter((v) => data.valueIds?.includes(v.id));
-  
+
   // Get all progress data from single source
   const progress = getGoalProgress(data.id);
   const completion = progress.totalProgress;
   const ownCompletion = progress.ownProgress;
   const predecessorAverage = progress.dependenciesProgress;
-  const hasPredecessors = connections.some(c => c.target === data.id);
-  
+  const hasPredecessors = connections.some((c) => c.target === data.id);
+
+  // Calculate goal difficulty based on tasks
+  const calculateDifficulty = () => {
+    if (data.tasks.length === 0) return "easy";
+
+    const totalDifficulty = data.tasks.reduce((sum, task) => sum + task.difficulty, 0);
+    const averageDifficulty = totalDifficulty / data.tasks.length;
+
+    if (averageDifficulty < 1.5) return "easy";
+    if (averageDifficulty >= 1.5 && averageDifficulty < 2.5) return "medium";
+    return "hard";
+  };
+
+  const difficulty = calculateDifficulty();
+
+  // Difficulty display component
+  const DifficultyInfo = () => (
+    <div className="mt-1 flex items-center gap-2">
+      <span className="w-8 text-[9px] text-white/40">Diff</span>
+      <span className="text-[9px] capitalize text-white/60">{difficulty}</span>
+    </div>
+  );
+
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent node selection
     if (data.onEdit) {
       data.onEdit();
     }
   };
-  
+
   const getCompletionColor = (percent: number) => {
     if (percent < 33) return "border-red-500 bg-red-500/10";
     if (percent < 67) return "border-yellow-500 bg-yellow-500/10";
     return "border-green-500 bg-green-500/10";
   };
-  
+
   const getProgressBarColor = (percent: number) => {
     if (percent < 33) return "bg-red-500";
     if (percent < 67) return "bg-yellow-500";
@@ -43,24 +65,12 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
   return (
     <div
       className={`relative min-w-[200px] max-w-[300px] rounded-lg border-2 p-4 transition-all hover:shadow-lg ${getCompletionColor(completion)} ${
-        selected ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''
+        selected ? "ring-2 ring-white ring-offset-2 ring-offset-black" : ""
       }`}
     >
-      <Handle 
-        type="target" 
-        position={Position.Left} 
-        id="left"
-        className="!bg-white/50" 
-        style={{ top: '50%' }}
-      />
-      <Handle 
-        type="source" 
-        position={Position.Right} 
-        id="right"
-        className="!bg-white/50" 
-        style={{ top: '50%' }}
-      />
-      
+      <Handle type="target" position={Position.Left} id="left" className="!bg-white/50" style={{ top: "50%" }} />
+      <Handle type="source" position={Position.Right} id="right" className="!bg-white/50" style={{ top: "50%" }} />
+
       {/* Value Dots at the top - Expand on hover */}
       {associatedValues.length > 0 && (
         <div className="group absolute -top-3 left-4 right-4 flex justify-center">
@@ -73,7 +83,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
                 style={{ backgroundColor: value.color }}
               />
             ))}
-            
+
             {/* Expanded names tooltip on hover */}
             <div className="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
               <div className="flex flex-wrap gap-1 rounded-lg bg-black/90 p-2 shadow-lg">
@@ -91,7 +101,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
           </div>
         </div>
       )}
-      
+
       {/* Goal Icon, Importance and Edit Button */}
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -100,34 +110,28 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
           ) : (
             <Target className="h-5 w-5 text-white/60" />
           )}
-          <span className="text-xs text-white/60">
-            Importance: {data.importance}/10
-          </span>
+          <span className="text-xs text-white/60">Importance: {data.importance}/10</span>
         </div>
         <button
           onClick={handleEditClick}
-          className="opacity-60 hover:opacity-100 transition-opacity p-1 rounded hover:bg-white/10"
+          className="rounded p-1 opacity-60 transition-opacity hover:bg-white/10 hover:opacity-100"
           title="Edit goal"
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
       </div>
-      
+
       {/* Title */}
       <h3 className="mb-2 font-semibold text-white">{data.title}</h3>
-      
+
       {/* Description */}
-      {data.description && (
-        <p className="mb-3 text-xs text-white/70 line-clamp-2">
-          {data.description}
-        </p>
-      )}
-      
+      {data.description && <p className="mb-3 line-clamp-2 text-xs text-white/70">{data.description}</p>}
+
       {/* Tasks Summary */}
       <div className="mb-2 text-xs text-white/60">
         Tasks: {data.tasks.filter((t) => t.completed).length}/{data.tasks.length}
       </div>
-      
+
       {/* Progress Bar */}
       {hasPredecessors ? (
         <div className="space-y-1">
@@ -135,42 +139,44 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
           <div className="space-y-1">
             {/* Own progress */}
             <div className="flex items-center gap-2">
-              <span className="text-[9px] text-white/40 w-8">Own</span>
-              <div className="flex-1 relative h-1.5 overflow-hidden rounded-full bg-white/10">
+              <span className="w-8 text-[9px] text-white/40">Own</span>
+              <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
                 <div
                   className={`h-full transition-all ${getProgressBarColor(ownCompletion)}`}
                   style={{ width: `${ownCompletion}%` }}
                 />
               </div>
-              <span className="text-[9px] text-white/60 w-8 text-right">{Math.round(ownCompletion)}%</span>
+              <span className="w-8 text-right text-[9px] text-white/60">{Math.round(ownCompletion)}%</span>
             </div>
             {/* Dependencies progress */}
             <div className="flex items-center gap-2">
-              <span className="text-[9px] text-white/40 w-8">Deps</span>
-              <div className="flex-1 relative h-1.5 overflow-hidden rounded-full bg-white/10">
+              <span className="w-8 text-[9px] text-white/40">Deps</span>
+              <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
                 <div
-                  className={`h-full transition-all opacity-70 ${getProgressBarColor(predecessorAverage)}`}
+                  className={`h-full opacity-70 transition-all ${getProgressBarColor(predecessorAverage)}`}
                   style={{ width: `${Math.min(100, Math.max(0, predecessorAverage))}%` }}
                 />
               </div>
-              <span className="text-[9px] text-white/60 w-8 text-right">{Math.round(predecessorAverage)}%</span>
+              <span className="w-8 text-right text-[9px] text-white/60">{Math.round(predecessorAverage)}%</span>
             </div>
+            <DifficultyInfo />
           </div>
         </div>
       ) : (
-        /* Simple progress bar for goals without predecessors */
-        <div className="relative h-2 overflow-hidden rounded-full bg-white/10">
-          <div
-            className={`h-full transition-all ${getProgressBarColor(completion)}`}
-            style={{ width: `${completion}%` }}
-          />
+        <div className="space-y-1">
+          {/* Simple progress bar for goals without predecessors */}
+          <div className="relative h-2 overflow-hidden rounded-full bg-white/10">
+            <div
+              className={`h-full transition-all ${getProgressBarColor(completion)}`}
+              style={{ width: `${completion}%` }}
+            />
+          </div>
+          <DifficultyInfo />
         </div>
       )}
-      
+
       {/* Completion Percentage */}
-      <div className="mt-2 text-center text-xs font-semibold text-white">
-        {Math.round(completion)}% Complete
-      </div>
+      <div className="mt-2 text-center text-xs font-semibold text-white">{Math.round(completion)}% Complete</div>
     </div>
   );
 });

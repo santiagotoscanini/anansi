@@ -95,9 +95,9 @@ export const goalsRouter = createTRPCRouter({
         id: goal.id,
         title: goal.title,
         description: goal.description,
-        importance: goal.importance,
         parentId: goal.parentId || undefined,
         position: { x: goal.positionX, y: goal.positionY },
+        importance: goal.importance,
         valueIds: goalValuesData
           .filter(item => item.goal_values.goalId === goal.id)
           .map(item => item.goal_values.valueId),
@@ -451,9 +451,9 @@ export const goalsRouter = createTRPCRouter({
         id: goal.id,
         title: goal.title,
         description: goal.description,
-        importance: goal.importance,
         parentId: goal.parentId || undefined,
         position: { x: goal.positionX, y: goal.positionY },
+        importance: goal.importance,
         valueIds: goalValuesData
           .filter(item => item.goal_values.goalId === goal.id)
           .map(item => item.goal_values.valueId),

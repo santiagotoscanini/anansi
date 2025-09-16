@@ -47,6 +47,7 @@ interface GoalsContextType {
   getGoalCompletion: (goalId: string) => number;
   getPathCompletion: (goalId: string) => number;
   getGoalProgress: (goalId: string) => { ownProgress: number; dependenciesProgress: number; totalProgress: number };
+  calculateImportance: (goalId: string) => "Low" | "Medium" | "High";
 }
 
 const GoalsContext = createContext<GoalsContextType | undefined>(undefined);
@@ -226,10 +227,28 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     }
   }, [valuesMutations.delete, refreshData]);
 
+  // Calculate importance based on outgoing edge weights
+  const calculateImportance = useCallback((goalId: string): "Low" | "Medium" | "High" => {
+    const outgoingConnections = connections.filter(c => c.source === goalId);
+
+    if (outgoingConnections.length === 0) return "Low";
+
+    const totalWeight = outgoingConnections.reduce((sum, conn) => sum + conn.weight, 0);
+    const averageWeight = totalWeight / outgoingConnections.length;
+
+    if (averageWeight <= 33.3) return "Low";
+    if (averageWeight < 66.6) return "Medium";
+    return "High"; // averageWeight <= 100
+  }, [connections]);
+
   // Goal operations
   const addGoal = useCallback(async (goal: Omit<Goal, "id">) => {
     try {
-      await goalsMutations.create.mutateAsync(goal);
+      const goalWithImportance = {
+        ...goal,
+        importance: "Low" as const // Default importance for new goals
+      };
+      await goalsMutations.create.mutateAsync(goalWithImportance);
       await refreshData();
     } catch (error) {
       console.error("Failed to add goal:", error);
@@ -238,12 +257,16 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
 
   const updateGoal = useCallback(async (id: string, goal: Partial<Goal>) => {
     try {
-      await goalsMutations.update.mutateAsync({ id, ...goal });
+      const goalWithImportance = {
+        ...goal,
+        importance: calculateImportance(id)
+      };
+      await goalsMutations.update.mutateAsync({ id, ...goalWithImportance });
       await refreshData();
     } catch (error) {
       console.error("Failed to update goal:", error);
     }
-  }, [goalsMutations.update, refreshData]);
+  }, [goalsMutations.update, refreshData, calculateImportance]);
 
   const deleteGoal = useCallback(async (id: string) => {
     try {
@@ -287,28 +310,46 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     try {
       await connectionsMutations.create.mutateAsync(connection);
       await refreshData();
+      // Update importance for the source goal after creating connection
+      const sourceImportance = calculateImportance(connection.source);
+      await goalsMutations.update.mutateAsync({ id: connection.source, importance: sourceImportance });
+      await refreshData();
     } catch (error) {
       console.error("Failed to add connection:", error);
     }
-  }, [connectionsMutations.create, refreshData]);
+  }, [connectionsMutations.create, refreshData, calculateImportance, goalsMutations.update]);
 
   const updateConnection = useCallback(async (id: string, connection: Partial<Connection>) => {
     try {
       await connectionsMutations.update.mutateAsync({ id, ...connection });
       await refreshData();
+      // Update importance for the source goal after updating connection
+      const existingConnection = connections.find(c => c.id === id);
+      if (existingConnection) {
+        const sourceImportance = calculateImportance(existingConnection.source);
+        await goalsMutations.update.mutateAsync({ id: existingConnection.source, importance: sourceImportance });
+        await refreshData();
+      }
     } catch (error) {
       console.error("Failed to update connection:", error);
     }
-  }, [connectionsMutations.update, refreshData]);
+  }, [connectionsMutations.update, refreshData, connections, calculateImportance, goalsMutations.update]);
 
   const deleteConnection = useCallback(async (id: string) => {
     try {
+      const existingConnection = connections.find(c => c.id === id);
       await connectionsMutations.delete.mutateAsync({ id });
       await refreshData();
+      // Update importance for the source goal after deleting connection
+      if (existingConnection) {
+        const sourceImportance = calculateImportance(existingConnection.source);
+        await goalsMutations.update.mutateAsync({ id: existingConnection.source, importance: sourceImportance });
+        await refreshData();
+      }
     } catch (error) {
       console.error("Failed to delete connection:", error);
     }
-  }, [connectionsMutations.delete, refreshData]);
+  }, [connectionsMutations.delete, refreshData, connections, calculateImportance, goalsMutations.update]);
 
   // Weekly Review operations
   const addWeeklyReview = useCallback(async (review: Omit<WeeklyReview, "id">) => {
@@ -389,7 +430,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       if (predGoal) {
         // Recursively get the total progress of the predecessor
         const predProgress = getGoalProgress(conn.source).totalProgress;
-        const weight = (conn.weight || 1) * (predGoal.importance || 5);
+        const weight = (conn.weight || 1);
         totalPredWeight += weight;
         weightedPredCompletion += predProgress * weight;
       }
@@ -443,6 +484,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     getGoalCompletion,
     getPathCompletion,
     getGoalProgress,
+    calculateImportance,
   };
 
   return <GoalsContext.Provider value={contextValue}>{children}</GoalsContext.Provider>;

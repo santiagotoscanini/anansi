@@ -35,6 +35,9 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
 
   const difficulty = calculateDifficulty();
 
+  // Get importance from stored data
+  const importance = data.importance || "Low";
+
   // Difficulty display component
   const DifficultyInfo = () => (
     <div className="mt-1 flex items-center gap-2">
@@ -110,7 +113,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
           ) : (
             <Target className="h-5 w-5 text-white/60" />
           )}
-          <span className="text-xs text-white/60">Importance: {data.importance}/10</span>
+          <span className="text-xs text-white/60">Importance: {importance}</span>
         </div>
         <button
           onClick={handleEditClick}

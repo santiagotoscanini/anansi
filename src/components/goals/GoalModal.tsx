@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Trash2, Square, CheckSquare, Star, Check, Edit2 } from "lucide-react";
+import { X, Trash2, Square, CheckSquare, Check, Edit2 } from "lucide-react";
 import { useGoals, type Task } from "~/contexts/GoalsContext";
 import toast from "react-hot-toast";
 
@@ -19,7 +19,6 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
   const [title, setTitle] = useState(existingGoal?.title ?? "");
   const [description, setDescription] = useState(existingGoal?.description ?? "");
   const [valueIds, setValueIds] = useState<string[]>(existingGoal?.valueIds ?? []);
-  const [importance, setImportance] = useState(existingGoal?.importance ?? 5);
   const [tasks, setTasks] = useState<Task[]>(goalId ? [] : []);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -40,7 +39,6 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
         title,
         description,
         valueIds,
-        importance,
       });
       toast.success("Goal updated successfully");
     } else {
@@ -49,9 +47,9 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
         title,
         description,
         valueIds,
-        importance,
         tasks,
         position: { x: 250, y: 250 },
+        importance: "Low" as const, // Default importance for new goals
       });
       toast.success("Goal created successfully");
     }
@@ -244,28 +242,6 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
             </div>
           </div>
 
-          {/* Importance */}
-          <div>
-            <label className="mb-2 block text-sm text-white/60">Importance: {importance}/10</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="range"
-                min="1"
-                max="10"
-                value={importance}
-                onChange={(e) => setImportance(parseInt(e.target.value))}
-                className="flex-1"
-              />
-              <div className="flex gap-1">
-                {Array.from({ length: importance }, (_, i) => (
-                  <Star key={i} className="h-4 w-4 fill-yellow-500 text-yellow-500" />
-                ))}
-                {Array.from({ length: 10 - importance }, (_, i) => (
-                  <Star key={i} className="h-4 w-4 text-white/20" />
-                ))}
-              </div>
-            </div>
-          </div>
 
           {/* Tasks Section */}
           <div>

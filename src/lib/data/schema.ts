@@ -1,6 +1,9 @@
-import { pgTable, text, integer, real, boolean, timestamp, json } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, real, boolean, timestamp, json, pgEnum } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
+
+// Enums
+export const importanceEnum = pgEnum("importance", ["Low", "Medium", "High"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -33,10 +36,10 @@ export const goals = pgTable("goals", {
     .$defaultFn(() => createId()),
   title: text("title").notNull(),
   description: text("description").notNull(),
-  importance: integer("importance").notNull(),
   parentId: text("parent_id"),
   positionX: real("position_x").notNull(),
   positionY: real("position_y").notNull(),
+  importance: importanceEnum("importance").notNull().default("Low"),
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),

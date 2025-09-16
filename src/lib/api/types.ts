@@ -19,13 +19,13 @@ export const goalSchema = z.object({
   title: z.string(),
   description: z.string(),
   valueIds: z.array(z.string()),
-  importance: z.number(),
   tasks: z.array(taskSchema),
   parentId: z.string().optional(),
   position: z.object({
     x: z.number(),
     y: z.number(),
   }),
+  importance: z.enum(["Low", "Medium", "High"]).default("Low"),
 });
 
 export const connectionSchema = z.object({

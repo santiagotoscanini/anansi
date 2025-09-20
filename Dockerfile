@@ -1,10 +1,50 @@
-FROM astral/uv:python3.12-bookworm-slim
+# Multi-stage build for Next.js application
+FROM node:20-alpine AS builder
 
-# Set the working directory
+# Set working directory
 WORKDIR /app
 
-# Copy the application code
-COPY src/ ./src/
+# Copy package files
+COPY package*.json ./
 
-# Command to run the application
-CMD ["uv", "run", "python", "/app/src/main.py"]
+# Install dependencies
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build the Next.js application
+RUN npm run build
+
+# Production stage
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# Install production dependencies needed for migrations
+COPY package*.json ./
+RUN npm ci --omit=dev && npm install drizzle-kit drizzle-orm pg
+
+# Copy migration files and config
+COPY --from=builder /app/drizzle.config.ts ./
+COPY --from=builder /app/src/lib/data/schema.ts ./src/lib/data/
+COPY --from=builder /app/src/lib/data/db/migrations ./src/lib/data/db/migrations
+
+# Copy necessary files from builder
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+# Copy entrypoint script (already executable from the repo)
+COPY entrypoint.sh /app/entrypoint.sh
+
+# Expose port
+EXPOSE 80
+
+ENV PORT=80
+ENV HOSTNAME="0.0.0.0"
+ENV NODE_ENV=production
+
+# Override the default node entrypoint completely
+ENTRYPOINT []
+CMD ["/bin/sh", "/app/entrypoint.sh"]

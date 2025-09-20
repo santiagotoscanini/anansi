@@ -2,6 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  output: "standalone",
   // Add this section to ensure API routes work correctly
   async headers() {
     return [

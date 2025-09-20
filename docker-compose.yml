@@ -1,17 +1,8 @@
-services:
-  app:
-    container_name: goals-app
-    build: .
-    ports:
-      - "${APP_PORT:-14711}:80"
-    environment:
-      - DATABASE_URL=postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-goals_db}
-      - NODE_ENV=${NODE_ENV:-production}
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: unless-stopped
+networks:
+  traefik_network:
+    external: true
 
+services:
   db:
     container_name: goals-db
     image: postgres:17.2-alpine
@@ -29,6 +20,27 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  app:
+    container_name: goals-app
+    build: .
+    networks:
+      - traefik_network
+    ports:
+      - "${APP_PORT:-14711}:80"
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-goals_db}
+      - NODE_ENV=${NODE_ENV:-production}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+
+      - "traefik.http.routers.goals-web.rule=Host(`goals.s2.toscanini.me`)"
+      - "traefik.http.routers.goals-web.entrypoints=websecure"
+      - "traefik.http.routers.goals-web.tls=true"
 
 volumes:
   postgres_data:

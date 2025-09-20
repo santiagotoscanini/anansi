@@ -45,5 +45,19 @@ services:
       - "traefik.http.routers.goals-web.entrypoints=websecure"
       - "traefik.http.routers.goals-web.tls=true"
 
+  studio:
+    container_name: goals-studio
+    image: ghcr.io/drizzle-team/drizzle-studio:latest
+    networks:
+      - internal
+    ports:
+      - "${STUDIO_PORT:-4983}:4983"
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-goals_db}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres_data:

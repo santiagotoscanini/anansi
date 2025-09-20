@@ -11,8 +11,6 @@ services:
     restart: unless-stopped
     networks:
       - internal
-    ports:
-      - "${DB_PORT:-15822}:5432"
     environment:
       - POSTGRES_USER=${DB_USER:-user}
       - POSTGRES_PASSWORD=${DB_PASSWORD:-password}

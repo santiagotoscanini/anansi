@@ -23,8 +23,9 @@ export const authRouter = createTRPCRouter({
         return { success: false, token: null, error: "User not found" };
       }
 
-      const token = await createAuthToken(user[0].id, user[0].name);
-      return { success: true, token, user: user[0] };
+      const foundUser = user[0]!; // We already checked that user.length > 0
+      const token = await createAuthToken(foundUser.id, foundUser.name);
+      return { success: true, token, user: foundUser };
     }),
 
   getUsers: publicProcedure

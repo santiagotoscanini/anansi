@@ -4,10 +4,28 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { ReactNode } from "react";
 import { clientAuth } from "~/lib/auth-client";
 import { api } from "~/trpc/react";
-import type { Value, Goal, Task, Connection, TrackingItem } from "~/lib/api/types";
+import type {
+  Value,
+  Goal,
+  Task,
+  Connection,
+  TrackingItem,
+  WeeklySync,
+  WeeklySyncItem,
+  WeeklySyncItemFile
+} from "~/lib/api/types";
 
 // Re-export types from the shared API types
-export type { Value, Goal, Task, Connection, TrackingItem } from "~/lib/api/types";
+export type {
+  Value,
+  Goal,
+  Task,
+  Connection,
+  TrackingItem,
+  WeeklySync,
+  WeeklySyncItem,
+  WeeklySyncItemFile
+} from "~/lib/api/types";
 
 interface GoalsContextType {
   isAuthenticated: boolean;
@@ -44,10 +62,29 @@ interface GoalsContextType {
   updateTrackingItem: (id: string, trackingItem: Partial<TrackingItem>) => Promise<void>;
   deleteTrackingItem: (id: string) => Promise<{ success: boolean; type: "soft_delete" | "hard_delete" }>;
 
+  // Weekly Sync operations
+  getWeeklySyncByWeek: (weekStart: Date) => Promise<WeeklySync | null>;
+  createWeeklySync: () => Promise<WeeklySync>;
+  deleteWeeklySync: (id: string) => Promise<{ success: boolean }>;
+
+  // Weekly Sync Items operations
+  getWeeklySyncItems: (weeklySyncId: string) => Promise<WeeklySyncItem[]>;
+  createWeeklySyncItem: (weeklySyncId: string, trackingItemId: string) => Promise<WeeklySyncItem>;
+  deleteWeeklySyncItem: (id: string) => Promise<{ success: boolean }>;
+
+  // Weekly Sync Files operations
+  getWeeklySyncItemFiles: (weeklySyncItemId: string) => Promise<WeeklySyncItemFile[]>;
+  uploadWeeklySyncFile: (data: string, goalId: string, trackingItemId: string, fileName?: string, isText?: boolean) => Promise<{ url: string; fileName: string; filePath: string; fileType: string }>;
+  saveTextFile: (content: string, goalId: string, trackingItemId: string, existingFileName?: string) => Promise<{ url: string; fileName: string; filePath: string; fileType: string }>;
+  readTextFile: (filePath: string) => Promise<{ content: string }>;
+  deleteFile: (filePath: string) => Promise<{ success: boolean }>;
+
+  // Utility functions
   getGoalCompletion: (goalId: string) => number;
   getPathCompletion: (goalId: string) => number;
   getGoalProgress: (goalId: string) => { ownProgress: number; dependenciesProgress: number; totalProgress: number };
   calculateImportance: (goalId: string) => "Low" | "Medium" | "High";
+  getWeekStartDate: (date: Date) => Date;
 }
 
 const GoalsContext = createContext<GoalsContextType | undefined>(undefined);
@@ -108,6 +145,22 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     create: api.goals.trackingItems.create.useMutation(),
     update: api.goals.trackingItems.update.useMutation(),
     delete: api.goals.trackingItems.delete.useMutation(),
+  };
+
+  const weeklySyncMutations = {
+    create: api.goals.weeklySync.create.useMutation(),
+    delete: api.goals.weeklySync.delete.useMutation(),
+  };
+
+  const weeklySyncItemsMutations = {
+    create: api.goals.weeklySyncItems.create.useMutation(),
+    delete: api.goals.weeklySyncItems.delete.useMutation(),
+  };
+
+  const filesMutations = {
+    uploadWeeklySyncFile: api.goals.images.uploadWeeklySyncFile.useMutation(),
+    saveTextFile: api.goals.images.saveTextFile.useMutation(),
+    delete: api.goals.images.delete.useMutation(),
   };
 
   // Initialize token on mount (client-side only)
@@ -403,17 +456,200 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   );
 
   const deleteTrackingItem = useCallback(
-    async (id: string) => {
+    async (id: string): Promise<{ success: boolean; type: "soft_delete" | "hard_delete" }> => {
       try {
         const result = await trackingItemsMutations.delete.mutateAsync({ id });
         await refreshData();
-        return result;
+        return result as { success: boolean; type: "soft_delete" | "hard_delete" };
       } catch (error) {
         console.error("Failed to delete tracking item:", error);
         throw error;
       }
     },
     [trackingItemsMutations.delete, refreshData],
+  );
+
+  // Weekly Sync functions
+  const getWeekStartDate = useCallback((date: Date): Date => {
+    const result = new Date(date);
+    const day = result.getDay();
+    const diff = result.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+    result.setDate(diff);
+    result.setHours(0, 0, 0, 0);
+    return result;
+  }, []);
+
+  const getWeeklySyncByWeek = useCallback(
+    async (weekStart: Date): Promise<WeeklySync | null> => {
+      try {
+        // For now, we'll implement this with a separate hook in the component
+        // This is a placeholder that will be overridden by component-level implementation
+        return null;
+      } catch (error) {
+        console.error("Failed to get weekly sync:", error);
+        return null;
+      }
+    },
+    [],
+  );
+
+  const createWeeklySync = useCallback(
+    async (): Promise<WeeklySync> => {
+      try {
+        const result = await weeklySyncMutations.create.mutateAsync({});
+        await refreshData();
+        return result;
+      } catch (error) {
+        console.error("Failed to create weekly sync:", error);
+        throw error;
+      }
+    },
+    [weeklySyncMutations.create, refreshData],
+  );
+
+  const deleteWeeklySync = useCallback(
+    async (id: string): Promise<{ success: boolean }> => {
+      try {
+        const result = await weeklySyncMutations.delete.mutateAsync({ id });
+        await refreshData();
+        return result;
+      } catch (error) {
+        console.error("Failed to delete weekly sync:", error);
+        throw error;
+      }
+    },
+    [weeklySyncMutations.delete, refreshData],
+  );
+
+  const getWeeklySyncItems = useCallback(
+    async (weeklySyncId: string): Promise<WeeklySyncItem[]> => {
+      try {
+        // Placeholder - will be implemented with component-level hooks
+        return [];
+      } catch (error) {
+        console.error("Failed to get weekly sync items:", error);
+        return [];
+      }
+    },
+    [],
+  );
+
+  const createWeeklySyncItem = useCallback(
+    async (weeklySyncId: string, trackingItemId: string): Promise<WeeklySyncItem> => {
+      try {
+        const result = await weeklySyncItemsMutations.create.mutateAsync({
+          weeklySyncId,
+          trackingItemId,
+        });
+        await refreshData();
+        return result;
+      } catch (error) {
+        console.error("Failed to create weekly sync item:", error);
+        throw error;
+      }
+    },
+    [weeklySyncItemsMutations.create, refreshData],
+  );
+
+  const deleteWeeklySyncItem = useCallback(
+    async (id: string): Promise<{ success: boolean }> => {
+      try {
+        const result = await weeklySyncItemsMutations.delete.mutateAsync({ id });
+        await refreshData();
+        return result;
+      } catch (error) {
+        console.error("Failed to delete weekly sync item:", error);
+        throw error;
+      }
+    },
+    [weeklySyncItemsMutations.delete, refreshData],
+  );
+
+  const getWeeklySyncItemFiles = useCallback(
+    async (weeklySyncItemId: string): Promise<WeeklySyncItemFile[]> => {
+      try {
+        // Placeholder - will be implemented with component-level hooks
+        return [];
+      } catch (error) {
+        console.error("Failed to get weekly sync item files:", error);
+        return [];
+      }
+    },
+    [],
+  );
+
+  const uploadWeeklySyncFile = useCallback(
+    async (
+      data: string,
+      goalId: string,
+      trackingItemId: string,
+      fileName?: string,
+      isText = false
+    ): Promise<{ url: string; fileName: string; filePath: string; fileType: string }> => {
+      try {
+        const result = await filesMutations.uploadWeeklySyncFile.mutateAsync({
+          data,
+          goalId,
+          trackingItemId,
+          fileName,
+          isText,
+        });
+        return result;
+      } catch (error) {
+        console.error("Failed to upload weekly sync file:", error);
+        throw error;
+      }
+    },
+    [filesMutations.uploadWeeklySyncFile],
+  );
+
+  const saveTextFile = useCallback(
+    async (
+      content: string,
+      goalId: string,
+      trackingItemId: string,
+      existingFileName?: string
+    ): Promise<{ url: string; fileName: string; filePath: string; fileType: string }> => {
+      try {
+        const result = await filesMutations.saveTextFile.mutateAsync({
+          content,
+          goalId,
+          trackingItemId,
+          existingFileName,
+        });
+        return result;
+      } catch (error) {
+        console.error("Failed to save text file:", error);
+        throw error;
+      }
+    },
+    [filesMutations.saveTextFile],
+  );
+
+  const readTextFile = useCallback(
+    async (filePath: string): Promise<{ content: string }> => {
+      try {
+        // Placeholder - will be implemented with component-level hooks
+        return { content: "" };
+      } catch (error) {
+        console.error("Failed to read text file:", error);
+        throw error;
+      }
+    },
+    [],
+  );
+
+  const deleteFile = useCallback(
+    async (filePath: string): Promise<{ success: boolean }> => {
+      try {
+        const result = await filesMutations.delete.mutateAsync({ filePath });
+        return result;
+      } catch (error) {
+        console.error("Failed to delete file:", error);
+        throw error;
+      }
+    },
+    [filesMutations.delete],
   );
 
   // Progress calculation functions (unchanged logic)
@@ -518,10 +754,22 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     addTrackingItem,
     updateTrackingItem,
     deleteTrackingItem,
+    getWeeklySyncByWeek,
+    createWeeklySync,
+    deleteWeeklySync,
+    getWeeklySyncItems,
+    createWeeklySyncItem,
+    deleteWeeklySyncItem,
+    getWeeklySyncItemFiles,
+    uploadWeeklySyncFile,
+    saveTextFile,
+    readTextFile,
+    deleteFile,
     getGoalCompletion,
     getPathCompletion,
     getGoalProgress,
     calculateImportance,
+    getWeekStartDate,
   };
 
   return <GoalsContext.Provider value={contextValue}>{children}</GoalsContext.Provider>;

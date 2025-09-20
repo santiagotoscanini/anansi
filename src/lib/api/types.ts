@@ -44,6 +44,29 @@ export const trackingItemSchema = z.object({
   deletedAt: z.date().optional(),
 });
 
+export const weeklySyncSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export const weeklySyncItemSchema = z.object({
+  id: z.string(),
+  weeklySyncId: z.string(),
+  trackingItemId: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export const weeklySyncItemFileSchema = z.object({
+  id: z.string(),
+  weeklySyncItemId: z.string(),
+  fileName: z.string(),
+  fileType: z.enum(["image", "document", "video", "audio", "other"]),
+  createdAt: z.date(),
+});
+
 // Input schemas for creating/updating
 export const createValueSchema = valueSchema.omit({ id: true });
 export const updateValueSchema = valueSchema.partial().required({ id: true });
@@ -59,6 +82,15 @@ export const updateConnectionSchema = connectionSchema.partial().required({ id: 
 
 export const createTrackingItemSchema = trackingItemSchema.omit({ id: true, deletedAt: true });
 export const updateTrackingItemSchema = trackingItemSchema.omit({ deletedAt: true }).partial().required({ id: true });
+
+export const createWeeklySyncSchema = weeklySyncSchema.omit({ id: true, userId: true, createdAt: true, updatedAt: true });
+export const updateWeeklySyncSchema = weeklySyncSchema.partial().required({ id: true });
+
+export const createWeeklySyncItemSchema = weeklySyncItemSchema.omit({ id: true, createdAt: true, updatedAt: true });
+export const updateWeeklySyncItemSchema = weeklySyncItemSchema.partial().required({ id: true });
+
+export const createWeeklySyncItemFileSchema = weeklySyncItemFileSchema.omit({ id: true, createdAt: true });
+export const updateWeeklySyncItemFileSchema = weeklySyncItemFileSchema.partial().required({ id: true });
 
 // Export types
 export type Value = z.infer<typeof valueSchema>;
@@ -77,6 +109,16 @@ export type CreateConnection = z.infer<typeof createConnectionSchema>;
 export type UpdateConnection = z.infer<typeof updateConnectionSchema>;
 export type CreateTrackingItem = z.infer<typeof createTrackingItemSchema>;
 export type UpdateTrackingItem = z.infer<typeof updateTrackingItemSchema>;
+
+export type WeeklySync = z.infer<typeof weeklySyncSchema>;
+export type WeeklySyncItem = z.infer<typeof weeklySyncItemSchema>;
+export type WeeklySyncItemFile = z.infer<typeof weeklySyncItemFileSchema>;
+export type CreateWeeklySync = z.infer<typeof createWeeklySyncSchema>;
+export type UpdateWeeklySync = z.infer<typeof updateWeeklySyncSchema>;
+export type CreateWeeklySyncItem = z.infer<typeof createWeeklySyncItemSchema>;
+export type UpdateWeeklySyncItem = z.infer<typeof updateWeeklySyncItemSchema>;
+export type CreateWeeklySyncItemFile = z.infer<typeof createWeeklySyncItemFileSchema>;
+export type UpdateWeeklySyncItemFile = z.infer<typeof updateWeeklySyncItemFileSchema>;
 
 // Data format for file operations (for compatibility)
 export const goalsDataSchema = z.object({

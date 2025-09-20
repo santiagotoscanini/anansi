@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, asc, isNull } from "drizzle-orm";
+import { eq, and, asc, isNull, gte, lte } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "../../data";
 import {
@@ -9,7 +9,9 @@ import {
   connections,
   goalValues,
   trackingItems,
-  weeklySyncItems
+  weeklySync,
+  weeklySyncItems,
+  weeklySyncItemFiles
 } from "../../data/schema";
 import {
   createValueSchema,
@@ -22,10 +24,28 @@ import {
   updateConnectionSchema,
   createTrackingItemSchema,
   updateTrackingItemSchema,
+  createWeeklySyncSchema,
+  updateWeeklySyncSchema,
+  createWeeklySyncItemSchema,
+  updateWeeklySyncItemSchema,
+  createWeeklySyncItemFileSchema,
+  updateWeeklySyncItemFileSchema,
   type Goal,
   type TrackingItem,
+  type WeeklySync,
+  type WeeklySyncItem,
+  type WeeklySyncItemFile,
 } from "../types";
-import { saveImageToFile, deleteImageFile, isValidBase64Image } from "../../image-upload";
+import {
+  saveImageToFile,
+  deleteImageFile,
+  isValidBase64Image,
+  saveWeeklySyncFile,
+  saveOrUpdateTextFile,
+  readTextFile,
+  deleteFile,
+  type FileUploadResult
+} from "../../image-upload";
 
 export const goalsRouter = createTRPCRouter({
   // Values operations
@@ -458,6 +478,219 @@ export const goalsRouter = createTRPCRouter({
       }),
   }),
 
+  // Weekly Sync operations
+  weeklySync: createTRPCRouter({
+    // Get weekly sync for a specific week (Monday-Sunday based on creation date)
+    getByWeek: protectedProcedure
+      .input(z.object({ weekStart: z.date() }))
+      .query(async ({ input, ctx }) => {
+        const weekEnd = new Date(input.weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        weekEnd.setHours(23, 59, 59, 999);
+
+        const [syncRecord] = await db
+          .select()
+          .from(weeklySync)
+          .where(
+            and(
+              eq(weeklySync.userId, ctx.user.userId),
+              and(
+                gte(weeklySync.createdAt, input.weekStart),
+                lte(weeklySync.createdAt, weekEnd)
+              )
+            )
+          )
+          .limit(1);
+
+        return syncRecord || null;
+      }),
+
+    // Create weekly sync for current week
+    create: protectedProcedure
+      .input(createWeeklySyncSchema)
+      .mutation(async ({ input, ctx }) => {
+        const [newWeeklySync] = await db
+          .insert(weeklySync)
+          .values({ ...input, userId: ctx.user.userId })
+          .returning();
+
+        if (!newWeeklySync) {
+          throw new Error("Failed to create weekly sync");
+        }
+
+        return newWeeklySync;
+      }),
+
+    // Delete weekly sync
+    delete: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        // Verify ownership
+        const [existingSync] = await db
+          .select()
+          .from(weeklySync)
+          .where(and(eq(weeklySync.id, input.id), eq(weeklySync.userId, ctx.user.userId)))
+          .limit(1);
+
+        if (!existingSync) {
+          throw new Error("Weekly sync not found or access denied");
+        }
+
+        await db.delete(weeklySync).where(eq(weeklySync.id, input.id));
+        return { success: true };
+      }),
+  }),
+
+  // Weekly Sync Items operations
+  weeklySyncItems: createTRPCRouter({
+    // Get all sync items for a weekly sync
+    getByWeeklySync: protectedProcedure
+      .input(z.object({ weeklySyncId: z.string() }))
+      .query(async ({ input, ctx }) => {
+        return await db
+          .select()
+          .from(weeklySyncItems)
+          .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
+          .where(
+            and(
+              eq(weeklySyncItems.weeklySyncId, input.weeklySyncId),
+              eq(weeklySync.userId, ctx.user.userId)
+            )
+          );
+      }),
+
+    // Create weekly sync item
+    create: protectedProcedure
+      .input(createWeeklySyncItemSchema)
+      .mutation(async ({ input, ctx }) => {
+        // Verify weekly sync ownership
+        const [existingSync] = await db
+          .select()
+          .from(weeklySync)
+          .where(and(eq(weeklySync.id, input.weeklySyncId), eq(weeklySync.userId, ctx.user.userId)))
+          .limit(1);
+
+        if (!existingSync) {
+          throw new Error("Weekly sync not found or access denied");
+        }
+
+        const [newSyncItem] = await db
+          .insert(weeklySyncItems)
+          .values(input)
+          .returning();
+
+        if (!newSyncItem) {
+          throw new Error("Failed to create weekly sync item");
+        }
+
+        return newSyncItem;
+      }),
+
+    // Delete weekly sync item
+    delete: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        // Verify ownership through weekly sync
+        const [existingItem] = await db
+          .select()
+          .from(weeklySyncItems)
+          .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
+          .where(
+            and(
+              eq(weeklySyncItems.id, input.id),
+              eq(weeklySync.userId, ctx.user.userId)
+            )
+          )
+          .limit(1);
+
+        if (!existingItem) {
+          throw new Error("Weekly sync item not found or access denied");
+        }
+
+        await db.delete(weeklySyncItems).where(eq(weeklySyncItems.id, input.id));
+        return { success: true };
+      }),
+  }),
+
+  // Weekly Sync Item Files operations
+  weeklySyncItemFiles: createTRPCRouter({
+    // Get all files for a sync item
+    getBySyncItem: protectedProcedure
+      .input(z.object({ weeklySyncItemId: z.string() }))
+      .query(async ({ input, ctx }) => {
+        return await db
+          .select()
+          .from(weeklySyncItemFiles)
+          .innerJoin(weeklySyncItems, eq(weeklySyncItemFiles.weeklySyncItemId, weeklySyncItems.id))
+          .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
+          .where(
+            and(
+              eq(weeklySyncItemFiles.weeklySyncItemId, input.weeklySyncItemId),
+              eq(weeklySync.userId, ctx.user.userId)
+            )
+          );
+      }),
+
+    // Create file for sync item
+    create: protectedProcedure
+      .input(createWeeklySyncItemFileSchema)
+      .mutation(async ({ input, ctx }) => {
+        // Verify ownership through weekly sync
+        const [existingItem] = await db
+          .select()
+          .from(weeklySyncItems)
+          .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
+          .where(
+            and(
+              eq(weeklySyncItems.id, input.weeklySyncItemId),
+              eq(weeklySync.userId, ctx.user.userId)
+            )
+          )
+          .limit(1);
+
+        if (!existingItem) {
+          throw new Error("Weekly sync item not found or access denied");
+        }
+
+        const [newFile] = await db
+          .insert(weeklySyncItemFiles)
+          .values(input)
+          .returning();
+
+        if (!newFile) {
+          throw new Error("Failed to create file record");
+        }
+
+        return newFile;
+      }),
+
+    // Delete file
+    delete: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        // Verify ownership through weekly sync
+        const [existingFile] = await db
+          .select()
+          .from(weeklySyncItemFiles)
+          .innerJoin(weeklySyncItems, eq(weeklySyncItemFiles.weeklySyncItemId, weeklySyncItems.id))
+          .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
+          .where(
+            and(
+              eq(weeklySyncItemFiles.id, input.id),
+              eq(weeklySync.userId, ctx.user.userId)
+            )
+          )
+          .limit(1);
+
+        if (!existingFile) {
+          throw new Error("File not found or access denied");
+        }
+
+        await db.delete(weeklySyncItemFiles).where(eq(weeklySyncItemFiles.id, input.id));
+        return { success: true };
+      }),
+  }),
+
   // Data operations (for importing/exporting)
   data: createTRPCRouter({
     getAll: protectedProcedure.query(async ({ ctx }) => {
@@ -579,6 +812,91 @@ export const goalsRouter = createTRPCRouter({
         return results;
       }),
 
+    // Upload file for weekly sync (images or documents)
+    uploadWeeklySyncFile: protectedProcedure
+      .input(z.object({
+        data: z.string(),
+        goalId: z.string(),
+        trackingItemId: z.string(),
+        fileName: z.string().optional(),
+        isText: z.boolean().default(false),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (!input.isText) {
+          // Validate base64 data for non-text files
+          if (!isValidBase64Image(input.data)) {
+            throw new Error("Invalid base64 data");
+          }
+        }
+
+        // Save file to weekly sync structure
+        const result = await saveWeeklySyncFile(
+          input.data,
+          ctx.user.userId,
+          ctx.user.userName,
+          input.goalId,
+          input.trackingItemId,
+          input.fileName,
+          input.isText
+        );
+
+        return {
+          url: result.url,
+          fileName: result.fileName,
+          filePath: result.filePath,
+          fileType: result.fileType,
+        };
+      }),
+
+    // Save or update text file for weekly sync
+    saveTextFile: protectedProcedure
+      .input(z.object({
+        content: z.string(),
+        goalId: z.string(),
+        trackingItemId: z.string(),
+        existingFileName: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const result = await saveOrUpdateTextFile(
+          input.content,
+          ctx.user.userId,
+          ctx.user.userName,
+          input.goalId,
+          input.trackingItemId,
+          input.existingFileName
+        );
+
+        return {
+          url: result.url,
+          fileName: result.fileName,
+          filePath: result.filePath,
+          fileType: result.fileType,
+        };
+      }),
+
+    // Read text file content
+    readTextFile: protectedProcedure
+      .input(z.object({
+        filePath: z.string(),
+      }))
+      .query(async ({ input, ctx }) => {
+        // Verify the file path belongs to the user
+        const sanitizedUserName = ctx.user.userName.replace(/[^a-zA-Z0-9_-]/g, "_");
+        const expectedUserFolder = `uploads/${ctx.user.userId}_${sanitizedUserName}`;
+
+        if (!input.filePath.startsWith(expectedUserFolder)) {
+          throw new Error("Access denied: File does not belong to user");
+        }
+
+        const content = await readTextFile(input.filePath);
+
+        if (content === null) {
+          throw new Error("File not found or unable to read");
+        }
+
+        return { content };
+      }),
+
     delete: protectedProcedure
       .input(z.object({
         filePath: z.string(),
@@ -592,7 +910,7 @@ export const goalsRouter = createTRPCRouter({
           throw new Error("Access denied: File does not belong to user");
         }
 
-        const success = await deleteImageFile(input.filePath);
+        const success = await deleteFile(input.filePath);
 
         if (!success) {
           throw new Error("Failed to delete image file");

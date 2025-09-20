@@ -20,9 +20,11 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
 
     if (authCookie) {
       const token = authCookie.split("=")[1];
-      const authResult = await verifyAuthToken(token);
-      if (authResult.isValid) {
-        user = { userId: authResult.userId, userName: authResult.userName };
+      if (token) {
+        const authResult = await verifyAuthToken(token);
+        if (authResult.isValid) {
+          user = { userId: authResult.userId, userName: authResult.userName };
+        }
       }
     }
   }

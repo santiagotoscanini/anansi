@@ -4,6 +4,7 @@ import { createId } from "@paralleldrive/cuid2";
 
 // Enums
 export const importanceEnum = pgEnum("importance", ["Low", "Medium", "High"]);
+export const fileTypeEnum = pgEnum("file_type", ["image", "document", "video", "audio", "other"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -39,7 +40,6 @@ export const goals = pgTable("goals", {
   parentId: text("parent_id"),
   positionX: real("position_x").notNull(),
   positionY: real("position_y").notNull(),
-  importance: importanceEnum("importance").notNull().default("Low"),
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
@@ -78,21 +78,62 @@ export const connections = pgTable("connections", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// WeeklyReviews table
-export const weeklyReviews = pgTable("weekly_reviews", {
+// Tracking Items table
+export const trackingItems = pgTable("tracking_items", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => createId()),
-  week: text("week").notNull(),
-  notes: text("notes").notNull(),
-  photos: json("photos").$type<string[]>().notNull().default([]),
-  categories: json("categories").$type<string[]>().notNull().default([]),
-  userId: text("user_id")
+  goalId: text("goal_id")
     .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
+    .references(() => goals.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  order: integer("order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// Weekly Sync table
+export const weeklySync = pgTable("weekly_sync", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  weekDate: timestamp("week_date").notNull(), // Date of the week (e.g., Monday of that week)
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Weekly Sync Items table
+export const weeklySyncItems = pgTable("weekly_sync_items", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  weeklySyncId: text("weekly_sync_id")
+    .notNull()
+    .references(() => weeklySync.id, { onDelete: "cascade" }),
+  trackingItemId: text("tracking_item_id")
+    .notNull()
+    .references(() => trackingItems.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Weekly Sync Item Files table
+export const weeklySyncItemFiles = pgTable("weekly_sync_item_files", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  weeklySyncItemId: text("weekly_sync_item_id")
+    .notNull()
+    .references(() => weeklySyncItems.id, { onDelete: "cascade" }),
+  fileName: text("file_name").notNull(),
+  fileType: fileTypeEnum("file_type").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 
 // Goal-Value junction table (many-to-many relationship)
 export const goalValues = pgTable("goal_values", {
@@ -108,25 +149,11 @@ export const goalValues = pgTable("goal_values", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Weekly Review-Goal junction table (many-to-many relationship)
-export const weeklyReviewGoals = pgTable("weekly_review_goals", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  weeklyReviewId: text("weekly_review_id")
-    .notNull()
-    .references(() => weeklyReviews.id, { onDelete: "cascade" }),
-  goalId: text("goal_id")
-    .notNull()
-    .references(() => goals.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   values: many(values),
   goals: many(goals),
-  weeklyReviews: many(weeklyReviews),
+  weeklySync: many(weeklySync),
 }));
 
 export const valuesRelations = relations(values, ({ one, many }) => ({
@@ -148,8 +175,8 @@ export const goalsRelations = relations(goals, ({ one, many }) => ({
   }),
   children: many(goals),
   tasks: many(tasks),
+  trackingItems: many(trackingItems),
   goalValues: many(goalValues),
-  weeklyReviewGoals: many(weeklyReviewGoals),
   sourceConnections: many(connections, {
     relationName: "source",
   }),
@@ -178,12 +205,39 @@ export const connectionsRelations = relations(connections, ({ one }) => ({
   }),
 }));
 
-export const weeklyReviewsRelations = relations(weeklyReviews, ({ one, many }) => ({
+export const trackingItemsRelations = relations(trackingItems, ({ one, many }) => ({
+  goal: one(goals, {
+    fields: [trackingItems.goalId],
+    references: [goals.id],
+  }),
+  weeklySyncItems: many(weeklySyncItems),
+}));
+
+export const weeklySyncRelations = relations(weeklySync, ({ one, many }) => ({
   user: one(users, {
-    fields: [weeklyReviews.userId],
+    fields: [weeklySync.userId],
     references: [users.id],
   }),
-  weeklyReviewGoals: many(weeklyReviewGoals),
+  weeklySyncItems: many(weeklySyncItems),
+}));
+
+export const weeklySyncItemsRelations = relations(weeklySyncItems, ({ one, many }) => ({
+  weeklySync: one(weeklySync, {
+    fields: [weeklySyncItems.weeklySyncId],
+    references: [weeklySync.id],
+  }),
+  trackingItem: one(trackingItems, {
+    fields: [weeklySyncItems.trackingItemId],
+    references: [trackingItems.id],
+  }),
+  files: many(weeklySyncItemFiles),
+}));
+
+export const weeklySyncItemFilesRelations = relations(weeklySyncItemFiles, ({ one }) => ({
+  weeklySyncItem: one(weeklySyncItems, {
+    fields: [weeklySyncItemFiles.weeklySyncItemId],
+    references: [weeklySyncItems.id],
+  }),
 }));
 
 export const goalValuesRelations = relations(goalValues, ({ one }) => ({
@@ -194,16 +248,5 @@ export const goalValuesRelations = relations(goalValues, ({ one }) => ({
   value: one(values, {
     fields: [goalValues.valueId],
     references: [values.id],
-  }),
-}));
-
-export const weeklyReviewGoalsRelations = relations(weeklyReviewGoals, ({ one }) => ({
-  weeklyReview: one(weeklyReviews, {
-    fields: [weeklyReviewGoals.weeklyReviewId],
-    references: [weeklyReviews.id],
-  }),
-  goal: one(goals, {
-    fields: [weeklyReviewGoals.goalId],
-    references: [goals.id],
   }),
 }));

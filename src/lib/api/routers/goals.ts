@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
 import { db } from "../../data";
 import {
@@ -7,9 +7,8 @@ import {
   goals,
   tasks,
   connections,
-  weeklyReviews,
   goalValues,
-  weeklyReviewGoals
+  trackingItems
 } from "../../data/schema";
 import {
   createValueSchema,
@@ -20,13 +19,13 @@ import {
   updateTaskSchema,
   createConnectionSchema,
   updateConnectionSchema,
-  createWeeklyReviewSchema,
-  updateWeeklyReviewSchema,
+  createTrackingItemSchema,
+  updateTrackingItemSchema,
   type Goal,
   type Value,
   type Task,
   type Connection,
-  type WeeklyReview,
+  type TrackingItem,
 } from "../types";
 import { saveImageToFile, deleteImageFile, isValidBase64Image } from "../../image-upload";
 
@@ -91,13 +90,36 @@ export const goalsRouter = createTRPCRouter({
         .innerJoin(goals, eq(goalValues.goalId, goals.id))
         .where(eq(goals.userId, ctx.user.userId));
 
+      // Get all connections for user's goals
+      const connectionsData = goalIds.length > 0 ? await db
+        .select()
+        .from(connections)
+        .innerJoin(goals, eq(connections.source, goals.id))
+        .where(eq(goals.userId, ctx.user.userId)) : [];
+
+      // Helper function to calculate importance based on outgoing connections
+      const calculateImportance = (goalId: string): "Low" | "Medium" | "High" => {
+        const outgoingConnections = connectionsData
+          .filter(item => item.connections.source === goalId)
+          .map(item => item.connections);
+
+        if (outgoingConnections.length === 0) return "Low";
+
+        const totalWeight = outgoingConnections.reduce((sum, conn) => sum + conn.weight, 0);
+        const averageWeight = totalWeight / outgoingConnections.length;
+
+        if (averageWeight <= 33.3) return "Low";
+        if (averageWeight < 66.6) return "Medium";
+        return "High"; // averageWeight <= 100
+      };
+
       return goalsData.map(goal => ({
         id: goal.id,
         title: goal.title,
         description: goal.description,
         parentId: goal.parentId || undefined,
         position: { x: goal.positionX, y: goal.positionY },
-        importance: goal.importance,
+        importance: calculateImportance(goal.id),
         valueIds: goalValuesData
           .filter(item => item.goal_values.goalId === goal.id)
           .map(item => item.goal_values.valueId),
@@ -329,98 +351,83 @@ export const goalsRouter = createTRPCRouter({
       }),
   }),
 
-  // Weekly Reviews operations
-  weeklyReviews: createTRPCRouter({
-    getAll: protectedProcedure.query(async ({ ctx }): Promise<WeeklyReview[]> => {
-      const reviewsData = await db.select().from(weeklyReviews).where(eq(weeklyReviews.userId, ctx.user.userId));
-      const reviewGoalsData = await db
-        .select()
-        .from(weeklyReviewGoals)
-        .innerJoin(weeklyReviews, eq(weeklyReviewGoals.weeklyReviewId, weeklyReviews.id))
-        .where(eq(weeklyReviews.userId, ctx.user.userId));
+  // Tracking Items operations
+  trackingItems: createTRPCRouter({
+    getAll: protectedProcedure
+      .input(z.object({ goalId: z.string() }))
+      .query(async ({ input, ctx }): Promise<TrackingItem[]> => {
+        // Verify the goal belongs to the user
+        const goalExists = await db.select().from(goals).where(and(eq(goals.id, input.goalId), eq(goals.userId, ctx.user.userId))).limit(1);
+        if (goalExists.length === 0) throw new Error("Goal not found or access denied");
 
-      return reviewsData.map(review => ({
-        id: review.id,
-        week: review.week,
-        notes: review.notes,
-        photos: review.photos as string[],
-        categories: review.categories as string[],
-        goalIds: reviewGoalsData
-          .filter(item => item.weekly_review_goals.weeklyReviewId === review.id)
-          .map(item => item.weekly_review_goals.goalId),
-      }));
-    }),
+        return await db
+          .select()
+          .from(trackingItems)
+          .where(eq(trackingItems.goalId, input.goalId))
+          .orderBy(asc(trackingItems.order), asc(trackingItems.createdAt));
+      }),
 
     create: protectedProcedure
-      .input(createWeeklyReviewSchema)
+      .input(createTrackingItemSchema)
       .mutation(async ({ input, ctx }) => {
-        const { goalIds, ...reviewData } = input;
+        // Verify the goal belongs to the user
+        const goalExists = await db.select().from(goals).where(and(eq(goals.id, input.goalId), eq(goals.userId, ctx.user.userId))).limit(1);
+        if (goalExists.length === 0) throw new Error("Goal not found or access denied");
 
-        const [newReview] = await db
-          .insert(weeklyReviews)
-          .values({ ...reviewData, userId: ctx.user.userId })
+        const [newTrackingItem] = await db
+          .insert(trackingItems)
+          .values(input)
           .returning();
 
-        if (!newReview) {
-          throw new Error("Failed to create weekly review");
+        if (!newTrackingItem) {
+          throw new Error("Failed to create tracking item");
         }
 
-        // Insert goal associations
-        if (goalIds.length > 0) {
-          await db.insert(weeklyReviewGoals).values(
-            goalIds.map(goalId => ({
-              weeklyReviewId: newReview.id,
-              goalId,
-            }))
-          );
-        }
-
-        return newReview;
+        return newTrackingItem;
       }),
 
     update: protectedProcedure
-      .input(updateWeeklyReviewSchema)
+      .input(updateTrackingItemSchema)
       .mutation(async ({ input, ctx }) => {
-        const { id, goalIds, ...reviewData } = input;
+        const { id, ...updateData } = input;
 
-        // Update review (ensure it belongs to the user)
-        if (Object.keys(reviewData).length > 0) {
-          await db
-            .update(weeklyReviews)
-            .set({ ...reviewData, updatedAt: new Date() })
-            .where(and(eq(weeklyReviews.id, id), eq(weeklyReviews.userId, ctx.user.userId)));
+        // Verify the tracking item belongs to a goal owned by the user
+        const trackingItemWithGoal = await db
+          .select()
+          .from(trackingItems)
+          .innerJoin(goals, eq(trackingItems.goalId, goals.id))
+          .where(and(eq(trackingItems.id, id), eq(goals.userId, ctx.user.userId)))
+          .limit(1);
+
+        if (trackingItemWithGoal.length === 0) {
+          throw new Error("Tracking item not found or access denied");
         }
 
-        // Update goal associations if provided
-        if (goalIds !== undefined) {
-          // First verify the weekly review belongs to the user
-          const reviewExists = await db.select().from(weeklyReviews).where(and(eq(weeklyReviews.id, id), eq(weeklyReviews.userId, ctx.user.userId))).limit(1);
-          if (reviewExists.length === 0) throw new Error("Weekly review not found or access denied");
+        const [updatedTrackingItem] = await db
+          .update(trackingItems)
+          .set({ ...updateData, updatedAt: new Date() })
+          .where(eq(trackingItems.id, id))
+          .returning();
 
-          await db.delete(weeklyReviewGoals).where(eq(weeklyReviewGoals.weeklyReviewId, id));
-          if (goalIds.length > 0) {
-            // Verify all goals belong to the user
-            for (const goalId of goalIds) {
-              const goalExists = await db.select().from(goals).where(and(eq(goals.id, goalId), eq(goals.userId, ctx.user.userId))).limit(1);
-              if (goalExists.length === 0) throw new Error(`Goal ${goalId} not found or access denied`);
-            }
-
-            await db.insert(weeklyReviewGoals).values(
-              goalIds.map(goalId => ({
-                weeklyReviewId: id,
-                goalId,
-              }))
-            );
-          }
-        }
-
-        return { success: true };
+        return updatedTrackingItem;
       }),
 
     delete: protectedProcedure
       .input(z.object({ id: z.string() }))
       .mutation(async ({ input, ctx }) => {
-        await db.delete(weeklyReviews).where(and(eq(weeklyReviews.id, input.id), eq(weeklyReviews.userId, ctx.user.userId)));
+        // Verify the tracking item belongs to a goal owned by the user
+        const trackingItemWithGoal = await db
+          .select()
+          .from(trackingItems)
+          .innerJoin(goals, eq(trackingItems.goalId, goals.id))
+          .where(and(eq(trackingItems.id, input.id), eq(goals.userId, ctx.user.userId)))
+          .limit(1);
+
+        if (trackingItemWithGoal.length === 0) {
+          throw new Error("Tracking item not found or access denied");
+        }
+
+        await db.delete(trackingItems).where(eq(trackingItems.id, input.id));
         return { success: true };
       }),
   }),
@@ -438,14 +445,24 @@ export const goalsRouter = createTRPCRouter({
       // Get connections for user's goals only
       const connectionsData = goalIds.length > 0 ? await db.select().from(connections).innerJoin(goals, eq(connections.source, goals.id)).where(eq(goals.userId, ctx.user.userId)) : [];
 
-      const weeklyReviewsData = await db.select().from(weeklyReviews).where(eq(weeklyReviews.userId, ctx.user.userId));
-
       // Get goal-value relationships for user's goals only
       const goalValuesData = goalIds.length > 0 ? await db.select().from(goalValues).innerJoin(goals, eq(goalValues.goalId, goals.id)).where(eq(goals.userId, ctx.user.userId)) : [];
 
-      // Get weekly review-goal relationships for user's reviews only
-      const reviewIds = weeklyReviewsData.map(r => r.id);
-      const weeklyReviewGoalsData = reviewIds.length > 0 ? await db.select().from(weeklyReviewGoals).innerJoin(weeklyReviews, eq(weeklyReviewGoals.weeklyReviewId, weeklyReviews.id)).where(eq(weeklyReviews.userId, ctx.user.userId)) : [];
+      // Helper function to calculate importance based on outgoing connections
+      const calculateImportance = (goalId: string): "Low" | "Medium" | "High" => {
+        const outgoingConnections = connectionsData
+          .filter(item => item.connections.source === goalId)
+          .map(item => item.connections);
+
+        if (outgoingConnections.length === 0) return "Low";
+
+        const totalWeight = outgoingConnections.reduce((sum, conn) => sum + conn.weight, 0);
+        const averageWeight = totalWeight / outgoingConnections.length;
+
+        if (averageWeight <= 33.3) return "Low";
+        if (averageWeight < 66.6) return "Medium";
+        return "High"; // averageWeight <= 100
+      };
 
       const mappedGoals: Goal[] = goalsData.map(goal => ({
         id: goal.id,
@@ -453,7 +470,7 @@ export const goalsRouter = createTRPCRouter({
         description: goal.description,
         parentId: goal.parentId || undefined,
         position: { x: goal.positionX, y: goal.positionY },
-        importance: goal.importance,
+        importance: calculateImportance(goal.id),
         valueIds: goalValuesData
           .filter(item => item.goal_values.goalId === goal.id)
           .map(item => item.goal_values.valueId),
@@ -467,22 +484,10 @@ export const goalsRouter = createTRPCRouter({
           })),
       }));
 
-      const mappedWeeklyReviews: WeeklyReview[] = weeklyReviewsData.map(review => ({
-        id: review.id,
-        week: review.week,
-        notes: review.notes,
-        photos: review.photos as string[],
-        categories: review.categories as string[],
-        goalIds: weeklyReviewGoalsData
-          .filter(item => item.weekly_review_goals.weeklyReviewId === review.id)
-          .map(item => item.weekly_review_goals.goalId),
-      }));
-
       return {
         values: valuesData,
         goals: mappedGoals,
         connections: connectionsData.map(item => item.connections),
-        weeklyReviews: mappedWeeklyReviews,
       };
     }),
   }),

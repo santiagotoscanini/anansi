@@ -35,13 +35,12 @@ export const connectionSchema = z.object({
   weight: z.number(),
 });
 
-export const weeklyReviewSchema = z.object({
+export const trackingItemSchema = z.object({
   id: z.string(),
-  week: z.string(),
-  goalIds: z.array(z.string()),
-  notes: z.string(),
-  photos: z.array(z.string()),
-  categories: z.array(z.string()),
+  goalId: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  order: z.number().default(0),
 });
 
 // Input schemas for creating/updating
@@ -51,21 +50,21 @@ export const updateValueSchema = valueSchema.partial().required({ id: true });
 export const createTaskSchema = taskSchema.omit({ id: true });
 export const updateTaskSchema = taskSchema.partial().required({ id: true });
 
-export const createGoalSchema = goalSchema.omit({ id: true });
-export const updateGoalSchema = goalSchema.partial().required({ id: true });
+export const createGoalSchema = goalSchema.omit({ id: true, importance: true });
+export const updateGoalSchema = goalSchema.omit({ importance: true }).partial().required({ id: true });
 
 export const createConnectionSchema = connectionSchema.omit({ id: true });
 export const updateConnectionSchema = connectionSchema.partial().required({ id: true });
 
-export const createWeeklyReviewSchema = weeklyReviewSchema.omit({ id: true });
-export const updateWeeklyReviewSchema = weeklyReviewSchema.partial().required({ id: true });
+export const createTrackingItemSchema = trackingItemSchema.omit({ id: true });
+export const updateTrackingItemSchema = trackingItemSchema.partial().required({ id: true });
 
 // Export types
 export type Value = z.infer<typeof valueSchema>;
 export type Task = z.infer<typeof taskSchema>;
 export type Goal = z.infer<typeof goalSchema>;
 export type Connection = z.infer<typeof connectionSchema>;
-export type WeeklyReview = z.infer<typeof weeklyReviewSchema>;
+export type TrackingItem = z.infer<typeof trackingItemSchema>;
 
 export type CreateValue = z.infer<typeof createValueSchema>;
 export type UpdateValue = z.infer<typeof updateValueSchema>;
@@ -75,8 +74,8 @@ export type CreateGoal = z.infer<typeof createGoalSchema>;
 export type UpdateGoal = z.infer<typeof updateGoalSchema>;
 export type CreateConnection = z.infer<typeof createConnectionSchema>;
 export type UpdateConnection = z.infer<typeof updateConnectionSchema>;
-export type CreateWeeklyReview = z.infer<typeof createWeeklyReviewSchema>;
-export type UpdateWeeklyReview = z.infer<typeof updateWeeklyReviewSchema>;
+export type CreateTrackingItem = z.infer<typeof createTrackingItemSchema>;
+export type UpdateTrackingItem = z.infer<typeof updateTrackingItemSchema>;
 
 // Data format for file operations (for compatibility)
 export const goalsDataSchema = z.object({
@@ -84,7 +83,6 @@ export const goalsDataSchema = z.object({
   values: z.array(valueSchema),
   goals: z.array(goalSchema),
   connections: z.array(connectionSchema),
-  weeklyReviews: z.array(weeklyReviewSchema),
   lastModified: z.string(),
 });
 

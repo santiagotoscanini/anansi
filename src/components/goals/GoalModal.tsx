@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { X, Trash2, Square, CheckSquare, Check, Edit2 } from "lucide-react";
-import { useGoals, type Task } from "~/contexts/GoalsContext";
+import { useState, useEffect } from "react";
+import { X, Trash2, Square, CheckSquare, Check, Edit2, Plus } from "lucide-react";
+import { useGoals, type Task, type TrackingItem } from "~/contexts/GoalsContext";
 import toast from "react-hot-toast";
 
 interface GoalModalProps {
@@ -11,8 +11,21 @@ interface GoalModalProps {
 }
 
 export default function GoalModal({ goalId, onClose }: GoalModalProps) {
-  const { goals, values, addGoal, updateGoal, deleteGoal, addTask, updateTask, deleteTask, getGoalCompletion } =
-    useGoals();
+  const {
+    goals,
+    values,
+    addGoal,
+    updateGoal,
+    deleteGoal,
+    addTask,
+    updateTask,
+    deleteTask,
+    getGoalCompletion,
+    getTrackingItems,
+    addTrackingItem,
+    updateTrackingItem,
+    deleteTrackingItem
+  } = useGoals();
 
   const existingGoal = goalId ? goals.find((g) => g.id === goalId) : null;
 
@@ -25,7 +38,22 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
   const [editTaskTitle, setEditTaskTitle] = useState("");
   const [editTaskDifficulty, setEditTaskDifficulty] = useState<1 | 2 | 3>(2);
 
+  // Tracking items state
+  const [trackingItems, setTrackingItems] = useState<TrackingItem[]>([]);
+  const [newTrackingTitle, setNewTrackingTitle] = useState("");
+  const [newTrackingDescription, setNewTrackingDescription] = useState("");
+  const [editingTrackingId, setEditingTrackingId] = useState<string | null>(null);
+  const [editTrackingTitle, setEditTrackingTitle] = useState("");
+  const [editTrackingDescription, setEditTrackingDescription] = useState("");
+
   const completion = goalId ? getGoalCompletion(goalId) : 0;
+
+  // Load tracking items for existing goal
+  useEffect(() => {
+    if (goalId) {
+      getTrackingItems(goalId).then(setTrackingItems);
+    }
+  }, [goalId, getTrackingItems]);
 
   const handleSave = () => {
     if (!title.trim()) {
@@ -165,6 +193,85 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
         return "text-red-500";
       default:
         return "text-yellow-500";
+    }
+  };
+
+  // Tracking item handlers
+  const handleAddTrackingItem = async () => {
+    if (!newTrackingTitle.trim()) {
+      toast.error("Tracking item title is required");
+      return;
+    }
+
+    if (!goalId) {
+      toast.error("Cannot add tracking items to unsaved goals");
+      return;
+    }
+
+    try {
+      await addTrackingItem({
+        goalId,
+        title: newTrackingTitle,
+        description: newTrackingDescription || undefined,
+        order: trackingItems.length,
+      });
+
+      // Refresh tracking items
+      const updated = await getTrackingItems(goalId);
+      setTrackingItems(updated);
+
+      setNewTrackingTitle("");
+      setNewTrackingDescription("");
+      toast.success("Tracking item added");
+    } catch (error) {
+      toast.error("Failed to add tracking item");
+    }
+  };
+
+  const handleEditTrackingItem = (item: TrackingItem) => {
+    setEditingTrackingId(item.id);
+    setEditTrackingTitle(item.title);
+    setEditTrackingDescription(item.description || "");
+  };
+
+  const handleUpdateTrackingItem = async () => {
+    if (!editTrackingTitle.trim()) {
+      toast.error("Tracking item title is required");
+      return;
+    }
+
+    if (!goalId || !editingTrackingId) return;
+
+    try {
+      await updateTrackingItem(editingTrackingId, {
+        title: editTrackingTitle,
+        description: editTrackingDescription || undefined,
+      });
+
+      // Refresh tracking items
+      const updated = await getTrackingItems(goalId);
+      setTrackingItems(updated);
+
+      setEditingTrackingId(null);
+      toast.success("Tracking item updated");
+    } catch (error) {
+      toast.error("Failed to update tracking item");
+    }
+  };
+
+  const handleDeleteTrackingItem = async (itemId: string) => {
+    if (!goalId) return;
+
+    try {
+      await deleteTrackingItem(itemId);
+
+      // Refresh tracking items
+      const updated = await getTrackingItems(goalId);
+      setTrackingItems(updated);
+
+      toast.success("Tracking item deleted");
+    } catch (error) {
+      toast.error("Failed to delete tracking item");
     }
   };
 
@@ -352,6 +459,128 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
               )}
             </div>
           </div>
+
+          {/* Tracking Section - Only show for existing goals */}
+          {goalId && (
+            <div>
+              <div className="mb-4">
+                <label className="mb-2 block text-sm text-white/60">Tracking Items</label>
+                <p className="mb-4 text-xs text-white/40">
+                  Define specific metrics or outcomes you want to track for this goal.
+                </p>
+
+                {/* Add Tracking Item */}
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={newTrackingTitle}
+                    onChange={(e) => setNewTrackingTitle(e.target.value)}
+                    placeholder="Tracking item title..."
+                    className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white outline-none transition-all placeholder:text-white/30 focus:border-white/40"
+                  />
+                  <textarea
+                    value={newTrackingDescription}
+                    onChange={(e) => setNewTrackingDescription(e.target.value)}
+                    placeholder="Description (optional)..."
+                    rows={2}
+                    className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white outline-none transition-all placeholder:text-white/30 focus:border-white/40"
+                  />
+                  <button
+                    onClick={handleAddTrackingItem}
+                    className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-sm text-white transition-all hover:bg-white/10"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Tracking Item
+                  </button>
+                </div>
+              </div>
+
+              {/* Tracking Items List */}
+              <div className="space-y-2">
+                {trackingItems.map((item) => (
+                  <div key={item.id} className="group rounded-lg border border-white/10 bg-white/5 p-3">
+                    {editingTrackingId === item.id ? (
+                      // Edit Mode
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          value={editTrackingTitle}
+                          onChange={(e) => setEditTrackingTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleUpdateTrackingItem();
+                            }
+                            if (e.key === "Escape") setEditingTrackingId(null);
+                          }}
+                          className="w-full bg-transparent text-white outline-none"
+                          autoFocus
+                        />
+                        <textarea
+                          value={editTrackingDescription}
+                          onChange={(e) => setEditTrackingDescription(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && e.ctrlKey) {
+                              e.preventDefault();
+                              handleUpdateTrackingItem();
+                            }
+                            if (e.key === "Escape") setEditingTrackingId(null);
+                          }}
+                          placeholder="Description..."
+                          rows={2}
+                          className="w-full bg-transparent text-sm text-white/80 outline-none placeholder:text-white/30"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleUpdateTrackingItem}
+                            className="rounded p-1 text-green-400 transition-all hover:bg-green-500/20"
+                          >
+                            <Check className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => setEditingTrackingId(null)}
+                            className="rounded p-1 text-white/40 transition-all hover:bg-white/10"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      // View Mode
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 cursor-pointer" onClick={() => handleEditTrackingItem(item)}>
+                          <h4 className="font-medium text-white">{item.title}</h4>
+                          {item.description && (
+                            <p className="mt-1 text-sm text-white/60">{item.description}</p>
+                          )}
+                        </div>
+                        <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                          <button
+                            onClick={() => handleEditTrackingItem(item)}
+                            className="rounded p-1 text-white/40 transition-all hover:bg-white/10"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTrackingItem(item.id)}
+                            className="rounded p-1 text-red-400 transition-all hover:bg-red-500/20"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {trackingItems.length === 0 && (
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-center text-sm text-white/40">
+                    No tracking items added yet
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer Actions */}

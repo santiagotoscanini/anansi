@@ -4,10 +4,10 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { ReactNode } from "react";
 import { clientAuth } from "~/lib/auth-client";
 import { api } from "~/trpc/react";
-import type { Value, Goal, Task, Connection, WeeklyReview } from "~/lib/api/types";
+import type { Value, Goal, Task, Connection, TrackingItem } from "~/lib/api/types";
 
 // Re-export types from the shared API types
-export type { Value, Goal, Task, Connection, WeeklyReview } from "~/lib/api/types";
+export type { Value, Goal, Task, Connection, TrackingItem } from "~/lib/api/types";
 
 interface GoalsContextType {
   isAuthenticated: boolean;
@@ -15,7 +15,6 @@ interface GoalsContextType {
   values: Value[];
   goals: Goal[];
   connections: Connection[];
-  weeklyReviews: WeeklyReview[];
   isDataLoading: boolean;
 
   authenticate: (password: string, userName: string) => Promise<boolean>;
@@ -40,9 +39,10 @@ interface GoalsContextType {
   updateConnection: (id: string, connection: Partial<Connection>) => Promise<void>;
   deleteConnection: (id: string) => Promise<void>;
 
-  addWeeklyReview: (review: Omit<WeeklyReview, "id">) => Promise<void>;
-  updateWeeklyReview: (id: string, review: Partial<WeeklyReview>) => Promise<void>;
-  deleteWeeklyReview: (id: string) => Promise<void>;
+  getTrackingItems: (goalId: string) => Promise<TrackingItem[]>;
+  addTrackingItem: (trackingItem: Omit<TrackingItem, "id">) => Promise<void>;
+  updateTrackingItem: (id: string, trackingItem: Partial<TrackingItem>) => Promise<void>;
+  deleteTrackingItem: (id: string) => Promise<void>;
 
   getGoalCompletion: (goalId: string) => number;
   getPathCompletion: (goalId: string) => number;
@@ -58,7 +58,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   const [values, setValues] = useState<Value[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [weeklyReviews, setWeeklyReviews] = useState<WeeklyReview[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(false);
 
   // Initialize token state
@@ -73,13 +72,10 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     },
   );
 
-  const dataQuery = api.goals.data.getAll.useQuery(
-    undefined,
-    {
-      enabled: isAuthenticated,
-      refetchOnWindowFocus: false,
-    }
-  );
+  const dataQuery = api.goals.data.getAll.useQuery(undefined, {
+    enabled: isAuthenticated,
+    refetchOnWindowFocus: false,
+  });
 
   const authMutation = api.auth.authenticate.useMutation();
 
@@ -108,10 +104,10 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     delete: api.goals.connections.delete.useMutation(),
   };
 
-  const weeklyReviewsMutations = {
-    create: api.goals.weeklyReviews.create.useMutation(),
-    update: api.goals.weeklyReviews.update.useMutation(),
-    delete: api.goals.weeklyReviews.delete.useMutation(),
+  const trackingItemsMutations = {
+    create: api.goals.trackingItems.create.useMutation(),
+    update: api.goals.trackingItems.update.useMutation(),
+    delete: api.goals.trackingItems.delete.useMutation(),
   };
 
   // Initialize token on mount (client-side only)
@@ -150,7 +146,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       setValues(dataQuery.data.values ?? []);
       setGoals(dataQuery.data.goals ?? []);
       setConnections(dataQuery.data.connections ?? []);
-      setWeeklyReviews(dataQuery.data.weeklyReviews ?? []);
     }
     setIsDataLoading(dataQuery.isLoading);
   }, [dataQuery.data, dataQuery.isLoading]);
@@ -200,184 +195,224 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated, dataQuery]);
 
   // Value operations
-  const addValue = useCallback(async (value: Omit<Value, "id">) => {
-    try {
-      await valuesMutations.create.mutateAsync(value);
-      await refreshData();
-    } catch (error) {
-      console.error("Failed to add value:", error);
-    }
-  }, [valuesMutations.create, refreshData]);
+  const addValue = useCallback(
+    async (value: Omit<Value, "id">) => {
+      try {
+        await valuesMutations.create.mutateAsync(value);
+        await refreshData();
+      } catch (error) {
+        console.error("Failed to add value:", error);
+      }
+    },
+    [valuesMutations.create, refreshData],
+  );
 
-  const updateValue = useCallback(async (id: string, value: Partial<Value>) => {
-    try {
-      await valuesMutations.update.mutateAsync({ id, ...value });
-      await refreshData();
-    } catch (error) {
-      console.error("Failed to update value:", error);
-    }
-  }, [valuesMutations.update, refreshData]);
+  const updateValue = useCallback(
+    async (id: string, value: Partial<Value>) => {
+      try {
+        await valuesMutations.update.mutateAsync({ id, ...value });
+        await refreshData();
+      } catch (error) {
+        console.error("Failed to update value:", error);
+      }
+    },
+    [valuesMutations.update, refreshData],
+  );
 
-  const deleteValue = useCallback(async (id: string) => {
-    try {
-      await valuesMutations.delete.mutateAsync({ id });
-      await refreshData();
-    } catch (error) {
-      console.error("Failed to delete value:", error);
-    }
-  }, [valuesMutations.delete, refreshData]);
+  const deleteValue = useCallback(
+    async (id: string) => {
+      try {
+        await valuesMutations.delete.mutateAsync({ id });
+        await refreshData();
+      } catch (error) {
+        console.error("Failed to delete value:", error);
+      }
+    },
+    [valuesMutations.delete, refreshData],
+  );
 
   // Calculate importance based on outgoing edge weights
-  const calculateImportance = useCallback((goalId: string): "Low" | "Medium" | "High" => {
-    const outgoingConnections = connections.filter(c => c.source === goalId);
+  const calculateImportance = useCallback(
+    (goalId: string): "Low" | "Medium" | "High" => {
+      const outgoingConnections = connections.filter((c) => c.source === goalId);
 
-    if (outgoingConnections.length === 0) return "Low";
+      if (outgoingConnections.length === 0) return "Low";
 
-    const totalWeight = outgoingConnections.reduce((sum, conn) => sum + conn.weight, 0);
-    const averageWeight = totalWeight / outgoingConnections.length;
+      const totalWeight = outgoingConnections.reduce((sum, conn) => sum + conn.weight, 0);
+      const averageWeight = totalWeight / outgoingConnections.length;
 
-    if (averageWeight <= 33.3) return "Low";
-    if (averageWeight < 66.6) return "Medium";
-    return "High"; // averageWeight <= 100
-  }, [connections]);
+      if (averageWeight <= 33.3) return "Low";
+      if (averageWeight < 66.6) return "Medium";
+      return "High"; // averageWeight <= 100
+    },
+    [connections],
+  );
 
   // Goal operations
-  const addGoal = useCallback(async (goal: Omit<Goal, "id">) => {
-    try {
-      const goalWithImportance = {
-        ...goal,
-        importance: "Low" as const // Default importance for new goals
-      };
-      await goalsMutations.create.mutateAsync(goalWithImportance);
-      await refreshData();
-    } catch (error) {
-      console.error("Failed to add goal:", error);
-    }
-  }, [goalsMutations.create, refreshData]);
+  const addGoal = useCallback(
+    async (goal: Omit<Goal, "id">) => {
+      try {
+        const { importance, ...goalData } = goal;
+        await goalsMutations.create.mutateAsync(goalData);
+        await refreshData();
+      } catch (error) {
+        console.error("Failed to add goal:", error);
+      }
+    },
+    [goalsMutations.create, refreshData],
+  );
 
-  const updateGoal = useCallback(async (id: string, goal: Partial<Goal>) => {
-    try {
-      const goalWithImportance = {
-        ...goal,
-        importance: calculateImportance(id)
-      };
-      await goalsMutations.update.mutateAsync({ id, ...goalWithImportance });
-      await refreshData();
-    } catch (error) {
-      console.error("Failed to update goal:", error);
-    }
-  }, [goalsMutations.update, refreshData, calculateImportance]);
+  const updateGoal = useCallback(
+    async (id: string, goal: Partial<Goal>) => {
+      try {
+        // Remove importance from the goal object since it's calculated on the backend
+        const { importance, ...goalData } = goal;
+        await goalsMutations.update.mutateAsync({ id, ...goalData });
+        await refreshData();
+      } catch (error) {
+        console.error("Failed to update goal:", error);
+      }
+    },
+    [goalsMutations.update, refreshData],
+  );
 
-  const deleteGoal = useCallback(async (id: string) => {
-    try {
-      await goalsMutations.delete.mutateAsync({ id });
-      await refreshData();
-    } catch (error) {
-      console.error("Failed to delete goal:", error);
-    }
-  }, [goalsMutations.delete, refreshData]);
+  const deleteGoal = useCallback(
+    async (id: string) => {
+      try {
+        await goalsMutations.delete.mutateAsync({ id });
+        await refreshData();
+      } catch (error) {
+        console.error("Failed to delete goal:", error);
+      }
+    },
+    [goalsMutations.delete, refreshData],
+  );
 
   // Task operations
-  const addTask = useCallback(async (goalId: string, task: Omit<Task, "id">) => {
-    try {
-      await tasksMutations.create.mutateAsync({ ...task, goalId });
-      await refreshData();
-    } catch (error) {
-      console.error("Failed to add task:", error);
-    }
-  }, [tasksMutations.create, refreshData]);
+  const addTask = useCallback(
+    async (goalId: string, task: Omit<Task, "id">) => {
+      try {
+        await tasksMutations.create.mutateAsync({ ...task, goalId });
+        await refreshData();
+      } catch (error) {
+        console.error("Failed to add task:", error);
+      }
+    },
+    [tasksMutations.create, refreshData],
+  );
 
-  const updateTask = useCallback(async (goalId: string, taskId: string, task: Partial<Task>) => {
-    try {
-      await tasksMutations.update.mutateAsync({ id: taskId, goalId, ...task });
-      await refreshData();
-    } catch (error) {
-      console.error("Failed to update task:", error);
-    }
-  }, [tasksMutations.update, refreshData]);
+  const updateTask = useCallback(
+    async (goalId: string, taskId: string, task: Partial<Task>) => {
+      try {
+        await tasksMutations.update.mutateAsync({ id: taskId, goalId, ...task });
+        await refreshData();
+      } catch (error) {
+        console.error("Failed to update task:", error);
+      }
+    },
+    [tasksMutations.update, refreshData],
+  );
 
-  const deleteTask = useCallback(async (goalId: string, taskId: string) => {
-    try {
-      await tasksMutations.delete.mutateAsync({ id: taskId, goalId });
-      await refreshData();
-    } catch (error) {
-      console.error("Failed to delete task:", error);
-    }
-  }, [tasksMutations.delete, refreshData]);
+  const deleteTask = useCallback(
+    async (goalId: string, taskId: string) => {
+      try {
+        await tasksMutations.delete.mutateAsync({ id: taskId, goalId });
+        await refreshData();
+      } catch (error) {
+        console.error("Failed to delete task:", error);
+      }
+    },
+    [tasksMutations.delete, refreshData],
+  );
 
   // Connection operations
-  const addConnection = useCallback(async (connection: Omit<Connection, "id">) => {
-    try {
-      await connectionsMutations.create.mutateAsync(connection);
-      await refreshData();
-      // Update importance for the source goal after creating connection
-      const sourceImportance = calculateImportance(connection.source);
-      await goalsMutations.update.mutateAsync({ id: connection.source, importance: sourceImportance });
-      await refreshData();
-    } catch (error) {
-      console.error("Failed to add connection:", error);
-    }
-  }, [connectionsMutations.create, refreshData, calculateImportance, goalsMutations.update]);
-
-  const updateConnection = useCallback(async (id: string, connection: Partial<Connection>) => {
-    try {
-      await connectionsMutations.update.mutateAsync({ id, ...connection });
-      await refreshData();
-      // Update importance for the source goal after updating connection
-      const existingConnection = connections.find(c => c.id === id);
-      if (existingConnection) {
-        const sourceImportance = calculateImportance(existingConnection.source);
-        await goalsMutations.update.mutateAsync({ id: existingConnection.source, importance: sourceImportance });
+  const addConnection = useCallback(
+    async (connection: Omit<Connection, "id">) => {
+      try {
+        await connectionsMutations.create.mutateAsync(connection);
         await refreshData();
+      } catch (error) {
+        console.error("Failed to add connection:", error);
       }
-    } catch (error) {
-      console.error("Failed to update connection:", error);
-    }
-  }, [connectionsMutations.update, refreshData, connections, calculateImportance, goalsMutations.update]);
+    },
+    [connectionsMutations.create, refreshData],
+  );
 
-  const deleteConnection = useCallback(async (id: string) => {
-    try {
-      const existingConnection = connections.find(c => c.id === id);
-      await connectionsMutations.delete.mutateAsync({ id });
-      await refreshData();
-      // Update importance for the source goal after deleting connection
-      if (existingConnection) {
-        const sourceImportance = calculateImportance(existingConnection.source);
-        await goalsMutations.update.mutateAsync({ id: existingConnection.source, importance: sourceImportance });
+  const updateConnection = useCallback(
+    async (id: string, connection: Partial<Connection>) => {
+      try {
+        await connectionsMutations.update.mutateAsync({ id, ...connection });
         await refreshData();
+      } catch (error) {
+        console.error("Failed to update connection:", error);
       }
-    } catch (error) {
-      console.error("Failed to delete connection:", error);
-    }
-  }, [connectionsMutations.delete, refreshData, connections, calculateImportance, goalsMutations.update]);
+    },
+    [connectionsMutations.update, refreshData],
+  );
 
-  // Weekly Review operations
-  const addWeeklyReview = useCallback(async (review: Omit<WeeklyReview, "id">) => {
-    try {
-      await weeklyReviewsMutations.create.mutateAsync(review);
-      await refreshData();
-    } catch (error) {
-      console.error("Failed to add weekly review:", error);
-    }
-  }, [weeklyReviewsMutations.create, refreshData]);
+  const deleteConnection = useCallback(
+    async (id: string) => {
+      try {
+        await connectionsMutations.delete.mutateAsync({ id });
+        await refreshData();
+      } catch (error) {
+        console.error("Failed to delete connection:", error);
+      }
+    },
+    [connectionsMutations.delete, refreshData],
+  );
 
-  const updateWeeklyReview = useCallback(async (id: string, review: Partial<WeeklyReview>) => {
-    try {
-      await weeklyReviewsMutations.update.mutateAsync({ id, ...review });
-      await refreshData();
-    } catch (error) {
-      console.error("Failed to update weekly review:", error);
-    }
-  }, [weeklyReviewsMutations.update, refreshData]);
+  // Tracking Items operations
+  const utils = api.useUtils();
 
-  const deleteWeeklyReview = useCallback(async (id: string) => {
-    try {
-      await weeklyReviewsMutations.delete.mutateAsync({ id });
-      await refreshData();
-    } catch (error) {
-      console.error("Failed to delete weekly review:", error);
-    }
-  }, [weeklyReviewsMutations.delete, refreshData]);
+  const getTrackingItems = useCallback(
+    async (goalId: string): Promise<TrackingItem[]> => {
+      try {
+        const data = await utils.goals.trackingItems.getAll.fetch({ goalId });
+        return data || [];
+      } catch (error) {
+        console.error("Failed to get tracking items:", error);
+        return [];
+      }
+    },
+    [utils],
+  );
+
+  const addTrackingItem = useCallback(
+    async (trackingItem: Omit<TrackingItem, "id">) => {
+      try {
+        await trackingItemsMutations.create.mutateAsync(trackingItem);
+        await refreshData();
+      } catch (error) {
+        console.error("Failed to add tracking item:", error);
+      }
+    },
+    [trackingItemsMutations.create, refreshData],
+  );
+
+  const updateTrackingItem = useCallback(
+    async (id: string, trackingItem: Partial<TrackingItem>) => {
+      try {
+        await trackingItemsMutations.update.mutateAsync({ id, ...trackingItem });
+        await refreshData();
+      } catch (error) {
+        console.error("Failed to update tracking item:", error);
+      }
+    },
+    [trackingItemsMutations.update, refreshData],
+  );
+
+  const deleteTrackingItem = useCallback(
+    async (id: string) => {
+      try {
+        await trackingItemsMutations.delete.mutateAsync({ id });
+        await refreshData();
+      } catch (error) {
+        console.error("Failed to delete tracking item:", error);
+      }
+    },
+    [trackingItemsMutations.delete, refreshData],
+  );
 
   // Progress calculation functions (unchanged logic)
   const getGoalCompletion = (goalId: string): number => {
@@ -430,7 +465,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       if (predGoal) {
         // Recursively get the total progress of the predecessor
         const predProgress = getGoalProgress(conn.source).totalProgress;
-        const weight = (conn.weight || 1);
+        const weight = conn.weight || 1;
         totalPredWeight += weight;
         weightedPredCompletion += predProgress * weight;
       }
@@ -460,7 +495,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     values,
     goals,
     connections,
-    weeklyReviews,
     isDataLoading,
     authenticate,
     logout,
@@ -478,9 +512,10 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     addConnection,
     updateConnection,
     deleteConnection,
-    addWeeklyReview,
-    updateWeeklyReview,
-    deleteWeeklyReview,
+    getTrackingItems,
+    addTrackingItem,
+    updateTrackingItem,
+    deleteTrackingItem,
     getGoalCompletion,
     getPathCompletion,
     getGoalProgress,

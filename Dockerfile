@@ -21,9 +21,9 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Install production dependencies needed for migrations
+# Install production dependencies needed for migrations and seeding
 COPY package*.json ./
-RUN npm ci --omit=dev && npm install drizzle-kit drizzle-orm pg
+RUN npm ci --omit=dev && npm install drizzle-kit drizzle-orm pg tsx
 
 # Copy migration files, seed files, and config
 COPY --from=builder /app/drizzle.config.ts ./

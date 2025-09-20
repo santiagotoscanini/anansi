@@ -1,12 +1,16 @@
 networks:
   traefik_network:
     external: true
+  internal:
+    driver: bridge
 
 services:
   db:
     container_name: goals-db
     image: postgres:17.2-alpine
     restart: unless-stopped
+    networks:
+      - internal
     ports:
       - "${DB_PORT:-15822}:5432"
     environment:
@@ -26,6 +30,7 @@ services:
     build: .
     networks:
       - traefik_network
+      - internal
     ports:
       - "${APP_PORT:-14711}:80"
     environment:

@@ -42,7 +42,7 @@ interface GoalsContextType {
   getTrackingItems: (goalId: string) => Promise<TrackingItem[]>;
   addTrackingItem: (trackingItem: Omit<TrackingItem, "id">) => Promise<void>;
   updateTrackingItem: (id: string, trackingItem: Partial<TrackingItem>) => Promise<void>;
-  deleteTrackingItem: (id: string) => Promise<void>;
+  deleteTrackingItem: (id: string) => Promise<{ success: boolean; type: "soft_delete" | "hard_delete" }>;
 
   getGoalCompletion: (goalId: string) => number;
   getPathCompletion: (goalId: string) => number;
@@ -405,10 +405,12 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   const deleteTrackingItem = useCallback(
     async (id: string) => {
       try {
-        await trackingItemsMutations.delete.mutateAsync({ id });
+        const result = await trackingItemsMutations.delete.mutateAsync({ id });
         await refreshData();
+        return result;
       } catch (error) {
         console.error("Failed to delete tracking item:", error);
+        throw error;
       }
     },
     [trackingItemsMutations.delete, refreshData],

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { eq, and, asc } from "drizzle-orm";
-import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
+import { eq, and, asc, isNull } from "drizzle-orm";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "../../data";
 import {
   values,
@@ -8,7 +8,8 @@ import {
   tasks,
   connections,
   goalValues,
-  trackingItems
+  trackingItems,
+  weeklySyncItems
 } from "../../data/schema";
 import {
   createValueSchema,
@@ -22,9 +23,6 @@ import {
   createTrackingItemSchema,
   updateTrackingItemSchema,
   type Goal,
-  type Value,
-  type Task,
-  type Connection,
   type TrackingItem,
 } from "../types";
 import { saveImageToFile, deleteImageFile, isValidBase64Image } from "../../image-upload";
@@ -360,11 +358,20 @@ export const goalsRouter = createTRPCRouter({
         const goalExists = await db.select().from(goals).where(and(eq(goals.id, input.goalId), eq(goals.userId, ctx.user.userId))).limit(1);
         if (goalExists.length === 0) throw new Error("Goal not found or access denied");
 
-        return await db
+        const items = await db
           .select()
           .from(trackingItems)
-          .where(eq(trackingItems.goalId, input.goalId))
+          .where(and(eq(trackingItems.goalId, input.goalId), isNull(trackingItems.deletedAt)))
           .orderBy(asc(trackingItems.order), asc(trackingItems.createdAt));
+
+        // Map database result to match TypeScript type (null -> undefined)
+        return items.map(item => ({
+          id: item.id,
+          goalId: item.goalId,
+          title: item.title,
+          description: item.description || undefined,
+          order: item.order,
+        }));
       }),
 
     create: protectedProcedure
@@ -427,8 +434,27 @@ export const goalsRouter = createTRPCRouter({
           throw new Error("Tracking item not found or access denied");
         }
 
-        await db.delete(trackingItems).where(eq(trackingItems.id, input.id));
-        return { success: true };
+        // Check if tracking item has associated weekly sync items
+        const hasWeeklySyncItems = await db
+          .select()
+          .from(weeklySyncItems)
+          .where(eq(weeklySyncItems.trackingItemId, input.id))
+          .limit(1);
+
+        if (hasWeeklySyncItems.length > 0) {
+          // Soft delete - mark as deleted but preserve data
+          await db
+            .update(trackingItems)
+            .set({ deletedAt: new Date(), updatedAt: new Date() })
+            .where(eq(trackingItems.id, input.id));
+
+          return { success: true, type: "soft_delete" };
+        } else {
+          // Hard delete - actually remove from database
+          await db.delete(trackingItems).where(eq(trackingItems.id, input.id));
+
+          return { success: true, type: "hard_delete" };
+        }
       }),
   }),
 

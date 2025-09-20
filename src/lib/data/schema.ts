@@ -89,6 +89,7 @@ export const trackingItems = pgTable("tracking_items", {
   title: text("title").notNull(),
   description: text("description"),
   order: integer("order").notNull().default(0),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -101,7 +102,6 @@ export const weeklySync = pgTable("weekly_sync", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  weekDate: timestamp("week_date").notNull(), // Date of the week (e.g., Monday of that week)
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

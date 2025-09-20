@@ -41,6 +41,7 @@ export const trackingItemSchema = z.object({
   title: z.string(),
   description: z.string().optional(),
   order: z.number().default(0),
+  deletedAt: z.date().optional(),
 });
 
 // Input schemas for creating/updating
@@ -56,8 +57,8 @@ export const updateGoalSchema = goalSchema.omit({ importance: true }).partial().
 export const createConnectionSchema = connectionSchema.omit({ id: true });
 export const updateConnectionSchema = connectionSchema.partial().required({ id: true });
 
-export const createTrackingItemSchema = trackingItemSchema.omit({ id: true });
-export const updateTrackingItemSchema = trackingItemSchema.partial().required({ id: true });
+export const createTrackingItemSchema = trackingItemSchema.omit({ id: true, deletedAt: true });
+export const updateTrackingItemSchema = trackingItemSchema.omit({ deletedAt: true }).partial().required({ id: true });
 
 // Export types
 export type Value = z.infer<typeof valueSchema>;

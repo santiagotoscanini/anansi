@@ -263,13 +263,18 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
     if (!goalId) return;
 
     try {
-      await deleteTrackingItem(itemId);
+      const result = await deleteTrackingItem(itemId);
 
       // Refresh tracking items
       const updated = await getTrackingItems(goalId);
       setTrackingItems(updated);
 
-      toast.success("Tracking item deleted");
+      // Show appropriate message based on delete type
+      if (result.type === "soft_delete") {
+        toast.success("Tracking item archived (linked to weekly sync)");
+      } else {
+        toast.success("Tracking item deleted");
+      }
     } catch (error) {
       toast.error("Failed to delete tracking item");
     }

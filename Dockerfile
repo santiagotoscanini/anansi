@@ -25,10 +25,11 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev && npm install drizzle-kit drizzle-orm pg
 
-# Copy migration files and config
+# Copy migration files, seed files, and config
 COPY --from=builder /app/drizzle.config.ts ./
 COPY --from=builder /app/src/lib/data/schema.ts ./src/lib/data/
 COPY --from=builder /app/src/lib/data/db/migrations ./src/lib/data/db/migrations
+COPY --from=builder /app/src/lib/db/seed.ts ./src/lib/db/
 
 # Copy necessary files from builder
 COPY --from=builder /app/public ./public

@@ -1,1 +1,0 @@
-ALTER TABLE "tracking_items" ADD COLUMN "deleted_at" timestamp;

@@ -1,1 +1,0 @@
-ALTER TABLE "weekly_sync" DROP COLUMN "week_date";

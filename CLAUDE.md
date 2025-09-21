@@ -86,12 +86,11 @@ src/
      styles/                      # Global styles
 
 uploads/                         # File storage directory (not in src/)
-     {userId}_{sanitizedUserName}/
-         weekly-sync/
-             {goalId}/
+     {userId}/
+         {goalId}/
+             {upload_date}/
                  {trackingItemId}/
-                     images/
-                     documents/
+                     {timestamp}_{fileName}
 ```
 
 ## Features
@@ -350,35 +349,32 @@ Files are stored in the `uploads/` directory in the project root.
 
 ```
 uploads/
-     {userId}_{sanitizedUserName}/
-         weekly-sync/
-             {goalId}/
+     {userId}/
+         {goalId}/
+             {upload_date}/
                  {trackingItemId}/
-                     images/
-                         {timestamp}_{fileName}
-                     documents/
-                         {timestamp}_{fileName}
+                     {timestamp}_{fileName}
 ```
 
 ### Path Creation Logic
 
-1. **User Folder**: `{userId}_{sanitizedUserName}` where username is sanitized by replacing special characters with underscores
-2. **Weekly Sync Subfolder**: `weekly-sync/` for all retrospective files
-3. **Goal Organization**: `{goalId}/` to group files by goal
+1. **User Folder**: `{userId}/` for user organization
+2. **Goal Organization**: `{goalId}/` to group files by goal
+3. **Date Organization**: `{upload_date}/` in YYYY-MM-DD format for temporal organization
 4. **Tracking Item Level**: `{trackingItemId}/` for specific tracking items
-5. **File Type Separation**: `images/` and `documents/` subfolders
-6. **File Naming**: `{timestamp}_{originalFileName}` to prevent conflicts
+5. **File Naming**: `{timestamp}_{fileName}` with timestamp prefix to prevent conflicts
 
 ### File Types Supported
 
-- **Images**: PNG, JPG, JPEG, GIF, WebP (stored in `images/` subfolder)
-- **Documents**: Text files, PDFs, and other documents (stored in `documents/` subfolder)
+- **Images**: PNG, JPG, JPEG, GIF, WebP
+- **Documents**: Text files, PDFs, and other documents
 - **Text Content**: Directly saved as `.txt` files for note-taking
+- **Other**: Video, audio, and other file types with appropriate extensions
 
 ### Security Features
 
 - **Path Validation**: Ensure files belong to the authenticated user
-- **Sanitized Usernames**: Prevent directory traversal attacks
+- **Directory Traversal Prevention**: Prevent unauthorized access to other directories
 - **File Type Validation**: Validate uploaded file types
 - **User-Specific Access Control**: Strict ownership verification for all file operations
 - **Base64 Validation**: Validate image data before processing

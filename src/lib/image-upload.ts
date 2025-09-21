@@ -210,13 +210,12 @@ export async function saveWeeklySyncFile(
       }
     }
 
-    // Create directory structure: uploads/{userId}_{userName}/{goalId}/{upload_date}/{trackingItemId}/
+    // Create directory structure: uploads/{userId}/{goalId}/{upload_date}/{trackingItemId}/
     const today = new Date();
     const dateString = today.toISOString().split("T")[0] || today.toISOString().slice(0, 10); // YYYY-MM-DD format
-    const sanitizedUserName = userName.replace(/[^a-zA-Z0-9_-]/g, "_");
 
     const uploadsDir = path.join(process.cwd(), "uploads");
-    const userDir = path.join(uploadsDir, `${userId}_${sanitizedUserName}`);
+    const userDir = path.join(uploadsDir, userId);
     const goalDir = path.join(userDir, goalId);
     const dateDir = path.join(goalDir, dateString);
     const trackingItemDir = path.join(dateDir, trackingItemId);
@@ -224,13 +223,16 @@ export async function saveWeeklySyncFile(
     // Ensure directories exist
     await mkdir(trackingItemDir, { recursive: true });
 
-    // Generate unique filename or use original name for text files
+    // Generate filename with timestamp prefix and extension
     let fileName: string;
-    if (isText && originalFileName) {
-      fileName = originalFileName;
+    const timestamp = Date.now();
+    if (originalFileName) {
+      // Extract name without extension and add timestamp
+      const nameWithoutExt = path.parse(originalFileName).name;
+      fileName = `${timestamp}_${nameWithoutExt}.${extension}`;
     } else {
       const uniqueId = createId();
-      fileName = `${uniqueId}.${extension}`;
+      fileName = `${timestamp}_${uniqueId}.${extension}`;
     }
 
     const filePath = path.join(trackingItemDir, fileName);
@@ -239,7 +241,7 @@ export async function saveWeeklySyncFile(
     await writeFile(filePath, buffer);
 
     // Return path information
-    const relativePath = path.join("uploads", `${userId}_${sanitizedUserName}`, goalId, dateString, trackingItemId, fileName);
+    const relativePath = path.join("uploads", userId, goalId, dateString, trackingItemId, fileName);
     const url = `/${relativePath.replace(/\\/g, "/")}`; // Ensure forward slashes for URLs
 
     return {

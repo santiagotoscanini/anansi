@@ -43,6 +43,8 @@ import {
   saveWeeklySyncFile,
   saveOrUpdateTextFile,
   readTextFile,
+  readTrackingItemTextFile,
+  getTextFilePath,
   deleteFile,
   type FileUploadResult
 } from "../../image-upload";
@@ -874,15 +876,14 @@ export const goalsRouter = createTRPCRouter({
         };
       }),
 
-    // Read text file content
+    // Read text file content by file path
     readTextFile: protectedProcedure
       .input(z.object({
         filePath: z.string(),
       }))
       .query(async ({ input, ctx }) => {
-        // Verify the file path belongs to the user
-        const sanitizedUserName = ctx.user.userName.replace(/[^a-zA-Z0-9_-]/g, "_");
-        const expectedUserFolder = `uploads/${ctx.user.userId}_${sanitizedUserName}`;
+        // Verify the file path belongs to the user (new structure only)
+        const expectedUserFolder = `uploads/${ctx.user.userId}`;
 
         if (!input.filePath.startsWith(expectedUserFolder)) {
           throw new Error("Access denied: File does not belong to user");
@@ -895,6 +896,57 @@ export const goalsRouter = createTRPCRouter({
         }
 
         return { content };
+      }),
+
+    // Read text file content for a tracking item (recommended approach)
+    readTrackingItemText: protectedProcedure
+      .input(z.object({
+        goalId: z.string(),
+        trackingItemId: z.string(),
+        date: z.date().optional(),
+      }))
+      .query(async ({ input, ctx }) => {
+        // Verify the goal belongs to the user
+        const goalExists = await db
+          .select()
+          .from(goals)
+          .where(and(eq(goals.id, input.goalId), eq(goals.userId, ctx.user.userId)))
+          .limit(1);
+
+        if (goalExists.length === 0) {
+          throw new Error("Goal not found or access denied");
+        }
+
+        // Verify the tracking item belongs to the goal
+        const trackingItemExists = await db
+          .select()
+          .from(trackingItems)
+          .where(and(eq(trackingItems.id, input.trackingItemId), eq(trackingItems.goalId, input.goalId)))
+          .limit(1);
+
+        if (trackingItemExists.length === 0) {
+          throw new Error("Tracking item not found or access denied");
+        }
+
+        const content = await readTrackingItemTextFile(
+          ctx.user.userId,
+          input.goalId,
+          input.trackingItemId,
+          input.date
+        );
+
+        if (content === null) {
+          // Return empty content instead of error for better UX
+          return {
+            content: "",
+            filePath: getTextFilePath(ctx.user.userId, input.goalId, input.trackingItemId, input.date)
+          };
+        }
+
+        return {
+          content,
+          filePath: getTextFilePath(ctx.user.userId, input.goalId, input.trackingItemId, input.date)
+        };
       }),
 
     delete: protectedProcedure

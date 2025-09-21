@@ -258,12 +258,13 @@ export async function saveWeeklySyncFile(
 
 /**
  * Updates or creates a text file for weekly sync
+ * Ensures only one text file exists per tracking item by using a consistent filename
  * @param content - Text content
  * @param userId - User ID
  * @param userName - User name
  * @param goalId - Goal ID
  * @param trackingItemId - Tracking item ID
- * @param existingFileName - Existing file name to update (optional)
+ * @param existingFileName - Existing file name to update (optional, ignored - kept for compatibility)
  * @returns Promise with file upload result
  */
 export async function saveOrUpdateTextFile(
@@ -274,17 +275,63 @@ export async function saveOrUpdateTextFile(
   trackingItemId: string,
   existingFileName?: string
 ): Promise<FileUploadResult> {
-  const fileName = existingFileName || `notes_${createId()}.txt`;
+  try {
+    // Always use a consistent filename for text files to ensure only one per tracking item
+    const fileName = "notes.txt";
 
-  return saveWeeklySyncFile(
-    content,
-    userId,
-    userName,
-    goalId,
-    trackingItemId,
-    fileName,
-    true
-  );
+    // Create directory structure: uploads/{userId}/{goalId}/{upload_date}/{trackingItemId}/
+    const today = new Date();
+    const dateString = today.toISOString().split("T")[0] || today.toISOString().slice(0, 10); // YYYY-MM-DD format
+
+    const uploadsDir = path.join(process.cwd(), "uploads");
+    const userDir = path.join(uploadsDir, userId);
+    const goalDir = path.join(userDir, goalId);
+    const dateDir = path.join(goalDir, dateString);
+    const trackingItemDir = path.join(dateDir, trackingItemId);
+
+    // Ensure directories exist
+    await mkdir(trackingItemDir, { recursive: true });
+
+    const filePath = path.join(trackingItemDir, fileName);
+    const buffer = Buffer.from(content, "utf8");
+
+    // Write file to disk (this will overwrite any existing file)
+    await writeFile(filePath, buffer);
+
+    // Return path information
+    const relativePath = path.join("uploads", userId, goalId, dateString, trackingItemId, fileName);
+    const url = `/${relativePath.replace(/\\/g, "/")}`; // Ensure forward slashes for URLs
+
+    return {
+      filePath: relativePath,
+      fileName,
+      url,
+      fileType: "document",
+    };
+  } catch (error) {
+    console.error("Error saving text file:", error);
+    throw new Error(`Failed to save text file: ${error instanceof Error ? error.message : "Unknown error"}`);
+  }
+}
+
+/**
+ * Gets the expected text file path for a tracking item
+ * @param userId - User ID
+ * @param goalId - Goal ID
+ * @param trackingItemId - Tracking item ID
+ * @param date - Optional date (defaults to today)
+ * @returns The expected file path for the tracking item's text file
+ */
+export function getTextFilePath(
+  userId: string,
+  goalId: string,
+  trackingItemId: string,
+  date?: Date
+): string {
+  const targetDate = date || new Date();
+  const dateString = targetDate.toISOString().split("T")[0] || targetDate.toISOString().slice(0, 10);
+
+  return path.join("uploads", userId, goalId, dateString, trackingItemId, "notes.txt");
 }
 
 /**
@@ -307,6 +354,24 @@ export async function readTextFile(filePath: string): Promise<string | null> {
     console.error("Error reading text file:", error);
     return null;
   }
+}
+
+/**
+ * Reads a text file for a specific tracking item using the standard path structure
+ * @param userId - User ID
+ * @param goalId - Goal ID
+ * @param trackingItemId - Tracking item ID
+ * @param date - Optional date (defaults to today)
+ * @returns Promise with file content or null if not found
+ */
+export async function readTrackingItemTextFile(
+  userId: string,
+  goalId: string,
+  trackingItemId: string,
+  date?: Date
+): Promise<string | null> {
+  const filePath = getTextFilePath(userId, goalId, trackingItemId, date);
+  return readTextFile(filePath);
 }
 
 /**

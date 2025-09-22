@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   Calendar,
   Plus,
@@ -17,7 +17,8 @@ import {
 import { useGoals } from "~/contexts/GoalsContext";
 import { api } from "~/trpc/react";
 import toast from "react-hot-toast";
-import type { WeeklySync, WeeklySyncItem, TrackingItem } from "~/contexts/GoalsContext";
+import type { WeeklySync, WeeklySyncItem, TrackingItem, WeeklySyncItemFile } from "~/contexts/GoalsContext";
+import { generateFileUrl } from "~/lib/image-upload";
 
 interface CollapsedGoals {
   [goalId: string]: boolean;
@@ -42,22 +43,19 @@ interface TrackingItemFiles {
   };
 }
 
+
 export default function WeeklyRetrospective() {
   const {
-    goals,
-    getTrackingItems,
     createWeeklySync,
     getWeekStartDate,
     uploadWeeklySyncFile,
     saveTextFile,
-    readTextFile,
-    calculateImportance,
   } = useGoals();
 
-  // State for tracking items per goal
-  const [goalTrackingItems, setGoalTrackingItems] = useState<{ [goalId: string]: TrackingItem[] }>({});
+  // tRPC mutations for weekly sync items
+  const createWeeklySyncItemMutation = api.goals.weeklySyncItems.create.useMutation();
 
-  // State for tracking files and content
+  // State for temporary files (newly uploaded, not yet persisted)
   const [trackingItemFiles, setTrackingItemFiles] = useState<TrackingItemFiles>({});
 
   // Week navigation state
@@ -66,11 +64,34 @@ export default function WeeklyRetrospective() {
     return getWeekStartDate(now);
   });
 
-  // TRPC hooks for queries
-  const weeklySyncQuery = api.goals.weeklySync.getByWeek.useQuery(
+  // Single comprehensive query for all weekly retrospective data
+  const weeklyRetrospectiveQuery = api.goals.weeklySync.getWeeklyRetrospectiveData.useQuery(
     { weekStart: selectedWeek },
     { enabled: !!selectedWeek },
   );
+
+  // Extract data from the comprehensive query
+  const retrospectiveData = weeklyRetrospectiveQuery.data;
+  const weeklySync = retrospectiveData?.weeklySync;
+  const isLoading = weeklyRetrospectiveQuery.isLoading;
+  const hasError = weeklyRetrospectiveQuery.error;
+
+  // Filter tracking items based on selected week and deletion date (frontend filtering)
+  const goalsWithTrackingItems = (retrospectiveData?.goals || []).map(goal => ({
+    ...goal,
+    trackingItems: goal.trackingItems.filter(trackingItem => {
+      // If item is not deleted, always include it
+      if (!trackingItem.deletedAt) return true;
+
+      // If item is deleted, only include it if the selected week is before the deletion date
+      const deletionDate = new Date(trackingItem.deletedAt);
+      const weekEnd = new Date(selectedWeek);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      weekEnd.setHours(23, 59, 59, 999);
+
+      return weekEnd < deletionDate;
+    })
+  }));
 
   // UI state
   const [collapsedGoals, setCollapsedGoals] = useState<CollapsedGoals>({});
@@ -103,47 +124,42 @@ export default function WeeklyRetrospective() {
     [getWeekStartDate],
   );
 
-  // Extract weekly sync data from query
-  const weeklySync = weeklySyncQuery.data;
-  const isLoading = weeklySyncQuery.isLoading;
+  // Helper function to ensure tracking item is added to weekly sync
+  const ensureTrackingItemInWeeklySync = useCallback(async (trackingItemId: string) => {
+    // Only add to sync if we're on current week and have a weekly sync
+    if (!isCurrentWeek(selectedWeek) || !weeklySync) {
+      return false;
+    }
 
-  // Load tracking items for all goals when weekly sync is active
-  useEffect(() => {
-    const loadTrackingItems = async () => {
-      if (!weeklySync || goals.length === 0) return;
+    // Check if already in weekly sync
+    const goal = goalsWithTrackingItems.find(g =>
+      g.trackingItems.some(item => item.id === trackingItemId)
+    );
+    const trackingItem = goal?.trackingItems.find(item => item.id === trackingItemId);
 
-      const trackingItemsMap: { [goalId: string]: TrackingItem[] } = {};
+    if (trackingItem?.weeklySyncItem) {
+      return true; // Already in sync
+    }
 
-      for (const goal of goals) {
-        try {
-          const items = await getTrackingItems(goal.id);
+    try {
+      await createWeeklySyncItemMutation.mutateAsync({
+        weeklySyncId: weeklySync.id,
+        trackingItemId,
+      });
 
-          // Filter tracking items based on selected week and deletion date
-          const filteredItems = items.filter((item) => {
-            // If item is not deleted, always include it
-            if (!item.deletedAt) return true;
+      toast.success("Added to weekly sync");
 
-            // If item is deleted, only include it if the selected week is before the deletion date
-            const deletionDate = new Date(item.deletedAt);
-            const weekEnd = new Date(selectedWeek);
-            weekEnd.setDate(weekEnd.getDate() + 6);
-            weekEnd.setHours(23, 59, 59, 999);
+      // Refetch data to update UI
+      await weeklyRetrospectiveQuery.refetch();
+      return true;
+    } catch (error) {
+      console.error("Failed to add tracking item to weekly sync:", error);
+      toast.error("Failed to add item to weekly sync");
+      return false;
+    }
+  }, [isCurrentWeek, selectedWeek, weeklySync, goalsWithTrackingItems, createWeeklySyncItemMutation, weeklyRetrospectiveQuery]);
 
-            return weekEnd < deletionDate;
-          });
 
-          trackingItemsMap[goal.id] = filteredItems;
-        } catch (error) {
-          console.error(`Failed to load tracking items for goal ${goal.id}:`, error);
-          trackingItemsMap[goal.id] = [];
-        }
-      }
-
-      setGoalTrackingItems(trackingItemsMap);
-    };
-
-    loadTrackingItems();
-  }, [weeklySync, goals, getTrackingItems, selectedWeek]);
 
   // Handle week navigation
   const handleWeekChange = (direction: "prev" | "next") => {
@@ -164,10 +180,16 @@ export default function WeeklyRetrospective() {
       return;
     }
 
+    // Prevent weekly sync creation when there are backend errors
+    if (hasError) {
+      toast.error("Cannot create weekly sync while there are backend errors");
+      return;
+    }
+
     try {
       await createWeeklySync();
       // Refetch the query to update the UI
-      await weeklySyncQuery.refetch();
+      await weeklyRetrospectiveQuery.refetch();
       toast.success("Weekly sync started!");
     } catch (error) {
       toast.error("Failed to start weekly sync");
@@ -185,7 +207,10 @@ export default function WeeklyRetrospective() {
 
   // Auto-save text with debouncing
   const handleTextChange = useCallback(
-    (trackingItemId: string, content: string) => {
+    async (trackingItemId: string, content: string) => {
+      // Ensure tracking item is added to weekly sync when user starts editing
+      await ensureTrackingItemInWeeklySync(trackingItemId);
+
       setTextEditingState((prev) => ({
         ...prev,
         [trackingItemId]: {
@@ -208,9 +233,9 @@ export default function WeeklyRetrospective() {
         try {
           // Find the goal that contains this tracking item
           let goalId: string | undefined;
-          for (const [gId, trackingItems] of Object.entries(goalTrackingItems)) {
-            if (trackingItems.some((item) => item.id === trackingItemId)) {
-              goalId = gId;
+          for (const goal of goalsWithTrackingItems) {
+            if (goal.trackingItems.some((item) => item.id === trackingItemId)) {
+              goalId = goal.id;
               break;
             }
           }
@@ -245,18 +270,21 @@ export default function WeeklyRetrospective() {
         }
       }, 1000);
     },
-    [textEditingState, saveTextFile, goalTrackingItems],
+    [textEditingState, saveTextFile, goalsWithTrackingItems, ensureTrackingItemInWeeklySync],
   );
 
   // Handle image upload
   const handleImageUpload = async (trackingItemId: string, files: FileList) => {
     if (!files || files.length === 0) return;
 
+    // Ensure tracking item is added to weekly sync when user uploads files
+    await ensureTrackingItemInWeeklySync(trackingItemId);
+
     // Find the goal that contains this tracking item
     let goalId: string | undefined;
-    for (const [gId, trackingItems] of Object.entries(goalTrackingItems)) {
-      if (trackingItems.some((item) => item.id === trackingItemId)) {
-        goalId = gId;
+    for (const goal of goalsWithTrackingItems) {
+      if (goal.trackingItems.some((item) => item.id === trackingItemId)) {
+        goalId = goal.id;
         break;
       }
     }
@@ -288,7 +316,7 @@ export default function WeeklyRetrospective() {
         });
       });
 
-      const results = await Promise.all(uploadPromises);
+      await Promise.all(uploadPromises);
 
       // Add uploaded images to preview state
       setTrackingItemFiles((prev) => ({
@@ -310,16 +338,30 @@ export default function WeeklyRetrospective() {
   };
 
   // Get tracking item status for current week indicators
-  const getTrackingItemStatus = (trackingItem: TrackingItem): "complete" | "partial" | "missing" => {
-    // This is a placeholder - in real implementation, you'd check if the tracking item
-    // has weekly sync items and files for the current week
-    return "missing"; // Default for now
+  const getTrackingItemStatus = (trackingItem: any): "complete" | "partial" | "missing" => {
+    // Check if tracking item is part of weekly sync and has content
+    if (!trackingItem.weeklySyncItem) return "missing";
+
+    const hasFiles = trackingItem.files && trackingItem.files.length > 0;
+    const hasText = trackingItem.textContent && trackingItem.textContent.trim().length > 0;
+
+    if (hasFiles && hasText) return "complete";
+    if (hasFiles || hasText) return "partial";
+    return "missing";
   };
 
   // Get goal status based on tracking items
   const getGoalStatus = (goalId: string): "complete" | "partial" | "missing" => {
-    // This is a placeholder - in real implementation, you'd aggregate tracking item statuses
-    return "missing"; // Default for now
+    const goal = goalsWithTrackingItems.find(g => g.id === goalId);
+    if (!goal || goal.trackingItems.length === 0) return "missing";
+
+    const statuses = goal.trackingItems.map(getTrackingItemStatus);
+    const completeCount = statuses.filter(s => s === "complete").length;
+    const partialCount = statuses.filter(s => s === "partial").length;
+
+    if (completeCount === statuses.length) return "complete";
+    if (completeCount > 0 || partialCount > 0) return "partial";
+    return "missing";
   };
 
   return (
@@ -355,6 +397,22 @@ export default function WeeklyRetrospective() {
           </button>
         </div>
 
+        {/* Error Display */}
+        {hasError && (
+          <div className="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 p-4">
+            <div className="flex items-center gap-2">
+              <div className="h-4 w-4 rounded-full bg-red-500"></div>
+              <span className="font-medium text-red-400">Backend Error</span>
+            </div>
+            <p className="mt-2 text-sm text-red-300">
+              {hasError.message || "An error occurred while loading weekly retrospective data"}
+            </p>
+            <p className="mt-1 text-xs opacity-60">
+              Weekly sync creation is disabled until this error is resolved
+            </p>
+          </div>
+        )}
+
         {/* Main Content */}
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
@@ -378,7 +436,12 @@ export default function WeeklyRetrospective() {
             {isCurrentWeek(selectedWeek) && (
               <button
                 onClick={handleStartWeeklySync}
-                className="mt-6 rounded-lg border border-white/20 bg-white/10 px-4 py-2 transition-all hover:bg-white hover:text-black"
+                disabled={!!hasError}
+                className={`mt-6 rounded-lg border px-4 py-2 transition-all ${
+                  hasError
+                    ? "cursor-not-allowed border-red-500/20 bg-red-500/10 text-red-400 opacity-50"
+                    : "border-white/20 bg-white/10 hover:bg-white hover:text-black"
+                }`}
               >
                 <Plus className="mr-2 inline h-4 w-4" />
                 Start Weekly Sync
@@ -388,10 +451,7 @@ export default function WeeklyRetrospective() {
         ) : (
           /* Weekly Sync Active - Show Goals and Tracking Items */
           <div className="space-y-6">
-            {goals
-              .filter((goal) => (goalTrackingItems[goal.id] || []).length > 0)
-              .map((goal) => {
-                const importance = calculateImportance(goal.id);
+            {goalsWithTrackingItems.map((goal) => {
                 const isCollapsed = collapsedGoals[goal.id];
                 const goalStatus = getGoalStatus(goal.id);
 
@@ -433,14 +493,14 @@ export default function WeeklyRetrospective() {
                         {/* Importance Badge */}
                         <span
                           className={`rounded-full px-2 py-1 text-xs ${
-                            importance === "High"
+                            goal.importance === "High"
                               ? "bg-red-500/20 text-red-400"
-                              : importance === "Medium"
+                              : goal.importance === "Medium"
                                 ? "bg-yellow-500/20 text-yellow-400"
                                 : "bg-gray-500/20 text-gray-400"
                           }`}
                         >
-                          {importance}
+                          {goal.importance}
                         </span>
                       </div>
                     </div>
@@ -448,8 +508,8 @@ export default function WeeklyRetrospective() {
                     {/* Tracking Items - Only show when not collapsed */}
                     {!isCollapsed && (
                       <div className="ml-8 mt-4 space-y-4">
-                        {(goalTrackingItems[goal.id] || []).length > 0 ? (
-                          (goalTrackingItems[goal.id] || []).map((trackingItem) => (
+                        {goal.trackingItems.length > 0 ? (
+                          goal.trackingItems.map((trackingItem) => (
                             <div key={trackingItem.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
                               {/* Tracking Item Header */}
                               <div className="flex items-start justify-between">
@@ -462,9 +522,38 @@ export default function WeeklyRetrospective() {
                                         Archived
                                       </span>
                                     )}
+                                    {trackingItem.weeklySyncItem && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-green-500/20 px-2 py-1 text-xs text-green-400">
+                                        <Calendar className="h-3 w-3" />
+                                        In Weekly Sync
+                                      </span>
+                                    )}
+                                    {/* Current Week Status Indicator for individual tracking items */}
+                                    {isCurrentWeek(selectedWeek) && (
+                                      <div
+                                        className={`h-2 w-2 rounded-full ${
+                                          getTrackingItemStatus(trackingItem) === "complete"
+                                            ? "bg-green-500"
+                                            : getTrackingItemStatus(trackingItem) === "partial"
+                                              ? "bg-yellow-500"
+                                              : "bg-red-500"
+                                        }`}
+                                        title={`Item status: ${getTrackingItemStatus(trackingItem)}`}
+                                      />
+                                    )}
                                   </div>
                                   {trackingItem.description && (
                                     <p className="mt-1 text-sm opacity-60">{trackingItem.description}</p>
+                                  )}
+                                  {trackingItem.weeklySyncItem && (
+                                    <p className="mt-1 text-xs opacity-40">
+                                      Added to sync: {new Date(trackingItem.weeklySyncItem.createdAt).toLocaleDateString("en-US", {
+                                        month: "short",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit"
+                                      })}
+                                    </p>
                                   )}
                                 </div>
 
@@ -492,7 +581,7 @@ export default function WeeklyRetrospective() {
                                     setTextEditingState((prev) => ({
                                       ...prev,
                                       [trackingItem.id]: {
-                                        content: prev[trackingItem.id]?.content || "",
+                                        content: prev[trackingItem.id]?.content || trackingItem.textContent || "",
                                         isEditing: true,
                                         fileName: prev[trackingItem.id]?.fileName,
                                       },
@@ -563,49 +652,103 @@ export default function WeeklyRetrospective() {
                                 </div>
                               )}
 
-                              {/* Files Preview Area */}
+                              {/* Files Preview Area - Now showing actual stored files */}
                               {(() => {
-                                const trackingFiles = trackingItemFiles[trackingItem.id];
-                                return (trackingFiles?.images?.length || 0) > 0 || trackingFiles?.textContent ? (
-                                  <div className="mt-3 space-y-3">
-                                    <h5 className="text-sm font-medium opacity-70">Uploaded Content</h5>
+                                const tempFiles = trackingItemFiles[trackingItem.id]; // Keep temp files for newly uploaded content
 
-                                    {/* Text Content Preview */}
-                                    {trackingFiles?.textContent && (
+                                // Show content if we have actual stored files OR temporary uploaded files
+                                const hasStoredText = trackingItem.textContent;
+                                const hasTempImages = (tempFiles?.images?.length || 0) > 0;
+                                const imageFiles = trackingItem.files.filter(file => file.fileType === 'image');
+                                const hasStoredImages = imageFiles.length > 0;
+
+                                return (hasStoredText || hasTempImages || hasStoredImages) ? (
+                                  <div className="mt-3 space-y-3">
+                                    <h5 className="text-sm font-medium opacity-70">Content</h5>
+
+                                    {/* Stored Text Content Preview */}
+                                    {hasStoredText && (
                                       <div className="rounded-lg border border-white/10 bg-white/5 p-3">
                                         <div className="mb-2 flex items-center gap-2">
                                           <FileText className="h-4 w-4 opacity-60" />
-                                          <span className="text-sm opacity-70">Text Notes</span>
+                                          <span className="text-sm opacity-70">Saved Notes</span>
                                         </div>
-                                        <p className="line-clamp-3 text-sm opacity-80">{trackingFiles.textContent}</p>
+                                        <p className="line-clamp-3 text-sm opacity-80">{trackingItem.textContent}</p>
+                                        <button
+                                          onClick={() => {
+                                            // Pre-populate text editor with stored content
+                                            setTextEditingState((prev) => ({
+                                              ...prev,
+                                              [trackingItem.id]: {
+                                                content: trackingItem.textContent || "",
+                                                isEditing: true,
+                                                fileName: prev[trackingItem.id]?.fileName,
+                                              },
+                                            }));
+                                          }}
+                                          className="mt-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
+                                        >
+                                          Click to edit
+                                        </button>
                                       </div>
                                     )}
 
-                                    {/* Images Preview */}
-                                    {(trackingFiles?.images?.length || 0) > 0 && (
+                                    {/* Stored Images Preview */}
+                                    {hasStoredImages && (
                                       <div className="rounded-lg border border-white/10 bg-white/5 p-3">
                                         <div className="mb-2 flex items-center gap-2">
                                           <Image className="h-4 w-4 opacity-60" />
                                           <span className="text-sm opacity-70">
-                                            Images ({trackingFiles?.images?.length || 0})
+                                            Saved Images ({imageFiles.length})
                                           </span>
                                         </div>
                                         <div className="grid grid-cols-4 gap-2">
-                                          {(trackingFiles?.images || []).slice(0, 4).map((imageSrc, index) => (
-                                            <div key={index} className="group relative">
+                                          {imageFiles.slice(0, 4).map((file, index) => (
+                                            <div key={file.id} className="group relative">
                                               <img
-                                                src={imageSrc}
-                                                alt={`Upload ${index + 1}`}
+                                                src={file.url}
+                                                alt={`Saved ${index + 1}`}
                                                 className="h-16 w-full rounded object-cover"
                                               />
-                                              {index === 3 && (trackingFiles?.images?.length || 0) > 4 && (
+                                              {index === 3 && imageFiles.length > 4 && (
                                                 <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60 text-xs text-white">
-                                                  +{(trackingFiles?.images?.length || 0) - 3}
+                                                  +{imageFiles.length - 3}
                                                 </div>
                                               )}
                                             </div>
                                           ))}
                                         </div>
+                                      </div>
+                                    )}
+
+                                    {/* Temporary Images Preview (newly uploaded, not yet persisted) */}
+                                    {hasTempImages && (
+                                      <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-3">
+                                        <div className="mb-2 flex items-center gap-2">
+                                          <Upload className="h-4 w-4 opacity-60 text-yellow-400" />
+                                          <span className="text-sm opacity-70 text-yellow-400">
+                                            Recently Uploaded ({tempFiles?.images?.length || 0})
+                                          </span>
+                                        </div>
+                                        <div className="grid grid-cols-4 gap-2">
+                                          {(tempFiles?.images || []).slice(0, 4).map((imageSrc, index) => (
+                                            <div key={index} className="group relative">
+                                              <img
+                                                src={imageSrc}
+                                                alt={`Recent upload ${index + 1}`}
+                                                className="h-16 w-full rounded object-cover"
+                                              />
+                                              {index === 3 && (tempFiles?.images?.length || 0) > 4 && (
+                                                <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60 text-xs text-white">
+                                                  +{(tempFiles?.images?.length || 0) - 3}
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                        <p className="mt-2 text-xs opacity-60 text-yellow-400">
+                                          These images will be available after page refresh
+                                        </p>
                                       </div>
                                     )}
                                   </div>
@@ -625,7 +768,7 @@ export default function WeeklyRetrospective() {
               })}
 
             {/* Show message if no goals have tracking items */}
-            {goals.filter((goal) => (goalTrackingItems[goal.id] || []).length > 0).length === 0 && (
+            {goalsWithTrackingItems.length === 0 && (
               <div className="rounded-lg border border-white/10 bg-white/5 p-12 text-center">
                 <Target className="mx-auto h-12 w-12 opacity-30" />
                 <p className="mt-4 text-lg font-light">No goals with tracking items</p>

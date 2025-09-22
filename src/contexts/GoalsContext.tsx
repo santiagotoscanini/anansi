@@ -65,7 +65,6 @@ interface GoalsContextType {
   // Weekly Sync operations
   getWeeklySyncByWeek: (weekStart: Date) => Promise<WeeklySync | null>;
   createWeeklySync: () => Promise<WeeklySync>;
-  deleteWeeklySync: (id: string) => Promise<{ success: boolean }>;
 
   // Weekly Sync Items operations
   getWeeklySyncItems: (weeklySyncId: string) => Promise<WeeklySyncItem[]>;
@@ -77,6 +76,7 @@ interface GoalsContextType {
   uploadWeeklySyncFile: (data: string, goalId: string, trackingItemId: string, fileName?: string, isText?: boolean) => Promise<{ url: string; fileName: string; filePath: string; fileType: string }>;
   saveTextFile: (content: string, goalId: string, trackingItemId: string, existingFileName?: string) => Promise<{ url: string; fileName: string; filePath: string; fileType: string }>;
   readTextFile: (filePath: string) => Promise<{ content: string }>;
+  readTrackingItemText: (goalId: string, trackingItemId: string, date?: Date) => Promise<{ content: string; filePath: string }>;
   deleteFile: (filePath: string) => Promise<{ success: boolean }>;
 
   // Utility functions
@@ -149,7 +149,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
 
   const weeklySyncMutations = {
     create: api.goals.weeklySync.create.useMutation(),
-    delete: api.goals.weeklySync.delete.useMutation(),
   };
 
   const weeklySyncItemsMutations = {
@@ -507,19 +506,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     [weeklySyncMutations.create, refreshData],
   );
 
-  const deleteWeeklySync = useCallback(
-    async (id: string): Promise<{ success: boolean }> => {
-      try {
-        const result = await weeklySyncMutations.delete.mutateAsync({ id });
-        await refreshData();
-        return result;
-      } catch (error) {
-        console.error("Failed to delete weekly sync:", error);
-        throw error;
-      }
-    },
-    [weeklySyncMutations.delete, refreshData],
-  );
 
   const getWeeklySyncItems = useCallback(
     async (weeklySyncId: string): Promise<WeeklySyncItem[]> => {
@@ -634,6 +620,20 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error("Failed to read text file:", error);
         throw error;
+      }
+    },
+    [],
+  );
+
+  const readTrackingItemText = useCallback(
+    async (goalId: string, trackingItemId: string, date?: Date): Promise<{ content: string; filePath: string }> => {
+      try {
+        // This will be called directly from components using tRPC hooks
+        // For now, return empty as placeholder since tRPC calls work better at component level
+        return { content: "", filePath: "" };
+      } catch (error) {
+        console.error("Failed to read tracking item text:", error);
+        return { content: "", filePath: "" };
       }
     },
     [],
@@ -756,7 +756,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     deleteTrackingItem,
     getWeeklySyncByWeek,
     createWeeklySync,
-    deleteWeeklySync,
     getWeeklySyncItems,
     createWeeklySyncItem,
     deleteWeeklySyncItem,
@@ -764,6 +763,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     uploadWeeklySyncFile,
     saveTextFile,
     readTextFile,
+    readTrackingItemText,
     deleteFile,
     getGoalCompletion,
     getPathCompletion,

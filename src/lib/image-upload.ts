@@ -375,6 +375,32 @@ export async function readTrackingItemTextFile(
 }
 
 /**
+ * Generates a file URL for a weekly sync item file
+ * @param fileName - The file name from the database record
+ * @param userId - User ID
+ * @param goalId - Goal ID
+ * @param trackingItemId - Tracking item ID
+ * @param date - Optional date (defaults to today)
+ * @returns The URL to access the file
+ */
+export function generateFileUrl(
+  fileName: string,
+  userId: string,
+  goalId: string,
+  trackingItemId: string,
+  date?: Date
+): string {
+  const targetDate = date || new Date();
+  const dateString = targetDate.toISOString().split("T")[0] || targetDate.toISOString().slice(0, 10);
+
+  // Build the file path: uploads/{userId}/{goalId}/{date}/{trackingItemId}/{fileName}
+  const filePath = path.join("uploads", userId, goalId, dateString, trackingItemId, fileName);
+
+  // Convert to URL path with forward slashes
+  return `/${filePath.replace(/\\/g, "/")}`;
+}
+
+/**
  * Deletes an image file from the server
  * @param filePath - The relative file path to delete
  * @returns Promise<boolean> indicating success

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, asc, isNull, gte, lte, sql, inArray } from "drizzle-orm";
+import { eq, and, asc, isNull, gte, lte, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "../../data";
 import {
@@ -25,20 +25,13 @@ import {
   createTrackingItemSchema,
   updateTrackingItemSchema,
   createWeeklySyncSchema,
-  updateWeeklySyncSchema,
   createWeeklySyncItemSchema,
-  updateWeeklySyncItemSchema,
   createWeeklySyncItemFileSchema,
-  updateWeeklySyncItemFileSchema,
   type Goal,
   type TrackingItem,
-  type WeeklySync,
-  type WeeklySyncItem,
-  type WeeklySyncItemFile,
 } from "../types";
 import {
   saveImageToFile,
-  deleteImageFile,
   isValidBase64Image,
   saveWeeklySyncFile,
   saveOrUpdateTextFile,
@@ -46,7 +39,6 @@ import {
   readTrackingItemTextFile,
   getTextFilePath,
   deleteFile,
-  type FileUploadResult,
 } from "../../image-upload";
 import { log } from "console";
 

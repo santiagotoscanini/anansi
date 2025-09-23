@@ -28,11 +28,11 @@ export async function GET(
     // Read file
     const fileBuffer = await readFile(fullPath);
 
-    // Determine MIME type from file extension
+    // Determine MIME type from file extension or default to binary
     const mimeType = lookup(fullPath) || "application/octet-stream";
 
     // Return file with proper headers
-    return new NextResponse(fileBuffer, {
+    return new NextResponse(new Uint8Array(fileBuffer), {
       status: 200,
       headers: {
         "Content-Type": mimeType,

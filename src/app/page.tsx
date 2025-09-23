@@ -2,8 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { GoalsProvider, useGoals } from "~/contexts/GoalsContext";
-import Link from "next/link";
-import { ArrowLeft, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import GoalsDashboard from "~/components/goals/GoalsDashboard";
 import toast, { Toaster } from "react-hot-toast";
 import { api } from "~/trpc/react";
@@ -18,6 +17,7 @@ function GoalsPageContent() {
   // Fetch available users
   const { data: users, isLoading: usersLoading } = api.auth.getUsers.useQuery();
 
+  // Authentication handler
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsAuthenticating(true);
@@ -59,14 +59,6 @@ function GoalsPageContent() {
       <main className="min-h-screen bg-black text-white">
         <Toaster position="top-right" />
         <div className="flex min-h-screen flex-col items-center justify-center px-4">
-          <Link
-            href="/"
-            className="absolute left-8 top-8 flex items-center gap-2 text-sm opacity-60 transition-opacity hover:opacity-100"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Link>
-
           <div className="w-full max-w-md space-y-8">
             <div className="text-center">
               <Lock className="mx-auto h-12 w-12 opacity-50" />
@@ -77,7 +69,7 @@ function GoalsPageContent() {
             <form onSubmit={handleSubmit} className="mt-8 space-y-6">
               {/* User Selection */}
               <div>
-                <label className="block text-sm font-light text-white/70 mb-2">Select User</label>
+                <label className="mb-2 block text-sm font-light text-white/70">Select User</label>
                 {usersLoading ? (
                   <div className="w-full rounded-lg border border-white/20 bg-transparent px-4 py-3 text-white/50">
                     Loading users...
@@ -101,7 +93,7 @@ function GoalsPageContent() {
 
               {/* Password Input */}
               <div>
-                <label className="block text-sm font-light text-white/70 mb-2">Password</label>
+                <label className="mb-2 block text-sm font-light text-white/70">Password</label>
                 <input
                   type="password"
                   value={password}
@@ -112,7 +104,9 @@ function GoalsPageContent() {
                   }`}
                   required
                 />
-                {error && <p className="mt-2 text-sm text-red-400">Incorrect password or user not found. Please try again.</p>}
+                {error && (
+                  <p className="mt-2 text-sm text-red-400">Incorrect password or user not found. Please try again.</p>
+                )}
               </div>
 
               <button

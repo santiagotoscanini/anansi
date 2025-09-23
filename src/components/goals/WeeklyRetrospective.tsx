@@ -17,8 +17,6 @@ import {
 import { useGoals } from "~/contexts/GoalsContext";
 import { api } from "~/trpc/react";
 import toast from "react-hot-toast";
-import type { WeeklySync, WeeklySyncItem, TrackingItem, WeeklySyncItemFile } from "~/contexts/GoalsContext";
-import { generateFileUrl } from "~/lib/image-upload";
 
 interface CollapsedGoals {
   [goalId: string]: boolean;
@@ -43,22 +41,13 @@ interface TrackingItemFiles {
   };
 }
 
-
 export default function WeeklyRetrospective() {
-  const {
-    createWeeklySync,
-    getWeekStartDate,
-    uploadWeeklySyncFile,
-    saveTextFile,
-  } = useGoals();
-
-  // tRPC mutations for weekly sync items
-  const createWeeklySyncItemMutation = api.goals.weeklySyncItems.create.useMutation();
+  const { createWeeklySync, getWeekStartDate, uploadWeeklySyncFile, saveTextFile, createWeeklySyncItem } = useGoals();
 
   // State for temporary files (newly uploaded, not yet persisted)
   const [trackingItemFiles, setTrackingItemFiles] = useState<TrackingItemFiles>({});
 
-  // Week navigation state
+  // Week navigation state, start in the current week
   const [selectedWeek, setSelectedWeek] = useState(() => {
     const now = new Date();
     return getWeekStartDate(now);
@@ -77,9 +66,9 @@ export default function WeeklyRetrospective() {
   const hasError = weeklyRetrospectiveQuery.error;
 
   // Filter tracking items based on selected week and deletion date (frontend filtering)
-  const goalsWithTrackingItems = (retrospectiveData?.goals || []).map(goal => ({
+  const goalsWithTrackingItems = (retrospectiveData?.goals || []).map((goal) => ({
     ...goal,
-    trackingItems: goal.trackingItems.filter(trackingItem => {
+    trackingItems: goal.trackingItems.filter((trackingItem) => {
       // If item is not deleted, always include it
       if (!trackingItem.deletedAt) return true;
 
@@ -90,7 +79,7 @@ export default function WeeklyRetrospective() {
       weekEnd.setHours(23, 59, 59, 999);
 
       return weekEnd < deletionDate;
-    })
+    }),
   }));
 
   // UI state
@@ -125,41 +114,37 @@ export default function WeeklyRetrospective() {
   );
 
   // Helper function to ensure tracking item is added to weekly sync
-  const ensureTrackingItemInWeeklySync = useCallback(async (trackingItemId: string) => {
-    // Only add to sync if we're on current week and have a weekly sync
-    if (!isCurrentWeek(selectedWeek) || !weeklySync) {
-      return false;
-    }
+  const ensureTrackingItemInWeeklySync = useCallback(
+    async (trackingItemId: string) => {
+      // Only add to sync if we have a weekly sync
+      if (!weeklySync) {
+        return false;
+      }
 
-    // Check if already in weekly sync
-    const goal = goalsWithTrackingItems.find(g =>
-      g.trackingItems.some(item => item.id === trackingItemId)
-    );
-    const trackingItem = goal?.trackingItems.find(item => item.id === trackingItemId);
+      // Check if already in weekly sync
+      const goal = goalsWithTrackingItems.find((g) => g.trackingItems.some((item) => item.id === trackingItemId));
+      const trackingItem = goal?.trackingItems.find((item) => item.id === trackingItemId);
 
-    if (trackingItem?.weeklySyncItem) {
-      return true; // Already in sync
-    }
+      if (trackingItem?.weeklySyncItem) {
+        return true; // Already in sync
+      }
 
-    try {
-      await createWeeklySyncItemMutation.mutateAsync({
-        weeklySyncId: weeklySync.id,
-        trackingItemId,
-      });
+      try {
+        await createWeeklySyncItem(weeklySync.id, trackingItemId);
 
-      toast.success("Added to weekly sync");
+        toast.success("Added to weekly sync");
 
-      // Refetch data to update UI
-      await weeklyRetrospectiveQuery.refetch();
-      return true;
-    } catch (error) {
-      console.error("Failed to add tracking item to weekly sync:", error);
-      toast.error("Failed to add item to weekly sync");
-      return false;
-    }
-  }, [isCurrentWeek, selectedWeek, weeklySync, goalsWithTrackingItems, createWeeklySyncItemMutation, weeklyRetrospectiveQuery]);
-
-
+        // Refetch data to update UI
+        await weeklyRetrospectiveQuery.refetch();
+        return true;
+      } catch (error) {
+        console.error("Failed to add tracking item to weekly sync:", error);
+        toast.error("Failed to add item to weekly sync");
+        return false;
+      }
+    },
+    [weeklySync, goalsWithTrackingItems, createWeeklySyncItem, weeklyRetrospectiveQuery],
+  );
 
   // Handle week navigation
   const handleWeekChange = (direction: "prev" | "next") => {
@@ -352,12 +337,12 @@ export default function WeeklyRetrospective() {
 
   // Get goal status based on tracking items
   const getGoalStatus = (goalId: string): "complete" | "partial" | "missing" => {
-    const goal = goalsWithTrackingItems.find(g => g.id === goalId);
+    const goal = goalsWithTrackingItems.find((g) => g.id === goalId);
     if (!goal || goal.trackingItems.length === 0) return "missing";
 
     const statuses = goal.trackingItems.map(getTrackingItemStatus);
-    const completeCount = statuses.filter(s => s === "complete").length;
-    const partialCount = statuses.filter(s => s === "partial").length;
+    const completeCount = statuses.filter((s) => s === "complete").length;
+    const partialCount = statuses.filter((s) => s === "partial").length;
 
     if (completeCount === statuses.length) return "complete";
     if (completeCount > 0 || partialCount > 0) return "partial";
@@ -407,9 +392,7 @@ export default function WeeklyRetrospective() {
             <p className="mt-2 text-sm text-red-300">
               {hasError.message || "An error occurred while loading weekly retrospective data"}
             </p>
-            <p className="mt-1 text-xs opacity-60">
-              Weekly sync creation is disabled until this error is resolved
-            </p>
+            <p className="mt-1 text-xs opacity-60">Weekly sync creation is disabled until this error is resolved</p>
           </div>
         )}
 
@@ -452,320 +435,319 @@ export default function WeeklyRetrospective() {
           /* Weekly Sync Active - Show Goals and Tracking Items */
           <div className="space-y-6">
             {goalsWithTrackingItems.map((goal) => {
-                const isCollapsed = collapsedGoals[goal.id];
-                const goalStatus = getGoalStatus(goal.id);
+              const isCollapsed = collapsedGoals[goal.id];
+              const goalStatus = getGoalStatus(goal.id);
 
-                return (
-                  <div key={goal.id} className="rounded-lg border border-white/10 bg-white/5 p-6">
-                    {/* Goal Header */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => toggleGoalCollapse(goal.id)}
-                          className="rounded p-1 transition-all hover:bg-white/10"
-                        >
-                          {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-                        </button>
+              return (
+                <div key={goal.id} className="rounded-lg border border-white/10 bg-white/5 p-6">
+                  {/* Goal Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => toggleGoalCollapse(goal.id)}
+                        className="rounded p-1 transition-all hover:bg-white/10"
+                      >
+                        {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                      </button>
 
-                        <Target className="h-5 w-5 opacity-60" />
+                      <Target className="h-5 w-5 opacity-60" />
 
-                        <div>
-                          <h3 className="font-semibold">{goal.title}</h3>
-                          <p className="text-sm opacity-60">{goal.description}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {/* Current Week Status Indicator */}
-                        {isCurrentWeek(selectedWeek) && (
-                          <div
-                            className={`h-3 w-3 rounded-full ${
-                              goalStatus === "complete"
-                                ? "bg-green-500"
-                                : goalStatus === "partial"
-                                  ? "bg-yellow-500"
-                                  : "bg-red-500"
-                            }`}
-                            title={`Goal status: ${goalStatus}`}
-                          />
-                        )}
-
-                        {/* Importance Badge */}
-                        <span
-                          className={`rounded-full px-2 py-1 text-xs ${
-                            goal.importance === "High"
-                              ? "bg-red-500/20 text-red-400"
-                              : goal.importance === "Medium"
-                                ? "bg-yellow-500/20 text-yellow-400"
-                                : "bg-gray-500/20 text-gray-400"
-                          }`}
-                        >
-                          {goal.importance}
-                        </span>
+                      <div>
+                        <h3 className="font-semibold">{goal.title}</h3>
+                        <p className="text-sm opacity-60">{goal.description}</p>
                       </div>
                     </div>
 
-                    {/* Tracking Items - Only show when not collapsed */}
-                    {!isCollapsed && (
-                      <div className="ml-8 mt-4 space-y-4">
-                        {goal.trackingItems.length > 0 ? (
-                          goal.trackingItems.map((trackingItem) => (
-                            <div key={trackingItem.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                              {/* Tracking Item Header */}
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <h4 className="font-medium">{trackingItem.title}</h4>
-                                    {trackingItem.deletedAt && (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/20 px-2 py-1 text-xs text-orange-400">
-                                        <Archive className="h-3 w-3" />
-                                        Archived
-                                      </span>
-                                    )}
-                                    {trackingItem.weeklySyncItem && (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-green-500/20 px-2 py-1 text-xs text-green-400">
-                                        <Calendar className="h-3 w-3" />
-                                        In Weekly Sync
-                                      </span>
-                                    )}
-                                    {/* Current Week Status Indicator for individual tracking items */}
-                                    {isCurrentWeek(selectedWeek) && (
-                                      <div
-                                        className={`h-2 w-2 rounded-full ${
-                                          getTrackingItemStatus(trackingItem) === "complete"
-                                            ? "bg-green-500"
-                                            : getTrackingItemStatus(trackingItem) === "partial"
-                                              ? "bg-yellow-500"
-                                              : "bg-red-500"
-                                        }`}
-                                        title={`Item status: ${getTrackingItemStatus(trackingItem)}`}
-                                      />
-                                    )}
-                                  </div>
-                                  {trackingItem.description && (
-                                    <p className="mt-1 text-sm opacity-60">{trackingItem.description}</p>
+                    <div className="flex items-center gap-2">
+                      {/* Current Week Status Indicator */}
+                      {isCurrentWeek(selectedWeek) && (
+                        <div
+                          className={`h-3 w-3 rounded-full ${
+                            goalStatus === "complete"
+                              ? "bg-green-500"
+                              : goalStatus === "partial"
+                                ? "bg-yellow-500"
+                                : "bg-red-500"
+                          }`}
+                          title={`Goal status: ${goalStatus}`}
+                        />
+                      )}
+
+                      {/* Importance Badge */}
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs ${
+                          goal.importance === "High"
+                            ? "bg-red-500/20 text-red-400"
+                            : goal.importance === "Medium"
+                              ? "bg-yellow-500/20 text-yellow-400"
+                              : "bg-gray-500/20 text-gray-400"
+                        }`}
+                      >
+                        {goal.importance}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Tracking Items - Only show when not collapsed */}
+                  {!isCollapsed && (
+                    <div className="ml-8 mt-4 space-y-4">
+                      {goal.trackingItems.length > 0 ? (
+                        goal.trackingItems.map((trackingItem) => (
+                          <div key={trackingItem.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
+                            {/* Tracking Item Header */}
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-medium">{trackingItem.title}</h4>
+                                  {trackingItem.deletedAt && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/20 px-2 py-1 text-xs text-orange-400">
+                                      <Archive className="h-3 w-3" />
+                                      Archived
+                                    </span>
                                   )}
                                   {trackingItem.weeklySyncItem && (
-                                    <p className="mt-1 text-xs opacity-40">
-                                      Added to sync: {new Date(trackingItem.weeklySyncItem.createdAt).toLocaleDateString("en-US", {
-                                        month: "short",
-                                        day: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit"
-                                      })}
-                                    </p>
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-green-500/20 px-2 py-1 text-xs text-green-400">
+                                      <Calendar className="h-3 w-3" />
+                                      In Weekly Sync
+                                    </span>
+                                  )}
+                                  {/* Current Week Status Indicator for individual tracking items */}
+                                  {isCurrentWeek(selectedWeek) && (
+                                    <div
+                                      className={`h-2 w-2 rounded-full ${
+                                        getTrackingItemStatus(trackingItem) === "complete"
+                                          ? "bg-green-500"
+                                          : getTrackingItemStatus(trackingItem) === "partial"
+                                            ? "bg-yellow-500"
+                                            : "bg-red-500"
+                                      }`}
+                                      title={`Item status: ${getTrackingItemStatus(trackingItem)}`}
+                                    />
                                   )}
                                 </div>
-
-                                {/* Save Status Indicator */}
-                                {saveStatus[trackingItem.id] && (
-                                  <div className="flex items-center gap-1 text-xs">
-                                    {saveStatus[trackingItem.id] === "saving" && (
-                                      <>
-                                        <div className="h-2 w-2 animate-spin rounded-full border border-white/20 border-t-white"></div>
-                                        <span className="opacity-60">Saving...</span>
-                                      </>
-                                    )}
-                                    {saveStatus[trackingItem.id] === "saved" && (
-                                      <span className="text-green-400">✓ Saved</span>
-                                    )}
-                                  </div>
+                                {trackingItem.description && (
+                                  <p className="mt-1 text-sm opacity-60">{trackingItem.description}</p>
+                                )}
+                                {trackingItem.weeklySyncItem && (
+                                  <p className="mt-1 text-xs opacity-40">
+                                    Added to sync:{" "}
+                                    {new Date(trackingItem.weeklySyncItem.createdAt).toLocaleDateString("en-US", {
+                                      month: "short",
+                                      day: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </p>
                                 )}
                               </div>
 
-                              {/* Action Buttons */}
-                              <div className="mt-3 flex gap-2">
-                                {/* Add Text Button */}
-                                <button
-                                  onClick={() => {
-                                    setTextEditingState((prev) => ({
-                                      ...prev,
-                                      [trackingItem.id]: {
-                                        content: prev[trackingItem.id]?.content || trackingItem.textContent || "",
-                                        isEditing: true,
-                                        fileName: prev[trackingItem.id]?.fileName,
-                                      },
-                                    }));
-                                  }}
-                                  className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm transition-all hover:bg-white/20"
-                                >
-                                  <FileText className="h-4 w-4" />
-                                  Add Text
-                                </button>
-
-                                {/* Add Images Button */}
-                                <button
-                                  onClick={() => {
-                                    const input = fileInputRefs.current[trackingItem.id];
-                                    if (input) input.click();
-                                  }}
-                                  className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm transition-all hover:bg-white/20"
-                                >
-                                  <Image className="h-4 w-4" />
-                                  Add Images
-                                </button>
-
-                                {/* Hidden File Input */}
-                                <input
-                                  ref={(el) => {
-                                    fileInputRefs.current[trackingItem.id] = el;
-                                  }}
-                                  type="file"
-                                  accept="image/*"
-                                  multiple
-                                  onChange={(e) => {
-                                    if (e.target.files) {
-                                      handleImageUpload(trackingItem.id, e.target.files);
-                                    }
-                                  }}
-                                  className="hidden"
-                                />
-                              </div>
-
-                              {/* Text Editor */}
-                              {textEditingState[trackingItem.id]?.isEditing && (
-                                <div className="mt-3">
-                                  <textarea
-                                    value={textEditingState[trackingItem.id]?.content || ""}
-                                    onChange={(e) => handleTextChange(trackingItem.id, e.target.value)}
-                                    placeholder="Add your notes for this tracking item..."
-                                    rows={4}
-                                    className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-all focus:border-white/40"
-                                  />
-                                  <div className="mt-2 flex justify-end">
-                                    <button
-                                      onClick={() => {
-                                        setTextEditingState((prev) => ({
-                                          ...prev,
-                                          [trackingItem.id]: {
-                                            content: prev[trackingItem.id]?.content || "",
-                                            isEditing: false,
-                                            fileName: prev[trackingItem.id]?.fileName,
-                                          },
-                                        }));
-                                      }}
-                                      className="rounded-lg border border-white/20 px-3 py-1 text-sm transition-all hover:bg-white/10"
-                                    >
-                                      Done
-                                    </button>
-                                  </div>
+                              {/* Save Status Indicator */}
+                              {saveStatus[trackingItem.id] && (
+                                <div className="flex items-center gap-1 text-xs">
+                                  {saveStatus[trackingItem.id] === "saving" && (
+                                    <>
+                                      <div className="h-2 w-2 animate-spin rounded-full border border-white/20 border-t-white"></div>
+                                      <span className="opacity-60">Saving...</span>
+                                    </>
+                                  )}
+                                  {saveStatus[trackingItem.id] === "saved" && (
+                                    <span className="text-green-400">✓ Saved</span>
+                                  )}
                                 </div>
                               )}
-
-                              {/* Files Preview Area - Now showing actual stored files */}
-                              {(() => {
-                                const tempFiles = trackingItemFiles[trackingItem.id]; // Keep temp files for newly uploaded content
-
-                                // Show content if we have actual stored files OR temporary uploaded files
-                                const hasStoredText = trackingItem.textContent;
-                                const hasTempImages = (tempFiles?.images?.length || 0) > 0;
-                                const imageFiles = trackingItem.files.filter(file => file.fileType === 'image');
-                                const hasStoredImages = imageFiles.length > 0;
-
-                                return (hasStoredText || hasTempImages || hasStoredImages) ? (
-                                  <div className="mt-3 space-y-3">
-                                    <h5 className="text-sm font-medium opacity-70">Content</h5>
-
-                                    {/* Stored Text Content Preview */}
-                                    {hasStoredText && (
-                                      <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-                                        <div className="mb-2 flex items-center gap-2">
-                                          <FileText className="h-4 w-4 opacity-60" />
-                                          <span className="text-sm opacity-70">Saved Notes</span>
-                                        </div>
-                                        <p className="line-clamp-3 text-sm opacity-80">{trackingItem.textContent}</p>
-                                        <button
-                                          onClick={() => {
-                                            // Pre-populate text editor with stored content
-                                            setTextEditingState((prev) => ({
-                                              ...prev,
-                                              [trackingItem.id]: {
-                                                content: trackingItem.textContent || "",
-                                                isEditing: true,
-                                                fileName: prev[trackingItem.id]?.fileName,
-                                              },
-                                            }));
-                                          }}
-                                          className="mt-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
-                                        >
-                                          Click to edit
-                                        </button>
-                                      </div>
-                                    )}
-
-                                    {/* Stored Images Preview */}
-                                    {hasStoredImages && (
-                                      <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-                                        <div className="mb-2 flex items-center gap-2">
-                                          <Image className="h-4 w-4 opacity-60" />
-                                          <span className="text-sm opacity-70">
-                                            Saved Images ({imageFiles.length})
-                                          </span>
-                                        </div>
-                                        <div className="grid grid-cols-4 gap-2">
-                                          {imageFiles.slice(0, 4).map((file, index) => (
-                                            <div key={file.id} className="group relative">
-                                              <img
-                                                src={file.url}
-                                                alt={`Saved ${index + 1}`}
-                                                className="h-16 w-full rounded object-cover"
-                                              />
-                                              {index === 3 && imageFiles.length > 4 && (
-                                                <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60 text-xs text-white">
-                                                  +{imageFiles.length - 3}
-                                                </div>
-                                              )}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* Temporary Images Preview (newly uploaded, not yet persisted) */}
-                                    {hasTempImages && (
-                                      <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-3">
-                                        <div className="mb-2 flex items-center gap-2">
-                                          <Upload className="h-4 w-4 opacity-60 text-yellow-400" />
-                                          <span className="text-sm opacity-70 text-yellow-400">
-                                            Recently Uploaded ({tempFiles?.images?.length || 0})
-                                          </span>
-                                        </div>
-                                        <div className="grid grid-cols-4 gap-2">
-                                          {(tempFiles?.images || []).slice(0, 4).map((imageSrc, index) => (
-                                            <div key={index} className="group relative">
-                                              <img
-                                                src={imageSrc}
-                                                alt={`Recent upload ${index + 1}`}
-                                                className="h-16 w-full rounded object-cover"
-                                              />
-                                              {index === 3 && (tempFiles?.images?.length || 0) > 4 && (
-                                                <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60 text-xs text-white">
-                                                  +{(tempFiles?.images?.length || 0) - 3}
-                                                </div>
-                                              )}
-                                            </div>
-                                          ))}
-                                        </div>
-                                        <p className="mt-2 text-xs opacity-60 text-yellow-400">
-                                          These images will be available after page refresh
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : null;
-                              })()}
                             </div>
-                          ))
-                        ) : (
-                          <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-center">
-                            <p className="text-sm opacity-60">No tracking items for this goal</p>
+
+                            {/* Action Buttons */}
+                            <div className="mt-3 flex gap-2">
+                              {/* Add Text Button */}
+                              <button
+                                onClick={() => {
+                                  setTextEditingState((prev) => ({
+                                    ...prev,
+                                    [trackingItem.id]: {
+                                      content: prev[trackingItem.id]?.content || trackingItem.textContent || "",
+                                      isEditing: true,
+                                      fileName: prev[trackingItem.id]?.fileName,
+                                    },
+                                  }));
+                                }}
+                                className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm transition-all hover:bg-white/20"
+                              >
+                                <FileText className="h-4 w-4" />
+                                Add Text
+                              </button>
+
+                              {/* Add Images Button */}
+                              <button
+                                onClick={() => {
+                                  const input = fileInputRefs.current[trackingItem.id];
+                                  if (input) input.click();
+                                }}
+                                className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm transition-all hover:bg-white/20"
+                              >
+                                <Image className="h-4 w-4" />
+                                Add Images
+                              </button>
+
+                              {/* Hidden File Input */}
+                              <input
+                                ref={(el) => {
+                                  fileInputRefs.current[trackingItem.id] = el;
+                                }}
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={(e) => {
+                                  if (e.target.files) {
+                                    handleImageUpload(trackingItem.id, e.target.files);
+                                  }
+                                }}
+                                className="hidden"
+                              />
+                            </div>
+
+                            {/* Text Editor */}
+                            {textEditingState[trackingItem.id]?.isEditing && (
+                              <div className="mt-3">
+                                <textarea
+                                  value={textEditingState[trackingItem.id]?.content || ""}
+                                  onChange={(e) => handleTextChange(trackingItem.id, e.target.value)}
+                                  placeholder="Add your notes for this tracking item..."
+                                  rows={4}
+                                  className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-all focus:border-white/40"
+                                />
+                                <div className="mt-2 flex justify-end">
+                                  <button
+                                    onClick={() => {
+                                      setTextEditingState((prev) => ({
+                                        ...prev,
+                                        [trackingItem.id]: {
+                                          content: prev[trackingItem.id]?.content || "",
+                                          isEditing: false,
+                                          fileName: prev[trackingItem.id]?.fileName,
+                                        },
+                                      }));
+                                    }}
+                                    className="rounded-lg border border-white/20 px-3 py-1 text-sm transition-all hover:bg-white/10"
+                                  >
+                                    Done
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Files Preview Area - Now showing actual stored files */}
+                            {(() => {
+                              const tempFiles = trackingItemFiles[trackingItem.id]; // Keep temp files for newly uploaded content
+
+                              // Show content if we have actual stored files OR temporary uploaded files
+                              const hasStoredText = trackingItem.textContent;
+                              const hasTempImages = (tempFiles?.images?.length || 0) > 0;
+                              const imageFiles = trackingItem.files.filter((file) => file.fileType === "image");
+                              const hasStoredImages = imageFiles.length > 0;
+
+                              return hasStoredText || hasTempImages || hasStoredImages ? (
+                                <div className="mt-3 space-y-3">
+                                  <h5 className="text-sm font-medium opacity-70">Content</h5>
+
+                                  {/* Stored Text Content Preview */}
+                                  {hasStoredText && (
+                                    <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                                      <div className="mb-2 flex items-center gap-2">
+                                        <FileText className="h-4 w-4 opacity-60" />
+                                        <span className="text-sm opacity-70">Saved Notes</span>
+                                      </div>
+                                      <p className="line-clamp-3 text-sm opacity-80">{trackingItem.textContent}</p>
+                                      <button
+                                        onClick={() => {
+                                          // Pre-populate text editor with stored content
+                                          setTextEditingState((prev) => ({
+                                            ...prev,
+                                            [trackingItem.id]: {
+                                              content: trackingItem.textContent || "",
+                                              isEditing: true,
+                                              fileName: prev[trackingItem.id]?.fileName,
+                                            },
+                                          }));
+                                        }}
+                                        className="mt-2 text-xs opacity-60 transition-opacity hover:opacity-100"
+                                      >
+                                        Click to edit
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {/* Stored Images Preview */}
+                                  {hasStoredImages && (
+                                    <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                                      <div className="mb-2 flex items-center gap-2">
+                                        <Image className="h-4 w-4 opacity-60" />
+                                        <span className="text-sm opacity-70">Saved Images ({imageFiles.length})</span>
+                                      </div>
+                                      <div className="grid grid-cols-4 gap-2">
+                                        {imageFiles.slice(0, 4).map((file, index) => (
+                                          <div key={file.id} className="group relative">
+                                            <img
+                                              src={file.url}
+                                              alt={`Saved ${index + 1}`}
+                                              className="h-16 w-full rounded object-cover"
+                                            />
+                                            {index === 3 && imageFiles.length > 4 && (
+                                              <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60 text-xs text-white">
+                                                +{imageFiles.length - 3}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Temporary Images Preview (newly uploaded, not yet persisted) */}
+                                  {hasTempImages && (
+                                    <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-3">
+                                      <div className="mb-2 flex items-center gap-2">
+                                        <Upload className="h-4 w-4 text-yellow-400 opacity-60" />
+                                        <span className="text-sm text-yellow-400 opacity-70">
+                                          Recently Uploaded ({tempFiles?.images?.length || 0})
+                                        </span>
+                                      </div>
+                                      <div className="grid grid-cols-4 gap-2">
+                                        {(tempFiles?.images || []).slice(0, 4).map((imageSrc, index) => (
+                                          <div key={index} className="group relative">
+                                            <img
+                                              src={imageSrc}
+                                              alt={`Recent upload ${index + 1}`}
+                                              className="h-16 w-full rounded object-cover"
+                                            />
+                                            {index === 3 && (tempFiles?.images?.length || 0) > 4 && (
+                                              <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60 text-xs text-white">
+                                                +{(tempFiles?.images?.length || 0) - 3}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <p className="mt-2 text-xs text-yellow-400 opacity-60">
+                                        These images will be available after page refresh
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : null;
+                            })()}
                           </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                        ))
+                      ) : (
+                        <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-center">
+                          <p className="text-sm opacity-60">No tracking items for this goal</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
 
             {/* Show message if no goals have tracking items */}
             {goalsWithTrackingItems.length === 0 && (

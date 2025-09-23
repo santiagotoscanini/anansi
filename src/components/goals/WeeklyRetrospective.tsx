@@ -218,19 +218,28 @@ export default function WeeklyRetrospective() {
         try {
           // Find the goal that contains this tracking item
           let goalId: string | undefined;
+          let trackingItem: any = undefined;
           for (const goal of goalsWithTrackingItems) {
-            if (goal.trackingItems.some((item) => item.id === trackingItemId)) {
+            const item = goal.trackingItems.find((item) => item.id === trackingItemId);
+            if (item) {
               goalId = goal.id;
+              trackingItem = item;
               break;
             }
           }
 
-          if (!goalId) {
-            console.error("Could not find goal for tracking item:", trackingItemId);
+          if (!goalId || !trackingItem) {
+            console.error("Could not find goal or tracking item for:", trackingItemId);
             return;
           }
 
-          await saveTextFile(content, goalId, trackingItemId, textEditingState[trackingItemId]?.fileName);
+          // Find existing text file name from the files array, or use the one from editing state
+          const existingTextFile = trackingItem.files?.find(
+            (file: any) => file.fileType === "document" && file.fileName.endsWith(".txt"),
+          );
+          const existingFileName = existingTextFile?.fileName || textEditingState[trackingItemId]?.fileName;
+
+          await saveTextFile(content, goalId, trackingItemId, existingFileName);
 
           // Update preview state with text content
           setTrackingItemFiles((prev) => ({
@@ -505,39 +514,9 @@ export default function WeeklyRetrospective() {
                                       Archived
                                     </span>
                                   )}
-                                  {trackingItem.weeklySyncItem && (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-green-500/20 px-2 py-1 text-xs text-green-400">
-                                      <Calendar className="h-3 w-3" />
-                                      In Weekly Sync
-                                    </span>
-                                  )}
-                                  {/* Current Week Status Indicator for individual tracking items */}
-                                  {isCurrentWeek(selectedWeek) && (
-                                    <div
-                                      className={`h-2 w-2 rounded-full ${
-                                        getTrackingItemStatus(trackingItem) === "complete"
-                                          ? "bg-green-500"
-                                          : getTrackingItemStatus(trackingItem) === "partial"
-                                            ? "bg-yellow-500"
-                                            : "bg-red-500"
-                                      }`}
-                                      title={`Item status: ${getTrackingItemStatus(trackingItem)}`}
-                                    />
-                                  )}
                                 </div>
                                 {trackingItem.description && (
                                   <p className="mt-1 text-sm opacity-60">{trackingItem.description}</p>
-                                )}
-                                {trackingItem.weeklySyncItem && (
-                                  <p className="mt-1 text-xs opacity-40">
-                                    Added to sync:{" "}
-                                    {new Date(trackingItem.weeklySyncItem.createdAt).toLocaleDateString("en-US", {
-                                      month: "short",
-                                      day: "numeric",
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })}
-                                  </p>
                                 )}
                               </div>
 
@@ -559,23 +538,28 @@ export default function WeeklyRetrospective() {
 
                             {/* Action Buttons */}
                             <div className="mt-3 flex gap-2">
-                              {/* Add Text Button */}
-                              <button
-                                onClick={() => {
-                                  setTextEditingState((prev) => ({
-                                    ...prev,
-                                    [trackingItem.id]: {
-                                      content: prev[trackingItem.id]?.content || trackingItem.textContent || "",
-                                      isEditing: true,
-                                      fileName: prev[trackingItem.id]?.fileName,
-                                    },
-                                  }));
-                                }}
-                                className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm transition-all hover:bg-white/20"
-                              >
-                                <FileText className="h-4 w-4" />
-                                Add Text
-                              </button>
+                              {/* Add Text Button - Only show if no text content exists */}
+                              {!trackingItem.textContent && (
+                                <button
+                                  onClick={() => {
+                                    const existingTextFile = trackingItem.files?.find(
+                                      (file: any) => file.fileType === "document" && file.fileName.endsWith(".txt"),
+                                    );
+                                    setTextEditingState((prev) => ({
+                                      ...prev,
+                                      [trackingItem.id]: {
+                                        content: prev[trackingItem.id]?.content || trackingItem.textContent || "",
+                                        isEditing: true,
+                                        fileName: existingTextFile?.fileName || prev[trackingItem.id]?.fileName,
+                                      },
+                                    }));
+                                  }}
+                                  className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm transition-all hover:bg-white/20"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                  Add Text
+                                </button>
+                              )}
 
                               {/* Add Images Button */}
                               <button
@@ -589,7 +573,7 @@ export default function WeeklyRetrospective() {
                                 Add Images
                               </button>
 
-                              {/* Hidden File Input */}
+                              {/* Hidden File Input, triggered by the "Add Image" button */}
                               <input
                                 ref={(el) => {
                                   fileInputRefs.current[trackingItem.id] = el;
@@ -607,7 +591,7 @@ export default function WeeklyRetrospective() {
                             </div>
 
                             {/* Text Editor */}
-                            {textEditingState[trackingItem.id]?.isEditing && (
+                            {!trackingItem.textContent && textEditingState[trackingItem.id]?.isEditing && (
                               <div className="mt-3">
                                 <textarea
                                   value={textEditingState[trackingItem.id]?.content || ""}
@@ -657,23 +641,61 @@ export default function WeeklyRetrospective() {
                                         <FileText className="h-4 w-4 opacity-60" />
                                         <span className="text-sm opacity-70">Saved Notes</span>
                                       </div>
-                                      <p className="line-clamp-3 text-sm opacity-80">{trackingItem.textContent}</p>
-                                      <button
-                                        onClick={() => {
-                                          // Pre-populate text editor with stored content
-                                          setTextEditingState((prev) => ({
-                                            ...prev,
-                                            [trackingItem.id]: {
-                                              content: trackingItem.textContent || "",
-                                              isEditing: true,
-                                              fileName: prev[trackingItem.id]?.fileName,
-                                            },
-                                          }));
-                                        }}
-                                        className="mt-2 text-xs opacity-60 transition-opacity hover:opacity-100"
-                                      >
-                                        Click to edit
-                                      </button>
+                                      {textEditingState[trackingItem.id]?.isEditing ? (
+                                        <div>
+                                          <textarea
+                                            value={
+                                              textEditingState[trackingItem.id]?.content ||
+                                              trackingItem.textContent ||
+                                              ""
+                                            }
+                                            onChange={(e) => handleTextChange(trackingItem.id, e.target.value)}
+                                            placeholder="Add your notes for this tracking item..."
+                                            rows={4}
+                                            className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-all focus:border-white/40"
+                                            autoFocus
+                                          />
+                                          <div className="mt-2 flex justify-end">
+                                            <button
+                                              onClick={() => {
+                                                setTextEditingState((prev) => ({
+                                                  ...prev,
+                                                  [trackingItem.id]: {
+                                                    content: prev[trackingItem.id]?.content || "",
+                                                    isEditing: false,
+                                                    fileName: prev[trackingItem.id]?.fileName,
+                                                  },
+                                                }));
+                                              }}
+                                              className="rounded-lg border border-white/20 px-3 py-1 text-sm transition-all hover:bg-white/10"
+                                            >
+                                              Done
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div
+                                          onClick={() => {
+                                            // Pre-populate text editor with stored content and existing filename
+                                            const existingTextFile = trackingItem.files?.find(
+                                              (file: any) =>
+                                                file.fileType === "document" && file.fileName.endsWith(".txt"),
+                                            );
+                                            setTextEditingState((prev) => ({
+                                              ...prev,
+                                              [trackingItem.id]: {
+                                                content: trackingItem.textContent || "",
+                                                isEditing: true,
+                                                fileName: existingTextFile?.fileName || prev[trackingItem.id]?.fileName,
+                                              },
+                                            }));
+                                          }}
+                                          className="cursor-pointer rounded p-2 text-sm opacity-80 transition-all hover:bg-white/5 hover:opacity-100"
+                                          title="Click to edit"
+                                        >
+                                          {trackingItem.textContent}
+                                        </div>
+                                      )}
                                     </div>
                                   )}
 

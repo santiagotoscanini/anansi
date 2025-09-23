@@ -138,12 +138,12 @@ export function getMimeTypeFromBase64(data: string): string | null {
 
 /**
  * Enhanced file upload function for weekly sync files
- * Supports the structure: {user}/{goalId}/{upload_date}/{tracking_item_id}/file.ext
+ * Supports the structure: {user}/{goalId}/{weeklySyncDate}/{tracking_item_id}/file.ext
  * @param data - Base64 data or text content
  * @param userId - User ID
- * @param userName - User name for directory naming
  * @param goalId - Goal ID
  * @param trackingItemId - Tracking item ID
+ * @param weeklySyncDate - Date when the weekly sync was created
  * @param originalFileName - Original file name
  * @param isText - Whether this is text content (not base64)
  * @returns Promise with file upload result
@@ -151,9 +151,9 @@ export function getMimeTypeFromBase64(data: string): string | null {
 export async function saveWeeklySyncFile(
   data: string,
   userId: string,
-  userName: string,
   goalId: string,
   trackingItemId: string,
+  weeklySyncDate: Date,
   originalFileName?: string,
   isText = false
 ): Promise<FileUploadResult> {
@@ -210,9 +210,8 @@ export async function saveWeeklySyncFile(
       }
     }
 
-    // Create directory structure: uploads/{userId}/{goalId}/{upload_date}/{trackingItemId}/
-    const today = new Date();
-    const dateString = today.toISOString().split("T")[0] || today.toISOString().slice(0, 10); // YYYY-MM-DD format
+    // Create directory structure: uploads/{userId}/{goalId}/{weeklySyncDate}/{trackingItemId}/
+    const dateString = weeklySyncDate.toISOString().split("T")[0] || weeklySyncDate.toISOString().slice(0, 10); // YYYY-MM-DD format
 
     const uploadsDir = path.join(process.cwd(), "uploads");
     const userDir = path.join(uploadsDir, userId);
@@ -261,27 +260,26 @@ export async function saveWeeklySyncFile(
  * Ensures only one text file exists per tracking item by using a consistent filename
  * @param content - Text content
  * @param userId - User ID
- * @param userName - User name
  * @param goalId - Goal ID
  * @param trackingItemId - Tracking item ID
+ * @param weeklySyncDate - Date when the weekly sync was created
  * @param existingFileName - Existing file name to update (optional, ignored - kept for compatibility)
  * @returns Promise with file upload result
  */
 export async function saveOrUpdateTextFile(
   content: string,
   userId: string,
-  userName: string,
   goalId: string,
   trackingItemId: string,
+  weeklySyncDate: Date,
   existingFileName?: string
 ): Promise<FileUploadResult> {
   try {
     // Always use a consistent filename for text files to ensure only one per tracking item
     const fileName = "notes.txt";
 
-    // Create directory structure: uploads/{userId}/{goalId}/{upload_date}/{trackingItemId}/
-    const today = new Date();
-    const dateString = today.toISOString().split("T")[0] || today.toISOString().slice(0, 10); // YYYY-MM-DD format
+    // Create directory structure: uploads/{userId}/{goalId}/{weeklySyncDate}/{trackingItemId}/
+    const dateString = weeklySyncDate.toISOString().split("T")[0] || weeklySyncDate.toISOString().slice(0, 10); // YYYY-MM-DD format
 
     const uploadsDir = path.join(process.cwd(), "uploads");
     const userDir = path.join(uploadsDir, userId);
@@ -319,17 +317,16 @@ export async function saveOrUpdateTextFile(
  * @param userId - User ID
  * @param goalId - Goal ID
  * @param trackingItemId - Tracking item ID
- * @param date - Optional date (defaults to today)
+ * @param weeklySyncDate - Date when the weekly sync was created
  * @returns The expected file path for the tracking item's text file
  */
 export function getTextFilePath(
   userId: string,
   goalId: string,
   trackingItemId: string,
-  date?: Date
+  weeklySyncDate: Date
 ): string {
-  const targetDate = date || new Date();
-  const dateString = targetDate.toISOString().split("T")[0] || targetDate.toISOString().slice(0, 10);
+  const dateString = weeklySyncDate.toISOString().split("T")[0] || weeklySyncDate.toISOString().slice(0, 10);
 
   return path.join("uploads", userId, goalId, dateString, trackingItemId, "notes.txt");
 }
@@ -361,16 +358,16 @@ export async function readTextFile(filePath: string): Promise<string | null> {
  * @param userId - User ID
  * @param goalId - Goal ID
  * @param trackingItemId - Tracking item ID
- * @param date - Optional date (defaults to today)
+ * @param weeklySyncDate - Date when the weekly sync was created
  * @returns Promise with file content or null if not found
  */
 export async function readTrackingItemTextFile(
   userId: string,
   goalId: string,
   trackingItemId: string,
-  date?: Date
+  weeklySyncDate: Date
 ): Promise<string | null> {
-  const filePath = getTextFilePath(userId, goalId, trackingItemId, date);
+  const filePath = getTextFilePath(userId, goalId, trackingItemId, weeklySyncDate);
   return readTextFile(filePath);
 }
 
@@ -380,7 +377,7 @@ export async function readTrackingItemTextFile(
  * @param userId - User ID
  * @param goalId - Goal ID
  * @param trackingItemId - Tracking item ID
- * @param date - Optional date (defaults to today)
+ * @param weeklySyncDate - Date when the weekly sync was created
  * @returns The URL to access the file
  */
 export function generateFileUrl(
@@ -388,12 +385,11 @@ export function generateFileUrl(
   userId: string,
   goalId: string,
   trackingItemId: string,
-  date?: Date
+  weeklySyncDate: Date
 ): string {
-  const targetDate = date || new Date();
-  const dateString = targetDate.toISOString().split("T")[0] || targetDate.toISOString().slice(0, 10);
+  const dateString = weeklySyncDate.toISOString().split("T")[0] || weeklySyncDate.toISOString().slice(0, 10);
 
-  // Build the file path: uploads/{userId}/{goalId}/{date}/{trackingItemId}/{fileName}
+  // Build the file path: uploads/{userId}/{goalId}/{weeklySyncDate}/{trackingItemId}/{fileName}
   const filePath = path.join("uploads", userId, goalId, dateString, trackingItemId, fileName);
 
   // Convert to URL path with forward slashes

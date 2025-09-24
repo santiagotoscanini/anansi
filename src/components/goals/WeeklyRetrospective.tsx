@@ -157,14 +157,8 @@ export default function WeeklyRetrospective() {
     setSelectedWeek(newWeek);
   };
 
-  // Handle creating weekly sync (only for current week)
+  // Handle creating weekly sync (can now create for any week)
   const handleStartWeeklySync = async () => {
-    // Only allow creating weekly sync for current week
-    if (!isCurrentWeek(selectedWeek)) {
-      toast.error("You can only start weekly sync for the current week");
-      return;
-    }
-
     // Prevent weekly sync creation when there are backend errors
     if (hasError) {
       toast.error("Cannot create weekly sync while there are backend errors");
@@ -172,7 +166,7 @@ export default function WeeklyRetrospective() {
     }
 
     try {
-      await createWeeklySync();
+      await createWeeklySync(selectedWeek);
       // Refetch the query to update the UI
       await weeklyRetrospectiveQuery.refetch();
       toast.success("Weekly sync started!");
@@ -417,28 +411,20 @@ export default function WeeklyRetrospective() {
           /* No Weekly Sync - Show Start Button only for current week */
           <div className="rounded-lg border border-white/10 bg-white/5 p-12 text-center">
             <Calendar className="mx-auto h-12 w-12 opacity-30" />
-            <p className="mt-4 text-lg font-light">
-              {isCurrentWeek(selectedWeek) ? "No sync for this week" : "No sync data available"}
-            </p>
-            <p className="mt-2 text-sm opacity-60">
-              {isCurrentWeek(selectedWeek)
-                ? "Start a weekly sync to track your goal progress"
-                : "Weekly syncs can only be created for the current week"}
-            </p>
-            {isCurrentWeek(selectedWeek) && (
-              <button
-                onClick={handleStartWeeklySync}
-                disabled={!!hasError}
-                className={`mt-6 rounded-lg border px-4 py-2 transition-all ${
-                  hasError
-                    ? "cursor-not-allowed border-red-500/20 bg-red-500/10 text-red-400 opacity-50"
-                    : "border-white/20 bg-white/10 hover:bg-white hover:text-black"
-                }`}
-              >
-                <Plus className="mr-2 inline h-4 w-4" />
-                Start Weekly Sync
-              </button>
-            )}
+            <p className="mt-4 text-lg font-light">No sync for this week</p>
+            <p className="mt-2 text-sm opacity-60">Start a weekly sync to track your goal progress for this week</p>
+            <button
+              onClick={handleStartWeeklySync}
+              disabled={!!hasError}
+              className={`mt-6 rounded-lg border px-4 py-2 transition-all ${
+                hasError
+                  ? "cursor-not-allowed border-red-500/20 bg-red-500/10 text-red-400 opacity-50"
+                  : "border-white/20 bg-white/10 hover:bg-white hover:text-black"
+              }`}
+            >
+              <Plus className="mr-2 inline h-4 w-4" />
+              Start Weekly Sync
+            </button>
           </div>
         ) : (
           /* Weekly Sync Active - Show Goals and Tracking Items */

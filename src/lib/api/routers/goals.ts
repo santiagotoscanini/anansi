@@ -486,19 +486,10 @@ export const goalsRouter = createTRPCRouter({
   weeklySync: createTRPCRouter({
     // Get weekly sync for a specific week (Monday-Sunday based on creation date)
     getByWeek: protectedProcedure.input(z.object({ weekStart: z.date() })).query(async ({ input, ctx }) => {
-      const weekEnd = new Date(input.weekStart);
-      weekEnd.setDate(weekEnd.getDate() + 6);
-      weekEnd.setHours(23, 59, 59, 999);
-
       const [syncRecord] = await db
         .select()
         .from(weeklySync)
-        .where(
-          and(
-            eq(weeklySync.userId, ctx.user.userId),
-            and(gte(weeklySync.createdAt, input.weekStart), lte(weeklySync.createdAt, weekEnd)),
-          ),
-        )
+        .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, input.weekStart)))
         .limit(1);
 
       return syncRecord || null;
@@ -508,20 +499,11 @@ export const goalsRouter = createTRPCRouter({
     getWeeklyRetrospectiveData: protectedProcedure
       .input(z.object({ weekStart: z.date() }))
       .query(async ({ input, ctx }) => {
-        const weekEnd = new Date(input.weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 6);
-        weekEnd.setHours(23, 59, 59, 999);
-
         // Get weekly sync
         const [weeklySyncRecord] = await db
           .select()
           .from(weeklySync)
-          .where(
-            and(
-              eq(weeklySync.userId, ctx.user.userId),
-              and(gte(weeklySync.createdAt, input.weekStart), lte(weeklySync.createdAt, weekEnd)),
-            ),
-          )
+          .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, input.weekStart)))
           .limit(1);
 
         // Get all goals with their tracking items for this user
@@ -571,15 +553,11 @@ export const goalsRouter = createTRPCRouter({
         };
 
         // Helper function to generate file URL based on weekly sync creation date
-        const generateFileUrl = (
-          fileName: string,
-          goalId: string,
-          trackingItemId: string,
-        ): string => {
+        const generateFileUrl = (fileName: string, goalId: string, trackingItemId: string): string => {
           if (!weeklySyncRecord) {
             return "";
           }
-          const dateString = weeklySyncRecord.createdAt.toISOString().split("T")[0];
+          const dateString = weeklySyncRecord.weekDate.toISOString().split("T")[0];
           return `/uploads/${ctx.user.userId}/${goalId}/${dateString}/${trackingItemId}/${fileName}`;
         };
 
@@ -1025,35 +1003,26 @@ export const goalsRouter = createTRPCRouter({
         // Find the weekly sync for current week first
         const now = new Date();
         const weekStart = new Date(now);
-        weekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+        weekStart.setDate(now.getDate() - now.getDay() + 1); // Start of week (Monday)
         weekStart.setHours(0, 0, 0, 0);
-
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        weekEnd.setHours(23, 59, 59, 999);
 
         const [currentWeeklySync] = await db
           .select()
           .from(weeklySync)
-          .where(
-            and(
-              eq(weeklySync.userId, ctx.user.userId),
-              and(gte(weeklySync.createdAt, weekStart), lte(weeklySync.createdAt, weekEnd)),
-            ),
-          )
+          .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, weekStart)))
           .limit(1);
 
         if (!currentWeeklySync) {
           throw new Error("No weekly sync found for current week. Please start a weekly sync first.");
         }
 
-        // Save file to weekly sync structure using the weekly sync creation date
+        // Save file to weekly sync structure using the weekly sync week date
         const result = await saveWeeklySyncFile(
           input.data,
           ctx.user.userId,
           input.goalId,
           input.trackingItemId,
-          currentWeeklySync.createdAt,
+          currentWeeklySync.weekDate,
           input.fileName,
           input.isText,
         );
@@ -1121,35 +1090,26 @@ export const goalsRouter = createTRPCRouter({
         // Find the weekly sync for current week first
         const now = new Date();
         const weekStart = new Date(now);
-        weekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+        weekStart.setDate(now.getDate() - now.getDay() + 1); // Start of week (Monday)
         weekStart.setHours(0, 0, 0, 0);
-
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        weekEnd.setHours(23, 59, 59, 999);
 
         const [currentWeeklySync] = await db
           .select()
           .from(weeklySync)
-          .where(
-            and(
-              eq(weeklySync.userId, ctx.user.userId),
-              and(gte(weeklySync.createdAt, weekStart), lte(weeklySync.createdAt, weekEnd)),
-            ),
-          )
+          .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, weekStart)))
           .limit(1);
 
         if (!currentWeeklySync) {
           throw new Error("No weekly sync found for current week. Please start a weekly sync first.");
         }
 
-        // Save text file using the weekly sync creation date
+        // Save text file using the weekly sync week date
         const result = await saveOrUpdateTextFile(
           input.content,
           ctx.user.userId,
           input.goalId,
           input.trackingItemId,
-          currentWeeklySync.createdAt,
+          currentWeeklySync.weekDate,
           input.existingFileName,
         );
 
@@ -1287,22 +1247,13 @@ export const goalsRouter = createTRPCRouter({
 
         // Find the weekly sync for the specified date
         const weekStart = new Date(targetDate);
-        weekStart.setDate(targetDate.getDate() - targetDate.getDay()); // Start of week (Sunday)
+        weekStart.setDate(targetDate.getDate() - targetDate.getDay() + 1); // Start of week (Monday)
         weekStart.setHours(0, 0, 0, 0);
-
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        weekEnd.setHours(23, 59, 59, 999);
 
         const [targetWeeklySync] = await db
           .select()
           .from(weeklySync)
-          .where(
-            and(
-              eq(weeklySync.userId, ctx.user.userId),
-              and(gte(weeklySync.createdAt, weekStart), lte(weeklySync.createdAt, weekEnd)),
-            ),
-          )
+          .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, weekStart)))
           .limit(1);
 
         if (!targetWeeklySync) {
@@ -1313,19 +1264,24 @@ export const goalsRouter = createTRPCRouter({
           };
         }
 
-        const content = await readTrackingItemTextFile(ctx.user.userId, input.goalId, input.trackingItemId, targetWeeklySync.createdAt);
+        const content = await readTrackingItemTextFile(
+          ctx.user.userId,
+          input.goalId,
+          input.trackingItemId,
+          targetWeeklySync.weekDate,
+        );
 
         if (content === null) {
           // Return empty content instead of error for better UX
           return {
             content: "",
-            filePath: getTextFilePath(ctx.user.userId, input.goalId, input.trackingItemId, targetWeeklySync.createdAt),
+            filePath: getTextFilePath(ctx.user.userId, input.goalId, input.trackingItemId, targetWeeklySync.weekDate),
           };
         }
 
         return {
           content,
-          filePath: getTextFilePath(ctx.user.userId, input.goalId, input.trackingItemId, targetWeeklySync.createdAt),
+          filePath: getTextFilePath(ctx.user.userId, input.goalId, input.trackingItemId, targetWeeklySync.weekDate),
         };
       }),
 

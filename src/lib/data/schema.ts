@@ -102,6 +102,7 @@ export const weeklySync = pgTable("weekly_sync", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  weekDate: timestamp("week_date").notNull(), // Monday of the retrospective week
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

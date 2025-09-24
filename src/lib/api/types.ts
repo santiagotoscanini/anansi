@@ -47,6 +47,7 @@ export const trackingItemSchema = z.object({
 export const weeklySyncSchema = z.object({
   id: z.string(),
   userId: z.string(),
+  weekDate: z.date(), // Monday of the retrospective week
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -83,7 +84,12 @@ export const updateConnectionSchema = connectionSchema.partial().required({ id: 
 export const createTrackingItemSchema = trackingItemSchema.omit({ id: true, deletedAt: true });
 export const updateTrackingItemSchema = trackingItemSchema.omit({ deletedAt: true }).partial().required({ id: true });
 
-export const createWeeklySyncSchema = weeklySyncSchema.omit({ id: true, userId: true, createdAt: true, updatedAt: true });
+export const createWeeklySyncSchema = weeklySyncSchema.omit({
+  id: true,
+  userId: true,
+  createdAt: true,
+  updatedAt: true,
+});
 export const updateWeeklySyncSchema = weeklySyncSchema.partial().required({ id: true });
 
 export const createWeeklySyncItemSchema = weeklySyncItemSchema.omit({ id: true, createdAt: true, updatedAt: true });

@@ -55,7 +55,7 @@ interface GoalsContextType {
 
   // Weekly Sync operations
   getWeeklySyncByWeek: (weekStart: Date) => Promise<WeeklySync | null>;
-  createWeeklySync: () => Promise<WeeklySync>;
+  createWeeklySync: (weekDate: Date) => Promise<WeeklySync>;
 
   // Weekly Sync Items operations
   createWeeklySyncItem: (weeklySyncId: string, trackingItemId: string) => Promise<WeeklySyncItem>;
@@ -486,9 +486,9 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const createWeeklySync = useCallback(async (): Promise<WeeklySync> => {
+  const createWeeklySync = useCallback(async (weekDate: Date): Promise<WeeklySync> => {
     try {
-      const result = await weeklySyncMutations.create.mutateAsync({});
+      const result = await weeklySyncMutations.create.mutateAsync({ weekDate });
       await refreshData();
       return result;
     } catch (error) {

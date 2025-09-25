@@ -13,6 +13,7 @@ import {
   Archive,
   ChevronDown,
   ChevronUp,
+  Trash2,
 } from "lucide-react";
 import { useGoals } from "~/contexts/GoalsContext";
 import { api } from "~/trpc/react";
@@ -34,6 +35,13 @@ interface SaveStatus {
   [trackingItemId: string]: "saving" | "saved" | "idle";
 }
 
+interface DeleteConfirmation {
+  isOpen: boolean;
+  fileId: string;
+  fileName: string;
+  trackingItemId: string;
+}
+
 interface TrackingItemFiles {
   [trackingItemId: string]: {
     images: string[];
@@ -41,8 +49,29 @@ interface TrackingItemFiles {
   };
 }
 
+// Helper function to determine file type based on file extension
+const getFileType = (fileName: string): "image" | "document" | "video" | "audio" | "other" => {
+  const extension = fileName.split('.').pop()?.toLowerCase() || '';
+
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(extension)) {
+    return 'image';
+  } else if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm'].includes(extension)) {
+    return 'video';
+  } else if (['mp3', 'wav', 'ogg', 'aac', 'flac'].includes(extension)) {
+    return 'audio';
+  } else if (['pdf', 'doc', 'docx', 'txt', 'rtf', 'xls', 'xlsx', 'ppt', 'pptx'].includes(extension)) {
+    return 'document';
+  } else {
+    return 'other';
+  }
+};
+
 export default function WeeklyRetrospective() {
-  const { createWeeklySync, getWeekStartDate, uploadWeeklySyncFile, saveTextFile, createWeeklySyncItem } = useGoals();
+  const { createWeeklySync, getWeekStartDate, uploadWeeklySyncFile, saveTextFile, createWeeklySyncItem } =
+    useGoals();
+
+  // tRPC mutations
+  const deleteFileMutation = api.goals.weeklySyncItemFiles.delete.useMutation();
 
   // State for temporary files (newly uploaded, not yet persisted)
   const [trackingItemFiles, setTrackingItemFiles] = useState<TrackingItemFiles>({});
@@ -86,6 +115,13 @@ export default function WeeklyRetrospective() {
   const [collapsedGoals, setCollapsedGoals] = useState<CollapsedGoals>({});
   const [textEditingState, setTextEditingState] = useState<TextEditingState>({});
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({});
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation>({
+    isOpen: false,
+    fileId: "",
+    fileName: "",
+    trackingItemId: "",
+  });
+  const [deletingFiles, setDeletingFiles] = useState<Set<string>>(new Set());
 
   // File upload refs
   const fileInputRefs = useRef<{ [trackingItemId: string]: HTMLInputElement | null }>({});
@@ -233,7 +269,10 @@ export default function WeeklyRetrospective() {
           );
           const existingFileName = existingTextFile?.fileName || textEditingState[trackingItemId]?.fileName;
 
-          await saveTextFile(content, goalId, trackingItemId, existingFileName);
+          if (!weeklySync?.id) {
+            throw new Error("No weekly sync available");
+          }
+          await saveTextFile(content, weeklySync.id, trackingItemId, existingFileName);
 
           // Update preview state with text content
           setTrackingItemFiles((prev) => ({
@@ -291,8 +330,11 @@ export default function WeeklyRetrospective() {
           const reader = new FileReader();
           reader.onloadend = async () => {
             try {
-              if (reader.result) {
-                await uploadWeeklySyncFile(reader.result as string, goalId, trackingItemId, file.name, false);
+              if (reader.result && weeklySync?.id) {
+                const fileType = getFileType(file.name);
+                await uploadWeeklySyncFile(reader.result as string, weeklySync.id, trackingItemId, file.name, fileType, false);
+              } else {
+                throw new Error("No weekly sync available or no file data");
               }
               resolve();
             } catch (error) {
@@ -322,6 +364,57 @@ export default function WeeklyRetrospective() {
     } catch (error) {
       console.error("Failed to upload images:", error);
       toast.error("Failed to upload images", { id: "image-upload" });
+    }
+  };
+
+  // Handle opening delete confirmation dialog
+  const handleDeleteFileClick = (fileId: string, fileName: string, trackingItemId: string) => {
+    setDeleteConfirmation({
+      isOpen: true,
+      fileId,
+      fileName,
+      trackingItemId,
+    });
+  };
+
+  // Handle canceling delete
+  const handleDeleteCancel = () => {
+    setDeleteConfirmation({
+      isOpen: false,
+      fileId: "",
+      fileName: "",
+      trackingItemId: "",
+    });
+  };
+
+  // Handle confirmed file deletion
+  const handleDeleteConfirm = async () => {
+    const { fileId, fileName } = deleteConfirmation;
+
+    if (!fileId) return;
+
+    // Add to deleting set using fileId
+    setDeletingFiles((prev) => new Set(prev).add(fileId));
+
+    try {
+      await deleteFileMutation.mutateAsync({ id: fileId });
+      toast.success(`${fileName} deleted successfully`);
+
+      // Refresh the weekly retrospective data to update file lists
+      await weeklyRetrospectiveQuery.refetch();
+    } catch (error) {
+      console.error("Failed to delete file:", error);
+      toast.error(`Failed to delete ${fileName}`);
+    } finally {
+      // Remove from deleting set
+      setDeletingFiles((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(fileId);
+        return newSet;
+      });
+
+      // Close confirmation dialog
+      handleDeleteCancel();
     }
   };
 
@@ -623,9 +716,27 @@ export default function WeeklyRetrospective() {
                                   {/* Stored Text Content Preview */}
                                   {hasStoredText && (
                                     <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-                                      <div className="mb-2 flex items-center gap-2">
-                                        <FileText className="h-4 w-4 opacity-60" />
-                                        <span className="text-sm opacity-70">Saved Notes</span>
+                                      <div className="mb-2 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <FileText className="h-4 w-4 opacity-60" />
+                                          <span className="text-sm opacity-70">Saved Notes</span>
+                                        </div>
+                                        <button
+                                          onClick={() => {
+                                            // Find the text file URL to delete
+                                            const textFile = trackingItem.files?.find(
+                                              (file: any) =>
+                                                file.fileType === "document" && file.fileName.endsWith(".txt"),
+                                            );
+                                            if (textFile) {
+                                              handleDeleteFileClick(textFile.id, textFile.fileName, trackingItem.id);
+                                            }
+                                          }}
+                                          className="rounded p-1 text-red-400 opacity-60 transition-all hover:bg-red-500/20 hover:opacity-100"
+                                          title="Delete notes"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </button>
                                       </div>
                                       {textEditingState[trackingItem.id]?.isEditing ? (
                                         <div>
@@ -693,20 +804,47 @@ export default function WeeklyRetrospective() {
                                         <span className="text-sm opacity-70">Saved Images ({imageFiles.length})</span>
                                       </div>
                                       <div className="grid grid-cols-4 gap-2">
-                                        {imageFiles.slice(0, 4).map((file, index) => (
-                                          <div key={file.id} className="group relative">
-                                            <img
-                                              src={file.url}
-                                              alt={`Saved ${index + 1}`}
-                                              className="h-16 w-full rounded object-cover"
-                                            />
-                                            {index === 3 && imageFiles.length > 4 && (
-                                              <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60 text-xs text-white">
-                                                +{imageFiles.length - 3}
-                                              </div>
-                                            )}
-                                          </div>
-                                        ))}
+                                        {imageFiles.slice(0, 4).map((file, index) => {
+                                          const isDeleting = deletingFiles.has(file.id);
+                                          return (
+                                            <div key={file.id} className="group relative">
+                                              <img
+                                                src={file.url}
+                                                alt={`Saved ${index + 1}`}
+                                                className={`h-16 w-full rounded object-cover transition-opacity ${
+                                                  isDeleting ? "opacity-50" : ""
+                                                }`}
+                                              />
+
+                                              {/* Delete button overlay */}
+                                              {!isDeleting && index < 3 && (
+                                                <button
+                                                  onClick={() =>
+                                                    handleDeleteFileClick(file.id, file.fileName, trackingItem.id)
+                                                  }
+                                                  className="absolute right-1 top-1 hidden rounded-full bg-red-500/80 p-1 text-white opacity-0 transition-all hover:bg-red-500 group-hover:block group-hover:opacity-100"
+                                                  title={`Delete ${file.fileName}`}
+                                                >
+                                                  <Trash2 className="h-3 w-3" />
+                                                </button>
+                                              )}
+
+                                              {/* Loading indicator for deleting files */}
+                                              {isDeleting && (
+                                                <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60">
+                                                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
+                                                </div>
+                                              )}
+
+                                              {/* "+X more" overlay for the 4th image */}
+                                              {index === 3 && imageFiles.length > 4 && (
+                                                <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60 text-xs text-white">
+                                                  +{imageFiles.length - 3}
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
                                       </div>
                                     </div>
                                   )}
@@ -765,6 +903,40 @@ export default function WeeklyRetrospective() {
                 <p className="mt-2 text-sm opacity-60">Add tracking items to your goals to start using weekly sync</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Delete Confirmation Dialog */}
+        {deleteConfirmation.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="mx-4 w-full max-w-md rounded-lg border border-white/20 bg-gray-900 p-6">
+              <div className="mb-4 flex items-start gap-3">
+                <div className="flex-shrink-0 rounded-full bg-red-500/20 p-2">
+                  <Trash2 className="h-5 w-5 text-red-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-white">Delete File</h3>
+                  <p className="mt-1 text-sm text-gray-300">
+                    Are you sure you want to delete "{deleteConfirmation.fileName}"? This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDeleteCancel}
+                  className="flex-1 rounded-lg border border-white/20 px-4 py-2 text-sm transition-all hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteConfirm}
+                  className="flex-1 rounded-lg bg-red-500 px-4 py-2 text-sm text-white transition-all hover:bg-red-600"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

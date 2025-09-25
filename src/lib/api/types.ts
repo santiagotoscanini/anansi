@@ -95,7 +95,10 @@ export const updateWeeklySyncSchema = weeklySyncSchema.partial().required({ id: 
 export const createWeeklySyncItemSchema = weeklySyncItemSchema.omit({ id: true, createdAt: true, updatedAt: true });
 export const updateWeeklySyncItemSchema = weeklySyncItemSchema.partial().required({ id: true });
 
-export const createWeeklySyncItemFileSchema = weeklySyncItemFileSchema.omit({ id: true, createdAt: true });
+export const createWeeklySyncItemFileSchema = weeklySyncItemFileSchema.omit({ id: true, createdAt: true }).extend({
+  data: z.string(),
+  isText: z.boolean().default(false),
+});
 export const updateWeeklySyncItemFileSchema = weeklySyncItemFileSchema.partial().required({ id: true });
 
 // Export types

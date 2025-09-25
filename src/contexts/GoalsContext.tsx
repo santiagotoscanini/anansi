@@ -63,18 +63,18 @@ interface GoalsContextType {
   // Weekly Sync Files operations
   uploadWeeklySyncFile: (
     data: string,
-    goalId: string,
+    weeklySyncId: string,
     trackingItemId: string,
-    fileName?: string,
+    fileName: string,
+    fileType: "image" | "document" | "video" | "audio" | "other",
     isText?: boolean,
   ) => Promise<{ url: string; fileName: string; filePath: string; fileType: string }>;
   saveTextFile: (
     content: string,
-    goalId: string,
+    weeklySyncId: string,
     trackingItemId: string,
     existingFileName?: string,
   ) => Promise<{ url: string; fileName: string; filePath: string; fileType: string }>;
-  deleteFile: (filePath: string) => Promise<{ success: boolean }>;
 
   // Utility functions
   getGoalCompletion: (goalId: string) => number;
@@ -154,9 +154,8 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   };
 
   const filesMutations = {
-    uploadWeeklySyncFile: api.goals.images.uploadWeeklySyncFile.useMutation(),
-    saveTextFile: api.goals.images.saveTextFile.useMutation(),
-    delete: api.goals.images.delete.useMutation(),
+    create: api.goals.weeklySyncItemFiles.create.useMutation(),
+    readTrackingItemText: api.goals.weeklySyncItemFiles.readTrackingItemText.useQuery,
   };
 
   // Initialize token on mount (client-side only)
@@ -514,21 +513,44 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     [weeklySyncItemsMutations.create, refreshData],
   );
 
+  // Helper function to ensure WeeklySyncItem exists for a given weeklySyncId and trackingItemId
+  const ensureWeeklySyncItem = useCallback(
+    async (weeklySyncId: string, trackingItemId: string): Promise<string> => {
+      try {
+        const result = await weeklySyncItemsMutations.create.mutateAsync({
+          weeklySyncId,
+          trackingItemId,
+        });
+        // The backend will return existing item if it already exists
+        return result.id;
+      } catch (error) {
+        console.error("Failed to ensure weekly sync item exists:", error);
+        throw error;
+      }
+    },
+    [weeklySyncItemsMutations.create],
+  );
+
   // Other files that are not text
   const uploadWeeklySyncFile = useCallback(
     async (
       data: string,
-      goalId: string,
+      weeklySyncId: string,
       trackingItemId: string,
-      fileName?: string,
+      fileName: string,
+      fileType: "image" | "document" | "video" | "audio" | "other",
       isText = false,
     ): Promise<{ url: string; fileName: string; filePath: string; fileType: string }> => {
       try {
-        const result = await filesMutations.uploadWeeklySyncFile.mutateAsync({
-          data,
-          goalId,
-          trackingItemId,
+        // First, ensure WeeklySyncItem exists
+        const weeklySyncItemId = await ensureWeeklySyncItem(weeklySyncId, trackingItemId);
+
+        // Then create the file
+        const result = await filesMutations.create.mutateAsync({
+          weeklySyncItemId,
           fileName,
+          fileType,
+          data,
           isText,
         });
         return result;
@@ -537,23 +559,28 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     },
-    [filesMutations.uploadWeeklySyncFile],
+    [filesMutations.create, ensureWeeklySyncItem],
   );
 
   // Exclusively for text files
   const saveTextFile = useCallback(
     async (
       content: string,
-      goalId: string,
+      weeklySyncId: string,
       trackingItemId: string,
       existingFileName?: string,
     ): Promise<{ url: string; fileName: string; filePath: string; fileType: string }> => {
       try {
-        const result = await filesMutations.saveTextFile.mutateAsync({
-          content,
-          goalId,
-          trackingItemId,
-          existingFileName,
+        // First, ensure WeeklySyncItem exists
+        const weeklySyncItemId = await ensureWeeklySyncItem(weeklySyncId, trackingItemId);
+
+        // Then create/update the text file
+        const result = await filesMutations.create.mutateAsync({
+          weeklySyncItemId,
+          fileName: existingFileName || "notes.txt",
+          fileType: "document",
+          data: content,
+          isText: true,
         });
         return result;
       } catch (error) {
@@ -561,22 +588,9 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     },
-    [filesMutations.saveTextFile],
+    [filesMutations.create, ensureWeeklySyncItem],
   );
 
-  const deleteFile = useCallback(
-    async (filePath: string): Promise<{ success: boolean }> => {
-      try {
-        const result = await filesMutations.delete.mutateAsync({ filePath });
-        // TODO: this should also delete the weekly sync item file entry
-        return result;
-      } catch (error) {
-        console.error("Failed to delete file:", error);
-        throw error;
-      }
-    },
-    [filesMutations.delete],
-  );
 
   // Progress calculation functions (unchanged logic)
   const getGoalCompletion = (goalId: string): number => {
@@ -685,7 +699,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     createWeeklySyncItem,
     uploadWeeklySyncFile,
     saveTextFile,
-    deleteFile,
     getGoalCompletion,
     getPathCompletion,
     getGoalProgress,

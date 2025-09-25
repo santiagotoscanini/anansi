@@ -31,7 +31,6 @@ import {
   type TrackingItem,
 } from "../types";
 import {
-  saveImageToFile,
   isValidBase64Image,
   saveWeeklySyncFile,
   saveOrUpdateTextFile,
@@ -756,46 +755,236 @@ export const goalsRouter = createTRPCRouter({
           );
       }),
 
-    // Create file for sync item
+    // Create WeeklySyncItemFile with ACID transactions and full auth validation
     create: protectedProcedure.input(createWeeklySyncItemFileSchema).mutation(async ({ input, ctx }) => {
-      // Verify ownership through weekly sync
-      const [existingItem] = await db
-        .select()
-        .from(weeklySyncItems)
-        .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
-        .where(and(eq(weeklySyncItems.id, input.weeklySyncItemId), eq(weeklySync.userId, ctx.user.userId)))
-        .limit(1);
-
-      if (!existingItem) {
-        throw new Error("Weekly sync item not found or access denied");
+      // Validate file data early
+      if (!input.isText && !isValidBase64Image(input.data)) {
+        throw new Error("Invalid base64 data");
       }
 
-      const [newFile] = await db.insert(weeklySyncItemFiles).values(input).returning();
+      return await db.transaction(async (tx) => {
+        // Step 1: Validate ownership through WeeklySyncItem chain: User -> WeeklySync -> WeeklySyncItem
+        const ownershipQuery = await tx
+          .select({
+            weeklySyncItem: weeklySyncItems,
+            weeklySync: weeklySync,
+            trackingItem: trackingItems,
+            goal: goals,
+          })
+          .from(weeklySyncItems)
+          .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
+          .innerJoin(trackingItems, eq(weeklySyncItems.trackingItemId, trackingItems.id))
+          .innerJoin(goals, eq(trackingItems.goalId, goals.id))
+          .where(
+            and(
+              eq(weeklySyncItems.id, input.weeklySyncItemId),
+              eq(weeklySync.userId, ctx.user.userId),
+            ),
+          )
+          .limit(1);
 
-      if (!newFile) {
-        throw new Error("Failed to create file record");
-      }
+        if (ownershipQuery.length === 0) {
+          throw new Error("Weekly sync item not found or access denied");
+        }
 
-      return newFile;
+        const result = ownershipQuery[0]!;
+        const targetWeeklySync = result.weeklySync;
+        const trackingItem = result.trackingItem;
+        const goal = result.goal;
+
+        // Step 2: Check if file record already exists (for text files to avoid duplicates)
+        if (input.isText) {
+          const [existingTextFile] = await tx
+            .select()
+            .from(weeklySyncItemFiles)
+            .where(
+              and(
+                eq(weeklySyncItemFiles.weeklySyncItemId, input.weeklySyncItemId),
+                eq(weeklySyncItemFiles.fileName, "notes.txt"),
+                eq(weeklySyncItemFiles.fileType, "document"),
+              ),
+            )
+            .limit(1);
+
+          if (existingTextFile) {
+            // Update existing text file - save file after successful DB lookup
+            const fileResult = await saveOrUpdateTextFile(
+              input.data,
+              ctx.user.userId,
+              goal.id,
+              trackingItem.id,
+              targetWeeklySync.weekDate,
+              "notes.txt",
+            );
+
+            return {
+              url: fileResult.url,
+              fileName: fileResult.fileName,
+              filePath: fileResult.filePath,
+              fileType: fileResult.fileType,
+              weeklySyncItemFileId: existingTextFile.id,
+            };
+          }
+        }
+
+        // Step 3: Create database file record FIRST (before touching file system)
+        const [weeklySyncItemFile] = await tx
+          .insert(weeklySyncItemFiles)
+          .values({
+            weeklySyncItemId: input.weeklySyncItemId,
+            fileName: input.fileName,
+            fileType: input.fileType,
+          })
+          .returning();
+
+        if (!weeklySyncItemFile) {
+          throw new Error("Failed to create file record");
+        }
+
+        // Step 4: Save physical file LAST (after successful DB operations)
+        try {
+          const fileResult = input.isText
+            ? await saveOrUpdateTextFile(
+                input.data,
+                ctx.user.userId,
+                goal.id,
+                trackingItem.id,
+                targetWeeklySync.weekDate,
+                input.fileName,
+              )
+            : await saveWeeklySyncFile(
+                input.data,
+                ctx.user.userId,
+                goal.id,
+                trackingItem.id,
+                targetWeeklySync.weekDate,
+                input.fileName,
+                false,
+              );
+
+          // Step 5: Update file record with correct file type if needed
+          if (!input.isText && fileResult.fileType !== input.fileType) {
+            await tx
+              .update(weeklySyncItemFiles)
+              .set({ fileType: fileResult.fileType as "image" | "document" | "video" | "audio" | "other" })
+              .where(eq(weeklySyncItemFiles.id, weeklySyncItemFile.id));
+          }
+
+          return {
+            url: fileResult.url,
+            fileName: fileResult.fileName,
+            filePath: fileResult.filePath,
+            fileType: fileResult.fileType,
+            weeklySyncItemFileId: weeklySyncItemFile.id,
+          };
+        } catch (fileError) {
+          // If file operation fails, the transaction will roll back the database changes
+          throw new Error(`Failed to save file: ${fileError}`);
+        }
+      });
     }),
 
-    // Delete file
+    // Read text file content for a tracking item
+    readTrackingItemText: protectedProcedure
+      .input(
+        z.object({
+          goalId: z.string(),
+          trackingItemId: z.string(),
+          date: z.date().optional(),
+        }),
+      )
+      .query(async ({ input, ctx }) => {
+        // Validate complete ownership chain
+        const ownershipQuery = await db
+          .select({
+            goal: goals,
+            trackingItem: trackingItems,
+          })
+          .from(goals)
+          .innerJoin(trackingItems, eq(trackingItems.goalId, goals.id))
+          .where(
+            and(
+              eq(goals.id, input.goalId),
+              eq(goals.userId, ctx.user.userId),
+              eq(trackingItems.id, input.trackingItemId),
+              eq(trackingItems.goalId, input.goalId),
+            ),
+          )
+          .limit(1);
+
+        if (ownershipQuery.length === 0) {
+          throw new Error("Goal or tracking item not found or access denied");
+        }
+
+        // Determine the date to use
+        const targetDate = input.date || new Date();
+        const weekStart = new Date(targetDate);
+        weekStart.setDate(targetDate.getDate() - targetDate.getDay() + 1); // Start of week (Monday)
+        weekStart.setHours(0, 0, 0, 0);
+
+        const [targetWeeklySync] = await db
+          .select()
+          .from(weeklySync)
+          .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, weekStart)))
+          .limit(1);
+
+        if (!targetWeeklySync) {
+          return { content: "", filePath: "" };
+        }
+
+        const content = await readTrackingItemTextFile(
+          ctx.user.userId,
+          input.goalId,
+          input.trackingItemId,
+          targetWeeklySync.weekDate,
+        );
+
+        return {
+          content: content || "",
+          filePath: content ? getTextFilePath(ctx.user.userId, input.goalId, input.trackingItemId, targetWeeklySync.weekDate) : "",
+        };
+      }),
+
+
+    // Delete file atomically (both database record and physical file)
     delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
-      // Verify ownership through weekly sync
-      const [existingFile] = await db
-        .select()
-        .from(weeklySyncItemFiles)
-        .innerJoin(weeklySyncItems, eq(weeklySyncItemFiles.weeklySyncItemId, weeklySyncItems.id))
-        .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
-        .where(and(eq(weeklySyncItemFiles.id, input.id), eq(weeklySync.userId, ctx.user.userId)))
-        .limit(1);
+      return await db.transaction(async (tx) => {
+        // Get file metadata and verify ownership
+        const fileQuery = await tx
+          .select({
+            file: weeklySyncItemFiles,
+            trackingItem: trackingItems,
+            weeklySync: weeklySync,
+          })
+          .from(weeklySyncItemFiles)
+          .innerJoin(weeklySyncItems, eq(weeklySyncItemFiles.weeklySyncItemId, weeklySyncItems.id))
+          .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
+          .innerJoin(trackingItems, eq(weeklySyncItems.trackingItemId, trackingItems.id))
+          .innerJoin(goals, eq(trackingItems.goalId, goals.id))
+          .where(and(eq(weeklySyncItemFiles.id, input.id), eq(weeklySync.userId, ctx.user.userId)))
+          .limit(1);
 
-      if (!existingFile) {
-        throw new Error("File not found or access denied");
-      }
+        if (fileQuery.length === 0) {
+          throw new Error("File not found or access denied");
+        }
 
-      await db.delete(weeklySyncItemFiles).where(eq(weeklySyncItemFiles.id, input.id));
-      return { success: true };
+        const { file, trackingItem, weeklySync: sync } = fileQuery[0]!;
+
+        // Construct file path from database metadata
+        const dateString = sync.weekDate.toISOString().split("T")[0];
+        const filePath = `uploads/${ctx.user.userId}/${trackingItem.goalId}/${dateString}/${trackingItem.id}/${file.fileName}`;
+
+        // Delete database record first
+        await tx.delete(weeklySyncItemFiles).where(eq(weeklySyncItemFiles.id, input.id));
+
+        // Delete physical file
+        const fileDeleted = await deleteFile(filePath);
+        if (!fileDeleted) {
+          console.warn(`Physical file not found but database record was deleted: ${filePath}`);
+        }
+
+        return { success: true };
+      });
     }),
   }),
 
@@ -922,391 +1111,5 @@ export const goalsRouter = createTRPCRouter({
         connections: connectionsData.map((item) => item.connections),
       };
     }),
-  }),
-
-  // Image operations
-  images: createTRPCRouter({
-    upload: protectedProcedure
-      .input(
-        z.object({
-          base64Data: z.string(),
-          fileName: z.string().optional(),
-        }),
-      )
-      .mutation(async ({ input, ctx }) => {
-        // Validate base64 image
-        if (!isValidBase64Image(input.base64Data)) {
-          throw new Error("Invalid base64 image data");
-        }
-
-        // Save image to file system
-        const result = await saveImageToFile(input.base64Data, ctx.user.userId, ctx.user.userName, input.fileName);
-
-        return {
-          url: result.url,
-          fileName: result.fileName,
-          filePath: result.filePath,
-        };
-      }),
-
-    uploadMultiple: protectedProcedure
-      .input(
-        z.object({
-          images: z.array(
-            z.object({
-              base64Data: z.string(),
-              fileName: z.string().optional(),
-            }),
-          ),
-        }),
-      )
-      .mutation(async ({ input, ctx }) => {
-        const results = [];
-
-        for (const image of input.images) {
-          // Validate base64 image
-          if (!isValidBase64Image(image.base64Data)) {
-            throw new Error(`Invalid base64 image data for ${image.fileName || "unknown file"}`);
-          }
-
-          // Save image to file system
-          const result = await saveImageToFile(image.base64Data, ctx.user.userId, ctx.user.userName, image.fileName);
-          results.push({
-            url: result.url,
-            fileName: result.fileName,
-            filePath: result.filePath,
-          });
-        }
-
-        return results;
-      }),
-
-    // Upload file for weekly sync (images or documents)
-    uploadWeeklySyncFile: protectedProcedure
-      .input(
-        z.object({
-          data: z.string(),
-          goalId: z.string(),
-          trackingItemId: z.string(),
-          fileName: z.string().optional(),
-          isText: z.boolean().default(false),
-        }),
-      )
-      .mutation(async ({ input, ctx }) => {
-        if (!input.isText) {
-          // Validate base64 data for non-text files
-          if (!isValidBase64Image(input.data)) {
-            throw new Error("Invalid base64 data");
-          }
-        }
-
-        // Find the weekly sync for current week first
-        const now = new Date();
-        const weekStart = new Date(now);
-        weekStart.setDate(now.getDate() - now.getDay() + 1); // Start of week (Monday)
-        weekStart.setHours(0, 0, 0, 0);
-
-        const [currentWeeklySync] = await db
-          .select()
-          .from(weeklySync)
-          .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, weekStart)))
-          .limit(1);
-
-        if (!currentWeeklySync) {
-          throw new Error("No weekly sync found for current week. Please start a weekly sync first.");
-        }
-
-        // Save file to weekly sync structure using the weekly sync week date
-        const result = await saveWeeklySyncFile(
-          input.data,
-          ctx.user.userId,
-          input.goalId,
-          input.trackingItemId,
-          currentWeeklySync.weekDate,
-          input.fileName,
-          input.isText,
-        );
-
-        // Find or create weekly sync item
-        let [weeklySyncItem] = await db
-          .select()
-          .from(weeklySyncItems)
-          .where(
-            and(
-              eq(weeklySyncItems.weeklySyncId, currentWeeklySync.id),
-              eq(weeklySyncItems.trackingItemId, input.trackingItemId),
-            ),
-          )
-          .limit(1);
-
-        if (!weeklySyncItem) {
-          [weeklySyncItem] = await db
-            .insert(weeklySyncItems)
-            .values({
-              weeklySyncId: currentWeeklySync.id,
-              trackingItemId: input.trackingItemId,
-            })
-            .returning();
-        }
-
-        if (!weeklySyncItem) {
-          throw new Error("Failed to create weekly sync item");
-        }
-
-        // Create weekly sync item file record
-        const [weeklySyncItemFile] = await db
-          .insert(weeklySyncItemFiles)
-          .values({
-            weeklySyncItemId: weeklySyncItem.id,
-            fileName: result.fileName,
-            fileType: result.fileType as "image" | "document" | "video" | "audio" | "other",
-          })
-          .returning();
-
-        if (!weeklySyncItemFile) {
-          throw new Error("Failed to create file record");
-        }
-
-        return {
-          url: result.url,
-          fileName: result.fileName,
-          filePath: result.filePath,
-          fileType: result.fileType,
-          weeklySyncItemFileId: weeklySyncItemFile.id,
-        };
-      }),
-
-    // Save or update text file for weekly sync
-    saveTextFile: protectedProcedure
-      .input(
-        z.object({
-          content: z.string(),
-          goalId: z.string(),
-          trackingItemId: z.string(),
-          existingFileName: z.string().optional(),
-        }),
-      )
-      .mutation(async ({ input, ctx }) => {
-        // Find the weekly sync for current week first
-        const now = new Date();
-        const weekStart = new Date(now);
-        weekStart.setDate(now.getDate() - now.getDay() + 1); // Start of week (Monday)
-        weekStart.setHours(0, 0, 0, 0);
-
-        const [currentWeeklySync] = await db
-          .select()
-          .from(weeklySync)
-          .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, weekStart)))
-          .limit(1);
-
-        if (!currentWeeklySync) {
-          throw new Error("No weekly sync found for current week. Please start a weekly sync first.");
-        }
-
-        // Save text file using the weekly sync week date
-        const result = await saveOrUpdateTextFile(
-          input.content,
-          ctx.user.userId,
-          input.goalId,
-          input.trackingItemId,
-          currentWeeklySync.weekDate,
-          input.existingFileName,
-        );
-
-        // Find or create weekly sync item
-        let [weeklySyncItem] = await db
-          .select()
-          .from(weeklySyncItems)
-          .where(
-            and(
-              eq(weeklySyncItems.weeklySyncId, currentWeeklySync.id),
-              eq(weeklySyncItems.trackingItemId, input.trackingItemId),
-            ),
-          )
-          .limit(1);
-
-        if (!weeklySyncItem) {
-          [weeklySyncItem] = await db
-            .insert(weeklySyncItems)
-            .values({
-              weeklySyncId: currentWeeklySync.id,
-              trackingItemId: input.trackingItemId,
-            })
-            .returning();
-        }
-
-        if (!weeklySyncItem) {
-          throw new Error("Failed to create weekly sync item");
-        }
-
-        // Check if text file record already exists (to avoid duplicates)
-        const [existingTextFile] = await db
-          .select()
-          .from(weeklySyncItemFiles)
-          .where(
-            and(
-              eq(weeklySyncItemFiles.weeklySyncItemId, weeklySyncItem.id),
-              eq(weeklySyncItemFiles.fileName, result.fileName),
-              eq(weeklySyncItemFiles.fileType, "document"),
-            ),
-          )
-          .limit(1);
-
-        if (existingTextFile) {
-          // Text file record already exists, just return the file info
-          return {
-            url: result.url,
-            fileName: result.fileName,
-            filePath: result.filePath,
-            fileType: result.fileType,
-            weeklySyncItemFileId: existingTextFile.id,
-          };
-        }
-
-        // Create weekly sync item file record for text file
-        const [weeklySyncItemFile] = await db
-          .insert(weeklySyncItemFiles)
-          .values({
-            weeklySyncItemId: weeklySyncItem.id,
-            fileName: result.fileName,
-            fileType: "document",
-          })
-          .returning();
-
-        if (!weeklySyncItemFile) {
-          throw new Error("Failed to create file record");
-        }
-
-        return {
-          url: result.url,
-          fileName: result.fileName,
-          filePath: result.filePath,
-          fileType: result.fileType,
-          weeklySyncItemFileId: weeklySyncItemFile.id,
-        };
-      }),
-
-    // Read text file content by file path
-    readTextFile: protectedProcedure
-      .input(
-        z.object({
-          filePath: z.string(),
-        }),
-      )
-      .query(async ({ input, ctx }) => {
-        // Verify the file path belongs to the user (new structure only)
-        const expectedUserFolder = `uploads/${ctx.user.userId}`;
-
-        if (!input.filePath.startsWith(expectedUserFolder)) {
-          throw new Error("Access denied: File does not belong to user");
-        }
-
-        const content = await readTextFile(input.filePath);
-
-        if (content === null) {
-          throw new Error("File not found or unable to read");
-        }
-
-        return { content };
-      }),
-
-    // Read text file content for a tracking item (recommended approach)
-    readTrackingItemText: protectedProcedure
-      .input(
-        z.object({
-          goalId: z.string(),
-          trackingItemId: z.string(),
-          date: z.date().optional(),
-        }),
-      )
-      .query(async ({ input, ctx }) => {
-        // Verify the goal belongs to the user
-        const goalExists = await db
-          .select()
-          .from(goals)
-          .where(and(eq(goals.id, input.goalId), eq(goals.userId, ctx.user.userId)))
-          .limit(1);
-
-        if (goalExists.length === 0) {
-          throw new Error("Goal not found or access denied");
-        }
-
-        // Verify the tracking item belongs to the goal
-        const trackingItemExists = await db
-          .select()
-          .from(trackingItems)
-          .where(and(eq(trackingItems.id, input.trackingItemId), eq(trackingItems.goalId, input.goalId)))
-          .limit(1);
-
-        if (trackingItemExists.length === 0) {
-          throw new Error("Tracking item not found or access denied");
-        }
-
-        // Determine the date to use - either provided date or current date
-        const targetDate = input.date || new Date();
-
-        // Find the weekly sync for the specified date
-        const weekStart = new Date(targetDate);
-        weekStart.setDate(targetDate.getDate() - targetDate.getDay() + 1); // Start of week (Monday)
-        weekStart.setHours(0, 0, 0, 0);
-
-        const [targetWeeklySync] = await db
-          .select()
-          .from(weeklySync)
-          .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, weekStart)))
-          .limit(1);
-
-        if (!targetWeeklySync) {
-          // Return empty content if no weekly sync exists for that date
-          return {
-            content: "",
-            filePath: "",
-          };
-        }
-
-        const content = await readTrackingItemTextFile(
-          ctx.user.userId,
-          input.goalId,
-          input.trackingItemId,
-          targetWeeklySync.weekDate,
-        );
-
-        if (content === null) {
-          // Return empty content instead of error for better UX
-          return {
-            content: "",
-            filePath: getTextFilePath(ctx.user.userId, input.goalId, input.trackingItemId, targetWeeklySync.weekDate),
-          };
-        }
-
-        return {
-          content,
-          filePath: getTextFilePath(ctx.user.userId, input.goalId, input.trackingItemId, targetWeeklySync.weekDate),
-        };
-      }),
-
-    delete: protectedProcedure
-      .input(
-        z.object({
-          filePath: z.string(),
-        }),
-      )
-      .mutation(async ({ input, ctx }) => {
-        // Verify the file path belongs to the user (check if path contains user ID)
-        const sanitizedUserName = ctx.user.userName.replace(/[^a-zA-Z0-9_-]/g, "_");
-        const expectedUserFolder = `uploads/${ctx.user.userId}_${sanitizedUserName}`;
-
-        if (!input.filePath.startsWith(expectedUserFolder)) {
-          throw new Error("Access denied: File does not belong to user");
-        }
-
-        const success = await deleteFile(input.filePath);
-
-        if (!success) {
-          throw new Error("Failed to delete image file");
-        }
-
-        return { success: true };
-      }),
   }),
 });

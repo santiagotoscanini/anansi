@@ -28,7 +28,7 @@ export async function saveImageToFile(
   base64Data: string,
   userId: string,
   userName: string,
-  originalFileName?: string
+  originalFileName?: string,
 ): Promise<ImageUploadResult> {
   try {
     // Remove data URL prefix if present (e.g., "data:image/jpeg;base64,")
@@ -144,7 +144,7 @@ export function getMimeTypeFromBase64(data: string): string | null {
  * @param goalId - Goal ID
  * @param trackingItemId - Tracking item ID
  * @param weeklySyncDate - Date when the weekly sync was created
- * @param originalFileName - Original file name
+ * @param fileName - Final filename to use (including any prefixes)
  * @param isText - Whether this is text content (not base64)
  * @returns Promise with file upload result
  */
@@ -154,59 +154,32 @@ export async function saveWeeklySyncFile(
   goalId: string,
   trackingItemId: string,
   weeklySyncDate: Date,
-  originalFileName?: string,
-  isText = false
+  fileName: string,
+  isText = false,
 ): Promise<FileUploadResult> {
   try {
     let buffer: Buffer;
-    let extension = "";
     let fileType: "image" | "document" | "video" | "audio" | "other" = "other";
 
     if (isText) {
       // Handle text content
       buffer = Buffer.from(data, "utf8");
-      extension = "txt";
       fileType = "document";
     } else {
       // Handle base64 data (images, etc.)
       const cleanBase64 = data.replace(/^data:[^;]+;base64,/, "");
       buffer = Buffer.from(cleanBase64, "base64");
 
-      // Detect file type and extension
-      if (originalFileName) {
-        const ext = path.extname(originalFileName).toLowerCase();
-        extension = ext.slice(1); // Remove the dot
-
-        if ([".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"].includes(ext)) {
-          fileType = "image";
-        } else if ([".pdf", ".doc", ".docx", ".txt"].includes(ext)) {
-          fileType = "document";
-        } else if ([".mp4", ".mov", ".avi", ".webm"].includes(ext)) {
-          fileType = "video";
-        } else if ([".mp3", ".wav", ".ogg"].includes(ext)) {
-          fileType = "audio";
-        }
-      } else if (data.startsWith("data:")) {
-        // Try to detect from data URL
-        const match = data.match(/^data:([^;]+);base64,/);
-        if (match && match[1]) {
-          const mimeType = match[1];
-          if (mimeType.startsWith("image/")) {
-            fileType = "image";
-            const subType = mimeType.split("/")[1];
-            extension = subType === "jpeg" ? "jpg" : (subType || "jpg");
-          } else if (mimeType.startsWith("video/")) {
-            fileType = "video";
-            extension = mimeType.split("/")[1] || "mp4";
-          } else if (mimeType.startsWith("audio/")) {
-            fileType = "audio";
-            extension = mimeType.split("/")[1] || "mp3";
-          }
-        }
-      }
-
-      if (!extension) {
-        extension = "bin"; // Default for unknown binary files
+      // Detect file type from filename extension
+      const ext = path.extname(fileName).toLowerCase();
+      if ([".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"].includes(ext)) {
+        fileType = "image";
+      } else if ([".pdf", ".doc", ".docx", ".txt"].includes(ext)) {
+        fileType = "document";
+      } else if ([".mp4", ".mov", ".avi", ".webm"].includes(ext)) {
+        fileType = "video";
+      } else if ([".mp3", ".wav", ".ogg"].includes(ext)) {
+        fileType = "audio";
       }
     }
 
@@ -222,18 +195,7 @@ export async function saveWeeklySyncFile(
     // Ensure directories exist
     await mkdir(trackingItemDir, { recursive: true });
 
-    // Generate filename with timestamp prefix and extension
-    let fileName: string;
-    const timestamp = Date.now();
-    if (originalFileName) {
-      // Extract name without extension and add timestamp
-      const nameWithoutExt = path.parse(originalFileName).name;
-      fileName = `${timestamp}_${nameWithoutExt}.${extension}`;
-    } else {
-      const uniqueId = createId();
-      fileName = `${timestamp}_${uniqueId}.${extension}`;
-    }
-
+    // Use the provided filename directly (already includes timestamp and extension)
     const filePath = path.join(trackingItemDir, fileName);
 
     // Write file to disk
@@ -272,7 +234,7 @@ export async function saveOrUpdateTextFile(
   goalId: string,
   trackingItemId: string,
   weeklySyncDate: Date,
-  existingFileName?: string
+  existingFileName?: string,
 ): Promise<FileUploadResult> {
   try {
     // Always use a consistent filename for text files to ensure only one per tracking item
@@ -320,12 +282,7 @@ export async function saveOrUpdateTextFile(
  * @param weeklySyncDate - Date when the weekly sync was created
  * @returns The expected file path for the tracking item's text file
  */
-export function getTextFilePath(
-  userId: string,
-  goalId: string,
-  trackingItemId: string,
-  weeklySyncDate: Date
-): string {
+export function getTextFilePath(userId: string, goalId: string, trackingItemId: string, weeklySyncDate: Date): string {
   const dateString = weeklySyncDate.toISOString().split("T")[0] || weeklySyncDate.toISOString().slice(0, 10);
 
   return path.join("uploads", userId, goalId, dateString, trackingItemId, "notes.txt");
@@ -365,7 +322,7 @@ export async function readTrackingItemTextFile(
   userId: string,
   goalId: string,
   trackingItemId: string,
-  weeklySyncDate: Date
+  weeklySyncDate: Date,
 ): Promise<string | null> {
   const filePath = getTextFilePath(userId, goalId, trackingItemId, weeklySyncDate);
   return readTextFile(filePath);
@@ -385,7 +342,7 @@ export function generateFileUrl(
   userId: string,
   goalId: string,
   trackingItemId: string,
-  weeklySyncDate: Date
+  weeklySyncDate: Date,
 ): string {
   const dateString = weeklySyncDate.toISOString().split("T")[0] || weeklySyncDate.toISOString().slice(0, 10);
 

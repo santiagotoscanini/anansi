@@ -150,7 +150,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
 
   const weeklySyncItemsMutations = {
     create: api.goals.weeklySyncItems.create.useMutation(),
-    delete: api.goals.weeklySyncItems.delete.useMutation(),
   };
 
   const filesMutations = {
@@ -485,16 +484,19 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const createWeeklySync = useCallback(async (weekDate: Date): Promise<WeeklySync> => {
-    try {
-      const result = await weeklySyncMutations.create.mutateAsync({ weekDate });
-      await refreshData();
-      return result;
-    } catch (error) {
-      console.error("Failed to create weekly sync:", error);
-      throw error;
-    }
-  }, [weeklySyncMutations.create, refreshData]);
+  const createWeeklySync = useCallback(
+    async (weekDate: Date): Promise<WeeklySync> => {
+      try {
+        const result = await weeklySyncMutations.create.mutateAsync({ weekDate });
+        await refreshData();
+        return result;
+      } catch (error) {
+        console.error("Failed to create weekly sync:", error);
+        throw error;
+      }
+    },
+    [weeklySyncMutations.create, refreshData],
+  );
 
   const createWeeklySyncItem = useCallback(
     async (weeklySyncId: string, trackingItemId: string): Promise<WeeklySyncItem> => {
@@ -590,7 +592,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     },
     [filesMutations.create, ensureWeeklySyncItem],
   );
-
 
   // Progress calculation functions (unchanged logic)
   const getGoalCompletion = (goalId: string): number => {

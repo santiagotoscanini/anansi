@@ -40,6 +40,14 @@ import {
   deleteFile,
 } from "../../image-upload";
 import { log } from "console";
+import path from "path";
+
+// Helper function to generate timestamped filename for collision prevention
+function generateTimestampedFileName(originalFileName: string): string {
+  const timestamp = Date.now();
+  const { name, ext } = path.parse(originalFileName);
+  return `${timestamp}_${name}${ext}`;
+}
 
 export const goalsRouter = createTRPCRouter({
   // Values operations
@@ -716,24 +724,6 @@ export const goalsRouter = createTRPCRouter({
 
       return newSyncItem;
     }),
-
-    // Delete weekly sync item
-    delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
-      // Verify ownership through weekly sync
-      const [existingItem] = await db
-        .select()
-        .from(weeklySyncItems)
-        .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
-        .where(and(eq(weeklySyncItems.id, input.id), eq(weeklySync.userId, ctx.user.userId)))
-        .limit(1);
-
-      if (!existingItem) {
-        throw new Error("Weekly sync item not found or access denied");
-      }
-
-      await db.delete(weeklySyncItems).where(eq(weeklySyncItems.id, input.id));
-      return { success: true };
-    }),
   }),
 
   // Weekly Sync Item Files operations
@@ -775,12 +765,7 @@ export const goalsRouter = createTRPCRouter({
           .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
           .innerJoin(trackingItems, eq(weeklySyncItems.trackingItemId, trackingItems.id))
           .innerJoin(goals, eq(trackingItems.goalId, goals.id))
-          .where(
-            and(
-              eq(weeklySyncItems.id, input.weeklySyncItemId),
-              eq(weeklySync.userId, ctx.user.userId),
-            ),
-          )
+          .where(and(eq(weeklySyncItems.id, input.weeklySyncItemId), eq(weeklySync.userId, ctx.user.userId)))
           .limit(1);
 
         if (ownershipQuery.length === 0) {
@@ -792,7 +777,10 @@ export const goalsRouter = createTRPCRouter({
         const trackingItem = result.trackingItem;
         const goal = result.goal;
 
-        // Step 2: Check if file record already exists (for text files to avoid duplicates)
+        // Step 2: Generate final filename with timestamp prefix (except for text files)
+        const finalFileName = input.isText ? input.fileName : generateTimestampedFileName(input.fileName);
+
+        // Step 3: Check if file record already exists (for text files to avoid duplicates)
         if (input.isText) {
           const [existingTextFile] = await tx
             .select()
@@ -827,12 +815,12 @@ export const goalsRouter = createTRPCRouter({
           }
         }
 
-        // Step 3: Create database file record FIRST (before touching file system)
+        // Step 4: Create database file record FIRST (before touching file system)
         const [weeklySyncItemFile] = await tx
           .insert(weeklySyncItemFiles)
           .values({
             weeklySyncItemId: input.weeklySyncItemId,
-            fileName: input.fileName,
+            fileName: finalFileName,
             fileType: input.fileType,
           })
           .returning();
@@ -841,7 +829,7 @@ export const goalsRouter = createTRPCRouter({
           throw new Error("Failed to create file record");
         }
 
-        // Step 4: Save physical file LAST (after successful DB operations)
+        // Step 5: Save physical file LAST (after successful DB operations)
         try {
           const fileResult = input.isText
             ? await saveOrUpdateTextFile(
@@ -850,7 +838,7 @@ export const goalsRouter = createTRPCRouter({
                 goal.id,
                 trackingItem.id,
                 targetWeeklySync.weekDate,
-                input.fileName,
+                finalFileName,
               )
             : await saveWeeklySyncFile(
                 input.data,
@@ -858,17 +846,10 @@ export const goalsRouter = createTRPCRouter({
                 goal.id,
                 trackingItem.id,
                 targetWeeklySync.weekDate,
-                input.fileName,
+                finalFileName,
                 false,
               );
 
-          // Step 5: Update file record with correct file type if needed
-          if (!input.isText && fileResult.fileType !== input.fileType) {
-            await tx
-              .update(weeklySyncItemFiles)
-              .set({ fileType: fileResult.fileType as "image" | "document" | "video" | "audio" | "other" })
-              .where(eq(weeklySyncItemFiles.id, weeklySyncItemFile.id));
-          }
 
           return {
             url: fileResult.url,
@@ -941,10 +922,11 @@ export const goalsRouter = createTRPCRouter({
 
         return {
           content: content || "",
-          filePath: content ? getTextFilePath(ctx.user.userId, input.goalId, input.trackingItemId, targetWeeklySync.weekDate) : "",
+          filePath: content
+            ? getTextFilePath(ctx.user.userId, input.goalId, input.trackingItemId, targetWeeklySync.weekDate)
+            : "",
         };
       }),
-
 
     // Delete file atomically (both database record and physical file)
     delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {

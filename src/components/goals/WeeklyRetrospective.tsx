@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Calendar,
   Plus,
-  Upload,
   Target,
   ChevronLeft,
   ChevronRight,
@@ -41,12 +40,6 @@ interface DeleteConfirmation {
   trackingItemId: string;
 }
 
-interface TrackingItemFiles {
-  [trackingItemId: string]: {
-    images: string[];
-    textContent?: string;
-  };
-}
 
 // Helper function to determine file type based on file extension
 const getFileType = (fileName: string): "image" | "document" | "video" | "audio" | "other" => {
@@ -77,8 +70,6 @@ export default function WeeklyRetrospective() {
     refreshWeeklyRetrospectiveData
   } = useGoals();
 
-  // State for temporary files (newly uploaded, not yet persisted)
-  const [trackingItemFiles, setTrackingItemFiles] = useState<TrackingItemFiles>({});
 
   // Week navigation state, start in the current week
   const [selectedWeek, setSelectedWeek] = useState(() => {
@@ -129,6 +120,11 @@ export default function WeeklyRetrospective() {
 
   // Debounced auto-save for text
   const saveTimeouts = useRef<{ [trackingItemId: string]: NodeJS.Timeout }>({});
+
+  // Clear text editing state when week changes to prevent cross-week content bleeding
+  useEffect(() => {
+    setTextEditingState({});
+  }, [selectedWeek]);
 
   // Get week date range display
   const getWeekDateRange = useCallback((weekStart: Date) => {
@@ -275,15 +271,8 @@ export default function WeeklyRetrospective() {
           }
           await saveTextFile(content, weeklySync.id, trackingItemId, existingFileName);
 
-          // Update preview state with text content
-          setTrackingItemFiles((prev) => ({
-            ...prev,
-            [trackingItemId]: {
-              images: prev[trackingItemId]?.images || [],
-              ...prev[trackingItemId],
-              textContent: content,
-            },
-          }));
+          // Refresh data to show the saved content immediately
+          await refreshWeeklyRetrospectiveData();
 
           setSaveStatus((prev) => ({ ...prev, [trackingItemId]: "saved" }));
 
@@ -349,17 +338,8 @@ export default function WeeklyRetrospective() {
 
       await Promise.all(uploadPromises);
 
-      // Add uploaded images to preview state
-      setTrackingItemFiles((prev) => ({
-        ...prev,
-        [trackingItemId]: {
-          images: [
-            ...(prev[trackingItemId]?.images || []),
-            ...Array.from(files).map((file) => URL.createObjectURL(file)),
-          ],
-          ...prev[trackingItemId],
-        },
-      }));
+      // Refresh data to show the saved images immediately
+      await refreshWeeklyRetrospectiveData();
 
       toast.success(`${files.length} image(s) uploaded successfully`, { id: "image-upload" });
     } catch (error) {
@@ -628,9 +608,9 @@ export default function WeeklyRetrospective() {
                                     setTextEditingState((prev) => ({
                                       ...prev,
                                       [trackingItem.id]: {
-                                        content: prev[trackingItem.id]?.content || trackingItem.textContent || "",
+                                        content: "", // Always start fresh for new text
                                         isEditing: true,
-                                        fileName: existingTextFile?.fileName || prev[trackingItem.id]?.fileName,
+                                        fileName: existingTextFile?.fileName,
                                       },
                                     }));
                                   }}
@@ -683,14 +663,12 @@ export default function WeeklyRetrospective() {
                                 <div className="mt-2 flex justify-end">
                                   <button
                                     onClick={() => {
-                                      setTextEditingState((prev) => ({
-                                        ...prev,
-                                        [trackingItem.id]: {
-                                          content: prev[trackingItem.id]?.content || "",
-                                          isEditing: false,
-                                          fileName: prev[trackingItem.id]?.fileName,
-                                        },
-                                      }));
+                                      // Clear the editing state completely when done
+                                      setTextEditingState((prev) => {
+                                        const newState = { ...prev };
+                                        delete newState[trackingItem.id];
+                                        return newState;
+                                      });
                                     }}
                                     className="rounded-lg border border-white/20 px-3 py-1 text-sm transition-all hover:bg-white/10"
                                   >
@@ -700,17 +678,14 @@ export default function WeeklyRetrospective() {
                               </div>
                             )}
 
-                            {/* Files Preview Area - Now showing actual stored files */}
+                            {/* Files Preview Area - Show stored files */}
                             {(() => {
-                              const tempFiles = trackingItemFiles[trackingItem.id]; // Keep temp files for newly uploaded content
-
-                              // Show content if we have actual stored files OR temporary uploaded files
+                              // Show content if we have actual stored files
                               const hasStoredText = trackingItem.textContent;
-                              const hasTempImages = (tempFiles?.images?.length || 0) > 0;
                               const imageFiles = trackingItem.files.filter((file: any) => file.fileType === "image");
                               const hasStoredImages = imageFiles.length > 0;
 
-                              return hasStoredText || hasTempImages || hasStoredImages ? (
+                              return hasStoredText || hasStoredImages ? (
                                 <div className="mt-3 space-y-3">
                                   <h5 className="text-sm font-medium opacity-70">Content</h5>
 
@@ -756,14 +731,12 @@ export default function WeeklyRetrospective() {
                                           <div className="mt-2 flex justify-end">
                                             <button
                                               onClick={() => {
-                                                setTextEditingState((prev) => ({
-                                                  ...prev,
-                                                  [trackingItem.id]: {
-                                                    content: prev[trackingItem.id]?.content || "",
-                                                    isEditing: false,
-                                                    fileName: prev[trackingItem.id]?.fileName,
-                                                  },
-                                                }));
+                                                // Clear the editing state completely when done
+                                                setTextEditingState((prev) => {
+                                                  const newState = { ...prev };
+                                                  delete newState[trackingItem.id];
+                                                  return newState;
+                                                });
                                               }}
                                               className="rounded-lg border border-white/20 px-3 py-1 text-sm transition-all hover:bg-white/10"
                                             >
@@ -784,7 +757,7 @@ export default function WeeklyRetrospective() {
                                               [trackingItem.id]: {
                                                 content: trackingItem.textContent || "",
                                                 isEditing: true,
-                                                fileName: existingTextFile?.fileName || prev[trackingItem.id]?.fileName,
+                                                fileName: existingTextFile?.fileName,
                                               },
                                             }));
                                           }}
@@ -850,36 +823,6 @@ export default function WeeklyRetrospective() {
                                     </div>
                                   )}
 
-                                  {/* Temporary Images Preview (newly uploaded, not yet persisted) */}
-                                  {hasTempImages && (
-                                    <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-3">
-                                      <div className="mb-2 flex items-center gap-2">
-                                        <Upload className="h-4 w-4 text-yellow-400 opacity-60" />
-                                        <span className="text-sm text-yellow-400 opacity-70">
-                                          Recently Uploaded ({tempFiles?.images?.length || 0})
-                                        </span>
-                                      </div>
-                                      <div className="grid grid-cols-4 gap-2">
-                                        {(tempFiles?.images || []).slice(0, 4).map((imageSrc, index) => (
-                                          <div key={index} className="group relative">
-                                            <img
-                                              src={imageSrc}
-                                              alt={`Recent upload ${index + 1}`}
-                                              className="h-16 w-full rounded object-cover"
-                                            />
-                                            {index === 3 && (tempFiles?.images?.length || 0) > 4 && (
-                                              <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60 text-xs text-white">
-                                                +{(tempFiles?.images?.length || 0) - 3}
-                                              </div>
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
-                                      <p className="mt-2 text-xs text-yellow-400 opacity-60">
-                                        These images will be available after page refresh
-                                      </p>
-                                    </div>
-                                  )}
                                 </div>
                               ) : null;
                             })()}

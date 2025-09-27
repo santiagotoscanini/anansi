@@ -40,21 +40,20 @@ interface DeleteConfirmation {
   trackingItemId: string;
 }
 
-
 // Helper function to determine file type based on file extension
 const getFileType = (fileName: string): "image" | "document" | "video" | "audio" | "other" => {
-  const extension = fileName.split('.').pop()?.toLowerCase() || '';
+  const extension = fileName.split(".").pop()?.toLowerCase() || "";
 
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(extension)) {
-    return 'image';
-  } else if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm'].includes(extension)) {
-    return 'video';
-  } else if (['mp3', 'wav', 'ogg', 'aac', 'flac'].includes(extension)) {
-    return 'audio';
-  } else if (['pdf', 'doc', 'docx', 'txt', 'rtf', 'xls', 'xlsx', 'ppt', 'pptx'].includes(extension)) {
-    return 'document';
+  if (["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"].includes(extension)) {
+    return "image";
+  } else if (["mp4", "avi", "mov", "wmv", "flv", "webm"].includes(extension)) {
+    return "video";
+  } else if (["mp3", "wav", "ogg", "aac", "flac"].includes(extension)) {
+    return "audio";
+  } else if (["pdf", "doc", "docx", "txt", "rtf", "xls", "xlsx", "ppt", "pptx"].includes(extension)) {
+    return "document";
   } else {
-    return 'other';
+    return "other";
   }
 };
 
@@ -67,9 +66,8 @@ export default function WeeklyRetrospective() {
     createWeeklySyncItem,
     deleteWeeklySyncFile,
     getWeeklyRetrospectiveData,
-    refreshWeeklyRetrospectiveData
+    refreshWeeklyRetrospectiveData,
   } = useGoals();
-
 
   // Week navigation state, start in the current week
   const [selectedWeek, setSelectedWeek] = useState(() => {
@@ -155,7 +153,9 @@ export default function WeeklyRetrospective() {
       }
 
       // Check if already in weekly sync
-      const goal = goalsWithTrackingItems.find((g: any) => g.trackingItems.some((item: any) => item.id === trackingItemId));
+      const goal = goalsWithTrackingItems.find((g: any) =>
+        g.trackingItems.some((item: any) => item.id === trackingItemId),
+      );
       const trackingItem = goal?.trackingItems.find((item: any) => item.id === trackingItemId);
 
       if (trackingItem?.weeklySyncItem) {
@@ -322,7 +322,14 @@ export default function WeeklyRetrospective() {
             try {
               if (reader.result && weeklySync?.id) {
                 const fileType = getFileType(file.name);
-                await uploadWeeklySyncFile(reader.result as string, weeklySync.id, trackingItemId, file.name, fileType, false);
+                await uploadWeeklySyncFile(
+                  reader.result as string,
+                  weeklySync.id,
+                  trackingItemId,
+                  file.name,
+                  fileType,
+                  false,
+                );
               } else {
                 throw new Error("No weekly sync available or no file data");
               }
@@ -822,7 +829,6 @@ export default function WeeklyRetrospective() {
                                       </div>
                                     </div>
                                   )}
-
                                 </div>
                               ) : null;
                             })()}

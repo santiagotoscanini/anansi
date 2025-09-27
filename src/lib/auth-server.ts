@@ -1,13 +1,13 @@
 import "server-only"; // This ensures the file only runs on server
 import { EncryptJWT, jwtDecrypt } from "jose";
+import bcrypt from "bcryptjs";
 
-const CORRECT_PASSWORD = process.env.GOALS_PASSWORD ?? "goals2025";
 const JWT_SECRET = process.env.JWT_SECRET ?? "gH7$kL9@mN2#pQ5&rT8*vW1!xY4%zA3^";
 
 const TOKEN_EXPIRY = "14d";
 
 // Ensure secret is exactly 32 bytes for AES-256-GCM
-const secretKey = JWT_SECRET.padEnd(32, '0').slice(0, 32);
+const secretKey = JWT_SECRET.padEnd(32, "0").slice(0, 32);
 const secret = new TextEncoder().encode(secretKey);
 
 /**
@@ -33,7 +33,9 @@ export async function createAuthToken(userId?: string, userName?: string): Promi
 /**
  * Verifies and decrypts a JWT token
  */
-export async function verifyAuthToken(token: string): Promise<{ isValid: boolean; userId?: string; userName?: string }> {
+export async function verifyAuthToken(
+  token: string,
+): Promise<{ isValid: boolean; userId?: string; userName?: string }> {
   try {
     const { payload } = await jwtDecrypt(token, secret);
 
@@ -56,8 +58,15 @@ export async function verifyAuthToken(token: string): Promise<{ isValid: boolean
 }
 
 /**
- * Validates password
+ * Hash a password
  */
-export function validatePassword(password: string): boolean {
-  return password === CORRECT_PASSWORD;
+export async function hashPassword(password: string): Promise<string> {
+  return await bcrypt.hash(password, 12);
+}
+
+/**
+ * Validate password against hash
+ */
+export async function validatePassword(password: string, hash: string): Promise<boolean> {
+  return await bcrypt.compare(password, hash);
 }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, asc, isNull, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, asc, isNull, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "../../data";
 import {
@@ -87,7 +87,10 @@ export const goalsRouter = createTRPCRouter({
   // Goals operations
   goals: createTRPCRouter({
     getAll: protectedProcedure.query(async ({ ctx }): Promise<Goal[]> => {
-      const goalsData = await db.select().from(goals).where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
+      const goalsData = await db
+        .select()
+        .from(goals)
+        .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
       const goalIds = goalsData.map((g) => g.id);
 
       // Get all tasks for user's goals
@@ -256,19 +259,12 @@ export const goalsRouter = createTRPCRouter({
         if (goalExists.length === 0) throw new Error("Goal not found or access denied");
 
         // Archive the goal (set status to "archived")
-        await tx
-          .update(goals)
-          .set({ status: "archived", updatedAt: new Date() })
-          .where(eq(goals.id, input.id));
+        await tx.update(goals).set({ status: "archived", updatedAt: new Date() }).where(eq(goals.id, input.id));
 
         // Delete all connections where this goal is either source or target
-        await tx
-          .delete(connections)
-          .where(eq(connections.source, input.id));
+        await tx.delete(connections).where(eq(connections.source, input.id));
 
-        await tx
-          .delete(connections)
-          .where(eq(connections.target, input.id));
+        await tx.delete(connections).where(eq(connections.target, input.id));
 
         // Archive all tracking items belonging to this goal
         await tx
@@ -349,12 +345,14 @@ export const goalsRouter = createTRPCRouter({
         .from(connections)
         .innerJoin(sourceGoals, eq(connections.source, sourceGoals.id))
         .innerJoin(targetGoals, eq(connections.target, targetGoals.id))
-        .where(and(
-          eq(sourceGoals.userId, ctx.user.userId),
-          eq(targetGoals.userId, ctx.user.userId),
-          eq(sourceGoals.status, "active"),
-          eq(targetGoals.status, "active")
-        ));
+        .where(
+          and(
+            eq(sourceGoals.userId, ctx.user.userId),
+            eq(targetGoals.userId, ctx.user.userId),
+            eq(sourceGoals.status, "active"),
+            eq(targetGoals.status, "active"),
+          ),
+        );
     }),
 
     create: protectedProcedure.input(createConnectionSchema).mutation(async ({ input, ctx }) => {
@@ -437,7 +435,13 @@ export const goalsRouter = createTRPCRouter({
         const items = await db
           .select()
           .from(trackingItems)
-          .where(and(eq(trackingItems.goalId, input.goalId), isNull(trackingItems.deletedAt), eq(trackingItems.status, "active")))
+          .where(
+            and(
+              eq(trackingItems.goalId, input.goalId),
+              isNull(trackingItems.deletedAt),
+              eq(trackingItems.status, "active"),
+            ),
+          )
           .orderBy(asc(trackingItems.order), asc(trackingItems.createdAt));
 
         // Map database result to match TypeScript type (null -> undefined)
@@ -556,14 +560,20 @@ export const goalsRouter = createTRPCRouter({
           .limit(1);
 
         // Get all active goals with their tracking items for this user
-        const goalsData = await db.select().from(goals).where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
+        const goalsData = await db
+          .select()
+          .from(goals)
+          .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
 
         // Get all tracking items for user's goals
         const goalIds = goalsData.map((g) => g.id);
         let trackingItemsData: any[] = [];
 
         if (goalIds.length > 0) {
-          trackingItemsData = await db.select().from(trackingItems).where(and(inArray(trackingItems.goalId, goalIds), eq(trackingItems.status, "active")));
+          trackingItemsData = await db
+            .select()
+            .from(trackingItems)
+            .where(and(inArray(trackingItems.goalId, goalIds), eq(trackingItems.status, "active")));
         }
 
         // Get weekly sync items if weekly sync exists
@@ -601,7 +611,6 @@ export const goalsRouter = createTRPCRouter({
           return "High";
         };
 
-
         // Helper function to read text content from files array
         const readTextContent = async (files: any[]): Promise<string | null> => {
           try {
@@ -631,10 +640,15 @@ export const goalsRouter = createTRPCRouter({
             goalsData
               .filter((goal) => {
                 // Only include active goals that have active tracking items
-                return goal.status === "active" && trackingItemsData.some((item) => item.goalId === goal.id && item.status === "active");
+                return (
+                  goal.status === "active" &&
+                  trackingItemsData.some((item) => item.goalId === goal.id && item.status === "active")
+                );
               })
               .map(async (goal) => {
-                const goalTrackingItems = trackingItemsData.filter((item) => item.goalId === goal.id && item.status === "active");
+                const goalTrackingItems = trackingItemsData.filter(
+                  (item) => item.goalId === goal.id && item.status === "active",
+                );
 
                 const importance = await calculateImportance(goal.id);
 
@@ -866,7 +880,6 @@ export const goalsRouter = createTRPCRouter({
             ? await saveOrUpdateTextFile(input.data, relativePath)
             : await saveWeeklySyncFile(input.data, relativePath, false);
 
-
           return {
             url: fileResult.url,
             fileName: fileResult.fileName,
@@ -1033,7 +1046,10 @@ export const goalsRouter = createTRPCRouter({
   data: createTRPCRouter({
     getAll: protectedProcedure.query(async ({ ctx }) => {
       const valuesData = await db.select().from(values).where(eq(values.userId, ctx.user.userId));
-      const goalsData = await db.select().from(goals).where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
+      const goalsData = await db
+        .select()
+        .from(goals)
+        .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
 
       // Get tasks for user's goals only
       const goalIds = goalsData.map((g) => g.id);

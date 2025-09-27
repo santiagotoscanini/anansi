@@ -26,7 +26,8 @@ interface GoalsContextType {
   connections: Connection[];
   isDataLoading: boolean;
 
-  authenticate: (password: string, userName: string) => Promise<boolean>;
+  authenticate: (email: string, password: string) => Promise<boolean>;
+  register: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
   checkAuthentication: () => Promise<void>;
 
@@ -117,6 +118,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   });
 
   const authMutation = api.auth.authenticate.useMutation();
+  const registerMutation = api.auth.register.useMutation();
 
   // Mutations for data operations
   const valuesMutations = {
@@ -204,9 +206,9 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     setIsDataLoading(dataQuery.isLoading);
   }, [dataQuery.data, dataQuery.isLoading]);
 
-  const authenticate = async (password: string, userName: string): Promise<boolean> => {
+  const authenticate = async (email: string, password: string): Promise<boolean> => {
     try {
-      const result = await authMutation.mutateAsync({ password, userName });
+      const result = await authMutation.mutateAsync({ email, password });
 
       if (result.success && result.token) {
         // Store token in cookie
@@ -218,6 +220,26 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       // Authentication failed
+      return false;
+    }
+
+    return false;
+  };
+
+  const register = async (name: string, email: string, password: string): Promise<boolean> => {
+    try {
+      const result = await registerMutation.mutateAsync({ name, email, password });
+
+      if (result.success && result.token) {
+        // Store token in cookie
+        clientAuth.setCookie(result.token);
+        // Update state
+        setToken(result.token);
+        setIsAuthenticated(true);
+        return true;
+      }
+    } catch (error) {
+      // Registration failed
       return false;
     }
 
@@ -720,6 +742,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     connections,
     isDataLoading,
     authenticate,
+    register,
     logout,
     checkAuthentication,
     refreshData,

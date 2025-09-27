@@ -1,31 +1,76 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "../trpc";
-import { createAuthToken, verifyAuthToken, validatePassword } from "../../auth-server";
+import { createAuthToken, verifyAuthToken, validatePassword, hashPassword } from "../../auth-server";
 import { db } from "../../data";
 import { users } from "../../data/schema";
 import { eq } from "drizzle-orm";
 
 export const authRouter = createTRPCRouter({
-  authenticate: publicProcedure
+  register: publicProcedure
     .input(
       z.object({
-        password: z.string(),
-        userName: z.string(),
+        name: z.string().min(1, "Name is required"),
+        email: z.string().email("Invalid email address"),
+        password: z.string().min(6, "Password must be at least 6 characters"),
       }),
     )
     .mutation(async ({ input }) => {
-      const isValid = validatePassword(input.password);
-      if (!isValid) return { success: false, token: null };
+      try {
+        // Check if email already exists
+        const existingUser = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+        if (existingUser.length > 0) {
+          return { success: false, error: "Email already exists" };
+        }
 
-      // Find the user
-      const user = await db.select().from(users).where(eq(users.name, input.userName)).limit(1);
-      if (user.length === 0) {
-        return { success: false, token: null, error: "User not found" };
+        // Hash the password
+        const hashedPassword = await hashPassword(input.password);
+
+        // Create the user
+        const newUser = await db.insert(users).values({
+          name: input.name,
+          email: input.email,
+          password: hashedPassword,
+        }).returning();
+
+        const user = newUser[0]!;
+        const token = await createAuthToken(user.id, user.name);
+
+        return { success: true, token, user: { id: user.id, name: user.name, email: user.email } };
+      } catch (error) {
+        console.error("Registration error:", error);
+        return { success: false, error: "Registration failed" };
       }
+    }),
 
-      const foundUser = user[0]!; // We already checked that user.length > 0
-      const token = await createAuthToken(foundUser.id, foundUser.name);
-      return { success: true, token, user: foundUser };
+  authenticate: publicProcedure
+    .input(
+      z.object({
+        email: z.string().email("Invalid email address"),
+        password: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        // Find the user by email
+        const user = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+        if (user.length === 0) {
+          return { success: false, error: "Invalid credentials" };
+        }
+
+        const foundUser = user[0]!;
+
+        // Validate password
+        const isValid = await validatePassword(input.password, foundUser.password);
+        if (!isValid) {
+          return { success: false, error: "Invalid credentials" };
+        }
+
+        const token = await createAuthToken(foundUser.id, foundUser.name);
+        return { success: true, token, user: { id: foundUser.id, name: foundUser.name, email: foundUser.email } };
+      } catch (error) {
+        console.error("Authentication error:", error);
+        return { success: false, error: "Authentication failed" };
+      }
     }),
 
   getUsers: publicProcedure

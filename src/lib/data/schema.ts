@@ -5,6 +5,8 @@ import { createId } from "@paralleldrive/cuid2";
 // Enums
 export const importanceEnum = pgEnum("importance", ["Low", "Medium", "High"]);
 export const fileTypeEnum = pgEnum("file_type", ["image", "document", "video", "audio", "other"]);
+export const goalStatusEnum = pgEnum("goal_status", ["active", "archived"]);
+export const trackingItemStatusEnum = pgEnum("tracking_item_status", ["active", "archived"]);
 
 // Users table
 export const users = pgTable("users", {
@@ -12,6 +14,8 @@ export const users = pgTable("users", {
     .primaryKey()
     .$defaultFn(() => createId()),
   name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  password: text("password").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -40,6 +44,7 @@ export const goals = pgTable("goals", {
   parentId: text("parent_id"),
   positionX: real("position_x").notNull(),
   positionY: real("position_y").notNull(),
+  status: goalStatusEnum("status").notNull().default("active"),
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
@@ -89,6 +94,7 @@ export const trackingItems = pgTable("tracking_items", {
   title: text("title").notNull(),
   description: text("description"),
   order: integer("order").notNull().default(0),
+  status: trackingItemStatusEnum("status").notNull().default("active"),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -102,6 +108,7 @@ export const weeklySync = pgTable("weekly_sync", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  weekDate: timestamp("week_date").notNull(), // Monday of the retrospective week
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -129,7 +136,7 @@ export const weeklySyncItemFiles = pgTable("weekly_sync_item_files", {
   weeklySyncItemId: text("weekly_sync_item_id")
     .notNull()
     .references(() => weeklySyncItems.id, { onDelete: "cascade" }),
-  fileName: text("file_name").notNull(),
+  filePath: text("file_path").notNull(),
   fileType: fileTypeEnum("file_type").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

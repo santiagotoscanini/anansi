@@ -1,0 +1,1 @@
+ALTER TABLE "weekly_sync_item_files" RENAME COLUMN "file_name" TO "file_path";

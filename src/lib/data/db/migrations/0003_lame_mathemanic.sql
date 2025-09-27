@@ -1,1 +1,0 @@
-ALTER TABLE "goals" ADD COLUMN "importance" text DEFAULT 'Low' NOT NULL;

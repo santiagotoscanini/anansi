@@ -1,19 +1,10 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
 import { clientAuth } from "~/lib/auth-client";
 import { api } from "~/trpc/react";
-import type {
-  Value,
-  Goal,
-  Task,
-  Connection,
-  TrackingItem,
-  WeeklySync,
-  WeeklySyncItem,
-  WeeklySyncItemFile
-} from "~/lib/api/types";
+import type { Value, Goal, Task, Connection, TrackingItem, WeeklySync, WeeklySyncItem, CreateGoal, CreateTrackingItem } from "~/lib/api/types";
 
 // Re-export types from the shared API types
 export type {
@@ -24,7 +15,7 @@ export type {
   TrackingItem,
   WeeklySync,
   WeeklySyncItem,
-  WeeklySyncItemFile
+  WeeklySyncItemFile,
 } from "~/lib/api/types";
 
 interface GoalsContextType {
@@ -35,7 +26,8 @@ interface GoalsContextType {
   connections: Connection[];
   isDataLoading: boolean;
 
-  authenticate: (password: string, userName: string) => Promise<boolean>;
+  authenticate: (email: string, password: string) => Promise<boolean>;
+  register: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
   checkAuthentication: () => Promise<void>;
 
@@ -45,7 +37,7 @@ interface GoalsContextType {
   updateValue: (id: string, value: Partial<Value>) => Promise<void>;
   deleteValue: (id: string) => Promise<void>;
 
-  addGoal: (goal: Omit<Goal, "id">) => Promise<void>;
+  addGoal: (goal: CreateGoal) => Promise<void>;
   updateGoal: (id: string, goal: Partial<Goal>) => Promise<void>;
   deleteGoal: (id: string) => Promise<void>;
 
@@ -58,26 +50,37 @@ interface GoalsContextType {
   deleteConnection: (id: string) => Promise<void>;
 
   getTrackingItems: (goalId: string) => Promise<TrackingItem[]>;
-  addTrackingItem: (trackingItem: Omit<TrackingItem, "id">) => Promise<void>;
+  addTrackingItem: (trackingItem: CreateTrackingItem) => Promise<void>;
   updateTrackingItem: (id: string, trackingItem: Partial<TrackingItem>) => Promise<void>;
   deleteTrackingItem: (id: string) => Promise<{ success: boolean; type: "soft_delete" | "hard_delete" }>;
 
   // Weekly Sync operations
   getWeeklySyncByWeek: (weekStart: Date) => Promise<WeeklySync | null>;
-  createWeeklySync: () => Promise<WeeklySync>;
-  deleteWeeklySync: (id: string) => Promise<{ success: boolean }>;
+  createWeeklySync: (weekDate: Date) => Promise<WeeklySync>;
 
   // Weekly Sync Items operations
-  getWeeklySyncItems: (weeklySyncId: string) => Promise<WeeklySyncItem[]>;
   createWeeklySyncItem: (weeklySyncId: string, trackingItemId: string) => Promise<WeeklySyncItem>;
-  deleteWeeklySyncItem: (id: string) => Promise<{ success: boolean }>;
 
   // Weekly Sync Files operations
-  getWeeklySyncItemFiles: (weeklySyncItemId: string) => Promise<WeeklySyncItemFile[]>;
-  uploadWeeklySyncFile: (data: string, goalId: string, trackingItemId: string, fileName?: string, isText?: boolean) => Promise<{ url: string; fileName: string; filePath: string; fileType: string }>;
-  saveTextFile: (content: string, goalId: string, trackingItemId: string, existingFileName?: string) => Promise<{ url: string; fileName: string; filePath: string; fileType: string }>;
-  readTextFile: (filePath: string) => Promise<{ content: string }>;
-  deleteFile: (filePath: string) => Promise<{ success: boolean }>;
+  uploadWeeklySyncFile: (
+    data: string,
+    weeklySyncId: string,
+    trackingItemId: string,
+    fileName: string,
+    fileType: "image" | "document" | "video" | "audio" | "other",
+    isText?: boolean,
+  ) => Promise<{ url: string; fileName: string; filePath: string; fileType: string }>;
+  saveTextFile: (
+    content: string,
+    weeklySyncId: string,
+    trackingItemId: string,
+    existingFileName?: string,
+  ) => Promise<{ url: string; fileName: string; filePath: string; fileType: string }>;
+  deleteWeeklySyncFile: (fileId: string) => Promise<void>;
+
+  // Weekly Retrospective data operations
+  getWeeklyRetrospectiveData: (weekStart: Date) => any;
+  refreshWeeklyRetrospectiveData: () => Promise<void>;
 
   // Utility functions
   getGoalCompletion: (goalId: string) => number;
@@ -115,6 +118,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   });
 
   const authMutation = api.auth.authenticate.useMutation();
+  const registerMutation = api.auth.register.useMutation();
 
   // Mutations for data operations
   const valuesMutations = {
@@ -149,18 +153,17 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
 
   const weeklySyncMutations = {
     create: api.goals.weeklySync.create.useMutation(),
-    delete: api.goals.weeklySync.delete.useMutation(),
+    getWeeklyRetrospectiveData: api.goals.weeklySync.getWeeklyRetrospectiveData.useQuery,
   };
 
   const weeklySyncItemsMutations = {
     create: api.goals.weeklySyncItems.create.useMutation(),
-    delete: api.goals.weeklySyncItems.delete.useMutation(),
   };
 
   const filesMutations = {
-    uploadWeeklySyncFile: api.goals.images.uploadWeeklySyncFile.useMutation(),
-    saveTextFile: api.goals.images.saveTextFile.useMutation(),
-    delete: api.goals.images.delete.useMutation(),
+    create: api.goals.weeklySyncItemFiles.create.useMutation(),
+    delete: api.goals.weeklySyncItemFiles.delete.useMutation(),
+    readTrackingItemText: api.goals.weeklySyncItemFiles.readTrackingItemText.useQuery,
   };
 
   // Initialize token on mount (client-side only)
@@ -203,9 +206,9 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     setIsDataLoading(dataQuery.isLoading);
   }, [dataQuery.data, dataQuery.isLoading]);
 
-  const authenticate = async (password: string, userName: string): Promise<boolean> => {
+  const authenticate = async (email: string, password: string): Promise<boolean> => {
     try {
-      const result = await authMutation.mutateAsync({ password, userName });
+      const result = await authMutation.mutateAsync({ email, password });
 
       if (result.success && result.token) {
         // Store token in cookie
@@ -217,6 +220,26 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       // Authentication failed
+      return false;
+    }
+
+    return false;
+  };
+
+  const register = async (name: string, email: string, password: string): Promise<boolean> => {
+    try {
+      const result = await registerMutation.mutateAsync({ name, email, password });
+
+      if (result.success && result.token) {
+        // Store token in cookie
+        clientAuth.setCookie(result.token);
+        // Update state
+        setToken(result.token);
+        setIsAuthenticated(true);
+        return true;
+      }
+    } catch (error) {
+      // Registration failed
       return false;
     }
 
@@ -303,10 +326,9 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
 
   // Goal operations
   const addGoal = useCallback(
-    async (goal: Omit<Goal, "id">) => {
+    async (goal: CreateGoal) => {
       try {
-        const { importance, ...goalData } = goal;
-        await goalsMutations.create.mutateAsync(goalData);
+        await goalsMutations.create.mutateAsync(goal);
         await refreshData();
       } catch (error) {
         console.error("Failed to add goal:", error);
@@ -416,7 +438,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   );
 
   // Tracking Items operations
-  const utils = api.useUtils();
+  const utils = api.useUtils(); // provides access to tRPC's utility functions for cache management and manual query operations. It's essentially tRPC's way of giving you direct control over the query cache and data fetching.
 
   const getTrackingItems = useCallback(
     async (goalId: string): Promise<TrackingItem[]> => {
@@ -432,7 +454,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   );
 
   const addTrackingItem = useCallback(
-    async (trackingItem: Omit<TrackingItem, "id">) => {
+    async (trackingItem: CreateTrackingItem) => {
       try {
         await trackingItemsMutations.create.mutateAsync(trackingItem);
         await refreshData();
@@ -479,24 +501,21 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     return result;
   }, []);
 
-  const getWeeklySyncByWeek = useCallback(
-    async (weekStart: Date): Promise<WeeklySync | null> => {
-      try {
-        // For now, we'll implement this with a separate hook in the component
-        // This is a placeholder that will be overridden by component-level implementation
-        return null;
-      } catch (error) {
-        console.error("Failed to get weekly sync:", error);
-        return null;
-      }
-    },
-    [],
-  );
+  const getWeeklySyncByWeek = useCallback(async (weekStart: Date): Promise<WeeklySync | null> => {
+    try {
+      // For now, we'll implement this with a separate hook in the component
+      // This is a placeholder that will be overridden by component-level implementation
+      return null;
+    } catch (error) {
+      console.error("Failed to get weekly sync:", error);
+      return null;
+    }
+  }, []);
 
   const createWeeklySync = useCallback(
-    async (): Promise<WeeklySync> => {
+    async (weekDate: Date): Promise<WeeklySync> => {
       try {
-        const result = await weeklySyncMutations.create.mutateAsync({});
+        const result = await weeklySyncMutations.create.mutateAsync({ weekDate });
         await refreshData();
         return result;
       } catch (error) {
@@ -505,33 +524,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       }
     },
     [weeklySyncMutations.create, refreshData],
-  );
-
-  const deleteWeeklySync = useCallback(
-    async (id: string): Promise<{ success: boolean }> => {
-      try {
-        const result = await weeklySyncMutations.delete.mutateAsync({ id });
-        await refreshData();
-        return result;
-      } catch (error) {
-        console.error("Failed to delete weekly sync:", error);
-        throw error;
-      }
-    },
-    [weeklySyncMutations.delete, refreshData],
-  );
-
-  const getWeeklySyncItems = useCallback(
-    async (weeklySyncId: string): Promise<WeeklySyncItem[]> => {
-      try {
-        // Placeholder - will be implemented with component-level hooks
-        return [];
-      } catch (error) {
-        console.error("Failed to get weekly sync items:", error);
-        return [];
-      }
-    },
-    [],
   );
 
   const createWeeklySyncItem = useCallback(
@@ -551,47 +543,44 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     [weeklySyncItemsMutations.create, refreshData],
   );
 
-  const deleteWeeklySyncItem = useCallback(
-    async (id: string): Promise<{ success: boolean }> => {
+  // Helper function to ensure WeeklySyncItem exists for a given weeklySyncId and trackingItemId
+  const ensureWeeklySyncItem = useCallback(
+    async (weeklySyncId: string, trackingItemId: string): Promise<string> => {
       try {
-        const result = await weeklySyncItemsMutations.delete.mutateAsync({ id });
-        await refreshData();
-        return result;
+        const result = await weeklySyncItemsMutations.create.mutateAsync({
+          weeklySyncId,
+          trackingItemId,
+        });
+        // The backend will return existing item if it already exists
+        return result.id;
       } catch (error) {
-        console.error("Failed to delete weekly sync item:", error);
+        console.error("Failed to ensure weekly sync item exists:", error);
         throw error;
       }
     },
-    [weeklySyncItemsMutations.delete, refreshData],
+    [weeklySyncItemsMutations.create],
   );
 
-  const getWeeklySyncItemFiles = useCallback(
-    async (weeklySyncItemId: string): Promise<WeeklySyncItemFile[]> => {
-      try {
-        // Placeholder - will be implemented with component-level hooks
-        return [];
-      } catch (error) {
-        console.error("Failed to get weekly sync item files:", error);
-        return [];
-      }
-    },
-    [],
-  );
-
+  // Other files that are not text
   const uploadWeeklySyncFile = useCallback(
     async (
       data: string,
-      goalId: string,
+      weeklySyncId: string,
       trackingItemId: string,
-      fileName?: string,
-      isText = false
+      fileName: string,
+      fileType: "image" | "document" | "video" | "audio" | "other",
+      isText = false,
     ): Promise<{ url: string; fileName: string; filePath: string; fileType: string }> => {
       try {
-        const result = await filesMutations.uploadWeeklySyncFile.mutateAsync({
-          data,
-          goalId,
-          trackingItemId,
+        // First, ensure WeeklySyncItem exists
+        const weeklySyncItemId = await ensureWeeklySyncItem(weeklySyncId, trackingItemId);
+
+        // Then create the file
+        const result = await filesMutations.create.mutateAsync({
+          weeklySyncItemId,
           fileName,
+          fileType,
+          data,
           isText,
         });
         return result;
@@ -600,22 +589,28 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     },
-    [filesMutations.uploadWeeklySyncFile],
+    [filesMutations.create, ensureWeeklySyncItem],
   );
 
+  // Exclusively for text files
   const saveTextFile = useCallback(
     async (
       content: string,
-      goalId: string,
+      weeklySyncId: string,
       trackingItemId: string,
-      existingFileName?: string
+      existingFileName?: string,
     ): Promise<{ url: string; fileName: string; filePath: string; fileType: string }> => {
       try {
-        const result = await filesMutations.saveTextFile.mutateAsync({
-          content,
-          goalId,
-          trackingItemId,
-          existingFileName,
+        // First, ensure WeeklySyncItem exists
+        const weeklySyncItemId = await ensureWeeklySyncItem(weeklySyncId, trackingItemId);
+
+        // Then create/update the text file
+        const result = await filesMutations.create.mutateAsync({
+          weeklySyncItemId,
+          fileName: existingFileName || "notes.txt",
+          fileType: "document",
+          data: content,
+          isText: true,
         });
         return result;
       } catch (error) {
@@ -623,34 +618,46 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     },
-    [filesMutations.saveTextFile],
+    [filesMutations.create, ensureWeeklySyncItem],
   );
 
-  const readTextFile = useCallback(
-    async (filePath: string): Promise<{ content: string }> => {
+  // Delete weekly sync file
+  const deleteWeeklySyncFile = useCallback(
+    async (fileId: string): Promise<void> => {
       try {
-        // Placeholder - will be implemented with component-level hooks
-        return { content: "" };
+        await filesMutations.delete.mutateAsync({ id: fileId });
+        await refreshData();
       } catch (error) {
-        console.error("Failed to read text file:", error);
+        console.error("Failed to delete weekly sync file:", error);
         throw error;
       }
     },
-    [],
+    [filesMutations.delete, refreshData],
   );
 
-  const deleteFile = useCallback(
-    async (filePath: string): Promise<{ success: boolean }> => {
-      try {
-        const result = await filesMutations.delete.mutateAsync({ filePath });
-        return result;
-      } catch (error) {
-        console.error("Failed to delete file:", error);
-        throw error;
+  // Weekly retrospective data operations
+  const weeklyRetrospectiveQueryRef = useRef<any>(null);
+
+  const getWeeklyRetrospectiveData = useCallback((weekStart: Date) => {
+    // This will be used by the component to access the query
+    const query = weeklySyncMutations.getWeeklyRetrospectiveData(
+      { weekStart },
+      { enabled: !!weekStart },
+    );
+    weeklyRetrospectiveQueryRef.current = query;
+    return query;
+  }, [weeklySyncMutations.getWeeklyRetrospectiveData]);
+
+  const refreshWeeklyRetrospectiveData = useCallback(async (): Promise<void> => {
+    try {
+      if (weeklyRetrospectiveQueryRef.current) {
+        await weeklyRetrospectiveQueryRef.current.refetch();
       }
-    },
-    [filesMutations.delete],
-  );
+    } catch (error) {
+      console.error("Failed to refresh weekly retrospective data:", error);
+      throw error;
+    }
+  }, []);
 
   // Progress calculation functions (unchanged logic)
   const getGoalCompletion = (goalId: string): number => {
@@ -735,6 +742,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     connections,
     isDataLoading,
     authenticate,
+    register,
     logout,
     checkAuthentication,
     refreshData,
@@ -756,15 +764,12 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     deleteTrackingItem,
     getWeeklySyncByWeek,
     createWeeklySync,
-    deleteWeeklySync,
-    getWeeklySyncItems,
     createWeeklySyncItem,
-    deleteWeeklySyncItem,
-    getWeeklySyncItemFiles,
     uploadWeeklySyncFile,
     saveTextFile,
-    readTextFile,
-    deleteFile,
+    deleteWeeklySyncFile,
+    getWeeklyRetrospectiveData,
+    refreshWeeklyRetrospectiveData,
     getGoalCompletion,
     getPathCompletion,
     getGoalProgress,

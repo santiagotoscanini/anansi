@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  db:
+    container_name: goals-db
+    # Migrate to Postgres 18 when it's stable
+    image: postgres:17.6
+    restart: unless-stopped
+    ports:
+      - "${DB_PORT:-15822}:5432"
+    environment:
+      - POSTGRES_USER=${DB_USER:-user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-password}
+      - POSTGRES_DB=${DB_NAME:-goals_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

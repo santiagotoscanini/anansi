@@ -150,17 +150,9 @@ export default function GoalsGraph() {
     setSelectedNodes([node.id]);
   }, []);
 
-  const onEdgeClick = useCallback((_event: React.MouseEvent, edge: Edge) => {
-    // Toggle edge selection
-    setSelectedEdges((prev) => (prev.includes(edge.id) ? prev.filter((id) => id !== edge.id) : [...prev, edge.id]));
-  }, []);
-
   const onSelectionChange = useCallback((params: { nodes: Node[]; edges: Edge[] }) => {
     setSelectedNodes(params.nodes.map((n) => n.id));
-    // Don't override manual edge selection
-    if (params.edges.length > 0) {
-      setSelectedEdges(params.edges.map((e) => e.id));
-    }
+    setSelectedEdges(params.edges.map((e) => e.id));
   }, []);
 
   const handleAddGoal = () => {
@@ -248,7 +240,6 @@ export default function GoalsGraph() {
           <span className="ml-1 text-xs opacity-60">(Ctrl+G)</span>
         </button>
 
-
         {/* React Flow Graph */}
         <ReactFlow
           nodes={nodes}
@@ -257,7 +248,6 @@ export default function GoalsGraph() {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
-          onEdgeClick={onEdgeClick}
           onNodeDragStop={onNodeDragStop}
           onEdgesDelete={onEdgeDelete}
           onSelectionChange={onSelectionChange}

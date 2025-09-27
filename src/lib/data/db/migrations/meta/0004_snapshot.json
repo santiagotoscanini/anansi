@@ -1,6 +1,6 @@
 {
-  "id": "a3bb44c7-ebfc-456e-9b15-65980a7880cd",
-  "prevId": "1e7cf5ab-c9b8-4ad5-9814-494ab8d21314",
+  "id": "98a78c69-215f-4bba-9603-e93b576ed8c2",
+  "prevId": "56453611-49e1-4cf0-80e4-c31509e88ca8",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -187,13 +187,13 @@
           "primaryKey": false,
           "notNull": true
         },
-        "importance": {
-          "name": "importance",
-          "type": "importance",
+        "status": {
+          "name": "status",
+          "type": "goal_status",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
-          "default": "'Low'"
+          "default": "'active'"
         },
         "user_id": {
           "name": "user_id",
@@ -310,6 +310,92 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.tracking_items": {
+      "name": "tracking_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "goal_id": {
+          "name": "goal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "status": {
+          "name": "status",
+          "type": "tracking_item_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "tracking_items_goal_id_goals_id_fk": {
+          "name": "tracking_items_goal_id_goals_id_fk",
+          "tableFrom": "tracking_items",
+          "tableTo": "goals",
+          "columnsFrom": [
+            "goal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.users": {
       "name": "users",
       "schema": "",
@@ -322,6 +408,18 @@
         },
         "name": {
           "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password": {
+          "name": "password",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -344,7 +442,15 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -414,8 +520,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.weekly_review_goals": {
-      "name": "weekly_review_goals",
+    "public.weekly_sync": {
+      "name": "weekly_sync",
       "schema": "",
       "columns": {
         "id": {
@@ -424,15 +530,15 @@
           "primaryKey": true,
           "notNull": true
         },
-        "weekly_review_id": {
-          "name": "weekly_review_id",
+        "user_id": {
+          "name": "user_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "goal_id": {
-          "name": "goal_id",
-          "type": "text",
+        "week_date": {
+          "name": "week_date",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": true
         },
@@ -442,29 +548,23 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "weekly_review_goals_weekly_review_id_weekly_reviews_id_fk": {
-          "name": "weekly_review_goals_weekly_review_id_weekly_reviews_id_fk",
-          "tableFrom": "weekly_review_goals",
-          "tableTo": "weekly_reviews",
+        "weekly_sync_user_id_users_id_fk": {
+          "name": "weekly_sync_user_id_users_id_fk",
+          "tableFrom": "weekly_sync",
+          "tableTo": "users",
           "columnsFrom": [
-            "weekly_review_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "weekly_review_goals_goal_id_goals_id_fk": {
-          "name": "weekly_review_goals_goal_id_goals_id_fk",
-          "tableFrom": "weekly_review_goals",
-          "tableTo": "goals",
-          "columnsFrom": [
-            "goal_id"
+            "user_id"
           ],
           "columnsTo": [
             "id"
@@ -479,8 +579,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.weekly_reviews": {
-      "name": "weekly_reviews",
+    "public.weekly_sync_item_files": {
+      "name": "weekly_sync_item_files",
       "schema": "",
       "columns": {
         "id": {
@@ -489,34 +589,73 @@
           "primaryKey": true,
           "notNull": true
         },
-        "week": {
-          "name": "week",
+        "weekly_sync_item_id": {
+          "name": "weekly_sync_item_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "notes": {
-          "name": "notes",
+        "file_path": {
+          "name": "file_path",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "photos": {
-          "name": "photos",
-          "type": "json",
+        "file_type": {
+          "name": "file_type",
+          "type": "file_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "'[]'::json"
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "weekly_sync_item_files_weekly_sync_item_id_weekly_sync_items_id_fk": {
+          "name": "weekly_sync_item_files_weekly_sync_item_id_weekly_sync_items_id_fk",
+          "tableFrom": "weekly_sync_item_files",
+          "tableTo": "weekly_sync_items",
+          "columnsFrom": [
+            "weekly_sync_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.weekly_sync_items": {
+      "name": "weekly_sync_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
         },
-        "categories": {
-          "name": "categories",
-          "type": "json",
+        "weekly_sync_id": {
+          "name": "weekly_sync_id",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::json"
+          "notNull": true
         },
-        "user_id": {
-          "name": "user_id",
+        "tracking_item_id": {
+          "name": "tracking_item_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -538,12 +677,25 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "weekly_reviews_user_id_users_id_fk": {
-          "name": "weekly_reviews_user_id_users_id_fk",
-          "tableFrom": "weekly_reviews",
-          "tableTo": "users",
+        "weekly_sync_items_weekly_sync_id_weekly_sync_id_fk": {
+          "name": "weekly_sync_items_weekly_sync_id_weekly_sync_id_fk",
+          "tableFrom": "weekly_sync_items",
+          "tableTo": "weekly_sync",
           "columnsFrom": [
-            "user_id"
+            "weekly_sync_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "weekly_sync_items_tracking_item_id_tracking_items_id_fk": {
+          "name": "weekly_sync_items_tracking_item_id_tracking_items_id_fk",
+          "tableFrom": "weekly_sync_items",
+          "tableTo": "tracking_items",
+          "columnsFrom": [
+            "tracking_item_id"
           ],
           "columnsTo": [
             "id"
@@ -560,6 +712,25 @@
     }
   },
   "enums": {
+    "public.file_type": {
+      "name": "file_type",
+      "schema": "public",
+      "values": [
+        "image",
+        "document",
+        "video",
+        "audio",
+        "other"
+      ]
+    },
+    "public.goal_status": {
+      "name": "goal_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "archived"
+      ]
+    },
     "public.importance": {
       "name": "importance",
       "schema": "public",
@@ -567,6 +738,14 @@
         "Low",
         "Medium",
         "High"
+      ]
+    },
+    "public.tracking_item_status": {
+      "name": "tracking_item_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "archived"
       ]
     }
   },

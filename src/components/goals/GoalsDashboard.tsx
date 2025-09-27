@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, LogOut, Target, Calendar, Palette, Trophy, RefreshCw } from "lucide-react";
+import { LogOut, Target, Calendar, Palette, Trophy, RefreshCw } from "lucide-react";
 import { useGoals } from "~/contexts/GoalsContext";
 import ValuesManager from "./ValuesManager";
 import GoalsGraph from "./GoalsGraph";
@@ -47,23 +46,9 @@ export default function GoalsDashboard() {
       <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/10 bg-black/80 backdrop-blur-md">
         <div className="flex items-center justify-between px-8 py-4">
           <div className="flex items-center gap-8">
-            <Link href="/" className="mr-8 flex items-center text-slate-300 transition-colors hover:text-white">
-              <ArrowLeft className="mr-2 h-5 w-5" />
-              Back to Home
-            </Link>
             <h1 className="text-xl font-light">Goals Dashboard</h1>
           </div>
-
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleRefresh}
-              disabled={isDataLoading}
-              className="flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 text-sm transition-all hover:bg-white hover:text-black"
-            >
-              <RefreshCw className={`h-4 w-4 ${isDataLoading ? "animate-spin" : ""}`} />
-              Refresh
-            </button>
-
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 text-sm transition-all hover:bg-white hover:text-black"

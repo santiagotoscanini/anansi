@@ -2,39 +2,38 @@
 
 import { useState, type FormEvent } from "react";
 import { GoalsProvider, useGoals } from "~/contexts/GoalsContext";
-import Link from "next/link";
-import { ArrowLeft, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import GoalsDashboard from "~/components/goals/GoalsDashboard";
+import RegisterModal from "~/components/goals/RegisterModal";
 import toast, { Toaster } from "react-hot-toast";
 import { api } from "~/trpc/react";
 
 function GoalsPageContent() {
   const { isAuthenticated, isLoading, authenticate } = useGoals();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [selectedUser, setSelectedUser] = useState("");
   const [error, setError] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
 
-  // Fetch available users
-  const { data: users, isLoading: usersLoading } = api.auth.getUsers.useQuery();
-
+  // Authentication handler
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsAuthenticating(true);
 
-    if (!selectedUser) {
-      toast.error("Please select a user");
+    if (!email || !password) {
+      toast.error("Please enter both email and password");
       setIsAuthenticating(false);
       return;
     }
 
-    const success = await authenticate(password, selectedUser);
+    const success = await authenticate(email, password);
     if (success) {
-      toast.success(`Welcome to your Goals Dashboard, ${selectedUser}!`);
+      toast.success("Welcome to your Goals Dashboard!");
       setError(false);
     } else {
       setError(true);
-      toast.error("Incorrect password or user not found");
+      toast.error("Invalid email or password");
     }
     setPassword("");
     setIsAuthenticating(false);
@@ -59,49 +58,32 @@ function GoalsPageContent() {
       <main className="min-h-screen bg-black text-white">
         <Toaster position="top-right" />
         <div className="flex min-h-screen flex-col items-center justify-center px-4">
-          <Link
-            href="/"
-            className="absolute left-8 top-8 flex items-center gap-2 text-sm opacity-60 transition-opacity hover:opacity-100"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Link>
-
           <div className="w-full max-w-md space-y-8">
             <div className="text-center">
               <Lock className="mx-auto h-12 w-12 opacity-50" />
               <h1 className="mt-6 text-3xl font-light">Goals Dashboard</h1>
-              <p className="mt-2 text-sm opacity-60">Enter password to access your goals</p>
+              <p className="mt-2 text-sm opacity-60">Sign in to access your goals</p>
             </div>
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-              {/* User Selection */}
+              {/* Email Input */}
               <div>
-                <label className="block text-sm font-light text-white/70 mb-2">Select User</label>
-                {usersLoading ? (
-                  <div className="w-full rounded-lg border border-white/20 bg-transparent px-4 py-3 text-white/50">
-                    Loading users...
-                  </div>
-                ) : (
-                  <select
-                    value={selectedUser}
-                    onChange={(e) => setSelectedUser(e.target.value)}
-                    className="w-full rounded-lg border border-white/20 bg-black px-4 py-3 text-white outline-none transition-all focus:border-white/40"
-                    required
-                  >
-                    <option value="">Choose a user...</option>
-                    {users?.map((user) => (
-                      <option key={user.id} value={user.name} className="bg-black text-white">
-                        {user.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <label className="mb-2 block text-sm font-light text-white/70">Email Address</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  className={`w-full rounded-lg border bg-transparent px-4 py-3 text-white placeholder-white/30 outline-none transition-all ${
+                    error ? "border-red-500 focus:border-red-400" : "border-white/20 focus:border-white/40"
+                  }`}
+                  required
+                />
               </div>
 
               {/* Password Input */}
               <div>
-                <label className="block text-sm font-light text-white/70 mb-2">Password</label>
+                <label className="mb-2 block text-sm font-light text-white/70">Password</label>
                 <input
                   type="password"
                   value={password}
@@ -112,7 +94,7 @@ function GoalsPageContent() {
                   }`}
                   required
                 />
-                {error && <p className="mt-2 text-sm text-red-400">Incorrect password or user not found. Please try again.</p>}
+                {error && <p className="mt-2 text-sm text-red-400">Invalid email or password. Please try again.</p>}
               </div>
 
               <button
@@ -120,11 +102,25 @@ function GoalsPageContent() {
                 disabled={isAuthenticating}
                 className="w-full rounded-lg border border-white/20 bg-white/10 py-3 font-light transition-all hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isAuthenticating ? "Authenticating..." : "Unlock Dashboard"}
+                {isAuthenticating ? "Signing In..." : "Sign In"}
               </button>
             </form>
+
+            {/* Register Button */}
+            <div className="mt-6 text-center">
+              <p className="mb-3 text-sm text-white/60">Don't have an account?</p>
+              <button
+                onClick={() => setShowRegisterModal(true)}
+                className="w-full rounded-lg border border-white/20 bg-transparent py-3 font-light transition-all hover:bg-white/10"
+              >
+                Create Account
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Register Modal */}
+        <RegisterModal isOpen={showRegisterModal} onClose={() => setShowRegisterModal(false)} />
       </main>
     );
   }

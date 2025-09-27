@@ -65,7 +65,7 @@ export const weeklySyncItemSchema = z.object({
 export const weeklySyncItemFileSchema = z.object({
   id: z.string(),
   weeklySyncItemId: z.string(),
-  fileName: z.string(),
+  filePath: z.string(),
   fileType: z.enum(["image", "document", "video", "audio", "other"]),
   createdAt: z.date(),
 });
@@ -97,7 +97,8 @@ export const updateWeeklySyncSchema = weeklySyncSchema.partial().required({ id: 
 export const createWeeklySyncItemSchema = weeklySyncItemSchema.omit({ id: true, createdAt: true, updatedAt: true });
 export const updateWeeklySyncItemSchema = weeklySyncItemSchema.partial().required({ id: true });
 
-export const createWeeklySyncItemFileSchema = weeklySyncItemFileSchema.omit({ id: true, createdAt: true }).extend({
+export const createWeeklySyncItemFileSchema = weeklySyncItemFileSchema.omit({ id: true, createdAt: true, filePath: true }).extend({
+  fileName: z.string(),
   data: z.string(),
   isText: z.boolean().default(false),
 });

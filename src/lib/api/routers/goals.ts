@@ -601,14 +601,6 @@ export const goalsRouter = createTRPCRouter({
           return "High";
         };
 
-        // Helper function to generate file URL based on weekly sync creation date
-        const generateFileUrl = (fileName: string, goalId: string, trackingItemId: string): string => {
-          if (!weeklySyncRecord) {
-            return "";
-          }
-          const dateString = weeklySyncRecord.weekDate.toISOString().split("T")[0];
-          return `/uploads/${ctx.user.userId}/${goalId}/${dateString}/${trackingItemId}/${fileName}`;
-        };
 
         // Helper function to read text content from files array
         const readTextContent = async (files: any[]): Promise<string | null> => {
@@ -664,9 +656,9 @@ export const goalsRouter = createTRPCRouter({
                             .filter((file) => file.weeklySyncItemId === weeklySyncItem.id)
                             .map((file) => ({
                               id: file.id,
-                              fileName: file.fileName,
+                              fileName: path.basename(file.filePath),
                               fileType: file.fileType,
-                              url: generateFileUrl(file.fileName, goal.id, trackingItem.id),
+                              url: `/uploads/${file.filePath}`,
                               createdAt: file.createdAt,
                             }))
                         : [];
@@ -822,7 +814,11 @@ export const goalsRouter = createTRPCRouter({
         // Step 2: Generate final filename with timestamp prefix (except for text files)
         const finalFileName = input.isText ? input.fileName : generateTimestampedFileName(input.fileName);
 
-        // Step 3: Check if file record already exists (for text files to avoid duplicates)
+        // Step 3: Generate full relative path (excluding /uploads base)
+        const dateString = targetWeeklySync.weekDate.toISOString().split("T")[0];
+        const relativePath = `${ctx.user.userId}/${goal.id}/${dateString}/${trackingItem.id}/${finalFileName}`;
+
+        // Step 4: Check if file record already exists (for text files to avoid duplicates)
         if (input.isText) {
           const [existingTextFile] = await tx
             .select()
@@ -830,7 +826,7 @@ export const goalsRouter = createTRPCRouter({
             .where(
               and(
                 eq(weeklySyncItemFiles.weeklySyncItemId, input.weeklySyncItemId),
-                eq(weeklySyncItemFiles.fileName, "notes.txt"),
+                eq(weeklySyncItemFiles.filePath, relativePath),
                 eq(weeklySyncItemFiles.fileType, "document"),
               ),
             )
@@ -838,14 +834,7 @@ export const goalsRouter = createTRPCRouter({
 
           if (existingTextFile) {
             // Update existing text file - save file after successful DB lookup
-            const fileResult = await saveOrUpdateTextFile(
-              input.data,
-              ctx.user.userId,
-              goal.id,
-              trackingItem.id,
-              targetWeeklySync.weekDate,
-              "notes.txt",
-            );
+            const fileResult = await saveOrUpdateTextFile(input.data, relativePath);
 
             return {
               url: fileResult.url,
@@ -857,12 +846,12 @@ export const goalsRouter = createTRPCRouter({
           }
         }
 
-        // Step 4: Create database file record FIRST (before touching file system)
+        // Step 5: Create database file record FIRST (before touching file system)
         const [weeklySyncItemFile] = await tx
           .insert(weeklySyncItemFiles)
           .values({
             weeklySyncItemId: input.weeklySyncItemId,
-            fileName: finalFileName,
+            filePath: relativePath,
             fileType: input.fileType,
           })
           .returning();
@@ -874,23 +863,8 @@ export const goalsRouter = createTRPCRouter({
         // Step 5: Save physical file LAST (after successful DB operations)
         try {
           const fileResult = input.isText
-            ? await saveOrUpdateTextFile(
-                input.data,
-                ctx.user.userId,
-                goal.id,
-                trackingItem.id,
-                targetWeeklySync.weekDate,
-                finalFileName,
-              )
-            : await saveWeeklySyncFile(
-                input.data,
-                ctx.user.userId,
-                goal.id,
-                trackingItem.id,
-                targetWeeklySync.weekDate,
-                finalFileName,
-                false,
-              );
+            ? await saveOrUpdateTextFile(input.data, relativePath)
+            : await saveWeeklySyncFile(input.data, relativePath, false);
 
 
           return {
@@ -994,9 +968,8 @@ export const goalsRouter = createTRPCRouter({
 
         const { file, trackingItem, weeklySync: sync } = fileQuery[0]!;
 
-        // Construct file path from database metadata
-        const dateString = sync.weekDate.toISOString().split("T")[0];
-        const filePath = `uploads/${ctx.user.userId}/${trackingItem.goalId}/${dateString}/${trackingItem.id}/${file.fileName}`;
+        // Use stored file path from database
+        const filePath = `uploads/${file.filePath}`;
 
         // Delete database record first
         await tx.delete(weeklySyncItemFiles).where(eq(weeklySyncItemFiles.id, input.id));

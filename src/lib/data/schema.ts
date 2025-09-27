@@ -134,7 +134,7 @@ export const weeklySyncItemFiles = pgTable("weekly_sync_item_files", {
   weeklySyncItemId: text("weekly_sync_item_id")
     .notNull()
     .references(() => weeklySyncItems.id, { onDelete: "cascade" }),
-  fileName: text("file_name").notNull(),
+  filePath: text("file_path").notNull(),
   fileType: fileTypeEnum("file_type").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

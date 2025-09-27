@@ -138,23 +138,14 @@ export function getMimeTypeFromBase64(data: string): string | null {
 
 /**
  * Enhanced file upload function for weekly sync files
- * Supports the structure: {user}/{goalId}/{weeklySyncDate}/{tracking_item_id}/file.ext
  * @param data - Base64 data or text content
- * @param userId - User ID
- * @param goalId - Goal ID
- * @param trackingItemId - Tracking item ID
- * @param weeklySyncDate - Date when the weekly sync was created
- * @param fileName - Final filename to use (including any prefixes)
+ * @param relativePath - Full relative path (excluding /uploads base)
  * @param isText - Whether this is text content (not base64)
  * @returns Promise with file upload result
  */
 export async function saveWeeklySyncFile(
   data: string,
-  userId: string,
-  goalId: string,
-  trackingItemId: string,
-  weeklySyncDate: Date,
-  fileName: string,
+  relativePath: string,
   isText = false,
 ): Promise<FileUploadResult> {
   try {
@@ -171,7 +162,7 @@ export async function saveWeeklySyncFile(
       buffer = Buffer.from(cleanBase64, "base64");
 
       // Detect file type from filename extension
-      const ext = path.extname(fileName).toLowerCase();
+      const ext = path.extname(relativePath).toLowerCase();
       if ([".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"].includes(ext)) {
         fileType = "image";
       } else if ([".pdf", ".doc", ".docx", ".txt"].includes(ext)) {
@@ -183,27 +174,20 @@ export async function saveWeeklySyncFile(
       }
     }
 
-    // Create directory structure: uploads/{userId}/{goalId}/{weeklySyncDate}/{trackingItemId}/
-    const dateString = weeklySyncDate.toISOString().split("T")[0] || weeklySyncDate.toISOString().slice(0, 10); // YYYY-MM-DD format
+    // Create full file path: uploads/{relativePath}
+    const fullPath = path.join(process.cwd(), "uploads", relativePath);
 
-    const uploadsDir = path.join(process.cwd(), "uploads");
-    const userDir = path.join(uploadsDir, userId);
-    const goalDir = path.join(userDir, goalId);
-    const dateDir = path.join(goalDir, dateString);
-    const trackingItemDir = path.join(dateDir, trackingItemId);
-
-    // Ensure directories exist
-    await mkdir(trackingItemDir, { recursive: true });
-
-    // Use the provided filename directly (already includes timestamp and extension)
-    const filePath = path.join(trackingItemDir, fileName);
+    // Ensure directory exists
+    await mkdir(path.dirname(fullPath), { recursive: true });
 
     // Write file to disk
-    await writeFile(filePath, buffer);
+    await writeFile(fullPath, buffer);
+
+    // Extract filename from relative path
+    const fileName = path.basename(relativePath);
 
     // Return path information
-    const relativePath = path.join("uploads", userId, goalId, dateString, trackingItemId, fileName);
-    const url = `/${relativePath.replace(/\\/g, "/")}`; // Ensure forward slashes for URLs
+    const url = `/uploads/${relativePath.replace(/\\/g, "/")}`; // Ensure forward slashes for URLs
 
     return {
       filePath: relativePath,
@@ -219,48 +203,31 @@ export async function saveWeeklySyncFile(
 
 /**
  * Updates or creates a text file for weekly sync
- * Ensures only one text file exists per tracking item by using a consistent filename
  * @param content - Text content
- * @param userId - User ID
- * @param goalId - Goal ID
- * @param trackingItemId - Tracking item ID
- * @param weeklySyncDate - Date when the weekly sync was created
- * @param existingFileName - Existing file name to update (optional, ignored - kept for compatibility)
+ * @param relativePath - Full relative path (excluding /uploads base)
  * @returns Promise with file upload result
  */
 export async function saveOrUpdateTextFile(
   content: string,
-  userId: string,
-  goalId: string,
-  trackingItemId: string,
-  weeklySyncDate: Date,
-  existingFileName?: string,
+  relativePath: string,
 ): Promise<FileUploadResult> {
   try {
-    // Always use a consistent filename for text files to ensure only one per tracking item
-    const fileName = "notes.txt";
+    // Create full file path: uploads/{relativePath}
+    const fullPath = path.join(process.cwd(), "uploads", relativePath);
 
-    // Create directory structure: uploads/{userId}/{goalId}/{weeklySyncDate}/{trackingItemId}/
-    const dateString = weeklySyncDate.toISOString().split("T")[0] || weeklySyncDate.toISOString().slice(0, 10); // YYYY-MM-DD format
+    // Ensure directory exists
+    await mkdir(path.dirname(fullPath), { recursive: true });
 
-    const uploadsDir = path.join(process.cwd(), "uploads");
-    const userDir = path.join(uploadsDir, userId);
-    const goalDir = path.join(userDir, goalId);
-    const dateDir = path.join(goalDir, dateString);
-    const trackingItemDir = path.join(dateDir, trackingItemId);
-
-    // Ensure directories exist
-    await mkdir(trackingItemDir, { recursive: true });
-
-    const filePath = path.join(trackingItemDir, fileName);
     const buffer = Buffer.from(content, "utf8");
 
     // Write file to disk (this will overwrite any existing file)
-    await writeFile(filePath, buffer);
+    await writeFile(fullPath, buffer);
+
+    // Extract filename from relative path
+    const fileName = path.basename(relativePath);
 
     // Return path information
-    const relativePath = path.join("uploads", userId, goalId, dateString, trackingItemId, fileName);
-    const url = `/${relativePath.replace(/\\/g, "/")}`; // Ensure forward slashes for URLs
+    const url = `/uploads/${relativePath.replace(/\\/g, "/")}`; // Ensure forward slashes for URLs
 
     return {
       filePath: relativePath,
@@ -328,30 +295,6 @@ export async function readTrackingItemTextFile(
   return readTextFile(filePath);
 }
 
-/**
- * Generates a file URL for a weekly sync item file
- * @param fileName - The file name from the database record
- * @param userId - User ID
- * @param goalId - Goal ID
- * @param trackingItemId - Tracking item ID
- * @param weeklySyncDate - Date when the weekly sync was created
- * @returns The URL to access the file
- */
-export function generateFileUrl(
-  fileName: string,
-  userId: string,
-  goalId: string,
-  trackingItemId: string,
-  weeklySyncDate: Date,
-): string {
-  const dateString = weeklySyncDate.toISOString().split("T")[0] || weeklySyncDate.toISOString().slice(0, 10);
-
-  // Build the file path: uploads/{userId}/{goalId}/{weeklySyncDate}/{trackingItemId}/{fileName}
-  const filePath = path.join("uploads", userId, goalId, dateString, trackingItemId, fileName);
-
-  // Convert to URL path with forward slashes
-  return `/${filePath.replace(/\\/g, "/")}`;
-}
 
 /**
  * Deletes an image file from the server

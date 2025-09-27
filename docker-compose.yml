@@ -37,7 +37,7 @@ services:
       - DATABASE_URL=postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-goals_db}
       - NODE_ENV=${NODE_ENV:-production}
     volumes:
-      - "/s2/santi/2. Files/2.8 Goals app:/app/uploads/cqgkwu7mup2vbdvoaooc9zt8"
+      - "/s2/santi/2. Files/2.8 Goals app:/app/uploads/x75hzierondup9um0n2kktaa"
     depends_on:
       db:
         condition: service_healthy

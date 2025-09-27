@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { ReactNode } from "react";
 import { clientAuth } from "~/lib/auth-client";
 import { api } from "~/trpc/react";
-import type { Value, Goal, Task, Connection, TrackingItem, WeeklySync, WeeklySyncItem } from "~/lib/api/types";
+import type { Value, Goal, Task, Connection, TrackingItem, WeeklySync, WeeklySyncItem, CreateGoal, CreateTrackingItem } from "~/lib/api/types";
 
 // Re-export types from the shared API types
 export type {
@@ -36,7 +36,7 @@ interface GoalsContextType {
   updateValue: (id: string, value: Partial<Value>) => Promise<void>;
   deleteValue: (id: string) => Promise<void>;
 
-  addGoal: (goal: Omit<Goal, "id">) => Promise<void>;
+  addGoal: (goal: CreateGoal) => Promise<void>;
   updateGoal: (id: string, goal: Partial<Goal>) => Promise<void>;
   deleteGoal: (id: string) => Promise<void>;
 
@@ -49,7 +49,7 @@ interface GoalsContextType {
   deleteConnection: (id: string) => Promise<void>;
 
   getTrackingItems: (goalId: string) => Promise<TrackingItem[]>;
-  addTrackingItem: (trackingItem: Omit<TrackingItem, "id">) => Promise<void>;
+  addTrackingItem: (trackingItem: CreateTrackingItem) => Promise<void>;
   updateTrackingItem: (id: string, trackingItem: Partial<TrackingItem>) => Promise<void>;
   deleteTrackingItem: (id: string) => Promise<{ success: boolean; type: "soft_delete" | "hard_delete" }>;
 
@@ -297,10 +297,9 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
 
   // Goal operations
   const addGoal = useCallback(
-    async (goal: Omit<Goal, "id">) => {
+    async (goal: CreateGoal) => {
       try {
-        const { importance, ...goalData } = goal; // importance is calculated when is needed.
-        await goalsMutations.create.mutateAsync(goalData);
+        await goalsMutations.create.mutateAsync(goal);
         await refreshData();
       } catch (error) {
         console.error("Failed to add goal:", error);
@@ -426,7 +425,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   );
 
   const addTrackingItem = useCallback(
-    async (trackingItem: Omit<TrackingItem, "id">) => {
+    async (trackingItem: CreateTrackingItem) => {
       try {
         await trackingItemsMutations.create.mutateAsync(trackingItem);
         await refreshData();

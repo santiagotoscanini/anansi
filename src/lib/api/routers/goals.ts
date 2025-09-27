@@ -87,7 +87,7 @@ export const goalsRouter = createTRPCRouter({
   // Goals operations
   goals: createTRPCRouter({
     getAll: protectedProcedure.query(async ({ ctx }): Promise<Goal[]> => {
-      const goalsData = await db.select().from(goals).where(eq(goals.userId, ctx.user.userId));
+      const goalsData = await db.select().from(goals).where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
       const goalIds = goalsData.map((g) => g.id);
 
       // Get all tasks for user's goals
@@ -95,14 +95,14 @@ export const goalsRouter = createTRPCRouter({
         .select()
         .from(tasks)
         .innerJoin(goals, eq(tasks.goalId, goals.id))
-        .where(eq(goals.userId, ctx.user.userId));
+        .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
 
       // Get all goal-value relationships for user's goals
       const goalValuesData = await db
         .select()
         .from(goalValues)
         .innerJoin(goals, eq(goalValues.goalId, goals.id))
-        .where(eq(goals.userId, ctx.user.userId));
+        .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
 
       // Get all connections for user's goals
       const connectionsData =
@@ -111,7 +111,7 @@ export const goalsRouter = createTRPCRouter({
               .select()
               .from(connections)
               .innerJoin(goals, eq(connections.source, goals.id))
-              .where(eq(goals.userId, ctx.user.userId))
+              .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")))
           : [];
 
       // Helper function to calculate importance based on outgoing connections
@@ -137,6 +137,7 @@ export const goalsRouter = createTRPCRouter({
         parentId: goal.parentId || undefined,
         position: { x: goal.positionX, y: goal.positionY },
         importance: calculateImportance(goal.id),
+        status: goal.status as "active" | "archived",
         valueIds: goalValuesData
           .filter((item) => item.goal_values.goalId === goal.id)
           .map((item) => item.goal_values.valueId),
@@ -245,8 +246,38 @@ export const goalsRouter = createTRPCRouter({
     }),
 
     delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
-      await db.delete(goals).where(and(eq(goals.id, input.id), eq(goals.userId, ctx.user.userId)));
-      return { success: true };
+      return await db.transaction(async (tx) => {
+        // Verify the goal belongs to the user
+        const goalExists = await tx
+          .select()
+          .from(goals)
+          .where(and(eq(goals.id, input.id), eq(goals.userId, ctx.user.userId)))
+          .limit(1);
+        if (goalExists.length === 0) throw new Error("Goal not found or access denied");
+
+        // Archive the goal (set status to "archived")
+        await tx
+          .update(goals)
+          .set({ status: "archived", updatedAt: new Date() })
+          .where(eq(goals.id, input.id));
+
+        // Delete all connections where this goal is either source or target
+        await tx
+          .delete(connections)
+          .where(eq(connections.source, input.id));
+
+        await tx
+          .delete(connections)
+          .where(eq(connections.target, input.id));
+
+        // Archive all tracking items belonging to this goal
+        await tx
+          .update(trackingItems)
+          .set({ status: "archived", updatedAt: new Date() })
+          .where(eq(trackingItems.goalId, input.id));
+
+        return { success: true };
+      });
     }),
   }),
 
@@ -309,12 +340,21 @@ export const goalsRouter = createTRPCRouter({
   // Connections operations
   connections: createTRPCRouter({
     getAll: protectedProcedure.query(async ({ ctx }) => {
-      // Get connections where both source and target goals belong to the user
+      // Get connections where both source and target goals belong to the user and are active
+      const sourceGoals = goals;
+      const targetGoals = goals;
+
       return await db
         .select()
         .from(connections)
-        .innerJoin(goals, eq(connections.source, goals.id))
-        .where(eq(goals.userId, ctx.user.userId));
+        .innerJoin(sourceGoals, eq(connections.source, sourceGoals.id))
+        .innerJoin(targetGoals, eq(connections.target, targetGoals.id))
+        .where(and(
+          eq(sourceGoals.userId, ctx.user.userId),
+          eq(targetGoals.userId, ctx.user.userId),
+          eq(sourceGoals.status, "active"),
+          eq(targetGoals.status, "active")
+        ));
     }),
 
     create: protectedProcedure.input(createConnectionSchema).mutation(async ({ input, ctx }) => {
@@ -397,7 +437,7 @@ export const goalsRouter = createTRPCRouter({
         const items = await db
           .select()
           .from(trackingItems)
-          .where(and(eq(trackingItems.goalId, input.goalId), isNull(trackingItems.deletedAt)))
+          .where(and(eq(trackingItems.goalId, input.goalId), isNull(trackingItems.deletedAt), eq(trackingItems.status, "active")))
           .orderBy(asc(trackingItems.order), asc(trackingItems.createdAt));
 
         // Map database result to match TypeScript type (null -> undefined)
@@ -407,6 +447,8 @@ export const goalsRouter = createTRPCRouter({
           title: item.title,
           description: item.description || undefined,
           order: item.order,
+          status: item.status as "active" | "archived",
+          deletedAt: item.deletedAt || undefined,
         }));
       }),
 
@@ -513,15 +555,15 @@ export const goalsRouter = createTRPCRouter({
           .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, input.weekStart)))
           .limit(1);
 
-        // Get all goals with their tracking items for this user
-        const goalsData = await db.select().from(goals).where(eq(goals.userId, ctx.user.userId));
+        // Get all active goals with their tracking items for this user
+        const goalsData = await db.select().from(goals).where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
 
         // Get all tracking items for user's goals
         const goalIds = goalsData.map((g) => g.id);
         let trackingItemsData: any[] = [];
 
         if (goalIds.length > 0) {
-          trackingItemsData = await db.select().from(trackingItems).where(inArray(trackingItems.goalId, goalIds));
+          trackingItemsData = await db.select().from(trackingItems).where(and(inArray(trackingItems.goalId, goalIds), eq(trackingItems.status, "active")));
         }
 
         // Get weekly sync items if weekly sync exists
@@ -596,11 +638,11 @@ export const goalsRouter = createTRPCRouter({
           goals: await Promise.all(
             goalsData
               .filter((goal) => {
-                // Only include goals that have tracking items
-                return trackingItemsData.some((item) => item.goalId === goal.id);
+                // Only include active goals that have active tracking items
+                return goal.status === "active" && trackingItemsData.some((item) => item.goalId === goal.id && item.status === "active");
               })
               .map(async (goal) => {
-                const goalTrackingItems = trackingItemsData.filter((item) => item.goalId === goal.id);
+                const goalTrackingItems = trackingItemsData.filter((item) => item.goalId === goal.id && item.status === "active");
 
                 const importance = await calculateImportance(goal.id);
 
@@ -1018,7 +1060,7 @@ export const goalsRouter = createTRPCRouter({
   data: createTRPCRouter({
     getAll: protectedProcedure.query(async ({ ctx }) => {
       const valuesData = await db.select().from(values).where(eq(values.userId, ctx.user.userId));
-      const goalsData = await db.select().from(goals).where(eq(goals.userId, ctx.user.userId));
+      const goalsData = await db.select().from(goals).where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
 
       // Get tasks for user's goals only
       const goalIds = goalsData.map((g) => g.id);
@@ -1028,7 +1070,7 @@ export const goalsRouter = createTRPCRouter({
               .select()
               .from(tasks)
               .innerJoin(goals, eq(tasks.goalId, goals.id))
-              .where(eq(goals.userId, ctx.user.userId))
+              .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")))
           : [];
 
       // Get connections for user's goals only
@@ -1038,7 +1080,7 @@ export const goalsRouter = createTRPCRouter({
               .select()
               .from(connections)
               .innerJoin(goals, eq(connections.source, goals.id))
-              .where(eq(goals.userId, ctx.user.userId))
+              .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")))
           : [];
 
       // Get goal-value relationships for user's goals only
@@ -1048,7 +1090,7 @@ export const goalsRouter = createTRPCRouter({
               .select()
               .from(goalValues)
               .innerJoin(goals, eq(goalValues.goalId, goals.id))
-              .where(eq(goals.userId, ctx.user.userId))
+              .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")))
           : [];
 
       // Helper function to calculate importance based on outgoing connections
@@ -1074,6 +1116,7 @@ export const goalsRouter = createTRPCRouter({
         parentId: goal.parentId || undefined,
         position: { x: goal.positionX, y: goal.positionY },
         importance: calculateImportance(goal.id),
+        status: goal.status as "active" | "archived",
         valueIds: goalValuesData
           .filter((item) => item.goal_values.goalId === goal.id)
           .map((item) => item.goal_values.valueId),

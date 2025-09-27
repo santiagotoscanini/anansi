@@ -77,7 +77,6 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
         valueIds,
         tasks,
         position: { x: 250, y: 250 },
-        importance: "Low" as const, // Default importance for new goals
       });
       toast.success("Goal created successfully");
     }

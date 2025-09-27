@@ -26,6 +26,7 @@ export const goalSchema = z.object({
     y: z.number(),
   }),
   importance: z.enum(["Low", "Medium", "High"]).default("Low"),
+  status: z.enum(["active", "archived"]).default("active"),
 });
 
 export const connectionSchema = z.object({
@@ -42,6 +43,7 @@ export const trackingItemSchema = z.object({
   description: z.string().optional(),
   order: z.number().default(0),
   deletedAt: z.date().optional(),
+  status: z.enum(["active", "archived"]).default("active"),
 });
 
 export const weeklySyncSchema = z.object({
@@ -75,13 +77,13 @@ export const updateValueSchema = valueSchema.partial().required({ id: true });
 export const createTaskSchema = taskSchema.omit({ id: true });
 export const updateTaskSchema = taskSchema.partial().required({ id: true });
 
-export const createGoalSchema = goalSchema.omit({ id: true, importance: true });
+export const createGoalSchema = goalSchema.omit({ id: true, importance: true, status: true });
 export const updateGoalSchema = goalSchema.omit({ importance: true }).partial().required({ id: true });
 
 export const createConnectionSchema = connectionSchema.omit({ id: true });
 export const updateConnectionSchema = connectionSchema.partial().required({ id: true });
 
-export const createTrackingItemSchema = trackingItemSchema.omit({ id: true, deletedAt: true });
+export const createTrackingItemSchema = trackingItemSchema.omit({ id: true, deletedAt: true, status: true });
 export const updateTrackingItemSchema = trackingItemSchema.omit({ deletedAt: true }).partial().required({ id: true });
 
 export const createWeeklySyncSchema = weeklySyncSchema.omit({

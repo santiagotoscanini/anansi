@@ -21,22 +21,21 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Install production dependencies needed for migrations and seeding
+# Install production dependencies needed for migrations
 COPY package*.json ./
-RUN npm ci --omit=dev && npm install drizzle-kit drizzle-orm pg tsx
+RUN npm ci --omit=dev && npm install drizzle-kit
 
-# Copy migration files, seed files, and config
+# Copy migration files, and config
 COPY --from=builder /app/drizzle.config.ts ./
-COPY --from=builder /app/src/lib/data/schema.ts ./src/lib/data/
+COPY --from=builder /app/src/lib/data/schema.ts ./src/lib/data/schema.ts
 COPY --from=builder /app/src/lib/data/db/migrations ./src/lib/data/db/migrations
-COPY --from=builder /app/src/lib/db/seed.ts ./src/lib/db/
 
 # Copy necessary files from builder
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Copy entrypoint script (already executable from the repo)
+# Copy entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh
 
 # Expose port

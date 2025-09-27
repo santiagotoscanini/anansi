@@ -16,7 +16,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { useGoals } from "~/contexts/GoalsContext";
-import { api } from "~/trpc/react";
 import toast from "react-hot-toast";
 
 interface CollapsedGoals {
@@ -67,11 +66,16 @@ const getFileType = (fileName: string): "image" | "document" | "video" | "audio"
 };
 
 export default function WeeklyRetrospective() {
-  const { createWeeklySync, getWeekStartDate, uploadWeeklySyncFile, saveTextFile, createWeeklySyncItem } =
-    useGoals();
-
-  // tRPC mutations
-  const deleteFileMutation = api.goals.weeklySyncItemFiles.delete.useMutation();
+  const {
+    createWeeklySync,
+    getWeekStartDate,
+    uploadWeeklySyncFile,
+    saveTextFile,
+    createWeeklySyncItem,
+    deleteWeeklySyncFile,
+    getWeeklyRetrospectiveData,
+    refreshWeeklyRetrospectiveData
+  } = useGoals();
 
   // State for temporary files (newly uploaded, not yet persisted)
   const [trackingItemFiles, setTrackingItemFiles] = useState<TrackingItemFiles>({});
@@ -83,10 +87,7 @@ export default function WeeklyRetrospective() {
   });
 
   // Single comprehensive query for all weekly retrospective data
-  const weeklyRetrospectiveQuery = api.goals.weeklySync.getWeeklyRetrospectiveData.useQuery(
-    { weekStart: selectedWeek },
-    { enabled: !!selectedWeek },
-  );
+  const weeklyRetrospectiveQuery = getWeeklyRetrospectiveData(selectedWeek);
 
   // Extract data from the comprehensive query
   const retrospectiveData = weeklyRetrospectiveQuery.data;
@@ -95,9 +96,9 @@ export default function WeeklyRetrospective() {
   const hasError = weeklyRetrospectiveQuery.error;
 
   // Filter tracking items based on selected week and deletion date (frontend filtering)
-  const goalsWithTrackingItems = (retrospectiveData?.goals || []).map((goal) => ({
+  const goalsWithTrackingItems = (retrospectiveData?.goals || []).map((goal: any) => ({
     ...goal,
-    trackingItems: goal.trackingItems.filter((trackingItem) => {
+    trackingItems: goal.trackingItems.filter((trackingItem: any) => {
       // If item is not deleted, always include it
       if (!trackingItem.deletedAt) return true;
 
@@ -158,8 +159,8 @@ export default function WeeklyRetrospective() {
       }
 
       // Check if already in weekly sync
-      const goal = goalsWithTrackingItems.find((g) => g.trackingItems.some((item) => item.id === trackingItemId));
-      const trackingItem = goal?.trackingItems.find((item) => item.id === trackingItemId);
+      const goal = goalsWithTrackingItems.find((g: any) => g.trackingItems.some((item: any) => item.id === trackingItemId));
+      const trackingItem = goal?.trackingItems.find((item: any) => item.id === trackingItemId);
 
       if (trackingItem?.weeklySyncItem) {
         return true; // Already in sync
@@ -171,7 +172,7 @@ export default function WeeklyRetrospective() {
         toast.success("Added to weekly sync");
 
         // Refetch data to update UI
-        await weeklyRetrospectiveQuery.refetch();
+        await refreshWeeklyRetrospectiveData();
         return true;
       } catch (error) {
         console.error("Failed to add tracking item to weekly sync:", error);
@@ -204,7 +205,7 @@ export default function WeeklyRetrospective() {
     try {
       await createWeeklySync(selectedWeek);
       // Refetch the query to update the UI
-      await weeklyRetrospectiveQuery.refetch();
+      await refreshWeeklyRetrospectiveData();
       toast.success("Weekly sync started!");
     } catch (error) {
       toast.error("Failed to start weekly sync");
@@ -250,7 +251,7 @@ export default function WeeklyRetrospective() {
           let goalId: string | undefined;
           let trackingItem: any = undefined;
           for (const goal of goalsWithTrackingItems) {
-            const item = goal.trackingItems.find((item) => item.id === trackingItemId);
+            const item = goal.trackingItems.find((item: any) => item.id === trackingItemId);
             if (item) {
               goalId = goal.id;
               trackingItem = item;
@@ -310,7 +311,7 @@ export default function WeeklyRetrospective() {
     // Find the goal that contains this tracking item
     let goalId: string | undefined;
     for (const goal of goalsWithTrackingItems) {
-      if (goal.trackingItems.some((item) => item.id === trackingItemId)) {
+      if (goal.trackingItems.some((item: any) => item.id === trackingItemId)) {
         goalId = goal.id;
         break;
       }
@@ -397,11 +398,11 @@ export default function WeeklyRetrospective() {
     setDeletingFiles((prev) => new Set(prev).add(fileId));
 
     try {
-      await deleteFileMutation.mutateAsync({ id: fileId });
+      await deleteWeeklySyncFile(fileId);
       toast.success(`${fileName} deleted successfully`);
 
       // Refresh the weekly retrospective data to update file lists
-      await weeklyRetrospectiveQuery.refetch();
+      await refreshWeeklyRetrospectiveData();
     } catch (error) {
       console.error("Failed to delete file:", error);
       toast.error(`Failed to delete ${fileName}`);
@@ -433,12 +434,12 @@ export default function WeeklyRetrospective() {
 
   // Get goal status based on tracking items
   const getGoalStatus = (goalId: string): "complete" | "partial" | "missing" => {
-    const goal = goalsWithTrackingItems.find((g) => g.id === goalId);
+    const goal = goalsWithTrackingItems.find((g: any) => g.id === goalId);
     if (!goal || goal.trackingItems.length === 0) return "missing";
 
     const statuses = goal.trackingItems.map(getTrackingItemStatus);
-    const completeCount = statuses.filter((s) => s === "complete").length;
-    const partialCount = statuses.filter((s) => s === "partial").length;
+    const completeCount = statuses.filter((s: string) => s === "complete").length;
+    const partialCount = statuses.filter((s: string) => s === "partial").length;
 
     if (completeCount === statuses.length) return "complete";
     if (completeCount > 0 || partialCount > 0) return "partial";
@@ -522,7 +523,7 @@ export default function WeeklyRetrospective() {
         ) : (
           /* Weekly Sync Active - Show Goals and Tracking Items */
           <div className="space-y-6">
-            {goalsWithTrackingItems.map((goal) => {
+            {goalsWithTrackingItems.map((goal: any) => {
               const isCollapsed = collapsedGoals[goal.id];
               const goalStatus = getGoalStatus(goal.id);
 
@@ -580,7 +581,7 @@ export default function WeeklyRetrospective() {
                   {!isCollapsed && (
                     <div className="ml-8 mt-4 space-y-4">
                       {goal.trackingItems.length > 0 ? (
-                        goal.trackingItems.map((trackingItem) => (
+                        goal.trackingItems.map((trackingItem: any) => (
                           <div key={trackingItem.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
                             {/* Tracking Item Header */}
                             <div className="flex items-start justify-between">
@@ -706,7 +707,7 @@ export default function WeeklyRetrospective() {
                               // Show content if we have actual stored files OR temporary uploaded files
                               const hasStoredText = trackingItem.textContent;
                               const hasTempImages = (tempFiles?.images?.length || 0) > 0;
-                              const imageFiles = trackingItem.files.filter((file) => file.fileType === "image");
+                              const imageFiles = trackingItem.files.filter((file: any) => file.fileType === "image");
                               const hasStoredImages = imageFiles.length > 0;
 
                               return hasStoredText || hasTempImages || hasStoredImages ? (
@@ -804,7 +805,7 @@ export default function WeeklyRetrospective() {
                                         <span className="text-sm opacity-70">Saved Images ({imageFiles.length})</span>
                                       </div>
                                       <div className="grid grid-cols-4 gap-2">
-                                        {imageFiles.slice(0, 4).map((file, index) => {
+                                        {imageFiles.slice(0, 4).map((file: any, index: number) => {
                                           const isDeleting = deletingFiles.has(file.id);
                                           return (
                                             <div key={file.id} className="group relative">

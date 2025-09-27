@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
 import { clientAuth } from "~/lib/auth-client";
 import { api } from "~/trpc/react";
@@ -75,6 +75,11 @@ interface GoalsContextType {
     trackingItemId: string,
     existingFileName?: string,
   ) => Promise<{ url: string; fileName: string; filePath: string; fileType: string }>;
+  deleteWeeklySyncFile: (fileId: string) => Promise<void>;
+
+  // Weekly Retrospective data operations
+  getWeeklyRetrospectiveData: (weekStart: Date) => any;
+  refreshWeeklyRetrospectiveData: () => Promise<void>;
 
   // Utility functions
   getGoalCompletion: (goalId: string) => number;
@@ -146,6 +151,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
 
   const weeklySyncMutations = {
     create: api.goals.weeklySync.create.useMutation(),
+    getWeeklyRetrospectiveData: api.goals.weeklySync.getWeeklyRetrospectiveData.useQuery,
   };
 
   const weeklySyncItemsMutations = {
@@ -154,6 +160,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
 
   const filesMutations = {
     create: api.goals.weeklySyncItemFiles.create.useMutation(),
+    delete: api.goals.weeklySyncItemFiles.delete.useMutation(),
     readTrackingItemText: api.goals.weeklySyncItemFiles.readTrackingItemText.useQuery,
   };
 
@@ -592,6 +599,44 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     [filesMutations.create, ensureWeeklySyncItem],
   );
 
+  // Delete weekly sync file
+  const deleteWeeklySyncFile = useCallback(
+    async (fileId: string): Promise<void> => {
+      try {
+        await filesMutations.delete.mutateAsync({ id: fileId });
+        await refreshData();
+      } catch (error) {
+        console.error("Failed to delete weekly sync file:", error);
+        throw error;
+      }
+    },
+    [filesMutations.delete, refreshData],
+  );
+
+  // Weekly retrospective data operations
+  const weeklyRetrospectiveQueryRef = useRef<any>(null);
+
+  const getWeeklyRetrospectiveData = useCallback((weekStart: Date) => {
+    // This will be used by the component to access the query
+    const query = weeklySyncMutations.getWeeklyRetrospectiveData(
+      { weekStart },
+      { enabled: !!weekStart },
+    );
+    weeklyRetrospectiveQueryRef.current = query;
+    return query;
+  }, [weeklySyncMutations.getWeeklyRetrospectiveData]);
+
+  const refreshWeeklyRetrospectiveData = useCallback(async (): Promise<void> => {
+    try {
+      if (weeklyRetrospectiveQueryRef.current) {
+        await weeklyRetrospectiveQueryRef.current.refetch();
+      }
+    } catch (error) {
+      console.error("Failed to refresh weekly retrospective data:", error);
+      throw error;
+    }
+  }, []);
+
   // Progress calculation functions (unchanged logic)
   const getGoalCompletion = (goalId: string): number => {
     const goal = goals.find((g) => g.id === goalId);
@@ -699,6 +744,9 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     createWeeklySyncItem,
     uploadWeeklySyncFile,
     saveTextFile,
+    deleteWeeklySyncFile,
+    getWeeklyRetrospectiveData,
+    refreshWeeklyRetrospectiveData,
     getGoalCompletion,
     getPathCompletion,
     getGoalProgress,

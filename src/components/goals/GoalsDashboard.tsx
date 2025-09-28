@@ -60,14 +60,14 @@ export default function GoalsDashboard() {
         </div>
 
         {/* Main Content */}
-        <div className="flex gap-1 border-t border-white/10 px-8">
+        <div className="flex gap-1 border-t border-white/10 px-4 md:px-8 overflow-x-auto scrollbar-hide flex-nowrap">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm transition-all ${
+                className={`flex items-center gap-2 border-b-2 px-3 md:px-4 py-3 text-sm transition-all flex-shrink-0 whitespace-nowrap ${
                   activeTab === tab.id ? "border-white text-white" : "border-transparent text-white/60 hover:text-white"
                 }`}
               >

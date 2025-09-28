@@ -115,7 +115,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
             ))}
 
             {/* Expanded names tooltip on hover */}
-            <div className="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            <div className="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 opacity-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100">
               <div className="flex flex-wrap gap-1 rounded-lg bg-black/90 p-2 shadow-lg">
                 {associatedValues.map((value) => (
                   <span

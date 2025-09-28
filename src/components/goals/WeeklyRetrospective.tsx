@@ -566,7 +566,7 @@ export default function WeeklyRetrospective() {
 
                   {/* Tracking Items - Only show when not collapsed */}
                   {!isCollapsed && (
-                    <div className="ml-8 mt-4 space-y-4">
+                    <div className="mt-4 space-y-4">
                       {goal.trackingItems.length > 0 ? (
                         goal.trackingItems.map((trackingItem: any) => (
                           <div key={trackingItem.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
@@ -604,7 +604,7 @@ export default function WeeklyRetrospective() {
                             </div>
 
                             {/* Action Buttons */}
-                            <div className="mt-3 flex gap-2">
+                            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                               {/* Add Text Button - Only show if no text content exists */}
                               {!trackingItem.textContent && (
                                 <button
@@ -803,7 +803,7 @@ export default function WeeklyRetrospective() {
                                                   onClick={() =>
                                                     handleDeleteFileClick(file.id, file.fileName, trackingItem.id)
                                                   }
-                                                  className="absolute right-1 top-1 hidden rounded-full bg-red-500/80 p-1 text-white opacity-0 transition-all hover:bg-red-500 group-hover:block group-hover:opacity-100"
+                                                  className="absolute right-1 top-1 block rounded-full bg-red-500/80 p-1 text-white opacity-100 transition-all hover:bg-red-500 md:hidden md:opacity-0 md:group-hover:block md:group-hover:opacity-100"
                                                   title={`Delete ${file.fileName}`}
                                                 >
                                                   <Trash2 className="h-3 w-3" />

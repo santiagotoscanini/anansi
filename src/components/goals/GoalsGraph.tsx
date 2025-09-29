@@ -127,8 +127,20 @@ export default function GoalsGraph() {
   );
 
   const onNodeDragStop = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
-      updateGoal(node.id, { position: node.position });
+    (_event: React.MouseEvent, node: Node, nodes?: Node[]) => {
+      // If multiple nodes were dragged, update all of them
+      if (nodes && nodes.length > 1) {
+        // Filter to only selected nodes that were actually moved
+        const movedNodes = nodes.filter((n) => n.selected);
+
+        // Update all moved nodes' positions
+        movedNodes.forEach((movedNode) => {
+          updateGoal(movedNode.id, { position: movedNode.position });
+        });
+      } else {
+        // Fallback: single node drag (existing behavior)
+        updateGoal(node.id, { position: node.position });
+      }
     },
     [updateGoal],
   );
@@ -144,11 +156,6 @@ export default function GoalsGraph() {
     },
     [connections, deleteConnection],
   );
-
-  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
-    // Just select the node, editing is handled by the pencil icon in the node
-    setSelectedNodes([node.id]);
-  }, []);
 
   const onSelectionChange = useCallback((params: { nodes: Node[]; edges: Edge[] }) => {
     setSelectedNodes(params.nodes.map((n) => n.id));
@@ -247,7 +254,6 @@ export default function GoalsGraph() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
-          onNodeClick={onNodeClick}
           onNodeDragStop={onNodeDragStop}
           onEdgesDelete={onEdgeDelete}
           onSelectionChange={onSelectionChange}

@@ -264,7 +264,7 @@ export default function GoalsGraph() {
           proOptions={{ hideAttribution: true }}
           className="bg-black"
         >
-          <Controls className="!border-white/20 !bg-white/10" />
+          <Controls className="!border-white/20 !bg-black [&>button]:!bg-black [&>button]:!border [&>button]:!border-white/20 [&>button]:!text-white [&>button>svg]:!fill-white" />
           <MiniMap
             className="!border-white/20 !bg-white/10"
             nodeColor={(node) => {

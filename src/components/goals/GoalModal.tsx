@@ -437,7 +437,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                       <span className={`text-xs ${getDifficultyColor(task.difficulty)}`}>
                         {getDifficultyLabel(task.difficulty)}
                       </span>
-                      <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="flex gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                         <button
                           onClick={() => handleEditTask(task)}
                           className="rounded p-1 text-white/40 transition-all hover:bg-white/10"
@@ -558,7 +558,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                             <p className="mt-1 text-sm text-white/60">{item.description}</p>
                           )}
                         </div>
-                        <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <div className="flex gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                           <button
                             onClick={() => handleEditTrackingItem(item)}
                             className="rounded p-1 text-white/40 transition-all hover:bg-white/10"
@@ -588,16 +588,8 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
         </div>
 
         {/* Footer Actions */}
-        <div className="mt-6 flex justify-between">
-          {goalId && (
-            <button
-              onClick={handleDelete}
-              className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-2 text-red-400 transition-all hover:bg-red-500/20"
-            >
-              Delete Goal
-            </button>
-          )}
-          <div className={`flex gap-2 ${!goalId ? "ml-auto" : ""}`}>
+        <div className="mt-6 flex flex-col gap-3 md:flex-row md:justify-between">
+          <div className={`flex flex-col gap-2 md:flex-row md:gap-2 ${!goalId ? "md:ml-auto" : ""}`}>
             <button
               onClick={onClose}
               className="rounded-lg border border-white/20 px-4 py-2 transition-all hover:bg-white/10"
@@ -611,6 +603,14 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
               {goalId ? "Update" : "Create"} Goal
             </button>
           </div>
+          {goalId && (
+            <button
+              onClick={handleDelete}
+              className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-2 text-red-400 transition-all hover:bg-red-500/20 md:order-first"
+            >
+              Delete Goal
+            </button>
+          )}
         </div>
       </div>
     </div>

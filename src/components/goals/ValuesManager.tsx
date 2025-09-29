@@ -83,7 +83,7 @@ export default function ValuesManager() {
 
         {/* Add new value form - Always visible */}
         <div className="mb-8">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center">
             <input
               type="text"
               value={newValueName}
@@ -95,7 +95,7 @@ export default function ValuesManager() {
             />
             <button
               onClick={handleAdd}
-              className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-3 transition-all hover:bg-white hover:text-black"
+              className="flex items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm transition-all hover:bg-white hover:text-black md:text-base"
             >
               <Plus className="h-4 w-4" />
               Add Value
@@ -183,7 +183,7 @@ export default function ValuesManager() {
                     <span className="text-lg">{value.name}</span>
                   </div>
 
-                  <div className="flex gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="flex gap-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                     <button
                       onClick={() => handleEdit(value)}
                       className="rounded-lg bg-white/10 p-2 transition-all hover:bg-white/20"

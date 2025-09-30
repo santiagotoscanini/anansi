@@ -91,7 +91,6 @@ export default function ValuesManager() {
               onKeyDown={(e) => e.key === "Enter" && handleAdd()}
               placeholder="Enter a new value and press Enter..."
               className="flex-1 rounded-lg border border-white/20 bg-white/5 px-4 py-3 text-white outline-none transition-all placeholder:text-white/30 focus:border-white/40 focus:bg-white/10"
-              autoFocus
             />
             <button
               onClick={handleAdd}

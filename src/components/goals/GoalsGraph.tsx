@@ -234,7 +234,7 @@ export default function GoalsGraph() {
   }, [selectedNodes, selectedEdges, copiedGoal, isModalOpen, goals, connections, addGoal, deleteConnection]);
 
   return (
-    <div className="h-[calc(100vh-7rem)]">
+    <div className="h-full">
       <div className="relative h-full">
         {/* Add Goal Button */}
         <button

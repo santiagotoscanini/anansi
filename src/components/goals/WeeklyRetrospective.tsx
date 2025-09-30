@@ -434,7 +434,7 @@ export default function WeeklyRetrospective() {
   };
 
   return (
-    <div className="min-h-screen px-8 py-8">
+    <div className="h-full px-8 py-8">
       <div className="mx-auto max-w-6xl">
         {/* Header */}
         <div className="mb-8">

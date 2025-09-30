@@ -74,7 +74,7 @@ export default function ValuesManager() {
   };
 
   return (
-    <div className="min-h-screen px-8 py-8">
+    <div className="h-full px-8 py-8">
       <div className="mx-auto max-w-4xl">
         <div className="mb-8">
           <h2 className="text-2xl font-light">Your Values</h2>

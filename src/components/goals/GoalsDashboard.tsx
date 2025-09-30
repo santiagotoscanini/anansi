@@ -27,19 +27,10 @@ export default function GoalsDashboard() {
     toast.success("Logged out successfully");
   };
 
-  const handleRefresh = async () => {
-    try {
-      await refreshData();
-      toast.success("Data refreshed successfully");
-    } catch (error) {
-      toast.error("Failed to refresh data");
-    }
-  };
-
   const activeTabComponent = tabs.find((tab) => tab.id === activeTab)?.component;
 
   return (
-    <main className="min-h-screen bg-black text-white">
+    <main className="flex h-screen flex-col bg-black text-white">
       <Toaster position="top-right" />
 
       {/* Header */}
@@ -60,14 +51,14 @@ export default function GoalsDashboard() {
         </div>
 
         {/* Main Content */}
-        <div className="flex gap-1 border-t border-white/10 px-4 md:px-8 overflow-x-auto scrollbar-hide flex-nowrap">
+        <div className="scrollbar-hide flex flex-nowrap gap-1 overflow-x-auto border-t border-white/10 px-4 md:px-8">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 border-b-2 px-3 md:px-4 py-3 text-sm transition-all flex-shrink-0 whitespace-nowrap ${
+                className={`flex flex-shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 py-3 text-sm transition-all md:px-4 ${
                   activeTab === tab.id ? "border-white text-white" : "border-transparent text-white/60 hover:text-white"
                 }`}
               >
@@ -80,15 +71,17 @@ export default function GoalsDashboard() {
       </header>
 
       {/* Tab Content */}
-      <div className="pt-28">
-        {isDataLoading ? (
-          <div className="flex h-64 items-center justify-center">
-            <RefreshCw className="h-8 w-8 animate-spin text-blue-400" />
-            <span className="ml-3 text-slate-300">Loading data...</span>
-          </div>
-        ) : (
-          activeTabComponent
-        )}
+      <div className="flex flex-1 flex-col pt-28">
+        <div className="flex-1 overflow-auto">
+          {isDataLoading ? (
+            <div className="flex h-64 items-center justify-center">
+              <RefreshCw className="h-8 w-8 animate-spin text-blue-400" />
+              <span className="ml-3 text-slate-300">Loading data...</span>
+            </div>
+          ) : (
+            activeTabComponent
+          )}
+        </div>
       </div>
     </main>
   );

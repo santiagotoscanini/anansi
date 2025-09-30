@@ -57,7 +57,7 @@ export default function LifeProgress() {
   };
 
   return (
-    <div className="min-h-screen px-8 py-8">
+    <div className="h-full px-8 py-8">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8">
           <h2 className="flex items-center gap-2 text-2xl font-light">

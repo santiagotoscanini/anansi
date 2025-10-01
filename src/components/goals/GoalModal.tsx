@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Trash2, Square, CheckSquare, Check, Edit2, Plus } from "lucide-react";
 import { useGoals, type Task, type TrackingItem } from "~/contexts/GoalsContext";
 import toast from "react-hot-toast";
+import ValueSelectionModal from "./ValueSelectionModal";
 
 interface GoalModalProps {
   goalId: string | null;
@@ -45,6 +46,9 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
   const [editingTrackingId, setEditingTrackingId] = useState<string | null>(null);
   const [editTrackingTitle, setEditTrackingTitle] = useState("");
   const [editTrackingDescription, setEditTrackingDescription] = useState("");
+
+  // Value selection modal state
+  const [showValueModal, setShowValueModal] = useState(false);
 
   const completion = goalId ? getGoalCompletion(goalId) : 0;
 
@@ -326,31 +330,42 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
           {/* Value Selection */}
           <div>
             <label className="mb-2 block text-sm text-white/60">Associated Values</label>
-            <div className="space-y-2">
-              {values.map((value) => (
-                <label key={value.id} className="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={valueIds.includes(value.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setValueIds([...valueIds, value.id]);
-                      } else {
-                        setValueIds(valueIds.filter((id) => id !== value.id));
-                      }
-                    }}
-                    className="rounded border-white/20"
-                  />
-                  <span
-                    className="rounded px-2 py-1 text-xs font-semibold text-white"
+
+            {/* Selected Values Pills */}
+            <div className="mb-3 flex flex-wrap gap-2">
+              {valueIds.map((valueId) => {
+                const value = values.find((v) => v.id === valueId);
+                if (!value) return null;
+                return (
+                  <div
+                    key={value.id}
+                    className="group flex items-center gap-2 rounded px-3 py-1 text-sm font-semibold text-white"
                     style={{ backgroundColor: value.color }}
                   >
-                    {value.name}
-                  </span>
-                </label>
-              ))}
-              {values.length === 0 && <p className="text-xs text-white/40">No values created yet</p>}
+                    <span>{value.name}</span>
+                    <button
+                      onClick={() => setValueIds(valueIds.filter((id) => id !== valueId))}
+                      className="rounded transition-all hover:bg-black/20 opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
+
+            {/* Add Values Button */}
+            {valueIds.length < values.length && (
+              <button
+                onClick={() => setShowValueModal(true)}
+                className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-sm text-white transition-all hover:bg-white/10"
+              >
+                <Plus className="h-4 w-4" />
+                Add Values
+              </button>
+            )}
+
+            {values.length === 0 && <p className="text-xs text-white/40">No values created yet</p>}
           </div>
 
 
@@ -613,6 +628,16 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
           )}
         </div>
       </div>
+
+      {/* Value Selection Modal */}
+      {showValueModal && (
+        <ValueSelectionModal
+          availableValues={values}
+          selectedValueIds={valueIds}
+          onConfirm={(selectedIds) => setValueIds(selectedIds)}
+          onClose={() => setShowValueModal(false)}
+        />
+      )}
     </div>
   );
 }

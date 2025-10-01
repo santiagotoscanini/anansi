@@ -25,7 +25,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
     getTrackingItems,
     addTrackingItem,
     updateTrackingItem,
-    deleteTrackingItem
+    deleteTrackingItem,
   } = useGoals();
 
   const existingGoal = goalId ? goals.find((g) => g.id === goalId) : null;
@@ -284,11 +284,11 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-      onClick={onClose} // Close when clicking the backdrop
+      onClick={showValueModal ? undefined : onClose} // Close when clicking the backdrop, unless value modal is open
     >
-      <div 
+      <div
         className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-white/20 bg-black p-6"
         onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the modal
       >
@@ -345,9 +345,9 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                     <span>{value.name}</span>
                     <button
                       onClick={() => setValueIds(valueIds.filter((id) => id !== valueId))}
-                      className="rounded transition-all hover:bg-black/20 opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                      className="flex h-full items-center rounded px-1 opacity-100 transition-all hover:bg-black/20 md:opacity-0 md:group-hover:opacity-100"
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-4 w-4" />
                     </button>
                   </div>
                 );
@@ -367,7 +367,6 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
 
             {values.length === 0 && <p className="text-xs text-white/40">No values created yet</p>}
           </div>
-
 
           {/* Tasks Section */}
           <div>
@@ -569,9 +568,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                       <div className="flex items-start justify-between">
                         <div className="flex-1 cursor-pointer" onClick={() => handleEditTrackingItem(item)}>
                           <h4 className="font-medium text-white">{item.title}</h4>
-                          {item.description && (
-                            <p className="mt-1 text-sm text-white/60">{item.description}</p>
-                          )}
+                          {item.description && <p className="mt-1 text-sm text-white/60">{item.description}</p>}
                         </div>
                         <div className="flex gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                           <button

@@ -33,10 +33,7 @@ export default function ValueSelectionModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
       <div
         className="w-full max-w-md rounded-lg border border-white/20 bg-black p-6"
         onClick={(e) => e.stopPropagation()}
@@ -44,10 +41,7 @@ export default function ValueSelectionModal({
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-light">Add Values</h3>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-2 transition-all hover:bg-white/10"
-          >
+          <button onClick={onClose} className="rounded-lg p-2 transition-all hover:bg-white/10">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -55,9 +49,7 @@ export default function ValueSelectionModal({
         {/* Values List */}
         <div className="mb-6 max-h-[400px] space-y-1 overflow-y-auto">
           {availableValues.length === 0 ? (
-            <p className="py-4 text-center text-sm text-white/40">
-              No values available
-            </p>
+            <p className="py-4 text-center text-sm text-white/40">No values available</p>
           ) : (
             availableValues.map((value) => {
               const isSelected = tempSelectedIds.includes(value.id);
@@ -66,9 +58,7 @@ export default function ValueSelectionModal({
                   key={value.id}
                   onClick={() => handleToggleValue(value.id)}
                   className={`flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 transition-all ${
-                    isSelected
-                      ? "bg-white/10 border border-white/30"
-                      : "hover:bg-white/5 border border-transparent"
+                    isSelected ? "border border-white/30 bg-white/10" : "border border-transparent hover:bg-white/5"
                   }`}
                 >
                   <div className="flex items-center gap-3">

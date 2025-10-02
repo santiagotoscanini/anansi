@@ -251,6 +251,7 @@ export default function GoalsGraph() {
         <ReactFlow
           nodes={nodes}
           edges={edges}
+          minZoom={0.001}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
@@ -264,7 +265,7 @@ export default function GoalsGraph() {
           proOptions={{ hideAttribution: true }}
           className="bg-black"
         >
-          <Controls className="!border-white/20 !bg-black [&>button]:!bg-black [&>button]:!border [&>button]:!border-white/20 [&>button]:!text-white [&>button>svg]:!fill-white" />
+          <Controls className="!border-white/20 !bg-black [&>button>svg]:!fill-white [&>button]:!border [&>button]:!border-white/20 [&>button]:!bg-black [&>button]:!text-white" />
           <MiniMap
             className="!border-white/20 !bg-white/10"
             nodeColor={(node) => {

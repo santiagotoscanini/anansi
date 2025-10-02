@@ -9,6 +9,7 @@ import { useGoals, type Goal } from "~/contexts/GoalsContext";
 import GoalNodeComponent from "./GoalNode";
 import GoalModal from "./GoalModal";
 import EditableEdge from "./EditableEdge";
+import DeleteConfirmationModal from "./DeleteConfirmationModal";
 import toast from "react-hot-toast";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -23,7 +24,7 @@ const edgeTypes = {
 };
 
 export default function GoalsGraph() {
-  const { goals, connections, updateGoal, addGoal, addConnection, deleteConnection, getGoalProgress } = useGoals();
+  const { goals, connections, updateGoal, addGoal, addConnection, deleteConnection, deleteGoal, getGoalProgress } = useGoals();
 
   const [nodes, setNodes, onNodesChange] = useNodesState<GoalNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -32,6 +33,8 @@ export default function GoalsGraph() {
   const [copiedGoal, setCopiedGoal] = useState<Goal | null>(null);
   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
   const [selectedEdges, setSelectedEdges] = useState<string[]>([]);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [goalsToDelete, setGoalsToDelete] = useState<Goal[]>([]);
 
   // Convert goals to nodes with edit callback
   useEffect(() => {
@@ -172,6 +175,26 @@ export default function GoalsGraph() {
     setSelectedGoal(null);
   };
 
+  const handleDeleteConfirm = async () => {
+    try {
+      for (const goal of goalsToDelete) {
+        await deleteGoal(goal.id);
+      }
+      toast.success(`Deleted ${goalsToDelete.length} goal${goalsToDelete.length > 1 ? "s" : ""}`);
+      setSelectedNodes([]);
+      setGoalsToDelete([]);
+      setIsDeleteModalOpen(false);
+    } catch (error) {
+      toast.error("Failed to delete goals");
+      console.error(error);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setIsDeleteModalOpen(false);
+    setGoalsToDelete([]);
+  };
+
   // Keyboard shortcuts for adding new goal, copy/paste, and delete
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -215,23 +238,33 @@ export default function GoalsGraph() {
         toast.success("Goal pasted");
       }
 
-      // Delete or Backspace to delete selected edges
-      if ((e.key === "Delete" || e.key === "Backspace") && !isModalOpen && selectedEdges.length > 0) {
+      // Delete or Backspace to delete selected nodes or edges
+      if ((e.key === "Delete" || e.key === "Backspace") && !isModalOpen && !isDeleteModalOpen) {
         e.preventDefault();
-        selectedEdges.forEach((edgeId) => {
-          const connection = connections.find((c) => c.id === edgeId);
-          if (connection) {
-            deleteConnection(connection.id);
-          }
-        });
-        toast.success(`Deleted ${selectedEdges.length} connection${selectedEdges.length > 1 ? "s" : ""}`);
-        setSelectedEdges([]);
+
+        // Priority: Delete nodes if any are selected
+        if (selectedNodes.length > 0) {
+          const nodesToDelete = goals.filter((g) => selectedNodes.includes(g.id));
+          setGoalsToDelete(nodesToDelete);
+          setIsDeleteModalOpen(true);
+        }
+        // Otherwise, delete edges
+        else if (selectedEdges.length > 0) {
+          selectedEdges.forEach((edgeId) => {
+            const connection = connections.find((c) => c.id === edgeId);
+            if (connection) {
+              deleteConnection(connection.id);
+            }
+          });
+          toast.success(`Deleted ${selectedEdges.length} connection${selectedEdges.length > 1 ? "s" : ""}`);
+          setSelectedEdges([]);
+        }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedNodes, selectedEdges, copiedGoal, isModalOpen, goals, connections, addGoal, deleteConnection]);
+  }, [selectedNodes, selectedEdges, copiedGoal, isModalOpen, isDeleteModalOpen, goals, connections, addGoal, deleteConnection]);
 
   return (
     <div className="h-full">
@@ -294,6 +327,11 @@ export default function GoalsGraph() {
 
       {/* Goal Modal */}
       {isModalOpen && <GoalModal goalId={selectedGoal} onClose={handleModalClose} />}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <DeleteConfirmationModal goals={goalsToDelete} onConfirm={handleDeleteConfirm} onClose={handleDeleteCancel} />
+      )}
     </div>
   );
 }

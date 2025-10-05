@@ -4,6 +4,7 @@ import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { Target, CheckCircle, Pencil } from "lucide-react";
 import { useGoals, type Goal } from "~/contexts/GoalsContext";
+import { isEmojiUrl } from "~/lib/emoji-utils";
 
 interface GoalNodeProps {
   data: Goal & { onEdit?: () => void };
@@ -135,7 +136,14 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
       {/* Goal Icon, Importance and Edit Button */}
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {completion === 100 ? (
+          {/* Emoji Display */}
+          {data.emoji ? (
+            isEmojiUrl(data.emoji) ? (
+              <img src={data.emoji} alt="emoji" className="h-5 w-5 object-contain" />
+            ) : (
+              <span className="text-xl leading-none">{data.emoji}</span>
+            )
+          ) : completion === 100 ? (
             <CheckCircle className="h-5 w-5 text-green-500" />
           ) : (
             <Target className="h-5 w-5 text-white/60" />

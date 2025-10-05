@@ -41,6 +41,7 @@ export const goals = pgTable("goals", {
     .$defaultFn(() => createId()),
   title: text("title").notNull(),
   description: text("description").notNull(),
+  emoji: text("emoji"), // Stores either native emoji or URL to custom emoji image
   parentId: text("parent_id"),
   positionX: real("position_x").notNull(),
   positionY: real("position_y").notNull(),

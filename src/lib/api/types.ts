@@ -18,6 +18,7 @@ export const goalSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string(),
+  emoji: z.string().optional(), // Native emoji or URL to custom emoji image
   valueIds: z.array(z.string()),
   tasks: z.array(taskSchema),
   parentId: z.string().optional(),

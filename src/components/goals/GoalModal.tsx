@@ -5,6 +5,8 @@ import { X, Trash2, Square, CheckSquare, Check, Edit2, Plus } from "lucide-react
 import { useGoals, type Task, type TrackingItem } from "~/contexts/GoalsContext";
 import toast from "react-hot-toast";
 import ValueSelectionModal from "./ValueSelectionModal";
+import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
+import { getRandomEmoji, isEmojiUrl } from "~/lib/emoji-utils";
 
 interface GoalModalProps {
   goalId: string | null;
@@ -32,6 +34,9 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
 
   const [title, setTitle] = useState(existingGoal?.title ?? "");
   const [description, setDescription] = useState(existingGoal?.description ?? "");
+  const [emoji, setEmoji] = useState(existingGoal?.emoji ?? getRandomEmoji());
+  const [customEmojiUrl, setCustomEmojiUrl] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [valueIds, setValueIds] = useState<string[]>(existingGoal?.valueIds ?? []);
   const [tasks, setTasks] = useState<Task[]>(goalId ? [] : []);
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -70,6 +75,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
       updateGoal(goalId, {
         title,
         description,
+        emoji,
         valueIds,
       });
       toast.success("Goal updated successfully");
@@ -78,6 +84,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
       addGoal({
         title,
         description,
+        emoji,
         valueIds,
         tasks,
         position: { x: 250, y: 250 },
@@ -93,6 +100,20 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
       deleteGoal(goalId);
       toast.success("Goal deleted successfully");
       onClose();
+    }
+  };
+
+  const handleEmojiClick = (emojiData: EmojiClickData) => {
+    setEmoji(emojiData.emoji);
+    setShowEmojiPicker(false);
+    setCustomEmojiUrl(""); // Clear custom URL when selecting native emoji
+  };
+
+  const handleCustomEmojiUrl = () => {
+    if (customEmojiUrl.trim()) {
+      setEmoji(customEmojiUrl.trim());
+      setCustomEmojiUrl("");
+      toast.success("Custom emoji set");
     }
   };
 
@@ -302,17 +323,72 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
 
         {/* Goal Details */}
         <div className="space-y-4">
-          {/* Title */}
+          {/* Title with Emoji */}
           <div>
             <label className="mb-2 block text-sm text-white/60">Title</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter goal title..."
-              className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white outline-none transition-all focus:border-white/40"
-              autoFocus
-            />
+            <div className="relative flex gap-2">
+              {/* Emoji Button */}
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/20 bg-white/5 transition-all hover:border-white/40 hover:bg-white/10"
+                title="Click to choose emoji"
+              >
+                {isEmojiUrl(emoji) ? (
+                  <img src={emoji} alt="emoji" className="h-6 w-6 object-contain" />
+                ) : (
+                  <span className="text-2xl leading-none">{emoji}</span>
+                )}
+              </button>
+
+              {/* Title Input */}
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter goal title..."
+                className="h-10 flex-1 rounded-lg border border-white/20 bg-white/5 px-4 text-white outline-none transition-all focus:border-white/40"
+                autoFocus
+              />
+
+              {/* Emoji Picker Dropdown */}
+              {showEmojiPicker && (
+                <div className="absolute left-0 top-full z-50 mt-2 rounded-lg border border-white/20 bg-black p-2 shadow-xl">
+                  <EmojiPicker
+                    onEmojiClick={handleEmojiClick}
+                    width={350}
+                    height={400}
+                    theme="dark"
+                    searchPlaceHolder="Search emoji..."
+                  />
+
+                  {/* Custom Emoji URL Section */}
+                  <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
+                    <label className="text-xs text-white/60">Custom emoji URL:</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={customEmojiUrl}
+                        onChange={(e) => setCustomEmojiUrl(e.target.value)}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === "Enter") handleCustomEmojiUrl();
+                        }}
+                        placeholder="https://..."
+                        className="flex-1 rounded border border-white/20 bg-white/5 px-3 py-1.5 text-sm text-white outline-none transition-all placeholder:text-white/30 focus:border-white/40"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCustomEmojiUrl}
+                        className="rounded border border-white/20 bg-white/10 px-3 py-1.5 text-sm text-white transition-all hover:bg-white/20"
+                      >
+                        Set
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Description */}

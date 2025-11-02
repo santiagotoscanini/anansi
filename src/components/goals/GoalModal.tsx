@@ -5,7 +5,7 @@ import { X, Trash2, Square, CheckSquare, Check, Edit2, Plus } from "lucide-react
 import { useGoals, type Task, type TrackingItem } from "~/contexts/GoalsContext";
 import toast from "react-hot-toast";
 import ValueSelectionModal from "./ValueSelectionModal";
-import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
+import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import { getRandomEmoji, isEmojiUrl } from "~/lib/emoji-utils";
 
 interface GoalModalProps {
@@ -358,7 +358,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                     onEmojiClick={handleEmojiClick}
                     width={350}
                     height={400}
-                    theme="dark"
+                    theme={Theme.DARK}
                     searchPlaceHolder="Search emoji..."
                   />
 

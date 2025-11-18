@@ -31,7 +31,6 @@ COPY --from=builder /app/src/lib/data/schema.ts ./src/lib/data/schema.ts
 COPY --from=builder /app/src/lib/data/db/migrations ./src/lib/data/db/migrations
 
 # Copy necessary files from builder
-COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 

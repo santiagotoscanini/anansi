@@ -1,5 +1,5 @@
-import { pgTable, text, integer, real, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { pgTable, text, integer, real, boolean, timestamp, pgEnum, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 
 // Enums
@@ -85,23 +85,39 @@ export const connections = pgTable("connections", {
 });
 
 // Tracking Items table
-export const trackingItems = pgTable("tracking_items", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  goalId: text("goal_id")
-    .notNull()
-    .references(() => goals.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  description: text("description"),
-  order: integer("order").notNull().default(0),
-  status: trackingItemStatusEnum("status").notNull().default("active"),
-  deletedAt: timestamp("deleted_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+//
+// Items are user-owned. goalId is OPTIONAL — items live in the user's library
+// regardless of any goal association, and unlinked items appear as "Unscoped"
+// in the UI. Goal deletion sets goalId NULL (not cascade) so the item survives.
+export const trackingItems = pgTable(
+  "tracking_items",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    goalId: text("goal_id").references(() => goals.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    order: integer("order").notNull().default(0),
+    status: trackingItemStatusEnum("status").notNull().default("active"),
+    deletedAt: timestamp("deleted_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index("tracking_items_user_idx").on(t.userId),
+  }),
+);
 
 // Weekly Sync table
+//
+// One row per user per week. templateId is the snapshot source: when create
+// runs against a template, every sync_template_items row is materialized into
+// a weekly_sync_items row with the same orderIdx. Going forward the sync can
+// be edited (add/remove items, reorder) without affecting the template.
 export const weeklySync = pgTable("weekly_sync", {
   id: text("id")
     .primaryKey()
@@ -110,11 +126,16 @@ export const weeklySync = pgTable("weekly_sync", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   weekDate: timestamp("week_date").notNull(), // Monday of the retrospective week
+  templateId: text("template_id").references(() => syncTemplates.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // Weekly Sync Items table
+//
+// textContent holds the user's notes inline (no more notes.txt on disk).
+// orderIdx is per-sync ordering — initialized from the template's order at
+// create time, but mutable per sync via reorderItems.
 export const weeklySyncItems = pgTable("weekly_sync_items", {
   id: text("id")
     .primaryKey()
@@ -125,11 +146,15 @@ export const weeklySyncItems = pgTable("weekly_sync_items", {
   trackingItemId: text("tracking_item_id")
     .notNull()
     .references(() => trackingItems.id, { onDelete: "cascade" }),
+  textContent: text("text_content"),
+  orderIdx: integer("order_idx").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// Weekly Sync Item Files table
+// LEGACY — superseded by `attachments`. Kept around for one release so the
+// data-migration script can read existing rows. A follow-up migration will
+// drop this table once the migration script has been run on every environment.
 export const weeklySyncItemFiles = pgTable("weekly_sync_item_files", {
   id: text("id")
     .primaryKey()
@@ -141,6 +166,80 @@ export const weeklySyncItemFiles = pgTable("weekly_sync_item_files", {
   fileType: fileTypeEnum("file_type").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// Sync templates — named bundles of tracking items. A template is the default
+// recipe for what a sync covers; the partial unique index below enforces
+// "at most one default per user" so a fresh weekly sync knows what to snapshot.
+export const syncTemplates = pgTable(
+  "sync_templates",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    oneDefaultPerUser: uniqueIndex("sync_templates_one_default_per_user")
+      .on(t.userId)
+      .where(sql`is_default = true`),
+  }),
+);
+
+// Junction: which tracking items a template includes, and in what order.
+// (template_id, tracking_item_id) is unique — an item can only appear once per template.
+export const syncTemplateItems = pgTable(
+  "sync_template_items",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => syncTemplates.id, { onDelete: "cascade" }),
+    trackingItemId: text("tracking_item_id")
+      .notNull()
+      .references(() => trackingItems.id, { onDelete: "cascade" }),
+    orderIdx: integer("order_idx").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    uniquePair: uniqueIndex("sync_template_items_pair_unique").on(t.templateId, t.trackingItemId),
+  }),
+);
+
+// Generic polymorphic attachments table — replaces weekly_sync_item_files.
+// parent_type discriminates ('weekly_sync_item' is the only producer today;
+// designed to extend to other entities later). Storage path is
+// uploads/{userId}/attachments/{id}.{ext}, decoupled from goal/tracking-item
+// ids so items without goals can still hold files.
+export const attachments = pgTable(
+  "attachments",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    parentType: text("parent_type").notNull(),
+    parentId: text("parent_id").notNull(),
+    fileName: text("file_name").notNull(),
+    fileType: fileTypeEnum("file_type").notNull(),
+    storagePath: text("storage_path").notNull(),
+    sizeBytes: integer("size_bytes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    parentIdx: index("attachments_parent_idx").on(t.parentType, t.parentId),
+    userIdx: index("attachments_user_idx").on(t.userId),
+  }),
+);
 
 // People table (Personal CRM)
 export const people = pgTable("people", {
@@ -289,6 +388,9 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   values: many(values),
   goals: many(goals),
   weeklySync: many(weeklySync),
+  trackingItems: many(trackingItems),
+  syncTemplates: many(syncTemplates),
+  attachments: many(attachments),
   people: many(people),
   personGroups: many(personGroups),
   bucketListItems: many(bucketListItems),
@@ -422,17 +524,55 @@ export const connectionsRelations = relations(connections, ({ one }) => ({
 }));
 
 export const trackingItemsRelations = relations(trackingItems, ({ one, many }) => ({
+  user: one(users, {
+    fields: [trackingItems.userId],
+    references: [users.id],
+  }),
   goal: one(goals, {
     fields: [trackingItems.goalId],
     references: [goals.id],
   }),
   weeklySyncItems: many(weeklySyncItems),
+  templateItems: many(syncTemplateItems),
+}));
+
+export const syncTemplatesRelations = relations(syncTemplates, ({ one, many }) => ({
+  user: one(users, {
+    fields: [syncTemplates.userId],
+    references: [users.id],
+  }),
+  items: many(syncTemplateItems),
+  syncs: many(weeklySync),
+}));
+
+export const syncTemplateItemsRelations = relations(syncTemplateItems, ({ one }) => ({
+  template: one(syncTemplates, {
+    fields: [syncTemplateItems.templateId],
+    references: [syncTemplates.id],
+  }),
+  trackingItem: one(trackingItems, {
+    fields: [syncTemplateItems.trackingItemId],
+    references: [trackingItems.id],
+  }),
+}));
+
+// Polymorphic — no declarative relation to parent. Resolve via app logic
+// keyed on parentType ('weekly_sync_item' for now).
+export const attachmentsRelations = relations(attachments, ({ one }) => ({
+  user: one(users, {
+    fields: [attachments.userId],
+    references: [users.id],
+  }),
 }));
 
 export const weeklySyncRelations = relations(weeklySync, ({ one, many }) => ({
   user: one(users, {
     fields: [weeklySync.userId],
     references: [users.id],
+  }),
+  template: one(syncTemplates, {
+    fields: [weeklySync.templateId],
+    references: [syncTemplates.id],
   }),
   weeklySyncItems: many(weeklySyncItems),
 }));

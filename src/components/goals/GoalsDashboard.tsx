@@ -21,6 +21,7 @@ import {
   Pencil,
   Trash2,
   ListChecks,
+  Activity,
 } from "lucide-react";
 import { useGoals } from "~/contexts/GoalsContext";
 import { api } from "~/trpc/react";
@@ -33,6 +34,7 @@ import PeopleDirectory, { type PeopleFilter } from "./PeopleDirectory";
 import RelationshipsBoard from "./RelationshipsBoard";
 import BucketList from "./BucketList";
 import TrackingItemsLibrary from "./TrackingItemsLibrary";
+import Pulse from "./Pulse";
 import BackupImportModal from "./BackupImportModal";
 
 // Ananse Ntontan — Adinkra symbol for Anansi (spider). Rendered inline so it
@@ -59,6 +61,7 @@ function AnansiMark({ className = "h-5 w-5" }: { className?: string }) {
 
 type TabType =
   | "objectives"
+  | "pulse"
   | "sync"
   | "tracking-items"
   | "values"
@@ -83,7 +86,11 @@ const goalsSection: NavItem[] = [
   { id: "progress", name: "Progress", icon: Trophy },
 ];
 
+// Pulse is the daily landing — fill in this week's items, no management.
+// Sync is the heavier surface (week navigation, default editor, ad-hoc add).
+// Tracking Items is the underlying library.
 const syncSection: NavItem[] = [
+  { id: "pulse", name: "Pulse", icon: Activity },
   { id: "sync", name: "Sync", icon: Calendar },
   { id: "tracking-items", name: "Tracking Items", icon: ListChecks },
 ];
@@ -505,6 +512,8 @@ export default function GoalsDashboard() {
     switch (activeTab) {
       case "objectives":
         return <GoalsGraph />;
+      case "pulse":
+        return <Pulse />;
       case "sync":
         return <WeeklyRetrospective />;
       case "tracking-items":
@@ -524,6 +533,7 @@ export default function GoalsDashboard() {
 
   const activeTitle = () => {
     if (activeTab === "objectives") return "Objectives";
+    if (activeTab === "pulse") return "Pulse";
     if (activeTab === "sync") return "Sync";
     if (activeTab === "tracking-items") return "Tracking Items";
     if (activeTab === "values") return "Values";

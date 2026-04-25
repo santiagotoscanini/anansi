@@ -56,6 +56,25 @@ shipped work stays visible until the next prune.
 - [ ] **Graph readability** — on dense graphs the node labels overlap. Either auto-zoom-to-fit
       on load, or render labels with a translucent background.
 
+## Multi-cadence syncs (future)
+
+Today there's exactly one sync type — weekly. Down the road, support multiple
+ad-hoc cadences (daily, weekly, monthly, quarterly, …) each with **their own
+default** set of items. Implications when picked up:
+
+- Schema: extend `sync_templates` (or rename to `sync_defaults`) with a
+  `cadence` enum (`daily | weekly | monthly | custom_days`) plus a
+  `period_key` derivation rule. A user has one default per cadence.
+- `weekly_sync` becomes more general (probably renamed to `syncs`) with a
+  cadence column and a period key (week-of-year, day, month-of-year, etc.).
+- UI: a per-cadence picker in the Sync tab. Each cadence has its own retro
+  view; navigation moves you forward/back within the cadence.
+- The current single-default per user (one template row, isDefault always
+  true) is the trivial case of this — preserved without migration if we
+  add cadence as nullable + treat `NULL` as "weekly".
+
+Until then: hide the multi-template surface. One default per user, always.
+
 ## Tech debt left from the sync redesign
 
 - [ ] **Drop `weekly_sync_item_files` in a follow-up migration** — already empty in every

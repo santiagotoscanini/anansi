@@ -19,7 +19,7 @@ import {
 import { useGoals } from "~/contexts/GoalsContext";
 import { api, type RouterOutputs } from "~/trpc/react";
 import toast from "react-hot-toast";
-import SyncTemplateEditor from "./SyncTemplateEditor";
+import SyncDefaultEditor from "./SyncDefaultEditor";
 
 type WeeklyRetrospectiveData = RouterOutputs["goals"]["weeklySync"]["getWeeklyRetrospectiveData"];
 
@@ -526,7 +526,7 @@ export default function WeeklyRetrospective() {
     return "missing";
   };
 
-  const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
+  const [defaultEditorOpen, setDefaultEditorOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   // Add an existing library item to THIS sync only (not the template). The
@@ -565,7 +565,7 @@ export default function WeeklyRetrospective() {
 
   return (
     <div className="h-full overflow-y-auto px-4 py-6 md:px-8 md:py-8">
-      {templateEditorOpen && <SyncTemplateEditor onClose={() => setTemplateEditorOpen(false)} />}
+      {defaultEditorOpen && <SyncDefaultEditor onClose={() => setDefaultEditorOpen(false)} />}
       <div className="mx-auto max-w-6xl">
         {/* Header */}
         <div className="mb-8 flex items-start justify-between gap-4">
@@ -574,12 +574,12 @@ export default function WeeklyRetrospective() {
             <p className="mt-2 text-sm opacity-60">Track your weekly progress and sync goals with your activities</p>
           </div>
           <button
-            onClick={() => setTemplateEditorOpen(true)}
+            onClick={() => setDefaultEditorOpen(true)}
             className="flex items-center gap-2 rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
-            title="Manage sync templates"
+            title="Edit the default items every new sync starts with"
           >
             <Settings className="h-4 w-4" />
-            Manage templates
+            Default items
           </button>
         </div>
 

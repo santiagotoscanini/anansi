@@ -69,13 +69,23 @@ type TabType =
 
 type NavItem = { id: TabType; name: string; icon: typeof Target };
 
+// Sidebar is split into three goal-side sections + a Connections section:
+//   Compass — the "why" / aspirational surfaces (Values, Bucket List)
+//   Goals   — the "what" / active objective work (Objectives, Progress)
+//   Sync    — the "when/how" weekly cadence (Sync, Tracking Items)
+const compassSection: NavItem[] = [
+  { id: "values", name: "Values", icon: Palette },
+  { id: "bucket", name: "Bucket List", icon: Mountain },
+];
+
 const goalsSection: NavItem[] = [
   { id: "objectives", name: "Objectives", icon: Target },
+  { id: "progress", name: "Progress", icon: Trophy },
+];
+
+const syncSection: NavItem[] = [
   { id: "sync", name: "Sync", icon: Calendar },
   { id: "tracking-items", name: "Tracking Items", icon: ListChecks },
-  { id: "values", name: "Values", icon: Palette },
-  { id: "progress", name: "Progress", icon: Trophy },
-  { id: "bucket", name: "Bucket List", icon: Mountain },
 ];
 
 const peopleNavItem: NavItem = { id: "people", name: "People", icon: Users };
@@ -251,11 +261,24 @@ export default function GoalsDashboard() {
           </button>
         </div>
 
-        {/* Nav — two sections */}
+        {/* Nav — Compass / Goals / Sync / Connections */}
         <nav className={`flex flex-1 flex-col gap-1 overflow-y-auto ${isCollapsed ? "px-2" : "px-3"}`}>
-          {/* Goals section */}
+          {/* Compass section */}
           {!isCollapsed && (
-            <div className="mb-1 mt-1 px-2 text-[10px] uppercase tracking-wider text-white/30">Goals</div>
+            <div className="mb-1 mt-1 px-2 text-[10px] uppercase tracking-wider text-white/30">Compass</div>
+          )}
+          {compassSection.map((item) =>
+            renderNavItem(item, isCollapsed, activeTab === item.id, () => {
+              setActiveTab(item.id);
+              setMobileNavOpen(false);
+            }),
+          )}
+
+          {/* Goals section */}
+          {!isCollapsed ? (
+            <div className="mb-1 mt-4 px-2 text-[10px] uppercase tracking-wider text-white/30">Goals</div>
+          ) : (
+            <div className="my-2 h-px bg-white/10" />
           )}
           {goalsSection.map((item) =>
             renderNavItem(item, isCollapsed, activeTab === item.id, () => {
@@ -264,11 +287,25 @@ export default function GoalsDashboard() {
             }),
           )}
 
-          {/* Connections section */}
-          {!isCollapsed && (
-            <div className="mb-1 mt-4 px-2 text-[10px] uppercase tracking-wider text-white/30">Connections</div>
+          {/* Sync section */}
+          {!isCollapsed ? (
+            <div className="mb-1 mt-4 px-2 text-[10px] uppercase tracking-wider text-white/30">Sync</div>
+          ) : (
+            <div className="my-2 h-px bg-white/10" />
           )}
-          {isCollapsed && <div className="my-2 h-px bg-white/10" />}
+          {syncSection.map((item) =>
+            renderNavItem(item, isCollapsed, activeTab === item.id, () => {
+              setActiveTab(item.id);
+              setMobileNavOpen(false);
+            }),
+          )}
+
+          {/* Connections section */}
+          {!isCollapsed ? (
+            <div className="mb-1 mt-4 px-2 text-[10px] uppercase tracking-wider text-white/30">Connections</div>
+          ) : (
+            <div className="my-2 h-px bg-white/10" />
+          )}
 
           {/* People — only active when no group filter is on */}
           {(() => {

@@ -7,6 +7,28 @@ export const valueSchema = z.object({
   color: z.string(),
 });
 
+// Behaviors that confirm a value — short evidence sentences attached per value.
+export const valueBehaviorSchema = z.object({
+  id: z.string(),
+  valueId: z.string(),
+  content: z.string().min(1).max(500),
+  orderIdx: z.number().int().default(0),
+});
+
+export const createValueBehaviorSchema = z.object({
+  valueId: z.string(),
+  content: z.string().min(1).max(500),
+});
+
+export const reorderValueBehaviorsSchema = z.object({
+  valueId: z.string(),
+  ordering: z.array(z.object({ id: z.string(), orderIdx: z.number().int() })),
+});
+
+export type ValueBehavior = z.infer<typeof valueBehaviorSchema>;
+export type CreateValueBehavior = z.infer<typeof createValueBehaviorSchema>;
+export type ReorderValueBehaviors = z.infer<typeof reorderValueBehaviorsSchema>;
+
 export const taskSchema = z.object({
   id: z.string(),
   title: z.string(),

@@ -34,6 +34,23 @@ export const values = pgTable("values", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Behaviors that confirm a value — concrete actions or habits the user uses
+// as evidence they're living a value (e.g. Family → "Date night every
+// Saturday"). Atomic rows so one can be added/removed without rewriting the
+// rest. orderIdx is per-value position; created_at preserved for "captured at"
+// nostalgia and as a tiebreaker if orderIdx ties.
+export const valueBehaviors = pgTable("value_behaviors", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  valueId: text("value_id")
+    .notNull()
+    .references(() => values.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  orderIdx: integer("order_idx").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Goals table
 export const goals = pgTable("goals", {
   id: text("id")
@@ -479,6 +496,14 @@ export const valuesRelations = relations(values, ({ one, many }) => ({
     references: [users.id],
   }),
   goalValues: many(goalValues),
+  behaviors: many(valueBehaviors),
+}));
+
+export const valueBehaviorsRelations = relations(valueBehaviors, ({ one }) => ({
+  value: one(values, {
+    fields: [valueBehaviors.valueId],
+    references: [values.id],
+  }),
 }));
 
 export const goalsRelations = relations(goals, ({ one, many }) => ({

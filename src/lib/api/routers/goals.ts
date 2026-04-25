@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, asc, isNull, inArray } from "drizzle-orm";
+import { eq, and, asc, isNull, inArray, sql } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "../../data";
 import {
@@ -12,7 +12,9 @@ import {
   trackingItems,
   weeklySync,
   weeklySyncItems,
-  weeklySyncItemFiles,
+  syncTemplates,
+  syncTemplateItems,
+  attachments,
   people,
   userSelf,
   taskReferents,
@@ -34,8 +36,14 @@ import {
   createTrackingItemSchema,
   updateTrackingItemSchema,
   createWeeklySyncSchema,
-  createWeeklySyncItemSchema,
-  createWeeklySyncItemFileSchema,
+  createSyncTemplateSchema,
+  updateSyncTemplateSchema,
+  setSyncTemplateItemsSchema,
+  addSyncItemSchema,
+  removeSyncItemSchema,
+  setSyncItemTextSchema,
+  reorderSyncItemsSchema,
+  uploadAttachmentSchema,
   createPersonSchema,
   updatePersonSchema,
   updateSelfSchema,
@@ -47,26 +55,43 @@ import {
   updateBucketListItemSchema,
   backupSchema,
   type Goal,
-  type TrackingItem,
 } from "../types";
-import {
-  isValidBase64Image,
-  saveWeeklySyncFile,
-  saveOrUpdateTextFile,
-  readTextFile,
-  readTrackingItemTextFile,
-  getTextFilePath,
-  deleteFile,
-} from "../../image-upload";
-import { readFile } from "fs/promises";
-import { log } from "console";
+import { isValidBase64Image } from "../../image-upload";
+import { writeFile, readFile, mkdir, unlink } from "fs/promises";
+import { existsSync } from "fs";
 import path from "path";
+import { createId } from "@paralleldrive/cuid2";
 
-// Helper function to generate timestamped filename for collision prevention
-function generateTimestampedFileName(originalFileName: string): string {
-  const timestamp = Date.now();
-  const { name, ext } = path.parse(originalFileName);
-  return `${timestamp}_${name}${ext}`;
+const UPLOADS_ROOT = path.join(process.cwd(), "uploads");
+
+// Persist an attachment payload to disk under uploads/{userId}/attachments/{id}.{ext}.
+// Caller is responsible for the matching DB row (kept atomic via tx-around-FS).
+async function writeAttachmentToDisk(args: {
+  data: string;
+  userId: string;
+  attachmentId: string;
+  fileName: string;
+}): Promise<{ storagePath: string; sizeBytes: number }> {
+  const ext = path.extname(args.fileName);
+  const relPath = path.join(args.userId, "attachments", `${args.attachmentId}${ext}`);
+  const fullPath = path.join(UPLOADS_ROOT, relPath);
+  const cleanBase64 = args.data.replace(/^data:[^;]+;base64,/, "");
+  const buffer = Buffer.from(cleanBase64, "base64");
+  await mkdir(path.dirname(fullPath), { recursive: true });
+  await writeFile(fullPath, buffer);
+  return { storagePath: relPath, sizeBytes: buffer.length };
+}
+
+async function unlinkAttachmentFromDisk(storagePath: string): Promise<boolean> {
+  const fullPath = path.join(UPLOADS_ROOT, storagePath);
+  if (!existsSync(fullPath)) return false;
+  try {
+    await unlink(fullPath);
+    return true;
+  } catch (err) {
+    console.warn(`[attachments] failed to unlink ${fullPath}:`, err);
+    return false;
+  }
 }
 
 export const goalsRouter = createTRPCRouter({
@@ -478,344 +503,447 @@ export const goalsRouter = createTRPCRouter({
     }),
   }),
 
-  // Tracking Items operations
+  // Tracking Items — user-owned, optionally linked to a goal. The library
+  // entry point: a tracking item exists in the user's library regardless of
+  // any goal association. Items with goal_id IS NULL are surfaced as
+  // "Unscoped" in the UI.
   trackingItems: createTRPCRouter({
-    getAll: protectedProcedure
-      .input(z.object({ goalId: z.string() }))
-      .query(async ({ input, ctx }): Promise<TrackingItem[]> => {
-        // Verify the goal belongs to the user
-        const goalExists = await db
+    list: protectedProcedure
+      .input(z.object({ goalId: z.string().optional() }).optional())
+      .query(async ({ input, ctx }) => {
+        const conditions = [
+          eq(trackingItems.userId, ctx.user.userId),
+          isNull(trackingItems.deletedAt),
+          eq(trackingItems.status, "active"),
+        ];
+        if (input?.goalId) conditions.push(eq(trackingItems.goalId, input.goalId));
+        return db
+          .select()
+          .from(trackingItems)
+          .where(and(...conditions))
+          .orderBy(asc(trackingItems.order), asc(trackingItems.createdAt));
+      }),
+
+    create: protectedProcedure.input(createTrackingItemSchema).mutation(async ({ input, ctx }) => {
+      // If goalId provided, verify the goal belongs to the user.
+      if (input.goalId) {
+        const [g] = await db
           .select()
           .from(goals)
           .where(and(eq(goals.id, input.goalId), eq(goals.userId, ctx.user.userId)))
           .limit(1);
-        if (goalExists.length === 0) throw new Error("Goal not found or access denied");
-
-        const items = await db
-          .select()
-          .from(trackingItems)
-          .where(
-            and(
-              eq(trackingItems.goalId, input.goalId),
-              isNull(trackingItems.deletedAt),
-              eq(trackingItems.status, "active"),
-            ),
-          )
-          .orderBy(asc(trackingItems.order), asc(trackingItems.createdAt));
-
-        // Map database result to match TypeScript type (null -> undefined)
-        return items.map((item) => ({
-          id: item.id,
-          goalId: item.goalId,
-          title: item.title,
-          description: item.description ?? undefined,
-          order: item.order,
-          status: item.status,
-          deletedAt: item.deletedAt ?? undefined,
-        }));
-      }),
-
-    create: protectedProcedure.input(createTrackingItemSchema).mutation(async ({ input, ctx }) => {
-      // Verify the goal belongs to the user
-      const goalExists = await db
-        .select()
-        .from(goals)
-        .where(and(eq(goals.id, input.goalId), eq(goals.userId, ctx.user.userId)))
-        .limit(1);
-      if (goalExists.length === 0) throw new Error("Goal not found or access denied");
-
-      const [newTrackingItem] = await db.insert(trackingItems).values(input).returning();
-
-      if (!newTrackingItem) {
-        throw new Error("Failed to create tracking item");
+        if (!g) throw new Error("Goal not found or access denied");
       }
-
-      return newTrackingItem;
+      const [created] = await db
+        .insert(trackingItems)
+        .values({
+          userId: ctx.user.userId,
+          goalId: input.goalId ?? null,
+          title: input.title,
+          description: input.description ?? null,
+          order: input.order ?? 0,
+        })
+        .returning();
+      if (!created) throw new Error("Failed to create tracking item");
+      return created;
     }),
 
     update: protectedProcedure.input(updateTrackingItemSchema).mutation(async ({ input, ctx }) => {
       const { id, ...updateData } = input;
-
-      // Verify the tracking item belongs to a goal owned by the user
-      const trackingItemWithGoal = await db
+      // Direct user-scope ownership check — no goal join required.
+      const [existing] = await db
         .select()
         .from(trackingItems)
-        .innerJoin(goals, eq(trackingItems.goalId, goals.id))
-        .where(and(eq(trackingItems.id, id), eq(goals.userId, ctx.user.userId)))
+        .where(and(eq(trackingItems.id, id), eq(trackingItems.userId, ctx.user.userId)))
         .limit(1);
-
-      if (trackingItemWithGoal.length === 0) {
-        throw new Error("Tracking item not found or access denied");
+      if (!existing) throw new Error("Tracking item not found or access denied");
+      // If switching/setting goalId, verify the new goal belongs to the user too.
+      if (updateData.goalId) {
+        const [g] = await db
+          .select()
+          .from(goals)
+          .where(and(eq(goals.id, updateData.goalId), eq(goals.userId, ctx.user.userId)))
+          .limit(1);
+        if (!g) throw new Error("Goal not found or access denied");
       }
-
-      const [updatedTrackingItem] = await db
+      const [updated] = await db
         .update(trackingItems)
         .set({ ...updateData, updatedAt: new Date() })
         .where(eq(trackingItems.id, id))
         .returning();
-
-      return updatedTrackingItem;
+      return updated;
     }),
 
     delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
-      // Verify the tracking item belongs to a goal owned by the user
-      const trackingItemWithGoal = await db
+      const [existing] = await db
         .select()
         .from(trackingItems)
-        .innerJoin(goals, eq(trackingItems.goalId, goals.id))
-        .where(and(eq(trackingItems.id, input.id), eq(goals.userId, ctx.user.userId)))
+        .where(and(eq(trackingItems.id, input.id), eq(trackingItems.userId, ctx.user.userId)))
         .limit(1);
-
-      if (trackingItemWithGoal.length === 0) {
-        throw new Error("Tracking item not found or access denied");
-      }
-
-      // Check if tracking item has associated weekly sync items
-      const hasWeeklySyncItems = await db
-        .select()
+      if (!existing) throw new Error("Tracking item not found or access denied");
+      // Soft-delete if any sync references this item; hard-delete otherwise.
+      const [referenced] = await db
+        .select({ id: weeklySyncItems.id })
         .from(weeklySyncItems)
         .where(eq(weeklySyncItems.trackingItemId, input.id))
         .limit(1);
-
-      if (hasWeeklySyncItems.length > 0) {
-        // Soft delete - mark as deleted but preserve data
+      if (referenced) {
         await db
           .update(trackingItems)
           .set({ deletedAt: new Date(), updatedAt: new Date() })
           .where(eq(trackingItems.id, input.id));
-
-        return { success: true, type: "soft_delete" };
-      } else {
-        // Hard delete - actually remove from database
-        await db.delete(trackingItems).where(eq(trackingItems.id, input.id));
-
-        return { success: true, type: "hard_delete" };
+        return { success: true, type: "soft_delete" as const };
       }
+      await db.delete(trackingItems).where(eq(trackingItems.id, input.id));
+      return { success: true, type: "hard_delete" as const };
     }),
   }),
 
-  // Weekly Sync operations
+  // Sync Templates — named bundles of tracking items used to instantiate
+  // weekly syncs. The default template auto-snapshots into each new sync.
+  syncTemplates: createTRPCRouter({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const templates = await db
+        .select()
+        .from(syncTemplates)
+        .where(eq(syncTemplates.userId, ctx.user.userId))
+        .orderBy(asc(syncTemplates.createdAt));
+      if (templates.length === 0) return [] as Array<(typeof templates)[number] & { items: (typeof syncTemplateItems.$inferSelect)[] }>;
+      const templateIds = templates.map((t) => t.id);
+      const items = await db
+        .select()
+        .from(syncTemplateItems)
+        .where(inArray(syncTemplateItems.templateId, templateIds))
+        .orderBy(asc(syncTemplateItems.orderIdx));
+      return templates.map((t) => ({
+        ...t,
+        items: items.filter((i) => i.templateId === t.id),
+      }));
+    }),
+
+    create: protectedProcedure.input(createSyncTemplateSchema).mutation(async ({ input, ctx }) => {
+      // If marking default, clear any existing default first — partial unique
+      // index would reject otherwise.
+      return await db.transaction(async (tx) => {
+        if (input.isDefault) {
+          await tx
+            .update(syncTemplates)
+            .set({ isDefault: false, updatedAt: new Date() })
+            .where(and(eq(syncTemplates.userId, ctx.user.userId), eq(syncTemplates.isDefault, true)));
+        }
+        const [created] = await tx
+          .insert(syncTemplates)
+          .values({
+            userId: ctx.user.userId,
+            name: input.name,
+            isDefault: input.isDefault ?? false,
+          })
+          .returning();
+        if (!created) throw new Error("Failed to create sync template");
+        return created;
+      });
+    }),
+
+    update: protectedProcedure.input(updateSyncTemplateSchema).mutation(async ({ input, ctx }) => {
+      const { id, ...updateData } = input;
+      return await db.transaction(async (tx) => {
+        const [existing] = await tx
+          .select()
+          .from(syncTemplates)
+          .where(and(eq(syncTemplates.id, id), eq(syncTemplates.userId, ctx.user.userId)))
+          .limit(1);
+        if (!existing) throw new Error("Template not found or access denied");
+        if (updateData.isDefault) {
+          await tx
+            .update(syncTemplates)
+            .set({ isDefault: false, updatedAt: new Date() })
+            .where(and(eq(syncTemplates.userId, ctx.user.userId), eq(syncTemplates.isDefault, true)));
+        }
+        const [updated] = await tx
+          .update(syncTemplates)
+          .set({ ...updateData, updatedAt: new Date() })
+          .where(eq(syncTemplates.id, id))
+          .returning();
+        return updated;
+      });
+    }),
+
+    delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
+      const [existing] = await db
+        .select()
+        .from(syncTemplates)
+        .where(and(eq(syncTemplates.id, input.id), eq(syncTemplates.userId, ctx.user.userId)))
+        .limit(1);
+      if (!existing) throw new Error("Template not found or access denied");
+      await db.delete(syncTemplates).where(eq(syncTemplates.id, input.id));
+      return { success: true };
+    }),
+
+    // Replace-set semantics on the template's item list. Mirror of
+    // bucketList.update's personIds[] pattern.
+    setItems: protectedProcedure.input(setSyncTemplateItemsSchema).mutation(async ({ input, ctx }) => {
+      return await db.transaction(async (tx) => {
+        const [existing] = await tx
+          .select()
+          .from(syncTemplates)
+          .where(and(eq(syncTemplates.id, input.templateId), eq(syncTemplates.userId, ctx.user.userId)))
+          .limit(1);
+        if (!existing) throw new Error("Template not found or access denied");
+
+        if (input.items.length > 0) {
+          const ids = input.items.map((i) => i.trackingItemId);
+          const owned = await tx
+            .select({ id: trackingItems.id })
+            .from(trackingItems)
+            .where(and(inArray(trackingItems.id, ids), eq(trackingItems.userId, ctx.user.userId)));
+          if (owned.length !== ids.length) {
+            throw new Error("One or more tracking items not found or access denied");
+          }
+        }
+
+        await tx.delete(syncTemplateItems).where(eq(syncTemplateItems.templateId, input.templateId));
+        if (input.items.length > 0) {
+          await tx.insert(syncTemplateItems).values(
+            input.items.map((i) => ({
+              templateId: input.templateId,
+              trackingItemId: i.trackingItemId,
+              orderIdx: i.orderIdx,
+            })),
+          );
+        }
+        return { success: true };
+      });
+    }),
+  }),
+
+  // Weekly Sync — template-driven snapshot at create time, mutable per period.
   weeklySync: createTRPCRouter({
-    // Get weekly sync for a specific week (Monday-Sunday based on creation date)
     getByWeek: protectedProcedure.input(z.object({ weekStart: z.date() })).query(async ({ input, ctx }) => {
-      const [syncRecord] = await db
+      const [row] = await db
         .select()
         .from(weeklySync)
         .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, input.weekStart)))
         .limit(1);
-
-      return syncRecord ?? null;
+      return row ?? null;
     }),
 
-    // Get complete weekly retrospective data in a single optimized query
+    // Hydrates everything the retro UI needs in one round trip:
+    //   - the weeklySync row (or null)
+    //   - the user's full tracking-items library (so the "+ add item" picker
+    //     can render items not yet on this sync)
+    //   - the weekly_sync_items with text_content inline + attachments hydrated
+    //   - active goals (for grouping); items with goal_id IS NULL go into
+    //     the separate `unscopedItems` array.
     getWeeklyRetrospectiveData: protectedProcedure
       .input(z.object({ weekStart: z.date() }))
       .query(async ({ input, ctx }) => {
-        // Get weekly sync
         const [weeklySyncRecord] = await db
           .select()
           .from(weeklySync)
           .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, input.weekStart)))
           .limit(1);
 
-        // Get all active goals with their tracking items for this user
         const goalsData = await db
           .select()
           .from(goals)
           .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
 
-        // Get all tracking items for user's goals
-        const goalIds = goalsData.map((g) => g.id);
-        let trackingItemsData: (typeof trackingItems.$inferSelect)[] = [];
-
-        if (goalIds.length > 0) {
-          trackingItemsData = await db
-            .select()
-            .from(trackingItems)
-            .where(and(inArray(trackingItems.goalId, goalIds), eq(trackingItems.status, "active")));
-        }
-
-        // Get weekly sync items if weekly sync exists
-        let weeklySyncItemsData: (typeof weeklySyncItems.$inferSelect)[] = [];
-        let weeklySyncItemFilesData: (typeof weeklySyncItemFiles.$inferSelect)[] = [];
-
-        if (weeklySyncRecord) {
-          // Get weekly sync items
-          weeklySyncItemsData = await db
-            .select()
-            .from(weeklySyncItems)
-            .where(eq(weeklySyncItems.weeklySyncId, weeklySyncRecord.id));
-
-          // Get all files for weekly sync items
-          const weeklySyncItemIds = weeklySyncItemsData.map((item) => item.id);
-          if (weeklySyncItemIds.length > 0) {
-            weeklySyncItemFilesData = await db
+        const allConns = goalsData.length
+          ? await db
               .select()
-              .from(weeklySyncItemFiles)
-              .where(inArray(weeklySyncItemFiles.weeklySyncItemId, weeklySyncItemIds));
-          }
-        }
-
-        // Helper function to calculate importance
-        const calculateImportance = async (goalId: string): Promise<"Low" | "Medium" | "High"> => {
-          const outgoingConnections = await db.select().from(connections).where(eq(connections.source, goalId));
-
-          if (outgoingConnections.length === 0) return "Low";
-
-          const totalWeight = outgoingConnections.reduce((sum, conn) => sum + conn.weight, 0);
-          const averageWeight = totalWeight / outgoingConnections.length;
-
-          if (averageWeight <= 33.3) return "Low";
-          if (averageWeight < 66.6) return "Medium";
+              .from(connections)
+              .where(
+                inArray(
+                  connections.source,
+                  goalsData.map((g) => g.id),
+                ),
+              )
+          : [];
+        const calcImportance = (goalId: string): "Low" | "Medium" | "High" => {
+          const out = allConns.filter((c) => c.source === goalId);
+          if (out.length === 0) return "Low";
+          const avg = out.reduce((s, c) => s + c.weight, 0) / out.length;
+          if (avg <= 33.3) return "Low";
+          if (avg < 66.6) return "Medium";
           return "High";
         };
 
-        // Helper function to read text content from files array
-        type RetroFile = {
-          id: string;
-          fileName: string;
-          fileType: (typeof weeklySyncItemFiles.$inferSelect)["fileType"];
-          url: string;
-          createdAt: Date;
-        };
-        const readTextContent = async (files: RetroFile[]): Promise<string | null> => {
-          try {
-            // Find notes.txt file in the files array
-            const textFile = files.find((file) => file.fileName === "notes.txt" && file.fileType === "document");
-            if (!textFile) {
-              console.log("📄 No text file found in files array");
-              return null;
-            }
+        // Full library — for the picker AND for hydrating sync items.
+        const allItems = await db
+          .select()
+          .from(trackingItems)
+          .where(
+            and(
+              eq(trackingItems.userId, ctx.user.userId),
+              eq(trackingItems.status, "active"),
+              isNull(trackingItems.deletedAt),
+            ),
+          )
+          .orderBy(asc(trackingItems.order), asc(trackingItems.createdAt));
 
-            console.log("📖 Reading text content from file:", textFile.url);
-            // Extract the relative path from the URL (remove leading slash)
-            const filePath = textFile.url.startsWith("/") ? textFile.url.slice(1) : textFile.url;
-            const content = await readTextFile(filePath);
-            console.log("📄 Text content result:", content ? `${content.length} characters` : "null");
-            return content;
-          } catch (error) {
-            console.error("❌ Error reading text content:", error);
-            return null;
-          }
-        };
-
-        // Build the response data structure
-        const responseData = {
-          weeklySync: weeklySyncRecord ?? null,
-          goals: await Promise.all(
-            goalsData
-              .filter((goal) => {
-                // Only include active goals that have active tracking items
-                return (
-                  goal.status === "active" &&
-                  trackingItemsData.some((item) => item.goalId === goal.id && item.status === "active")
-                );
-              })
-              .map(async (goal) => {
-                const goalTrackingItems = trackingItemsData.filter(
-                  (item) => item.goalId === goal.id && item.status === "active",
-                );
-
-                const importance = await calculateImportance(goal.id);
-
-                return {
-                  id: goal.id,
-                  title: goal.title,
-                  description: goal.description,
-                  importance,
-                  trackingItems: await Promise.all(
-                    goalTrackingItems.map(async (trackingItem) => {
-                      // Find weekly sync item for this tracking item
-                      const weeklySyncItem = weeklySyncItemsData.find(
-                        (syncItem) => syncItem.trackingItemId === trackingItem.id,
-                      );
-
-                      // Get files for this weekly sync item
-                      const files = weeklySyncItem
-                        ? weeklySyncItemFilesData
-                            .filter((file) => file.weeklySyncItemId === weeklySyncItem.id)
-                            .map((file) => ({
-                              id: file.id,
-                              fileName: path.basename(file.filePath),
-                              fileType: file.fileType,
-                              url: `/uploads/${file.filePath}`,
-                              createdAt: file.createdAt,
-                            }))
-                        : [];
-
-                      // Load text content from files
-                      const textContent = await readTextContent(files);
-
-                      return {
-                        id: trackingItem.id,
-                        title: trackingItem.title,
-                        description: trackingItem.description,
-                        order: trackingItem.order,
-                        deletedAt: trackingItem.deletedAt,
-                        weeklySyncItem: weeklySyncItem
-                          ? {
-                              id: weeklySyncItem.id,
-                              createdAt: weeklySyncItem.createdAt,
-                            }
-                          : null,
-                        files,
-                        textContent,
-                      };
-                    }),
+        let syncItemsData: (typeof weeklySyncItems.$inferSelect)[] = [];
+        let attachmentsData: (typeof attachments.$inferSelect)[] = [];
+        if (weeklySyncRecord) {
+          syncItemsData = await db
+            .select()
+            .from(weeklySyncItems)
+            .where(eq(weeklySyncItems.weeklySyncId, weeklySyncRecord.id))
+            .orderBy(asc(weeklySyncItems.orderIdx), asc(weeklySyncItems.createdAt));
+          if (syncItemsData.length > 0) {
+            attachmentsData = await db
+              .select()
+              .from(attachments)
+              .where(
+                and(
+                  eq(attachments.parentType, "weekly_sync_item"),
+                  inArray(
+                    attachments.parentId,
+                    syncItemsData.map((i) => i.id),
                   ),
-                };
-              }),
-          ),
+                ),
+              )
+              .orderBy(asc(attachments.createdAt));
+          }
+        }
+
+        const goalById = new Map(goalsData.map((g) => [g.id, g] as const));
+        const itemById = new Map(allItems.map((i) => [i.id, i] as const));
+
+        const hydratedItems = syncItemsData
+          .map((si) => {
+            const ti = itemById.get(si.trackingItemId);
+            if (!ti) return null; // soft-deleted/archived/cross-user — drop
+            const itemAttachments = attachmentsData
+              .filter((a) => a.parentId === si.id)
+              .map((a) => ({
+                id: a.id,
+                fileName: a.fileName,
+                fileType: a.fileType,
+                url: `/uploads/${a.storagePath}`,
+                sizeBytes: a.sizeBytes,
+                createdAt: a.createdAt,
+              }));
+            return {
+              id: si.id,
+              trackingItemId: si.trackingItemId,
+              title: ti.title,
+              description: ti.description,
+              orderIdx: si.orderIdx,
+              textContent: si.textContent,
+              attachments: itemAttachments,
+              goalId: ti.goalId,
+              createdAt: si.createdAt,
+            };
+          })
+          .filter((x): x is NonNullable<typeof x> => x !== null);
+
+        // Group sync items by goal (with an "Unscoped" array for goalId IS NULL).
+        const itemsByGoal = new Map<string, typeof hydratedItems>();
+        const unscopedItems: typeof hydratedItems = [];
+        for (const hi of hydratedItems) {
+          if (hi.goalId === null || hi.goalId === undefined) {
+            unscopedItems.push(hi);
+            continue;
+          }
+          const arr = itemsByGoal.get(hi.goalId) ?? [];
+          arr.push(hi);
+          itemsByGoal.set(hi.goalId, arr);
+        }
+
+        const goalGroups = goalsData
+          .filter((g) => itemsByGoal.has(g.id))
+          .map((g) => ({
+            id: g.id,
+            title: g.title,
+            description: g.description,
+            importance: calcImportance(g.id),
+            items: itemsByGoal.get(g.id) ?? [],
+          }));
+
+        return {
+          weeklySync: weeklySyncRecord ?? null,
+          allTrackingItems: allItems.map((i) => ({
+            id: i.id,
+            title: i.title,
+            description: i.description,
+            goalId: i.goalId,
+            goalTitle: i.goalId ? (goalById.get(i.goalId)?.title ?? null) : null,
+          })),
+          goals: goalGroups,
+          unscopedItems,
         };
-
-        // Optional debug logging (disabled)
-        // console.log("=== DEBUG: Weekly Retrospective Query ===");
-
-        log("Weekly Retrospective Data:", JSON.stringify(responseData, null, 2));
-        return responseData;
       }),
 
-    // Create weekly sync for current week
+    // Create a sync for the given week. If templateId is supplied (or omitted
+    // and the user has a default template), the sync is auto-populated by
+    // snapshotting the template's items in their template-defined order.
     create: protectedProcedure.input(createWeeklySyncSchema).mutation(async ({ input, ctx }) => {
-      const [newWeeklySync] = await db
-        .insert(weeklySync)
-        .values({ ...input, userId: ctx.user.userId })
-        .returning();
+      return await db.transaction(async (tx) => {
+        let templateId: string | null = input.templateId ?? null;
+        if (templateId === null) {
+          const [defaultTemplate] = await tx
+            .select()
+            .from(syncTemplates)
+            .where(and(eq(syncTemplates.userId, ctx.user.userId), eq(syncTemplates.isDefault, true)))
+            .limit(1);
+          templateId = defaultTemplate?.id ?? null;
+        } else {
+          const [t] = await tx
+            .select()
+            .from(syncTemplates)
+            .where(and(eq(syncTemplates.id, templateId), eq(syncTemplates.userId, ctx.user.userId)))
+            .limit(1);
+          if (!t) throw new Error("Template not found or access denied");
+        }
 
-      if (!newWeeklySync) {
-        throw new Error("Failed to create weekly sync");
-      }
+        const [created] = await tx
+          .insert(weeklySync)
+          .values({
+            userId: ctx.user.userId,
+            weekDate: input.weekDate,
+            templateId,
+          })
+          .returning();
+        if (!created) throw new Error("Failed to create weekly sync");
 
-      return newWeeklySync;
+        if (templateId) {
+          const templateItemRows = await tx
+            .select()
+            .from(syncTemplateItems)
+            .where(eq(syncTemplateItems.templateId, templateId))
+            .orderBy(asc(syncTemplateItems.orderIdx));
+          if (templateItemRows.length > 0) {
+            await tx.insert(weeklySyncItems).values(
+              templateItemRows.map((row) => ({
+                weeklySyncId: created.id,
+                trackingItemId: row.trackingItemId,
+                orderIdx: row.orderIdx,
+              })),
+            );
+          }
+        }
+
+        return created;
+      });
     }),
-  }),
 
-  // Weekly Sync Items operations
-  weeklySyncItems: createTRPCRouter({
-    // Get all sync items for a weekly sync
-    getByWeeklySync: protectedProcedure.input(z.object({ weeklySyncId: z.string() })).query(async ({ input, ctx }) => {
-      return await db
-        .select()
-        .from(weeklySyncItems)
-        .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
-        .where(and(eq(weeklySyncItems.weeklySyncId, input.weeklySyncId), eq(weeklySync.userId, ctx.user.userId)));
-    }),
-
-    // Create weekly sync item
-    create: protectedProcedure.input(createWeeklySyncItemSchema).mutation(async ({ input, ctx }) => {
-      // Verify weekly sync ownership
-      const [existingSync] = await db
+    // Add a single item to an existing sync. Idempotent — returns the existing
+    // row if the (sync, item) pair is already there.
+    addItem: protectedProcedure.input(addSyncItemSchema).mutation(async ({ input, ctx }) => {
+      const [sync] = await db
         .select()
         .from(weeklySync)
         .where(and(eq(weeklySync.id, input.weeklySyncId), eq(weeklySync.userId, ctx.user.userId)))
         .limit(1);
+      if (!sync) throw new Error("Weekly sync not found or access denied");
+      const [item] = await db
+        .select()
+        .from(trackingItems)
+        .where(and(eq(trackingItems.id, input.trackingItemId), eq(trackingItems.userId, ctx.user.userId)))
+        .limit(1);
+      if (!item) throw new Error("Tracking item not found or access denied");
 
-      if (!existingSync) {
-        throw new Error("Weekly sync not found or access denied");
-      }
-
-      // Check if weekly sync item already exists
-      const [existingItem] = await db
+      const [existing] = await db
         .select()
         .from(weeklySyncItems)
         .where(
@@ -825,242 +953,195 @@ export const goalsRouter = createTRPCRouter({
           ),
         )
         .limit(1);
+      if (existing) return existing;
 
-      if (existingItem) {
-        return existingItem;
-      }
+      const [maxRow] = await db
+        .select({ max: sql<number>`coalesce(max(${weeklySyncItems.orderIdx}), -1)` })
+        .from(weeklySyncItems)
+        .where(eq(weeklySyncItems.weeklySyncId, input.weeklySyncId));
+      const nextOrder = (maxRow?.max ?? -1) + 1;
 
-      const [newSyncItem] = await db.insert(weeklySyncItems).values(input).returning();
-
-      if (!newSyncItem) {
-        throw new Error("Failed to create weekly sync item");
-      }
-
-      return newSyncItem;
+      const [created] = await db
+        .insert(weeklySyncItems)
+        .values({
+          weeklySyncId: input.weeklySyncId,
+          trackingItemId: input.trackingItemId,
+          orderIdx: nextOrder,
+        })
+        .returning();
+      if (!created) throw new Error("Failed to add sync item");
+      return created;
     }),
-  }),
 
-  // Weekly Sync Item Files operations
-  weeklySyncItemFiles: createTRPCRouter({
-    // Get all files for a sync item
-    getBySyncItem: protectedProcedure
-      .input(z.object({ weeklySyncItemId: z.string() }))
-      .query(async ({ input, ctx }) => {
-        return await db
-          .select()
-          .from(weeklySyncItemFiles)
-          .innerJoin(weeklySyncItems, eq(weeklySyncItemFiles.weeklySyncItemId, weeklySyncItems.id))
-          .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
-          .where(
-            and(
-              eq(weeklySyncItemFiles.weeklySyncItemId, input.weeklySyncItemId),
-              eq(weeklySync.userId, ctx.user.userId),
-            ),
-          );
-      }),
+    // Remove a single item from a sync. Does NOT touch the underlying
+    // tracking item (it remains in the user's library). Cascades the item's
+    // attachments via FK; we hand-unlink the files from disk after.
+    removeItem: protectedProcedure.input(removeSyncItemSchema).mutation(async ({ input, ctx }) => {
+      const [row] = await db
+        .select({ syncItemId: weeklySyncItems.id })
+        .from(weeklySyncItems)
+        .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
+        .where(and(eq(weeklySyncItems.id, input.weeklySyncItemId), eq(weeklySync.userId, ctx.user.userId)))
+        .limit(1);
+      if (!row) throw new Error("Sync item not found or access denied");
 
-    // Create WeeklySyncItemFile with ACID transactions and full auth validation
-    create: protectedProcedure.input(createWeeklySyncItemFileSchema).mutation(async ({ input, ctx }) => {
-      // Validate file data early
-      if (!input.isText && !isValidBase64Image(input.data)) {
-        throw new Error("Invalid base64 data");
+      const linkedAttachments = await db
+        .select()
+        .from(attachments)
+        .where(
+          and(
+            eq(attachments.parentType, "weekly_sync_item"),
+            eq(attachments.parentId, input.weeklySyncItemId),
+          ),
+        );
+
+      // Delete the attachments rows first, then the sync item row. (FK cascade
+      // would do this for us, but we want to know which storage paths to unlink.)
+      if (linkedAttachments.length > 0) {
+        await db.delete(attachments).where(
+          inArray(
+            attachments.id,
+            linkedAttachments.map((a) => a.id),
+          ),
+        );
       }
+      await db.delete(weeklySyncItems).where(eq(weeklySyncItems.id, input.weeklySyncItemId));
 
+      for (const a of linkedAttachments) {
+        await unlinkAttachmentFromDisk(a.storagePath);
+      }
+      return { success: true };
+    }),
+
+    setItemText: protectedProcedure.input(setSyncItemTextSchema).mutation(async ({ input, ctx }) => {
+      const [row] = await db
+        .select({ id: weeklySyncItems.id })
+        .from(weeklySyncItems)
+        .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
+        .where(and(eq(weeklySyncItems.id, input.weeklySyncItemId), eq(weeklySync.userId, ctx.user.userId)))
+        .limit(1);
+      if (!row) throw new Error("Sync item not found or access denied");
+      await db
+        .update(weeklySyncItems)
+        .set({ textContent: input.textContent, updatedAt: new Date() })
+        .where(eq(weeklySyncItems.id, input.weeklySyncItemId));
+      return { success: true };
+    }),
+
+    reorderItems: protectedProcedure.input(reorderSyncItemsSchema).mutation(async ({ input, ctx }) => {
       return await db.transaction(async (tx) => {
-        // Step 1: Validate ownership through WeeklySyncItem chain: User -> WeeklySync -> WeeklySyncItem
-        const ownershipQuery = await tx
-          .select({
-            weeklySyncItem: weeklySyncItems,
-            weeklySync: weeklySync,
-            trackingItem: trackingItems,
-            goal: goals,
-          })
-          .from(weeklySyncItems)
-          .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
-          .innerJoin(trackingItems, eq(weeklySyncItems.trackingItemId, trackingItems.id))
-          .innerJoin(goals, eq(trackingItems.goalId, goals.id))
-          .where(and(eq(weeklySyncItems.id, input.weeklySyncItemId), eq(weeklySync.userId, ctx.user.userId)))
+        const [sync] = await tx
+          .select()
+          .from(weeklySync)
+          .where(and(eq(weeklySync.id, input.weeklySyncId), eq(weeklySync.userId, ctx.user.userId)))
           .limit(1);
+        if (!sync) throw new Error("Sync not found or access denied");
 
-        if (ownershipQuery.length === 0) {
-          throw new Error("Weekly sync item not found or access denied");
-        }
-
-        const result = ownershipQuery[0]!;
-        const targetWeeklySync = result.weeklySync;
-        const trackingItem = result.trackingItem;
-        const goal = result.goal;
-
-        // Step 2: Generate final filename with timestamp prefix (except for text files)
-        const finalFileName = input.isText ? input.fileName : generateTimestampedFileName(input.fileName);
-
-        // Step 3: Generate full relative path (excluding /uploads base)
-        const dateString = targetWeeklySync.weekDate.toISOString().split("T")[0];
-        const relativePath = `${ctx.user.userId}/${goal.id}/${dateString}/${trackingItem.id}/${finalFileName}`;
-
-        // Step 4: Check if file record already exists (for text files to avoid duplicates)
-        if (input.isText) {
-          const [existingTextFile] = await tx
-            .select()
-            .from(weeklySyncItemFiles)
+        const ids = input.ordering.map((o) => o.id);
+        if (ids.length > 0) {
+          const owned = await tx
+            .select({ id: weeklySyncItems.id })
+            .from(weeklySyncItems)
             .where(
               and(
-                eq(weeklySyncItemFiles.weeklySyncItemId, input.weeklySyncItemId),
-                eq(weeklySyncItemFiles.filePath, relativePath),
-                eq(weeklySyncItemFiles.fileType, "document"),
+                eq(weeklySyncItems.weeklySyncId, input.weeklySyncId),
+                inArray(weeklySyncItems.id, ids),
               ),
-            )
-            .limit(1);
-
-          if (existingTextFile) {
-            // Update existing text file - save file after successful DB lookup
-            const fileResult = await saveOrUpdateTextFile(input.data, relativePath);
-
-            return {
-              url: fileResult.url,
-              fileName: fileResult.fileName,
-              filePath: fileResult.filePath,
-              fileType: fileResult.fileType,
-              weeklySyncItemFileId: existingTextFile.id,
-            };
+            );
+          if (owned.length !== ids.length) {
+            throw new Error("Ordering references items not in this sync");
           }
         }
 
-        // Step 5: Create database file record FIRST (before touching file system)
-        const [weeklySyncItemFile] = await tx
-          .insert(weeklySyncItemFiles)
+        for (const o of input.ordering) {
+          await tx
+            .update(weeklySyncItems)
+            .set({ orderIdx: o.orderIdx, updatedAt: new Date() })
+            .where(eq(weeklySyncItems.id, o.id));
+        }
+        return { success: true };
+      });
+    }),
+  }),
+
+  // Generic polymorphic attachments — replaces the old weeklySyncItemFiles
+  // routes. parent_type='weekly_sync_item' is the only producer today, but
+  // the schema is permissive so other entities can opt in without migration.
+  attachments: createTRPCRouter({
+    upload: protectedProcedure.input(uploadAttachmentSchema).mutation(async ({ input, ctx }) => {
+      // Validate ownership of the parent. Only weekly_sync_item is supported today;
+      // adding more parent types means extending this switch.
+      if (input.parentType === "weekly_sync_item") {
+        const [owned] = await db
+          .select({ id: weeklySyncItems.id })
+          .from(weeklySyncItems)
+          .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
+          .where(and(eq(weeklySyncItems.id, input.parentId), eq(weeklySync.userId, ctx.user.userId)))
+          .limit(1);
+        if (!owned) throw new Error("Sync item not found or access denied");
+      }
+
+      // Sanity-check the base64 envelope before touching the FS.
+      try {
+        Buffer.from(input.data.replace(/^data:[^;]+;base64,/, ""), "base64");
+      } catch {
+        throw new Error("Invalid base64 data");
+      }
+      if (input.fileType === "image" && !isValidBase64Image(input.data)) {
+        throw new Error("Invalid base64 image");
+      }
+
+      // DB row first; FS write inside the same tx. If FS fails the row rolls back.
+      const attachmentId = createId();
+      const ext = path.extname(input.fileName);
+      const provisionalStoragePath = path.join(ctx.user.userId, "attachments", `${attachmentId}${ext}`);
+
+      return await db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(attachments)
           .values({
-            weeklySyncItemId: input.weeklySyncItemId,
-            filePath: relativePath,
+            id: attachmentId,
+            userId: ctx.user.userId,
+            parentType: input.parentType,
+            parentId: input.parentId,
+            fileName: input.fileName,
             fileType: input.fileType,
+            storagePath: provisionalStoragePath,
+            sizeBytes: 0,
           })
           .returning();
+        if (!row) throw new Error("Failed to create attachment row");
 
-        if (!weeklySyncItemFile) {
-          throw new Error("Failed to create file record");
-        }
+        const { storagePath, sizeBytes } = await writeAttachmentToDisk({
+          data: input.data,
+          userId: ctx.user.userId,
+          attachmentId: row.id,
+          fileName: input.fileName,
+        });
 
-        // Step 5: Save physical file LAST (after successful DB operations)
-        try {
-          const fileResult = input.isText
-            ? await saveOrUpdateTextFile(input.data, relativePath)
-            : await saveWeeklySyncFile(input.data, relativePath, false);
+        await tx.update(attachments).set({ storagePath, sizeBytes }).where(eq(attachments.id, row.id));
 
-          return {
-            url: fileResult.url,
-            fileName: fileResult.fileName,
-            filePath: fileResult.filePath,
-            fileType: fileResult.fileType,
-            weeklySyncItemFileId: weeklySyncItemFile.id,
-          };
-        } catch (fileError) {
-          // If file operation fails, the transaction will roll back the database changes
-          throw new Error(`Failed to save file: ${String(fileError)}`);
-        }
+        return {
+          id: row.id,
+          fileName: row.fileName,
+          fileType: row.fileType,
+          url: `/uploads/${storagePath}`,
+          sizeBytes,
+          createdAt: row.createdAt,
+        };
       });
     }),
 
-    // Read text file content for a tracking item
-    readTrackingItemText: protectedProcedure
-      .input(
-        z.object({
-          goalId: z.string(),
-          trackingItemId: z.string(),
-          date: z.date().optional(),
-        }),
-      )
-      .query(async ({ input, ctx }) => {
-        // Validate complete ownership chain
-        const ownershipQuery = await db
-          .select({
-            goal: goals,
-            trackingItem: trackingItems,
-          })
-          .from(goals)
-          .innerJoin(trackingItems, eq(trackingItems.goalId, goals.id))
-          .where(
-            and(
-              eq(goals.id, input.goalId),
-              eq(goals.userId, ctx.user.userId),
-              eq(trackingItems.id, input.trackingItemId),
-              eq(trackingItems.goalId, input.goalId),
-            ),
-          )
-          .limit(1);
-
-        if (ownershipQuery.length === 0) {
-          throw new Error("Goal or tracking item not found or access denied");
-        }
-
-        // Determine the date to use
-        const targetDate = input.date ?? new Date();
-        const weekStart = new Date(targetDate);
-        weekStart.setDate(targetDate.getDate() - targetDate.getDay() + 1); // Start of week (Monday)
-        weekStart.setHours(0, 0, 0, 0);
-
-        const [targetWeeklySync] = await db
-          .select()
-          .from(weeklySync)
-          .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, weekStart)))
-          .limit(1);
-
-        if (!targetWeeklySync) {
-          return { content: "", filePath: "" };
-        }
-
-        const content = await readTrackingItemTextFile(
-          ctx.user.userId,
-          input.goalId,
-          input.trackingItemId,
-          targetWeeklySync.weekDate,
-        );
-
-        return {
-          content: content ?? "",
-          filePath: content
-            ? getTextFilePath(ctx.user.userId, input.goalId, input.trackingItemId, targetWeeklySync.weekDate)
-            : "",
-        };
-      }),
-
-    // Delete file atomically (both database record and physical file)
     delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
-      return await db.transaction(async (tx) => {
-        // Get file metadata and verify ownership
-        const fileQuery = await tx
-          .select({
-            file: weeklySyncItemFiles,
-            trackingItem: trackingItems,
-            weeklySync: weeklySync,
-          })
-          .from(weeklySyncItemFiles)
-          .innerJoin(weeklySyncItems, eq(weeklySyncItemFiles.weeklySyncItemId, weeklySyncItems.id))
-          .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
-          .innerJoin(trackingItems, eq(weeklySyncItems.trackingItemId, trackingItems.id))
-          .innerJoin(goals, eq(trackingItems.goalId, goals.id))
-          .where(and(eq(weeklySyncItemFiles.id, input.id), eq(weeklySync.userId, ctx.user.userId)))
-          .limit(1);
-
-        if (fileQuery.length === 0) {
-          throw new Error("File not found or access denied");
-        }
-
-        const { file } = fileQuery[0]!;
-
-        // Use stored file path from database
-        const filePath = `uploads/${file.filePath}`;
-
-        // Delete database record first
-        await tx.delete(weeklySyncItemFiles).where(eq(weeklySyncItemFiles.id, input.id));
-
-        // Delete physical file
-        const fileDeleted = await deleteFile(filePath);
-        if (!fileDeleted) {
-          console.warn(`Physical file not found but database record was deleted: ${filePath}`);
-        }
-
-        return { success: true };
-      });
+      const [existing] = await db
+        .select()
+        .from(attachments)
+        .where(and(eq(attachments.id, input.id), eq(attachments.userId, ctx.user.userId)))
+        .limit(1);
+      if (!existing) throw new Error("Attachment not found or access denied");
+      await db.delete(attachments).where(eq(attachments.id, input.id));
+      await unlinkAttachmentFromDisk(existing.storagePath);
+      return { success: true };
     }),
   }),
 
@@ -1077,32 +1158,27 @@ export const goalsRouter = createTRPCRouter({
   // Debug operations
   debug: createTRPCRouter({
     getWeeklySyncData: protectedProcedure.query(async ({ ctx }) => {
-      // Get all weekly syncs for user
       const weeklySyncs = await db.select().from(weeklySync).where(eq(weeklySync.userId, ctx.user.userId));
 
-      // Get all weekly sync items for user
       const weeklySyncItemsData = await db
         .select()
         .from(weeklySyncItems)
         .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
         .where(eq(weeklySync.userId, ctx.user.userId));
 
-      // Get all weekly sync item files for user
-      const weeklySyncItemFilesData = await db
+      const attachmentsData = await db
         .select()
-        .from(weeklySyncItemFiles)
-        .innerJoin(weeklySyncItems, eq(weeklySyncItemFiles.weeklySyncItemId, weeklySyncItems.id))
-        .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
-        .where(eq(weeklySync.userId, ctx.user.userId));
+        .from(attachments)
+        .where(and(eq(attachments.userId, ctx.user.userId), eq(attachments.parentType, "weekly_sync_item")));
 
       return {
         weeklySyncs,
         weeklySyncItems: weeklySyncItemsData,
-        weeklySyncItemFiles: weeklySyncItemFilesData,
+        attachments: attachmentsData,
         counts: {
           weeklySyncs: weeklySyncs.length,
           weeklySyncItems: weeklySyncItemsData.length,
-          weeklySyncItemFiles: weeklySyncItemFilesData.length,
+          attachments: attachmentsData.length,
         },
       };
     }),
@@ -1578,6 +1654,10 @@ export const goalsRouter = createTRPCRouter({
     }),
   }),
 
+  // Full-fidelity backup — exports everything the user owns (DB + files);
+  // import wipes the user's data wholesale inside a tx, then rewrites files
+  // under the new caller's userId. Backup version 2 reflects the post-sync-
+  // redesign schema (text_content inline, attachments table, sync templates).
   backup: createTRPCRouter({
     export: protectedProcedure.query(async ({ ctx }) => {
       const userId = ctx.user.userId;
@@ -1596,9 +1676,13 @@ export const goalsRouter = createTRPCRouter({
       const goalValuesRows = goalIds.length
         ? await db.select().from(goalValues).where(inArray(goalValues.goalId, goalIds))
         : [];
-      const trackingItemsRows = goalIds.length
-        ? await db.select().from(trackingItems).where(inArray(trackingItems.goalId, goalIds))
-        : [];
+
+      // Tracking items are now user-owned — query by userId, not goalId.
+      const trackingItemsRows = await db
+        .select()
+        .from(trackingItems)
+        .where(eq(trackingItems.userId, userId));
+      const trackingItemIds = trackingItemsRows.map((t) => t.id);
 
       const weeklySyncRows = await db.select().from(weeklySync).where(eq(weeklySync.userId, userId));
       const weeklySyncIds = weeklySyncRows.map((ws) => ws.id);
@@ -1608,11 +1692,30 @@ export const goalsRouter = createTRPCRouter({
         : [];
       const weeklySyncItemIds = weeklySyncItemsRows.map((wsi) => wsi.id);
 
-      const weeklySyncItemFilesRows = weeklySyncItemIds.length
+      const syncTemplateRows = await db
+        .select()
+        .from(syncTemplates)
+        .where(eq(syncTemplates.userId, userId));
+      const syncTemplateIds = syncTemplateRows.map((t) => t.id);
+
+      const syncTemplateItemRows = syncTemplateIds.length
         ? await db
             .select()
-            .from(weeklySyncItemFiles)
-            .where(inArray(weeklySyncItemFiles.weeklySyncItemId, weeklySyncItemIds))
+            .from(syncTemplateItems)
+            .where(inArray(syncTemplateItems.templateId, syncTemplateIds))
+        : [];
+
+      const attachmentRows = weeklySyncItemIds.length
+        ? await db
+            .select()
+            .from(attachments)
+            .where(
+              and(
+                eq(attachments.userId, userId),
+                eq(attachments.parentType, "weekly_sync_item"),
+                inArray(attachments.parentId, weeklySyncItemIds),
+              ),
+            )
         : [];
 
       const peopleRows = await db.select().from(people).where(eq(people.userId, userId));
@@ -1642,10 +1745,7 @@ export const goalsRouter = createTRPCRouter({
             )
         : [];
 
-      const bucketListRows = await db
-        .select()
-        .from(bucketListItems)
-        .where(eq(bucketListItems.userId, userId));
+      const bucketListRows = await db.select().from(bucketListItems).where(eq(bucketListItems.userId, userId));
 
       const bucketListItemPeopleRows = bucketListRows.length
         ? await db
@@ -1659,7 +1759,6 @@ export const goalsRouter = createTRPCRouter({
             )
         : [];
 
-      // Join through tasks→goals to scope referents to this user's graph only.
       const taskReferentsRows = goalIds.length
         ? await db
             .select({
@@ -1673,42 +1772,53 @@ export const goalsRouter = createTRPCRouter({
             .where(inArray(tasks.goalId, goalIds))
         : [];
 
-      // Read each referenced file off disk and base64-encode. Skip missing files with a warn
-      // rather than failing the whole export — files may have been pruned by hand and we'd
-      // rather deliver a partial backup than nothing.
-      const files: { filePath: string; data: string }[] = [];
-      for (const f of weeklySyncItemFilesRows) {
-        const abs = path.join(process.cwd(), "uploads", f.filePath);
+      // Read each attachment file off disk and base64-encode. Skip missing
+      // files (deliver a partial backup rather than failing entirely).
+      const files: { attachmentId: string; data: string }[] = [];
+      for (const a of attachmentRows) {
+        const abs = path.join(UPLOADS_ROOT, a.storagePath);
         try {
           const buf = await readFile(abs);
-          files.push({ filePath: f.filePath, data: buf.toString("base64") });
+          files.push({ attachmentId: a.id, data: buf.toString("base64") });
         } catch {
-          console.warn(`[backup.export] missing file skipped: ${f.filePath}`);
+          console.warn(`[backup.export] missing file skipped: ${a.storagePath}`);
         }
       }
 
+      // Strip user-discriminator columns from rows that include them; the
+      // import path inserts under whatever userId is in ctx.
+      const stripUser = <T extends { userId?: string }>(row: T): Omit<T, "userId"> => {
+        const rest: Record<string, unknown> = { ...row };
+        delete rest.userId;
+        return rest as Omit<T, "userId">;
+      };
+
       return {
-        version: 1 as const,
+        version: 2 as const,
         exportedAt: new Date(),
         user: { name: userRow.name, email: userRow.email },
-        values: valuesRows.map(({ userId: _, ...rest }) => rest),
-        goals: goalsRows.map(({ userId: _, ...rest }) => rest),
+        values: valuesRows.map(stripUser),
+        goals: goalsRows.map(stripUser),
         tasks: tasksRows,
         connections: connectionsRows,
         goalValues: goalValuesRows,
-        trackingItems: trackingItemsRows,
-        weeklySync: weeklySyncRows.map(({ userId: _, ...rest }) => rest),
+        trackingItems: trackingItemsRows.map(stripUser),
+        weeklySync: weeklySyncRows.map(stripUser),
         weeklySyncItems: weeklySyncItemsRows,
-        weeklySyncItemFiles: weeklySyncItemFilesRows,
+        syncTemplates: syncTemplateRows.map(stripUser),
+        syncTemplateItems: syncTemplateItemRows,
+        attachments: attachmentRows.map(stripUser),
         files,
-        people: peopleRows.map(({ userId: _, ...rest }) => rest),
-        userSelf: userSelfRow ? (({ userId: _, ...rest }) => rest)(userSelfRow) : null,
+        people: peopleRows.map(stripUser),
+        userSelf: userSelfRow ? stripUser(userSelfRow) : null,
         taskReferents: taskReferentsRows,
-        personGroups: personGroupRows.map(({ userId: _, ...rest }) => rest),
+        personGroups: personGroupRows.map(stripUser),
         peopleToGroups: peopleToGroupsRows,
         giftIdeas: giftIdeasRows,
-        bucketListItems: bucketListRows.map(({ userId: _, ...rest }) => rest),
+        bucketListItems: bucketListRows.map(stripUser),
         bucketListItemPeople: bucketListItemPeopleRows,
+        // Touched-but-unused — harmless extra context for v2 importers.
+        _trackingItemIds: trackingItemIds,
       };
     }),
 
@@ -1723,43 +1833,27 @@ export const goalsRouter = createTRPCRouter({
         const userId = ctx.user.userId;
         const b = input.backup;
 
-        // Precompute path rewrite: backups store the original user-id as the first segment
-        // of every filePath. Map old → current user so restored files land in the caller's
-        // uploads/<userId>/… tree regardless of which account produced the backup.
-        const rewritePath = (filePath: string): string => {
-          const slash = filePath.indexOf("/");
-          if (slash === -1) return `${userId}/${filePath}`;
-          return `${userId}${filePath.slice(slash)}`;
-        };
-
-        // All DB changes happen in one transaction; files are written only after commit.
         await db.transaction(async (tx) => {
-          // Nuke everything the user owns. Cascades take care of tasks, connections,
-          // goalValues, trackingItems, weeklySyncItems, weeklySyncItemFiles.
+          // Nuke. Cascades take care of children: tasks, connections,
+          // goalValues, weeklySyncItems, syncTemplateItems, attachments
+          // (via user_id on attachments), tracking_items, etc.
           await tx.delete(goals).where(eq(goals.userId, userId));
           await tx.delete(values).where(eq(values.userId, userId));
           await tx.delete(weeklySync).where(eq(weeklySync.userId, userId));
+          await tx.delete(syncTemplates).where(eq(syncTemplates.userId, userId));
+          await tx.delete(trackingItems).where(eq(trackingItems.userId, userId));
+          await tx.delete(attachments).where(eq(attachments.userId, userId));
           await tx.delete(people).where(eq(people.userId, userId));
           await tx.delete(userSelf).where(eq(userSelf.userId, userId));
           await tx.delete(personGroups).where(eq(personGroups.userId, userId));
           await tx.delete(bucketListItems).where(eq(bucketListItems.userId, userId));
 
           if (b.values.length) {
-            await tx.insert(values).values(
-              b.values.map((v) => ({
-                id: v.id,
-                name: v.name,
-                color: v.color,
-                userId,
-                createdAt: v.createdAt,
-                updatedAt: v.updatedAt,
-              })),
-            );
+            await tx.insert(values).values(b.values.map((v) => ({ ...v, userId })));
           }
 
-          // Insert goals with parentId nulled first, then fix up parents in a second pass.
-          // Avoids self-referencing FK ordering issues when the backup lists a child before
-          // its parent.
+          // Insert goals with parentId nulled first, then fix up parents in a
+          // second pass — handles forward references in the export.
           if (b.goals.length) {
             await tx.insert(goals).values(
               b.goals.map((g) => ({
@@ -1776,7 +1870,6 @@ export const goalsRouter = createTRPCRouter({
                 updatedAt: g.updatedAt,
               })),
             );
-
             for (const g of b.goals) {
               if (g.parentId) {
                 await tx.update(goals).set({ parentId: g.parentId }).where(eq(goals.id, g.id));
@@ -1787,95 +1880,98 @@ export const goalsRouter = createTRPCRouter({
           if (b.tasks.length) await tx.insert(tasks).values(b.tasks);
           if (b.goalValues.length) await tx.insert(goalValues).values(b.goalValues);
           if (b.connections.length) await tx.insert(connections).values(b.connections);
-          if (b.trackingItems.length) await tx.insert(trackingItems).values(b.trackingItems);
+
+          if (b.trackingItems.length) {
+            await tx.insert(trackingItems).values(
+              b.trackingItems.map((t) => ({
+                ...t,
+                userId,
+              })),
+            );
+          }
+
+          if (b.syncTemplates.length) {
+            await tx.insert(syncTemplates).values(
+              b.syncTemplates.map((t) => ({ ...t, userId })),
+            );
+          }
+          if (b.syncTemplateItems.length) {
+            await tx.insert(syncTemplateItems).values(b.syncTemplateItems);
+          }
 
           if (b.weeklySync.length) {
             await tx.insert(weeklySync).values(
-              b.weeklySync.map((ws) => ({
-                id: ws.id,
-                userId,
-                weekDate: ws.weekDate,
-                createdAt: ws.createdAt,
-                updatedAt: ws.updatedAt,
-              })),
+              b.weeklySync.map((ws) => ({ ...ws, userId })),
             );
           }
           if (b.weeklySyncItems.length) await tx.insert(weeklySyncItems).values(b.weeklySyncItems);
 
-          if (b.weeklySyncItemFiles.length) {
-            await tx.insert(weeklySyncItemFiles).values(
-              b.weeklySyncItemFiles.map((f) => ({
-                id: f.id,
-                weeklySyncItemId: f.weeklySyncItemId,
-                filePath: rewritePath(f.filePath),
-                fileType: f.fileType,
-                createdAt: f.createdAt,
-              })),
+          // Attachments: keep ids, rewrite storage_path to land under the new
+          // user. The on-disk write happens after the DB commit below; the
+          // path stored here is the post-rewrite path.
+          if (b.attachments.length) {
+            await tx.insert(attachments).values(
+              b.attachments.map((a) => {
+                const ext = path.extname(a.fileName);
+                return {
+                  id: a.id,
+                  userId,
+                  parentType: a.parentType,
+                  parentId: a.parentId,
+                  fileName: a.fileName,
+                  fileType: a.fileType,
+                  storagePath: path.join(userId, "attachments", `${a.id}${ext}`),
+                  sizeBytes: a.sizeBytes,
+                  createdAt: a.createdAt,
+                };
+              }),
             );
           }
 
-          if (b.people?.length) {
-            await tx.insert(people).values(
-              b.people.map((p) => ({
-                ...p,
-                userId,
-              })),
-            );
+          if (b.people.length) {
+            await tx.insert(people).values(b.people.map((p) => ({ ...p, userId })));
           }
-
           if (b.userSelf) {
-            await tx.insert(userSelf).values({
-              ...b.userSelf,
-              userId,
-            });
+            await tx.insert(userSelf).values({ ...b.userSelf, userId });
           }
-
-          if (b.taskReferents?.length) {
+          if (b.taskReferents.length) {
             await tx.insert(taskReferents).values(b.taskReferents);
           }
-
-          if (b.personGroups?.length) {
-            await tx.insert(personGroups).values(
-              b.personGroups.map((g) => ({
-                ...g,
-                userId,
-              })),
-            );
+          if (b.personGroups.length) {
+            await tx.insert(personGroups).values(b.personGroups.map((g) => ({ ...g, userId })));
           }
-
-          if (b.peopleToGroups?.length) {
+          if (b.peopleToGroups.length) {
             await tx.insert(peopleToGroups).values(b.peopleToGroups);
           }
-
-          if (b.giftIdeas?.length) {
+          if (b.giftIdeas.length) {
             await tx.insert(giftIdeas).values(b.giftIdeas);
           }
-
-          if (b.bucketListItems?.length) {
-            await tx.insert(bucketListItems).values(
-              b.bucketListItems.map((it) => ({
-                ...it,
-                userId,
-              })),
-            );
+          if (b.bucketListItems.length) {
+            await tx.insert(bucketListItems).values(b.bucketListItems.map((it) => ({ ...it, userId })));
           }
-
-          if (b.bucketListItemPeople?.length) {
+          if (b.bucketListItemPeople.length) {
             await tx.insert(bucketListItemPeople).values(b.bucketListItemPeople);
           }
         });
 
-        // Files land on disk after the DB commit. If any write fails we log and continue —
-        // the DB row will point at a 404 until the file is restored by hand, matching the
-        // existing "missing file" handling throughout the app.
+        // Files land on disk after the DB commit. The new storage_path is
+        // uploads/{userId}/attachments/{id}.{ext} — keyed only on user, no
+        // goal/date in the tree.
         const fileFailures: string[] = [];
-        for (const file of b.files) {
-          const newPath = rewritePath(file.filePath);
+        for (const f of b.files) {
+          const attachment = b.attachments.find((a) => a.id === f.attachmentId);
+          if (!attachment) continue;
+          const ext = path.extname(attachment.fileName);
+          const relPath = path.join(userId, "attachments", `${attachment.id}${ext}`);
+          const fullPath = path.join(UPLOADS_ROOT, relPath);
           try {
-            await saveWeeklySyncFile(file.data, newPath, false);
+            const cleanBase64 = f.data.replace(/^data:[^;]+;base64,/, "");
+            const buf = Buffer.from(cleanBase64, "base64");
+            await mkdir(path.dirname(fullPath), { recursive: true });
+            await writeFile(fullPath, buf);
           } catch (err) {
-            console.error(`[backup.import] failed to write ${newPath}:`, err);
-            fileFailures.push(newPath);
+            console.error(`[backup.import] failed to write ${relPath}:`, err);
+            fileFailures.push(relPath);
           }
         }
 
@@ -1890,13 +1986,15 @@ export const goalsRouter = createTRPCRouter({
             trackingItems: b.trackingItems.length,
             weeklySync: b.weeklySync.length,
             weeklySyncItems: b.weeklySyncItems.length,
-            weeklySyncItemFiles: b.weeklySyncItemFiles.length,
+            syncTemplates: b.syncTemplates.length,
+            syncTemplateItems: b.syncTemplateItems.length,
+            attachments: b.attachments.length,
             files: b.files.length,
-            people: b.people?.length ?? 0,
+            people: b.people.length,
             userSelf: b.userSelf ? 1 : 0,
-            taskReferents: b.taskReferents?.length ?? 0,
-            personGroups: b.personGroups?.length ?? 0,
-            peopleToGroups: b.peopleToGroups?.length ?? 0,
+            taskReferents: b.taskReferents.length,
+            personGroups: b.personGroups.length,
+            peopleToGroups: b.peopleToGroups.length,
           },
           fileFailures,
         };

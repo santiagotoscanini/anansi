@@ -25,7 +25,7 @@ export type {
   TrackingItem,
   WeeklySync,
   WeeklySyncItem,
-  WeeklySyncItemFile,
+  Attachment,
 } from "~/lib/api/types";
 
 type WeeklyRetrospectiveOutput = RouterOutputs["goals"]["weeklySync"]["getWeeklyRetrospectiveData"];
@@ -175,14 +175,18 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     getWeeklyRetrospectiveData: api.goals.weeklySync.getWeeklyRetrospectiveData.useQuery,
   };
 
-  const weeklySyncItemsMutations = {
-    create: api.goals.weeklySyncItems.create.useMutation(),
+  // Sync item mutations now live under weeklySync (post-redesign).
+  const syncItemMutations = {
+    addItem: api.goals.weeklySync.addItem.useMutation(),
+    removeItem: api.goals.weeklySync.removeItem.useMutation(),
+    setItemText: api.goals.weeklySync.setItemText.useMutation(),
+    reorderItems: api.goals.weeklySync.reorderItems.useMutation(),
   };
 
-  const filesMutations = {
-    create: api.goals.weeklySyncItemFiles.create.useMutation(),
-    delete: api.goals.weeklySyncItemFiles.delete.useMutation(),
-    readTrackingItemText: api.goals.weeklySyncItemFiles.readTrackingItemText.useQuery,
+  // Attachments replace the old weeklySyncItemFiles routes for binary uploads.
+  const attachmentsMutations = {
+    upload: api.goals.attachments.upload.useMutation(),
+    delete: api.goals.attachments.delete.useMutation(),
   };
 
   // Initialize token on mount (client-side only)
@@ -467,8 +471,16 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   const getTrackingItems = useCallback(
     async (goalId: string): Promise<TrackingItem[]> => {
       try {
-        const data = await utils.goals.trackingItems.getAll.fetch({ goalId });
-        return data || [];
+        const data = await utils.goals.trackingItems.list.fetch({ goalId });
+        return (data ?? []).map((item) => ({
+          id: item.id,
+          goalId: item.goalId,
+          title: item.title,
+          description: item.description ?? undefined,
+          order: item.order,
+          status: item.status,
+          deletedAt: item.deletedAt ?? undefined,
+        }));
       } catch (error) {
         console.error("Failed to get tracking items:", error);
         return [];
@@ -506,7 +518,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       try {
         const result = await trackingItemsMutations.delete.mutateAsync({ id });
         await refreshData();
-        return result as { success: boolean; type: "soft_delete" | "hard_delete" };
+        return result;
       } catch (error) {
         console.error("Failed to delete tracking item:", error);
         throw error;
@@ -553,39 +565,42 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   const createWeeklySyncItem = useCallback(
     async (weeklySyncId: string, trackingItemId: string): Promise<WeeklySyncItem> => {
       try {
-        const result = await weeklySyncItemsMutations.create.mutateAsync({
+        const result = await syncItemMutations.addItem.mutateAsync({
           weeklySyncId,
           trackingItemId,
         });
         await refreshData();
         return result;
       } catch (error) {
-        console.error("Failed to create weekly sync item:", error);
+        console.error("Failed to add sync item:", error);
         throw error;
       }
     },
-    [weeklySyncItemsMutations.create, refreshData],
+    [syncItemMutations.addItem, refreshData],
   );
 
-  // Helper function to ensure WeeklySyncItem exists for a given weeklySyncId and trackingItemId
+  // Idempotent helper used by the upload paths — addItem returns the existing
+  // (sync, item) row if the pair already exists.
   const ensureWeeklySyncItem = useCallback(
     async (weeklySyncId: string, trackingItemId: string): Promise<string> => {
       try {
-        const result = await weeklySyncItemsMutations.create.mutateAsync({
+        const result = await syncItemMutations.addItem.mutateAsync({
           weeklySyncId,
           trackingItemId,
         });
-        // The backend will return existing item if it already exists
         return result.id;
       } catch (error) {
         console.error("Failed to ensure weekly sync item exists:", error);
         throw error;
       }
     },
-    [weeklySyncItemsMutations.create],
+    [syncItemMutations.addItem],
   );
 
-  // Other files that are not text
+  // Binary upload: ensure the sync item exists, then send the file as an
+  // attachment. The legacy isText=true path is kept as a thin wrapper around
+  // weeklySync.setItemText so existing callers (debounced text editor) keep
+  // working without refactoring.
   const uploadWeeklySyncFile = useCallback(
     async (
       data: string,
@@ -596,27 +611,38 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       isText = false,
     ): Promise<{ url: string; fileName: string; filePath: string; fileType: string }> => {
       try {
-        // First, ensure WeeklySyncItem exists
         const weeklySyncItemId = await ensureWeeklySyncItem(weeklySyncId, trackingItemId);
 
-        // Then create the file
-        const result = await filesMutations.create.mutateAsync({
-          weeklySyncItemId,
+        if (isText) {
+          await syncItemMutations.setItemText.mutateAsync({
+            weeklySyncItemId,
+            textContent: data,
+          });
+          return { url: "", fileName, filePath: "", fileType };
+        }
+
+        const result = await attachmentsMutations.upload.mutateAsync({
+          parentType: "weekly_sync_item",
+          parentId: weeklySyncItemId,
           fileName,
           fileType,
           data,
-          isText,
         });
-        return result;
+        return {
+          url: result.url,
+          fileName: result.fileName,
+          filePath: result.url,
+          fileType: result.fileType,
+        };
       } catch (error) {
         console.error("Failed to upload weekly sync file:", error);
         throw error;
       }
     },
-    [filesMutations.create, ensureWeeklySyncItem],
+    [attachmentsMutations.upload, syncItemMutations.setItemText, ensureWeeklySyncItem],
   );
 
-  // Exclusively for text files
+  // Text now lives inline on the weekly_sync_items row — no file write.
   const saveTextFile = useCallback(
     async (
       content: string,
@@ -625,38 +651,37 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       existingFileName?: string,
     ): Promise<{ url: string; fileName: string; filePath: string; fileType: string }> => {
       try {
-        // First, ensure WeeklySyncItem exists
         const weeklySyncItemId = await ensureWeeklySyncItem(weeklySyncId, trackingItemId);
-
-        // Then create/update the text file
-        const result = await filesMutations.create.mutateAsync({
+        await syncItemMutations.setItemText.mutateAsync({
           weeklySyncItemId,
-          fileName: existingFileName ?? "notes.txt",
-          fileType: "document",
-          data: content,
-          isText: true,
+          textContent: content,
         });
-        return result;
+        return {
+          url: "",
+          fileName: existingFileName ?? "notes.txt",
+          filePath: "",
+          fileType: "document",
+        };
       } catch (error) {
-        console.error("Failed to save text file:", error);
+        console.error("Failed to save text:", error);
         throw error;
       }
     },
-    [filesMutations.create, ensureWeeklySyncItem],
+    [syncItemMutations.setItemText, ensureWeeklySyncItem],
   );
 
-  // Delete weekly sync file
+  // fileId is now an attachments.id (legacy weekly_sync_item_files.id is gone).
   const deleteWeeklySyncFile = useCallback(
     async (fileId: string): Promise<void> => {
       try {
-        await filesMutations.delete.mutateAsync({ id: fileId });
+        await attachmentsMutations.delete.mutateAsync({ id: fileId });
         await refreshData();
       } catch (error) {
-        console.error("Failed to delete weekly sync file:", error);
+        console.error("Failed to delete attachment:", error);
         throw error;
       }
     },
-    [filesMutations.delete, refreshData],
+    [attachmentsMutations.delete, refreshData],
   );
 
   // Weekly retrospective data operations

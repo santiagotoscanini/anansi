@@ -38,9 +38,13 @@ export const connectionSchema = z.object({
   weight: z.number(),
 });
 
+// Tracking items are user-owned. goalId is optional — null/undefined means
+// "unscoped" (the item lives in the user's library without being linked to
+// a particular goal). The deletedAt soft-delete column is preserved for
+// historical syncs that referenced an item that's since been removed.
 export const trackingItemSchema = z.object({
   id: z.string(),
-  goalId: z.string(),
+  goalId: z.string().nullable().optional(),
   title: z.string(),
   description: z.string().optional(),
   order: z.number().default(0),
@@ -52,6 +56,7 @@ export const weeklySyncSchema = z.object({
   id: z.string(),
   userId: z.string(),
   weekDate: z.date(), // Monday of the retrospective week
+  templateId: z.string().nullable().optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -60,15 +65,26 @@ export const weeklySyncItemSchema = z.object({
   id: z.string(),
   weeklySyncId: z.string(),
   trackingItemId: z.string(),
+  textContent: z.string().nullable().optional(),
+  orderIdx: z.number().int().default(0),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
 
-export const weeklySyncItemFileSchema = z.object({
+export const syncTemplateSchema = z.object({
   id: z.string(),
-  weeklySyncItemId: z.string(),
-  filePath: z.string(),
+  name: z.string().min(1),
+  isDefault: z.boolean().default(false),
+});
+
+export const attachmentSchema = z.object({
+  id: z.string(),
+  parentType: z.string(),
+  parentId: z.string(),
+  fileName: z.string(),
   fileType: z.enum(["image", "document", "video", "audio", "other"]),
+  storagePath: z.string(),
+  sizeBytes: z.number().int().nullable().optional(),
   createdAt: z.date(),
 });
 
@@ -151,28 +167,81 @@ export const updateGoalSchema = goalSchema.omit({ importance: true }).partial().
 export const createConnectionSchema = connectionSchema.omit({ id: true });
 export const updateConnectionSchema = connectionSchema.partial().required({ id: true });
 
-export const createTrackingItemSchema = trackingItemSchema.omit({ id: true, deletedAt: true, status: true });
-export const updateTrackingItemSchema = trackingItemSchema.omit({ deletedAt: true }).partial().required({ id: true });
+// Create payload: title required, goalId + description + order optional. userId
+// comes from ctx so it's not part of the input.
+export const createTrackingItemSchema = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().max(2000).nullable().optional(),
+  goalId: z.string().nullable().optional(),
+  order: z.number().int().optional(),
+});
+export const updateTrackingItemSchema = z.object({
+  id: z.string(),
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().max(2000).nullable().optional(),
+  goalId: z.string().nullable().optional(),
+  order: z.number().int().optional(),
+  status: z.enum(["active", "archived"]).optional(),
+});
 
-export const createWeeklySyncSchema = weeklySyncSchema.omit({
-  id: true,
-  userId: true,
-  createdAt: true,
-  updatedAt: true,
+export const createWeeklySyncSchema = z.object({
+  weekDate: z.date(),
+  templateId: z.string().nullable().optional(),
 });
 export const updateWeeklySyncSchema = weeklySyncSchema.partial().required({ id: true });
 
-export const createWeeklySyncItemSchema = weeklySyncItemSchema.omit({ id: true, createdAt: true, updatedAt: true });
-export const updateWeeklySyncItemSchema = weeklySyncItemSchema.partial().required({ id: true });
+// Sync template inputs.
+export const createSyncTemplateSchema = z.object({
+  name: z.string().min(1).max(100),
+  isDefault: z.boolean().optional(),
+});
+export const updateSyncTemplateSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(100).optional(),
+  isDefault: z.boolean().optional(),
+});
+export const setSyncTemplateItemsSchema = z.object({
+  templateId: z.string(),
+  items: z.array(
+    z.object({
+      trackingItemId: z.string(),
+      orderIdx: z.number().int(),
+    }),
+  ),
+});
 
-export const createWeeklySyncItemFileSchema = weeklySyncItemFileSchema
-  .omit({ id: true, createdAt: true, filePath: true })
-  .extend({
-    fileName: z.string(),
-    data: z.string(),
-    isText: z.boolean().default(false),
-  });
-export const updateWeeklySyncItemFileSchema = weeklySyncItemFileSchema.partial().required({ id: true });
+// Sync item operations within an active sync.
+export const addSyncItemSchema = z.object({
+  weeklySyncId: z.string(),
+  trackingItemId: z.string(),
+});
+export const removeSyncItemSchema = z.object({
+  weeklySyncItemId: z.string(),
+});
+export const setSyncItemTextSchema = z.object({
+  weeklySyncItemId: z.string(),
+  textContent: z.string(),
+});
+export const reorderSyncItemsSchema = z.object({
+  weeklySyncId: z.string(),
+  ordering: z.array(
+    z.object({
+      id: z.string(),
+      orderIdx: z.number().int(),
+    }),
+  ),
+});
+
+// Generic attachments upload — base64 binary data into a polymorphic parent.
+// Today only `parent_type = 'weekly_sync_item'` is supported, but the schema
+// is permissive so we can extend later without another migration.
+export const uploadAttachmentSchema = z.object({
+  parentType: z.literal("weekly_sync_item"),
+  parentId: z.string(),
+  fileName: z.string().min(1).max(500),
+  fileType: z.enum(["image", "document", "video", "audio", "other"]),
+  data: z.string(), // base64
+});
 
 export const createPersonSchema = personSchema.omit({ id: true, archivedAt: true }).extend({
   groupIds: z.array(z.string()).optional().default([]),
@@ -209,13 +278,21 @@ export type UpdateTrackingItem = z.infer<typeof updateTrackingItemSchema>;
 
 export type WeeklySync = z.infer<typeof weeklySyncSchema>;
 export type WeeklySyncItem = z.infer<typeof weeklySyncItemSchema>;
-export type WeeklySyncItemFile = z.infer<typeof weeklySyncItemFileSchema>;
 export type CreateWeeklySync = z.infer<typeof createWeeklySyncSchema>;
 export type UpdateWeeklySync = z.infer<typeof updateWeeklySyncSchema>;
-export type CreateWeeklySyncItem = z.infer<typeof createWeeklySyncItemSchema>;
-export type UpdateWeeklySyncItem = z.infer<typeof updateWeeklySyncItemSchema>;
-export type CreateWeeklySyncItemFile = z.infer<typeof createWeeklySyncItemFileSchema>;
-export type UpdateWeeklySyncItemFile = z.infer<typeof updateWeeklySyncItemFileSchema>;
+
+export type SyncTemplate = z.infer<typeof syncTemplateSchema>;
+export type CreateSyncTemplate = z.infer<typeof createSyncTemplateSchema>;
+export type UpdateSyncTemplate = z.infer<typeof updateSyncTemplateSchema>;
+export type SetSyncTemplateItems = z.infer<typeof setSyncTemplateItemsSchema>;
+
+export type AddSyncItem = z.infer<typeof addSyncItemSchema>;
+export type RemoveSyncItem = z.infer<typeof removeSyncItemSchema>;
+export type SetSyncItemText = z.infer<typeof setSyncItemTextSchema>;
+export type ReorderSyncItems = z.infer<typeof reorderSyncItemsSchema>;
+
+export type Attachment = z.infer<typeof attachmentSchema>;
+export type UploadAttachment = z.infer<typeof uploadAttachmentSchema>;
 
 export type Person = z.infer<typeof personSchema>;
 export type CreatePerson = z.infer<typeof createPersonSchema>;
@@ -244,8 +321,13 @@ export const goalsDataSchema = z.object({
 export type GoalsData = z.infer<typeof goalsDataSchema>;
 
 // Full backup export/import schema — userId-neutral.
-// Rows store raw DB columns (not UI-shaped like `goalSchema.position`) so that
-// export and import can round-trip through Drizzle without lossy conversions.
+// Bumped to version 2 with the sync redesign:
+//   - tracking_items.goalId is now nullable (can be unscoped)
+//   - weekly_sync_items carries text_content + order_idx inline
+//   - weekly_sync_item_files is gone; attachments table replaces it
+//   - sync_templates / sync_template_items added
+// Files referenced by attachments are still base64-payloaded into `files[]`,
+// keyed by attachment id so the import can write to a fresh storage path.
 export const backupValueSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -295,7 +377,7 @@ export const backupGoalValueSchema = z.object({
 
 export const backupTrackingItemSchema = z.object({
   id: z.string(),
-  goalId: z.string(),
+  goalId: z.string().nullable(),
   title: z.string(),
   description: z.string().nullable(),
   order: z.number().int(),
@@ -308,6 +390,7 @@ export const backupTrackingItemSchema = z.object({
 export const backupWeeklySyncSchema = z.object({
   id: z.string(),
   weekDate: z.coerce.date(),
+  templateId: z.string().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
@@ -316,15 +399,36 @@ export const backupWeeklySyncItemSchema = z.object({
   id: z.string(),
   weeklySyncId: z.string(),
   trackingItemId: z.string(),
+  textContent: z.string().nullable(),
+  orderIdx: z.number().int(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
 
-export const backupWeeklySyncItemFileSchema = z.object({
+export const backupSyncTemplateSchema = z.object({
   id: z.string(),
-  weeklySyncItemId: z.string(),
-  filePath: z.string(),
+  name: z.string(),
+  isDefault: z.boolean(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+
+export const backupSyncTemplateItemSchema = z.object({
+  id: z.string(),
+  templateId: z.string(),
+  trackingItemId: z.string(),
+  orderIdx: z.number().int(),
+  createdAt: z.coerce.date(),
+});
+
+export const backupAttachmentSchema = z.object({
+  id: z.string(),
+  parentType: z.string(),
+  parentId: z.string(),
+  fileName: z.string(),
   fileType: z.enum(["image", "document", "video", "audio", "other"]),
+  storagePath: z.string(),
+  sizeBytes: z.number().int().nullable(),
   createdAt: z.coerce.date(),
 });
 
@@ -399,15 +503,15 @@ export const backupUserSelfSchema = z.object({
   updatedAt: z.coerce.date(),
 });
 
+// Files in the backup are now keyed by attachment id (not file path).
 export const backupFileSchema = z.object({
-  // filePath matches the weeklySyncItemFiles.filePath in the backup *before* user-id rewrite on import.
-  filePath: z.string(),
+  attachmentId: z.string(),
   // Base64-encoded content. `data:<mime>;base64,...` prefix permitted but not required.
   data: z.string(),
 });
 
 export const backupSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   exportedAt: z.coerce.date(),
   user: z.object({
     name: z.string(),
@@ -421,7 +525,9 @@ export const backupSchema = z.object({
   trackingItems: z.array(backupTrackingItemSchema),
   weeklySync: z.array(backupWeeklySyncSchema),
   weeklySyncItems: z.array(backupWeeklySyncItemSchema),
-  weeklySyncItemFiles: z.array(backupWeeklySyncItemFileSchema),
+  syncTemplates: z.array(backupSyncTemplateSchema).default([]),
+  syncTemplateItems: z.array(backupSyncTemplateItemSchema).default([]),
+  attachments: z.array(backupAttachmentSchema).default([]),
   files: z.array(backupFileSchema),
   people: z.array(backupPersonSchema).optional().default([]),
   userSelf: backupUserSelfSchema.nullable().optional().default(null),

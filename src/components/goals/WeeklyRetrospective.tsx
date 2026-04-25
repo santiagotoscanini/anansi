@@ -20,8 +20,41 @@ import type { RouterOutputs } from "~/trpc/react";
 import toast from "react-hot-toast";
 
 type WeeklyRetrospectiveData = RouterOutputs["goals"]["weeklySync"]["getWeeklyRetrospectiveData"];
-type RetroGoal = WeeklyRetrospectiveData["goals"][number];
-type RetroTrackingItem = RetroGoal["trackingItems"][number];
+
+// Post-redesign shape adapter. The router now hydrates per-sync-item rows
+// directly (under goal.items, plus a top-level unscopedItems array), with
+// inline textContent and an attachments[] grid. The component below was
+// originally written against the older "tracking item with optional
+// weeklySyncItem wrapper + files[]" shape; rather than rewrite every call
+// site, we project the new shape into the legacy fields below. A proper
+// composition rewrite (drag-reorder, "+ add item" picker, template manager)
+// lands in a follow-up session.
+type RetroFile = {
+  id: string;
+  fileName: string;
+  fileType: "image" | "document" | "video" | "audio" | "other";
+  url: string;
+  createdAt: Date;
+};
+
+type RetroTrackingItem = {
+  id: string; // legacy expectation: tracking_item id
+  title: string;
+  description: string | null;
+  order: number;
+  deletedAt: Date | null;
+  weeklySyncItem: { id: string; createdAt: Date } | null;
+  files: RetroFile[];
+  textContent: string | null;
+};
+
+type RetroGoal = {
+  id: string;
+  title: string;
+  description: string;
+  importance: "Low" | "Medium" | "High";
+  trackingItems: RetroTrackingItem[];
+};
 
 type CollapsedGoals = Record<string, boolean>;
 
@@ -87,21 +120,31 @@ export default function WeeklyRetrospective() {
   const isLoading = weeklyRetrospectiveQuery.isLoading;
   const hasError = weeklyRetrospectiveQuery.error;
 
-  // Filter tracking items based on selected week and deletion date (frontend filtering)
+  // Project the new server shape into the legacy RetroGoal/RetroTrackingItem
+  // structure that the rest of this component was built against. The server
+  // already excludes soft-deleted/archived items, so the deletion-window
+  // filtering this hook used to do is no longer necessary.
   const goalsWithTrackingItems: RetroGoal[] = (retrospectiveData?.goals ?? []).map((goal) => ({
-    ...goal,
-    trackingItems: goal.trackingItems.filter((trackingItem) => {
-      // If item is not deleted, always include it
-      if (!trackingItem.deletedAt) return true;
-
-      // If item is deleted, only include it if the selected week is before the deletion date
-      const deletionDate = new Date(trackingItem.deletedAt);
-      const weekEnd = new Date(selectedWeek);
-      weekEnd.setDate(weekEnd.getDate() + 6);
-      weekEnd.setHours(23, 59, 59, 999);
-
-      return weekEnd < deletionDate;
-    }),
+    id: goal.id,
+    title: goal.title,
+    description: goal.description,
+    importance: goal.importance,
+    trackingItems: goal.items.map((it): RetroTrackingItem => ({
+      id: it.trackingItemId,
+      title: it.title,
+      description: it.description,
+      order: it.orderIdx,
+      deletedAt: null,
+      weeklySyncItem: { id: it.id, createdAt: it.createdAt },
+      files: it.attachments.map((a) => ({
+        id: a.id,
+        fileName: a.fileName,
+        fileType: a.fileType,
+        url: a.url,
+        createdAt: a.createdAt,
+      })),
+      textContent: it.textContent,
+    })),
   }));
 
   // UI state

@@ -163,10 +163,7 @@ export default function TrackingItemsLibrary() {
               ))}
             </select>
             <div className="mt-3 flex justify-end gap-2">
-              <button
-                onClick={cancelCreate}
-                className="rounded-md px-3 py-1.5 text-sm text-white/70 hover:bg-white/10"
-              >
+              <button onClick={cancelCreate} className="rounded-md px-3 py-1.5 text-sm text-white/70 hover:bg-white/10">
                 Cancel
               </button>
               <button
@@ -244,14 +241,10 @@ export default function TrackingItemsLibrary() {
                               {goal.title}
                             </span>
                           ) : (
-                            <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/60">
-                              Unscoped
-                            </span>
+                            <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/60">Unscoped</span>
                           )}
                         </div>
-                        {item.description && (
-                          <p className="mt-1 text-sm text-white/60">{item.description}</p>
-                        )}
+                        {item.description && <p className="mt-1 text-sm text-white/60">{item.description}</p>}
                       </div>
                       <div className="flex shrink-0 gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                         <button

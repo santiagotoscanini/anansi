@@ -683,7 +683,8 @@ export const goalsRouter = createTRPCRouter({
         .from(syncTemplates)
         .where(eq(syncTemplates.userId, ctx.user.userId))
         .orderBy(asc(syncTemplates.createdAt));
-      if (templates.length === 0) return [] as Array<(typeof templates)[number] & { items: (typeof syncTemplateItems.$inferSelect)[] }>;
+      if (templates.length === 0)
+        return [] as Array<(typeof templates)[number] & { items: (typeof syncTemplateItems.$inferSelect)[] }>;
       const templateIds = templates.map((t) => t.id);
       const items = await db
         .select()
@@ -1063,12 +1064,7 @@ export const goalsRouter = createTRPCRouter({
       const linkedAttachments = await db
         .select()
         .from(attachments)
-        .where(
-          and(
-            eq(attachments.parentType, "weekly_sync_item"),
-            eq(attachments.parentId, input.weeklySyncItemId),
-          ),
-        );
+        .where(and(eq(attachments.parentType, "weekly_sync_item"), eq(attachments.parentId, input.weeklySyncItemId)));
 
       // Delete the attachments rows first, then the sync item row. (FK cascade
       // would do this for us, but we want to know which storage paths to unlink.)
@@ -1117,12 +1113,7 @@ export const goalsRouter = createTRPCRouter({
           const owned = await tx
             .select({ id: weeklySyncItems.id })
             .from(weeklySyncItems)
-            .where(
-              and(
-                eq(weeklySyncItems.weeklySyncId, input.weeklySyncId),
-                inArray(weeklySyncItems.id, ids),
-              ),
-            );
+            .where(and(eq(weeklySyncItems.weeklySyncId, input.weeklySyncId), inArray(weeklySyncItems.id, ids)));
           if (owned.length !== ids.length) {
             throw new Error("Ordering references items not in this sync");
           }
@@ -1521,12 +1512,7 @@ export const goalsRouter = createTRPCRouter({
           })
           .from(bucketListItemPeople)
           .innerJoin(bucketListItems, eq(bucketListItemPeople.bucketItemId, bucketListItems.id))
-          .where(
-            and(
-              eq(bucketListItemPeople.personId, input.personId),
-              eq(bucketListItems.userId, ctx.user.userId),
-            ),
-          )
+          .where(and(eq(bucketListItemPeople.personId, input.personId), eq(bucketListItems.userId, ctx.user.userId)))
           .orderBy(asc(bucketListItems.createdAt));
         return rows;
       }),
@@ -1753,10 +1739,7 @@ export const goalsRouter = createTRPCRouter({
         : [];
 
       // Tracking items are now user-owned — query by userId, not goalId.
-      const trackingItemsRows = await db
-        .select()
-        .from(trackingItems)
-        .where(eq(trackingItems.userId, userId));
+      const trackingItemsRows = await db.select().from(trackingItems).where(eq(trackingItems.userId, userId));
       const trackingItemIds = trackingItemsRows.map((t) => t.id);
 
       const weeklySyncRows = await db.select().from(weeklySync).where(eq(weeklySync.userId, userId));
@@ -1767,17 +1750,11 @@ export const goalsRouter = createTRPCRouter({
         : [];
       const weeklySyncItemIds = weeklySyncItemsRows.map((wsi) => wsi.id);
 
-      const syncTemplateRows = await db
-        .select()
-        .from(syncTemplates)
-        .where(eq(syncTemplates.userId, userId));
+      const syncTemplateRows = await db.select().from(syncTemplates).where(eq(syncTemplates.userId, userId));
       const syncTemplateIds = syncTemplateRows.map((t) => t.id);
 
       const syncTemplateItemRows = syncTemplateIds.length
-        ? await db
-            .select()
-            .from(syncTemplateItems)
-            .where(inArray(syncTemplateItems.templateId, syncTemplateIds))
+        ? await db.select().from(syncTemplateItems).where(inArray(syncTemplateItems.templateId, syncTemplateIds))
         : [];
 
       const attachmentRows = weeklySyncItemIds.length
@@ -1966,18 +1943,14 @@ export const goalsRouter = createTRPCRouter({
           }
 
           if (b.syncTemplates.length) {
-            await tx.insert(syncTemplates).values(
-              b.syncTemplates.map((t) => ({ ...t, userId })),
-            );
+            await tx.insert(syncTemplates).values(b.syncTemplates.map((t) => ({ ...t, userId })));
           }
           if (b.syncTemplateItems.length) {
             await tx.insert(syncTemplateItems).values(b.syncTemplateItems);
           }
 
           if (b.weeklySync.length) {
-            await tx.insert(weeklySync).values(
-              b.weeklySync.map((ws) => ({ ...ws, userId })),
-            );
+            await tx.insert(weeklySync).values(b.weeklySync.map((ws) => ({ ...ws, userId })));
           }
           if (b.weeklySyncItems.length) await tx.insert(weeklySyncItems).values(b.weeklySyncItems);
 

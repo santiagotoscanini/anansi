@@ -72,10 +72,13 @@ type TabType =
 
 type NavItem = { id: TabType; name: string; icon: typeof Target };
 
-// Sidebar is split into three goal-side sections + a Connections section:
+// Pulse — the at-a-glance summary of Anansi. Lives at the top of the
+// sidebar, above all other sections, no header. The other sections are:
 //   Compass — the "why" / aspirational surfaces (Values, Bucket List)
 //   Goals   — the "what" / active objective work (Objectives, Progress)
 //   Sync    — the "when/how" weekly cadence (Sync, Tracking Items)
+const pulseNavItem: NavItem = { id: "pulse", name: "Pulse", icon: Activity };
+
 const compassSection: NavItem[] = [
   { id: "values", name: "Values", icon: Palette },
   { id: "bucket", name: "Bucket List", icon: Mountain },
@@ -86,11 +89,7 @@ const goalsSection: NavItem[] = [
   { id: "progress", name: "Progress", icon: Trophy },
 ];
 
-// Pulse is the daily landing — fill in this week's items, no management.
-// Sync is the heavier surface (week navigation, default editor, ad-hoc add).
-// Tracking Items is the underlying library.
 const syncSection: NavItem[] = [
-  { id: "pulse", name: "Pulse", icon: Activity },
   { id: "sync", name: "Sync", icon: Calendar },
   { id: "tracking-items", name: "Tracking Items", icon: ListChecks },
 ];
@@ -268,11 +267,19 @@ export default function GoalsDashboard() {
           </button>
         </div>
 
-        {/* Nav — Compass / Goals / Sync / Connections */}
+        {/* Nav — Pulse / Compass / Goals / Sync / Connections */}
         <nav className={`flex flex-1 flex-col gap-1 overflow-y-auto ${isCollapsed ? "px-2" : "px-3"}`}>
+          {/* Pulse — top-level summary, no section header */}
+          {renderNavItem(pulseNavItem, isCollapsed, activeTab === "pulse", () => {
+            setActiveTab("pulse");
+            setMobileNavOpen(false);
+          })}
+
           {/* Compass section */}
-          {!isCollapsed && (
-            <div className="mb-1 mt-1 px-2 text-[10px] uppercase tracking-wider text-white/30">Compass</div>
+          {!isCollapsed ? (
+            <div className="mb-1 mt-4 px-2 text-[10px] uppercase tracking-wider text-white/30">Compass</div>
+          ) : (
+            <div className="my-2 h-px bg-white/10" />
           )}
           {compassSection.map((item) =>
             renderNavItem(item, isCollapsed, activeTab === item.id, () => {

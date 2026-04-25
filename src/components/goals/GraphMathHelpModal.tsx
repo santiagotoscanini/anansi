@@ -46,8 +46,8 @@ export default function GraphMathHelpModal({ onClose }: GraphMathHelpModalProps)
             <div className={equation}>own = Σ(completed.difficulty) / Σ(all.difficulty) × 100</div>
             <p className={muted}>
               Tasks have a difficulty of <strong>1, 2, or 3</strong>. A finished hard task contributes more to a
-              goal&apos;s percentage than a finished easy one. If a goal has no tasks, its <em>own</em> progress is 0
-              by definition — completion has to come from somewhere upstream.
+              goal&apos;s percentage than a finished easy one. If a goal has no tasks, its <em>own</em> progress is 0 by
+              definition — completion has to come from somewhere upstream.
             </p>
             <div className="rounded-md border border-white/5 bg-white/[0.02] p-3 text-xs">
               <div className={exampleHeader}>Example</div>
@@ -62,9 +62,7 @@ export default function GraphMathHelpModal({ onClose }: GraphMathHelpModalProps)
           {/* Dependencies progress */}
           <section className="space-y-2">
             <h3 className={sectionTitle}>2 · Dependency progress (from upstream goals)</h3>
-            <div className={equation}>
-              deps = Σ(predTotal × edgeWeight) / Σ(edgeWeight)
-            </div>
+            <div className={equation}>deps = Σ(predTotal × edgeWeight) / Σ(edgeWeight)</div>
             <p className={muted}>
               An incoming connection means &ldquo;this goal&apos;s success depends on that one&apos;s.&rdquo; Edge
               weights say <em>how much</em>. Dependency progress is the weighted average of every predecessor&apos;s{" "}
@@ -92,8 +90,8 @@ without own tasks: total = own × 0.10 + deps × 0.90`}
             <p className={muted}>
               When a goal has its own tasks, both numbers count — but dependencies still get the heavier vote (60%)
               because work doesn&apos;t happen in isolation. When a goal has <strong>no tasks of its own</strong> (a
-              pure orchestration node, e.g., &ldquo;Stay healthy&rdquo;), it leans almost entirely on its
-              dependencies. The clamp at the end keeps the result inside [0, 100].
+              pure orchestration node, e.g., &ldquo;Stay healthy&rdquo;), it leans almost entirely on its dependencies.
+              The clamp at the end keeps the result inside [0, 100].
             </p>
           </section>
 
@@ -136,9 +134,9 @@ green  if total ≥ 67%`}
             </p>
             <ul className="list-disc space-y-1 pl-5 text-xs text-white/55">
               <li>
-                <strong className="text-white/75">Connections carry meaning.</strong> An edge isn&apos;t decoration —
-                it says &ldquo;this feeds that.&rdquo; Importance and dependency progress both fall out of the same
-                edges; you only have to maintain one piece of structure.
+                <strong className="text-white/75">Connections carry meaning.</strong> An edge isn&apos;t decoration — it
+                says &ldquo;this feeds that.&rdquo; Importance and dependency progress both fall out of the same edges;
+                you only have to maintain one piece of structure.
               </li>
               <li>
                 <strong className="text-white/75">Difficulty matters.</strong> Counting completed tasks alone treats a

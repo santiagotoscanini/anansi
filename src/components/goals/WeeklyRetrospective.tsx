@@ -173,9 +173,7 @@ export default function WeeklyRetrospective() {
             trackingItems: (retrospectiveData?.unscopedItems ?? []).map(adaptItem),
           }
         : null;
-    const allGroups: RetroGoal[] = unscopedGroup
-      ? [...goalsWithTrackingItems, unscopedGroup]
-      : goalsWithTrackingItems;
+    const allGroups: RetroGoal[] = unscopedGroup ? [...goalsWithTrackingItems, unscopedGroup] : goalsWithTrackingItems;
 
     return { goalsWithTrackingItems, allGroups };
   }, [retrospectiveData]);
@@ -840,10 +838,7 @@ export default function WeeklyRetrospective() {
                               {trackingItem.weeklySyncItem && (
                                 <button
                                   onClick={() =>
-                                    void handleRemoveFromSync(
-                                      trackingItem.weeklySyncItem!.id,
-                                      trackingItem.title,
-                                    )
+                                    void handleRemoveFromSync(trackingItem.weeklySyncItem!.id, trackingItem.title)
                                   }
                                   className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-white/60 transition-all hover:border-rose-400/40 hover:bg-rose-500/10 hover:text-rose-200"
                                   title="Remove from this sync — keeps the item in your library"

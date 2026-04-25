@@ -57,12 +57,7 @@ export default function SyncDefaultEditor({ onClose }: SyncDefaultEditorProps) {
   // to "one template" happens on the network round-trip, not synchronously.
   const autoCreatedRef = useRef(false);
   useEffect(() => {
-    if (
-      !templatesQuery.isLoading &&
-      templates.length === 0 &&
-      !autoCreatedRef.current &&
-      !createMutation.isPending
-    ) {
+    if (!templatesQuery.isLoading && templates.length === 0 && !autoCreatedRef.current && !createMutation.isPending) {
       autoCreatedRef.current = true;
       createMutation.mutate({ name: "Default", isDefault: true });
     }
@@ -78,11 +73,7 @@ export default function SyncDefaultEditor({ onClose }: SyncDefaultEditorProps) {
               These auto-fill every new weekly sync. Edit anytime — changes only affect future syncs.
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-md p-1.5 text-white/70 hover:bg-white/10"
-            aria-label="Close"
-          >
+          <button onClick={onClose} className="rounded-md p-1.5 text-white/70 hover:bg-white/10" aria-label="Close">
             <X className="h-5 w-5" />
           </button>
         </header>
@@ -201,8 +192,8 @@ function DefaultEditor({ template, allItems, onSetItems }: DefaultEditorProps) {
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         {orderedItemIds.length === 0 ? (
           <div className="rounded-xl border border-dashed border-white/15 p-8 text-center text-white/60">
-            No items yet. Click <span className="font-medium text-white">Add item</span> to start — these
-            will auto-fill every new weekly sync.
+            No items yet. Click <span className="font-medium text-white">Add item</span> to start — these will auto-fill
+            every new weekly sync.
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

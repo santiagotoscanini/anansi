@@ -131,9 +131,7 @@ export default function BucketList() {
   }, [peopleQuery.data]);
 
   const pending = items.filter((i) => !i.completedAt).sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
-  const done = items
-    .filter((i) => i.completedAt)
-    .sort((a, b) => +new Date(b.completedAt!) - +new Date(a.completedAt!));
+  const done = items.filter((i) => i.completedAt).sort((a, b) => +new Date(b.completedAt!) - +new Date(a.completedAt!));
 
   const busy = createMutation.isPending || toggleMutation.isPending;
 
@@ -146,8 +144,8 @@ export default function BucketList() {
             <h2 className="text-2xl font-light">Bucket List</h2>
           </div>
           <p className="mt-2 max-w-2xl text-sm text-white/60">
-            Things to do before you die. Add when you think of them. Click to add who you want there or describe what
-            it really means. Check them off when you do them.
+            Things to do before you die. Add when you think of them. Click to add who you want there or describe what it
+            really means. Check them off when you do them.
           </p>
         </header>
 
@@ -239,9 +237,7 @@ export default function BucketList() {
         )}
       </div>
 
-      {modalState && (
-        <BucketListItemModal mode={modalState} onClose={() => setModalState(null)} onSaved={invalidate} />
-      )}
+      {modalState && <BucketListItemModal mode={modalState} onClose={() => setModalState(null)} onSaved={invalidate} />}
     </div>
   );
 }

@@ -2,10 +2,10 @@
 
 import { useMemo, useRef, useState } from "react";
 import NextImage from "next/image";
-import { Calendar, ImagePlus, Loader2, Trash2 } from "lucide-react";
+import { Calendar, ImagePlus, Loader2, Trash2, Trophy, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import { useGoals } from "~/contexts/GoalsContext";
-import type { RouterOutputs } from "~/trpc/react";
+import { api, type RouterOutputs } from "~/trpc/react";
 
 type WeeklyRetroData = RouterOutputs["goals"]["weeklySync"]["getWeeklyRetrospectiveData"];
 
@@ -15,6 +15,7 @@ type WeeklyRetroData = RouterOutputs["goals"]["weeklySync"]["getWeeklyRetrospect
 // Sync tab. Pulse is what you open daily/weekly to actually do the work.
 export default function Pulse() {
   const {
+    goals,
     getWeekStartDate,
     getWeeklyRetrospectiveData,
     createWeeklySync,
@@ -23,6 +24,9 @@ export default function Pulse() {
     deleteWeeklySyncFile,
     refreshWeeklyRetrospectiveData,
   } = useGoals();
+
+  // Side queries for the secondary Pulse sections.
+  const peopleQuery = api.goals.people.getAll.useQuery();
 
   // Pulse is always "this week" — no navigation. selectedWeek is computed
   // once on mount from today's date.
@@ -47,6 +51,50 @@ export default function Pulse() {
   // Progress: an item counts as "filled" if it has any text or attachments.
   const filled = items.filter((it) => (it.textContent ?? "").trim().length > 0 || it.attachments.length > 0);
   const progress = items.length === 0 ? 0 : Math.round((filled.length / items.length) * 100);
+
+  // Goal progress — % of tasks completed per active goal. Show the top 5 by
+  // total task count so the section doesn't sprawl. Goals with zero tasks are
+  // dropped (no signal to display).
+  const goalProgress = useMemo(() => {
+    return goals
+      .filter((g) => g.status === "active" && g.tasks.length > 0)
+      .map((g) => {
+        const done = g.tasks.filter((t) => t.completed).length;
+        const total = g.tasks.length;
+        return {
+          id: g.id,
+          title: g.title,
+          emoji: g.emoji,
+          importance: g.importance,
+          done,
+          total,
+          pct: Math.round((done / total) * 100),
+        };
+      })
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+  }, [goals]);
+
+  // People needing attention. Two surfaces:
+  //   - "to_process" — implicitly an inbox (you put someone there to think
+  //     about later)
+  //   - "exploring" with decideBy ≤ 14 days — actionable nudge
+  // Computed inline (not inside useMemo) — `Date` mutation makes the body
+  // impure and the React-compiler purity rule rightly objects; the filter
+  // is cheap enough to recompute on every render.
+  const peopleRows = peopleQuery.data ?? [];
+  const fortnightMs = 14 * 24 * 60 * 60 * 1000;
+  // Date.now() is impure for the React compiler purity rule; intentional here —
+  // we want a fresh "due in ≤ 14 days" cutoff each render. Comparison only,
+  // no DOM/state mutation.
+  // eslint-disable-next-line react-hooks/purity
+  const cutoff = Date.now() + fortnightMs;
+  const toProcess = peopleRows.filter((p) => p.archivedAt === null && p.category === "to_process");
+  const exploringDueSoon = peopleRows.filter(
+    (p) =>
+      p.archivedAt === null && p.category === "exploring" && p.decideBy && new Date(p.decideBy).getTime() <= cutoff,
+  );
+  const peopleNudges = { toProcess, exploringDueSoon };
 
   const handleStart = async () => {
     try {
@@ -94,10 +142,7 @@ export default function Pulse() {
                 <span className="tabular-nums">{progress}%</span>
               </div>
               <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full bg-emerald-400/80 transition-all"
-                  style={{ width: `${progress}%` }}
-                />
+                <div className="h-full bg-emerald-400/80 transition-all" style={{ width: `${progress}%` }} />
               </div>
             </div>
           )}
@@ -135,14 +180,7 @@ export default function Pulse() {
                       reader.onerror = reject;
                       reader.readAsDataURL(file);
                     });
-                    await uploadWeeklySyncFile(
-                      data,
-                      weeklySync.id,
-                      it.trackingItemId,
-                      file.name,
-                      "image",
-                      false,
-                    );
+                    await uploadWeeklySyncFile(data, weeklySync.id, it.trackingItemId, file.name, "image", false);
                   }
                   await refreshWeeklyRetrospectiveData();
                 }}
@@ -153,6 +191,90 @@ export default function Pulse() {
               />
             ))}
           </ul>
+        )}
+
+        {/* Goal progress — compact bars for active goals with tasks. */}
+        {goalProgress.length > 0 && (
+          <section className="mt-10">
+            <div className="mb-3 flex items-baseline justify-between">
+              <h2 className="flex items-center gap-2 text-sm font-medium text-white/80">
+                <Trophy className="h-3.5 w-3.5" />
+                Goal progress
+              </h2>
+              <span className="text-xs text-white/40">Top {goalProgress.length} active</span>
+            </div>
+            <ul className="space-y-2">
+              {goalProgress.map((g) => (
+                <li key={g.id} className="rounded-md border border-white/10 bg-white/[0.03] p-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="min-w-0 flex-1 truncate text-sm">
+                      {g.emoji && <span className="mr-1.5">{g.emoji}</span>}
+                      {g.title}
+                    </div>
+                    <span className="shrink-0 text-xs tabular-nums text-white/50">
+                      {g.done}/{g.total} · {g.pct}%
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className={`h-full transition-all ${
+                        g.importance === "High"
+                          ? "bg-rose-400/80"
+                          : g.importance === "Medium"
+                            ? "bg-amber-300/80"
+                            : "bg-sky-400/70"
+                      }`}
+                      style={{ width: `${g.pct}%` }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* People needing attention */}
+        {(peopleNudges.toProcess.length > 0 || peopleNudges.exploringDueSoon.length > 0) && (
+          <section className="mt-8">
+            <div className="mb-3 flex items-baseline justify-between">
+              <h2 className="flex items-center gap-2 text-sm font-medium text-white/80">
+                <Users className="h-3.5 w-3.5" />
+                People needing attention
+              </h2>
+            </div>
+            <div className="space-y-2">
+              {peopleNudges.toProcess.length > 0 && (
+                <div className="rounded-md border border-white/10 bg-white/[0.03] p-3 text-sm">
+                  <span className="font-medium">{peopleNudges.toProcess.length}</span>{" "}
+                  <span className="text-white/70">in the inbox</span>
+                  <span className="text-white/40">
+                    {" "}
+                    —{" "}
+                    {peopleNudges.toProcess
+                      .slice(0, 3)
+                      .map((p) => p.name)
+                      .join(", ")}
+                    {peopleNudges.toProcess.length > 3 && "…"}
+                  </span>
+                </div>
+              )}
+              {peopleNudges.exploringDueSoon.length > 0 && (
+                <div className="rounded-md border border-white/10 bg-white/[0.03] p-3 text-sm">
+                  <span className="font-medium">{peopleNudges.exploringDueSoon.length}</span>{" "}
+                  <span className="text-white/70">exploring with a decision due in ≤14 days</span>
+                  <span className="text-white/40">
+                    {" "}
+                    —{" "}
+                    {peopleNudges.exploringDueSoon
+                      .slice(0, 3)
+                      .map((p) => p.name)
+                      .join(", ")}
+                    {peopleNudges.exploringDueSoon.length > 3 && "…"}
+                  </span>
+                </div>
+              )}
+            </div>
+          </section>
         )}
       </div>
     </div>
@@ -244,14 +366,7 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {item.attachments.map((a) => (
             <div key={a.id} className="group relative h-12 w-12 overflow-hidden rounded-md border border-white/10">
-              <NextImage
-                src={a.url}
-                alt={a.fileName}
-                fill
-                sizes="48px"
-                className="object-cover"
-                unoptimized
-              />
+              <NextImage src={a.url} alt={a.fileName} fill sizes="48px" className="object-cover" unoptimized />
               <button
                 onClick={() => void onDeleteAttachment(a.id)}
                 className="absolute right-0.5 top-0.5 rounded-full bg-black/70 p-0.5 text-white/80 opacity-0 transition-opacity group-hover:opacity-100"

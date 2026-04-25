@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import NextImage from "next/image";
 import {
   Calendar,
@@ -17,7 +17,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useGoals } from "~/contexts/GoalsContext";
-import type { RouterOutputs } from "~/trpc/react";
+import { api, type RouterOutputs } from "~/trpc/react";
 import toast from "react-hot-toast";
 import SyncTemplateEditor from "./SyncTemplateEditor";
 
@@ -107,6 +107,12 @@ export default function WeeklyRetrospective() {
     refreshWeeklyRetrospectiveData,
   } = useGoals();
 
+  // Sync-item-level operations on the current sync. addItem is exposed via
+  // GoalsContext.createWeeklySyncItem already; removeItem doesn't have a
+  // public surface so we wire it directly. Same with the picker: we read the
+  // user's full library straight from the retrospective query payload.
+  const removeSyncItemMutation = api.goals.weeklySync.removeItem.useMutation();
+
   // Week navigation state, start in the current week
   const [selectedWeek, setSelectedWeek] = useState(() => {
     const now = new Date();
@@ -125,13 +131,10 @@ export default function WeeklyRetrospective() {
   // Project the new server shape into the legacy RetroGoal/RetroTrackingItem
   // structure that the rest of this component was built against. The server
   // already excludes soft-deleted/archived items, so the deletion-window
-  // filtering this hook used to do is no longer necessary.
-  const goalsWithTrackingItems: RetroGoal[] = (retrospectiveData?.goals ?? []).map((goal) => ({
-    id: goal.id,
-    title: goal.title,
-    description: goal.description,
-    importance: goal.importance,
-    trackingItems: goal.items.map((it): RetroTrackingItem => ({
+  // filtering this hook used to do is no longer necessary. Wrapped in useMemo
+  // so React compiler can preserve the manual memoization on dependent hooks.
+  const { goalsWithTrackingItems, allGroups } = useMemo(() => {
+    const adaptItem = (it: WeeklyRetrospectiveData["unscopedItems"][number]): RetroTrackingItem => ({
       id: it.trackingItemId,
       title: it.title,
       description: it.description,
@@ -146,8 +149,36 @@ export default function WeeklyRetrospective() {
         createdAt: a.createdAt,
       })),
       textContent: it.textContent,
-    })),
-  }));
+    });
+
+    const goalsWithTrackingItems: RetroGoal[] = (retrospectiveData?.goals ?? []).map((goal) => ({
+      id: goal.id,
+      title: goal.title,
+      description: goal.description,
+      importance: goal.importance,
+      trackingItems: goal.items.map(adaptItem),
+    }));
+
+    // Synthesize an "Unscoped" group for sync items whose underlying tracking
+    // item has goal_id IS NULL — surfaces user-level items in the retro alongside
+    // goal-grouped ones. Stable id "__unscoped__" is recognized by the per-item
+    // collapse/status code below.
+    const unscopedGroup: RetroGoal | null =
+      (retrospectiveData?.unscopedItems ?? []).length > 0
+        ? {
+            id: "__unscoped__",
+            title: "Unscoped",
+            description: "Items not linked to any goal",
+            importance: "Low",
+            trackingItems: (retrospectiveData?.unscopedItems ?? []).map(adaptItem),
+          }
+        : null;
+    const allGroups: RetroGoal[] = unscopedGroup
+      ? [...goalsWithTrackingItems, unscopedGroup]
+      : goalsWithTrackingItems;
+
+    return { goalsWithTrackingItems, allGroups };
+  }, [retrospectiveData]);
 
   // UI state
   const [collapsedGoals, setCollapsedGoals] = useState<CollapsedGoals>({});
@@ -496,6 +527,41 @@ export default function WeeklyRetrospective() {
   };
 
   const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Add an existing library item to THIS sync only (not the template). The
+  // picker filters out items already in the sync — the underlying mutation is
+  // idempotent regardless. Refresh data to surface the new sync item.
+  const handleAddItemToSync = async (trackingItemId: string) => {
+    if (!weeklySync) return;
+    try {
+      await createWeeklySyncItem(weeklySync.id, trackingItemId);
+      await refreshWeeklyRetrospectiveData();
+      toast.success("Added to this sync");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add");
+    }
+  };
+
+  // Remove an item from this sync only — the underlying tracking item stays
+  // in the library and on its template. Cascades attachments via the router.
+  const handleRemoveFromSync = async (weeklySyncItemId: string, title: string) => {
+    if (!confirm(`Remove "${title}" from this sync? It stays in your library.`)) return;
+    try {
+      await removeSyncItemMutation.mutateAsync({ weeklySyncItemId });
+      await refreshWeeklyRetrospectiveData();
+      toast.success("Removed from sync");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove");
+    }
+  };
+
+  // Items in the user's library that aren't already on this sync.
+  const itemsOnSync = new Set<string>();
+  for (const g of allGroups) {
+    for (const it of g.trackingItems) itemsOnSync.add(it.id);
+  }
+  const addableItems = (retrospectiveData?.allTrackingItems ?? []).filter((i) => !itemsOnSync.has(i.id));
 
   return (
     <div className="h-full overflow-y-auto px-4 py-6 md:px-8 md:py-8">
@@ -585,7 +651,46 @@ export default function WeeklyRetrospective() {
         ) : (
           /* Weekly Sync Active - Show Goals and Tracking Items */
           <div className="space-y-6">
-            {goalsWithTrackingItems.map((goal) => {
+            {/* Inline "+ Add item to sync" picker — pulls from the user's
+                library, filtering out items already on this sync. Picking
+                an item adds it just for this period; templates are unchanged. */}
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Add item to this sync</p>
+                  <p className="mt-1 text-xs opacity-60">
+                    Pulls from your tracking-items library. Items added here only affect this week.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setPickerOpen((p) => !p)}
+                  disabled={addableItems.length === 0}
+                  className="flex items-center gap-2 rounded-md border border-white/20 px-3 py-1.5 text-sm hover:bg-white/10 disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" />
+                  {pickerOpen ? "Close picker" : addableItems.length === 0 ? "Nothing to add" : "Pick item"}
+                </button>
+              </div>
+              {pickerOpen && addableItems.length > 0 && (
+                <ul className="mt-3 max-h-56 overflow-y-auto rounded-md border border-white/10 bg-black/30 p-2">
+                  {addableItems.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        onClick={() => void handleAddItemToSync(item.id)}
+                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-white/10"
+                      >
+                        <span className="truncate">{item.title}</span>
+                        <span className="ml-2 shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide opacity-70">
+                          {item.goalTitle ?? "Unscoped"}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {allGroups.map((goal) => {
               const isCollapsed = collapsedGoals[goal.id];
               const goalStatus = getGoalStatus(goal.id);
 
@@ -730,6 +835,23 @@ export default function WeeklyRetrospective() {
                                 }}
                                 className="hidden"
                               />
+
+                              {/* Remove from this sync (does NOT delete the underlying tracking item). */}
+                              {trackingItem.weeklySyncItem && (
+                                <button
+                                  onClick={() =>
+                                    void handleRemoveFromSync(
+                                      trackingItem.weeklySyncItem!.id,
+                                      trackingItem.title,
+                                    )
+                                  }
+                                  className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-white/60 transition-all hover:border-rose-400/40 hover:bg-rose-500/10 hover:text-rose-200"
+                                  title="Remove from this sync — keeps the item in your library"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Remove from sync
+                                </button>
+                              )}
                             </div>
 
                             {/* Text Editor */}
@@ -920,12 +1042,14 @@ export default function WeeklyRetrospective() {
               );
             })}
 
-            {/* Show message if no goals have tracking items */}
-            {goalsWithTrackingItems.length === 0 && (
+            {/* Show message if there's nothing on this sync */}
+            {allGroups.length === 0 && (
               <div className="rounded-lg border border-white/10 bg-white/5 p-12 text-center">
                 <Target className="mx-auto h-12 w-12 opacity-30" />
-                <p className="mt-4 text-lg font-light">No goals with tracking items</p>
-                <p className="mt-2 text-sm opacity-60">Add tracking items to your goals to start using weekly sync</p>
+                <p className="mt-4 text-lg font-light">No items on this sync yet</p>
+                <p className="mt-2 text-sm opacity-60">
+                  Add tracking items via the picker below, or set a default template under Manage templates.
+                </p>
               </div>
             )}
           </div>

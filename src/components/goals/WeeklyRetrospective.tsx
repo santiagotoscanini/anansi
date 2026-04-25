@@ -14,10 +14,12 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
+  Settings,
 } from "lucide-react";
 import { useGoals } from "~/contexts/GoalsContext";
 import type { RouterOutputs } from "~/trpc/react";
 import toast from "react-hot-toast";
+import SyncTemplateEditor from "./SyncTemplateEditor";
 
 type WeeklyRetrospectiveData = RouterOutputs["goals"]["weeklySync"]["getWeeklyRetrospectiveData"];
 
@@ -493,13 +495,26 @@ export default function WeeklyRetrospective() {
     return "missing";
   };
 
+  const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
+
   return (
     <div className="h-full overflow-y-auto px-4 py-6 md:px-8 md:py-8">
+      {templateEditorOpen && <SyncTemplateEditor onClose={() => setTemplateEditorOpen(false)} />}
       <div className="mx-auto max-w-6xl">
         {/* Header */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-light">Weekly Goal Sync</h2>
-          <p className="mt-2 text-sm opacity-60">Track your weekly progress and sync goals with your activities</p>
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-light">Weekly Goal Sync</h2>
+            <p className="mt-2 text-sm opacity-60">Track your weekly progress and sync goals with your activities</p>
+          </div>
+          <button
+            onClick={() => setTemplateEditorOpen(true)}
+            className="flex items-center gap-2 rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+            title="Manage sync templates"
+          >
+            <Settings className="h-4 w-4" />
+            Manage templates
+          </button>
         </div>
 
         {/* Week Selector */}

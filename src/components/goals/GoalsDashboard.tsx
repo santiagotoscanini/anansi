@@ -20,6 +20,7 @@ import {
   Plus,
   Pencil,
   Trash2,
+  ListChecks,
 } from "lucide-react";
 import { useGoals } from "~/contexts/GoalsContext";
 import { api } from "~/trpc/react";
@@ -31,6 +32,7 @@ import LifeProgress from "./LifeProgress";
 import PeopleDirectory, { type PeopleFilter } from "./PeopleDirectory";
 import RelationshipsBoard from "./RelationshipsBoard";
 import BucketList from "./BucketList";
+import TrackingItemsLibrary from "./TrackingItemsLibrary";
 import BackupImportModal from "./BackupImportModal";
 
 // Ananse Ntontan — Adinkra symbol for Anansi (spider). Rendered inline so it
@@ -55,13 +57,22 @@ function AnansiMark({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
-type TabType = "objectives" | "sync" | "values" | "progress" | "bucket" | "people" | "relationships";
+type TabType =
+  | "objectives"
+  | "sync"
+  | "tracking-items"
+  | "values"
+  | "progress"
+  | "bucket"
+  | "people"
+  | "relationships";
 
 type NavItem = { id: TabType; name: string; icon: typeof Target };
 
 const goalsSection: NavItem[] = [
   { id: "objectives", name: "Objectives", icon: Target },
   { id: "sync", name: "Sync", icon: Calendar },
+  { id: "tracking-items", name: "Tracking Items", icon: ListChecks },
   { id: "values", name: "Values", icon: Palette },
   { id: "progress", name: "Progress", icon: Trophy },
   { id: "bucket", name: "Bucket List", icon: Mountain },
@@ -459,6 +470,8 @@ export default function GoalsDashboard() {
         return <GoalsGraph />;
       case "sync":
         return <WeeklyRetrospective />;
+      case "tracking-items":
+        return <TrackingItemsLibrary />;
       case "values":
         return <ValuesManager />;
       case "progress":
@@ -475,6 +488,7 @@ export default function GoalsDashboard() {
   const activeTitle = () => {
     if (activeTab === "objectives") return "Objectives";
     if (activeTab === "sync") return "Sync";
+    if (activeTab === "tracking-items") return "Tracking Items";
     if (activeTab === "values") return "Values";
     if (activeTab === "progress") return "Progress";
     if (activeTab === "bucket") return "Bucket List";

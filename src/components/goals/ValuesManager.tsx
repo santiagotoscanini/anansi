@@ -45,7 +45,7 @@ export default function ValuesManager() {
       return;
     }
 
-    addValue({ name: newValueName, color: getRandomColor() });
+    void addValue({ name: newValueName, color: getRandomColor() });
     toast.success("Value added successfully");
     setNewValueName("");
   };
@@ -62,19 +62,19 @@ export default function ValuesManager() {
     }
 
     if (editingId) {
-      updateValue(editingId, editValue);
+      void updateValue(editingId, editValue);
       toast.success("Value updated successfully");
       setEditingId(null);
     }
   };
 
   const handleDelete = (id: string) => {
-    deleteValue(id);
+    void deleteValue(id);
     toast.success("Value deleted successfully");
   };
 
   return (
-    <div className="h-full px-8 py-8">
+    <div className="h-full overflow-y-auto px-4 py-6 md:px-8 md:py-8">
       <div className="mx-auto max-w-4xl">
         <div className="mb-8">
           <h2 className="text-2xl font-light">Your Values</h2>

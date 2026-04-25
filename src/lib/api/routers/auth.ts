@@ -26,11 +26,14 @@ export const authRouter = createTRPCRouter({
         const hashedPassword = await hashPassword(input.password);
 
         // Create the user
-        const newUser = await db.insert(users).values({
-          name: input.name,
-          email: input.email,
-          password: hashedPassword,
-        }).returning();
+        const newUser = await db
+          .insert(users)
+          .values({
+            name: input.name,
+            email: input.email,
+            password: hashedPassword,
+          })
+          .returning();
 
         const user = newUser[0]!;
         const token = await createAuthToken(user.id, user.name);
@@ -73,11 +76,10 @@ export const authRouter = createTRPCRouter({
       }
     }),
 
-  getUsers: publicProcedure
-    .query(async () => {
-      const allUsers = await db.select().from(users);
-      return allUsers;
-    }),
+  getUsers: publicProcedure.query(async () => {
+    const allUsers = await db.select().from(users);
+    return allUsers;
+  }),
 
   verify: publicProcedure
     .input(

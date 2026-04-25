@@ -14,7 +14,7 @@ const secret = new TextEncoder().encode(secretKey);
  * Creates an encrypted JWT token for authentication
  */
 export async function createAuthToken(userId?: string, userName?: string): Promise<string> {
-  const payload: any = { authenticated: true };
+  const payload: { authenticated: true; userId?: string; userName?: string } = { authenticated: true };
 
   if (userId && userName) {
     payload.userId = userId;
@@ -52,7 +52,7 @@ export async function verifyAuthToken(
     }
 
     return { isValid: false };
-  } catch (error) {
+  } catch {
     return { isValid: false };
   }
 }

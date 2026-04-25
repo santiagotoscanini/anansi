@@ -16,6 +16,6 @@ export default function RootLayout({ children }: PropsWithChildren) {
 }
 
 export const metadata = {
-  title: "Goals app",
-  description: "Santiago Toscanini's goals app",
+  title: "Anansi",
+  description: "Anansi — spin your web of goals, relationships, and values.",
 };

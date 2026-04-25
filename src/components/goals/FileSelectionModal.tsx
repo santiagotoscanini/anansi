@@ -18,7 +18,7 @@ export default function FileSelectionModal({ onOpenFile, onNewFile, lastFileName
     setError(null);
     try {
       await onOpenFile();
-    } catch (err) {
+    } catch {
       setError("Failed to open file. Please try again.");
       setIsLoading(false);
     }
@@ -29,7 +29,7 @@ export default function FileSelectionModal({ onOpenFile, onNewFile, lastFileName
     setError(null);
     try {
       await onNewFile();
-    } catch (err) {
+    } catch {
       setError("Failed to create new file. Please try again.");
       setIsLoading(false);
     }

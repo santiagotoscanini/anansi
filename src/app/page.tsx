@@ -108,7 +108,7 @@ function GoalsPageContent() {
 
             {/* Register Button */}
             <div className="mt-6 text-center">
-              <p className="mb-3 text-sm text-white/60">Don't have an account?</p>
+              <p className="mb-3 text-sm text-white/60">Don&apos;t have an account?</p>
               <button
                 onClick={() => setShowRegisterModal(true)}
                 className="w-full rounded-lg border border-white/20 bg-transparent py-3 font-light transition-all hover:bg-white/10"

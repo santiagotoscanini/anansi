@@ -14,9 +14,7 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
   let user: { userId?: string; userName?: string } = {};
 
   if (cookies) {
-    const authCookie = cookies
-      .split(";")
-      .find((cookie) => cookie.trim().startsWith("goals-auth="));
+    const authCookie = cookies.split(";").find((cookie) => cookie.trim().startsWith("goals-auth="));
 
     if (authCookie) {
       const token = authCookie.split("=")[1];
@@ -97,5 +95,5 @@ export const protectedProcedure = trpcBuilder.procedure.use(
         user: ctx.user as { userId: string; userName: string },
       },
     });
-  })
+  }),
 );

@@ -150,7 +150,7 @@ export async function saveOrUpdateTextFile(content: string, relativePath: string
  * @returns The expected file path for the tracking item's text file
  */
 export function getTextFilePath(userId: string, goalId: string, trackingItemId: string, weeklySyncDate: Date): string {
-  const dateString = weeklySyncDate.toISOString().split("T")[0] || weeklySyncDate.toISOString().slice(0, 10);
+  const dateString = weeklySyncDate.toISOString().split("T")[0] ?? weeklySyncDate.toISOString().slice(0, 10);
 
   return path.join("uploads", userId, goalId, dateString, trackingItemId, "notes.txt");
 }

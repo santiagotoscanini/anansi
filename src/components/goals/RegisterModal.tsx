@@ -70,7 +70,7 @@ export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
       } else {
         toast.error("Registration failed. Email may already exist.");
       }
-    } catch (error) {
+    } catch {
       toast.error("Registration failed. Please try again.");
     } finally {
       setIsRegistering(false);

@@ -44,3 +44,9 @@ public/.s3-local/.bucket
 
 # Local image files
 uploads
+
+.playwright-mcp
+
+# Local logs and personal notes
+.dev.log
+GET-SHIT-DONE.md

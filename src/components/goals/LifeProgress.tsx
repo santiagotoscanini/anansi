@@ -57,7 +57,7 @@ export default function LifeProgress() {
   };
 
   return (
-    <div className="h-full px-8 py-8">
+    <div className="h-full overflow-y-auto px-4 py-6 md:px-8 md:py-8">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8">
           <h2 className="flex items-center gap-2 text-2xl font-light">
@@ -123,7 +123,7 @@ export default function LifeProgress() {
                   const progress = progressData.totalProgress;
                   const ownCompletion = progressData.ownProgress;
                   const predecessorProgress = progressData.dependenciesProgress;
-                  const hasPredecessors = connections.some(c => c.target === goal.id);
+                  const hasPredecessors = connections.some((c) => c.target === goal.id);
                   const associatedValues = goal.valueIds ? values.filter((v) => goal.valueIds.includes(v.id)) : [];
 
                   return (
@@ -161,12 +161,12 @@ export default function LifeProgress() {
                           <div className="relative h-4 overflow-hidden rounded-full bg-white/10">
                             <div className="absolute inset-0 flex">
                               {/* Own progress portion (40% weight) */}
-                              <div 
+                              <div
                                 className={`transition-all duration-500 ${getProgressColor(ownCompletion)} opacity-80`}
                                 style={{ width: `${ownCompletion * 0.4}%` }}
                               />
                               {/* Predecessor progress portion (60% weight) */}
-                              <div 
+                              <div
                                 className={`transition-all duration-500 ${getProgressColor(predecessorProgress)} opacity-60`}
                                 style={{ width: `${predecessorProgress * 0.6}%` }}
                               />

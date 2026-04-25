@@ -224,34 +224,86 @@ uploads/                         # File storage directory (not in src/)
 
 #### trackingItems
 
+User-owned library of items the user wants to track on weekly syncs.
+`goalId` is **optional** — items linked to a goal show up under that goal in
+the retro UI; items with `goalId IS NULL` are surfaced as "Unscoped". Goal
+deletion sets `goalId` to NULL (not cascade), so the item survives.
+
 - `id` (text, primary key): Unique tracking item identifier
-- `goalId` (text, foreign key): References goals.id
+- `userId` (text, foreign key, **NOT NULL**): References users.id, cascade delete
+- `goalId` (text, foreign key, **nullable**): References goals.id, ON DELETE SET NULL
 - `title` (text): Tracking item title
 - `description` (text, nullable): Optional description
 - `order` (integer): Display order
-- `deletedAt` (timestamp, nullable): Soft delete timestamp
+- `status` (enum, NOT NULL, default `active`): `active` | `archived`
+- `deletedAt` (timestamp, nullable): Soft delete timestamp (set when the item is referenced by an existing sync)
 - `createdAt`, `updatedAt` (timestamp): Audit timestamps
+
+#### syncTemplates
+
+Named bundles of tracking items used to instantiate weekly syncs. The default
+template auto-snapshots into each new weekly sync. A partial unique index
+enforces "at most one default per user".
+
+- `id` (text, primary key): Unique template identifier
+- `userId` (text, foreign key): References users.id, cascade delete
+- `name` (text): Display name
+- `isDefault` (boolean, NOT NULL, default `false`): When true, weeklySync.create snapshots from this template if none is explicitly passed
+- `createdAt`, `updatedAt` (timestamp): Audit timestamps
+
+#### syncTemplateItems (junction)
+
+- `id` (text, primary key): Unique junction identifier
+- `templateId` (text, foreign key): References syncTemplates.id, cascade delete
+- `trackingItemId` (text, foreign key): References trackingItems.id, cascade delete
+- `orderIdx` (integer, default 0): Position within the template
+- `createdAt` (timestamp): Creation timestamp
+- UNIQUE(templateId, trackingItemId)
 
 #### weeklySync
 
 - `id` (text, primary key): Unique weekly sync identifier
 - `userId` (text, foreign key): References users.id
+- `weekDate` (timestamp, NOT NULL): Monday of the retrospective week
+- `templateId` (text, foreign key, nullable): References syncTemplates.id, ON DELETE SET NULL — the template the sync was snapshotted from at create time
 - `createdAt`, `updatedAt` (timestamp): Audit timestamps
 
 #### weeklySyncItems
 
+Per-sync rows. `textContent` holds the user's notes inline (no more
+notes.txt files on disk). `orderIdx` is per-sync ordering, initialized
+from the template's order at create time but mutable via reorderItems.
+
 - `id` (text, primary key): Unique weekly sync item identifier
-- `weeklySyncId` (text, foreign key): References weeklySync.id
-- `trackingItemId` (text, foreign key): References trackingItems.id
+- `weeklySyncId` (text, foreign key): References weeklySync.id, cascade delete
+- `trackingItemId` (text, foreign key): References trackingItems.id, cascade delete
+- `textContent` (text, nullable): Inline notes for this item this period
+- `orderIdx` (integer, NOT NULL, default 0): Display order within the sync
 - `createdAt`, `updatedAt` (timestamp): Audit timestamps
 
-#### weeklySyncItemFiles
+#### attachments (replaces weeklySyncItemFiles)
 
-- `id` (text, primary key): Unique file identifier
-- `weeklySyncItemId` (text, foreign key): References weeklySyncItems.id
+Polymorphic file metadata, keyed on `(parentType, parentId)`. Today's only
+producer is `parentType = 'weekly_sync_item'`, but the schema is permissive
+so other entities (people, goals, etc.) can opt in without another migration.
+Storage path is `uploads/{userId}/attachments/{id}.{ext}` — decoupled from
+goal/date/tracking-item ids so items without goals can still hold files.
+
+- `id` (text, primary key): Unique attachment identifier
+- `userId` (text, foreign key): References users.id, cascade delete
+- `parentType` (text, NOT NULL): Discriminator. Currently always `'weekly_sync_item'`.
+- `parentId` (text, NOT NULL): The owning row id (composite-keyed with parentType for app-level lookups)
 - `fileName` (text): Original file name
 - `fileType` (enum): File type (image, document, video, audio, other)
+- `storagePath` (text): Relative path under `uploads/`
+- `sizeBytes` (integer, nullable): File size in bytes
 - `createdAt` (timestamp): Creation timestamp
+- Indexed on `(parentType, parentId)` and `userId`.
+
+> **Legacy:** `weeklySyncItemFiles` still exists in schema.ts for one
+> release as a compatibility marker; a follow-up migration will drop it
+> after the data-migration script (`scripts/migrate-sync-storage.ts`) has
+> been run on every environment. New code should not reference it.
 
 #### goalValues (Junction Table)
 
@@ -427,33 +479,40 @@ Automatically calculated based on outgoing connection weights:
 - `goals.connections.update`: Update connection weight
 - `goals.connections.delete`: Remove connection between goals
 
-### Tracking Items
+### Tracking Items (user-owned, goal optional)
 
-- `goals.trackingItems.getAll`: Get tracking items for specific goal
-- `goals.trackingItems.create`: Create new tracking item
-- `goals.trackingItems.update`: Update tracking item properties
-- `goals.trackingItems.delete`: Soft/hard delete tracking item
+- `goals.trackingItems.list({ goalId? })`: All of the user's items, optionally filtered by goal. Replaces the old `getAll`.
+- `goals.trackingItems.create({ title, description?, goalId?, order? })`: Create a tracking item. `goalId` is optional — omit to create an "Unscoped" item.
+- `goals.trackingItems.update`: Update title/description/order/status; can also re-link or unlink the goal via `goalId`.
+- `goals.trackingItems.delete`: Soft-deletes when any sync still references the item; hard-deletes otherwise.
 
-### Weekly Sync Operations
+### Sync Templates
 
-- `goals.weeklySync.getByWeek`: Get weekly sync for specific week
-- `goals.weeklySync.create`: Create new weekly sync session
-- `goals.weeklySync.delete`: Delete weekly sync session
+- `goals.syncTemplates.list`: List the user's templates with their items.
+- `goals.syncTemplates.create({ name, isDefault? })`: Create a template. Setting `isDefault: true` clears any existing default in the same tx.
+- `goals.syncTemplates.update`: Rename or change `isDefault`.
+- `goals.syncTemplates.delete`: Cascade-deletes the template's items.
+- `goals.syncTemplates.setItems({ templateId, items })`: Replace-set semantics on the template's tracking items + their `orderIdx`.
 
-### Weekly Sync Items
+### Weekly Sync
 
-- `goals.weeklySyncItems.getByWeeklySync`: Get items for weekly sync
-- `goals.weeklySyncItems.create`: Add tracking item to weekly sync
-- `goals.weeklySyncItems.delete`: Remove item from weekly sync
+- `goals.weeklySync.getByWeek({ weekStart })`: Lookup the sync row for the week.
+- `goals.weeklySync.getWeeklyRetrospectiveData({ weekStart })`: Hydrates everything the retro needs — the weeklySync row (or null), the user's full tracking-items library (for the "+ add" picker), goal-grouped sync items with inline `textContent` and `attachments[]`, plus a top-level `unscopedItems[]` for items with `goal_id IS NULL`.
+- `goals.weeklySync.create({ weekDate, templateId? })`: Create a sync. Snapshots items from the explicit template OR the user's default template (if any); empty otherwise.
+- `goals.weeklySync.addItem({ weeklySyncId, trackingItemId })`: Idempotent. Returns the existing row if the (sync, item) pair is already present; new rows go to the end of the orderIdx range.
+- `goals.weeklySync.removeItem({ weeklySyncItemId })`: Drop the item from this sync only — the underlying tracking item stays in the user's library. Hand-deletes attachments so the files get unlinked from disk.
+- `goals.weeklySync.setItemText({ weeklySyncItemId, textContent })`: Direct DB update on the inline text column. No filesystem.
+- `goals.weeklySync.reorderItems({ weeklySyncId, ordering })`: Persist a new `orderIdx` for each item.
 
-### File Operations
+### Attachments (replaces the old weeklySyncItemFiles routes)
 
-- `goals.images.upload`: Upload single image file
-- `goals.images.uploadMultiple`: Upload multiple image files
-- `goals.images.uploadWeeklySyncFile`: Upload file for weekly sync tracking item
-- `goals.images.saveTextFile`: Save/update text content for tracking item
-- `goals.images.readTextFile`: Read text file content
-- `goals.images.delete`: Delete file with ownership verification
+- `goals.attachments.upload({ parentType: 'weekly_sync_item', parentId, fileName, fileType, data })`: Base64 → disk under `uploads/{userId}/attachments/{id}.{ext}`. DB row created first; FS write inside the same tx so a failed write rolls back.
+- `goals.attachments.delete({ id })`: DB row delete then unlink.
+
+### Other File Operations
+
+- `goals.images.upload`: Upload single image file (used outside the weekly sync flow).
+- `goals.images.uploadMultiple`: Upload multiple image files.
 
 ### People Management (Personal CRM)
 
@@ -490,53 +549,55 @@ Automatically calculated based on outgoing connection weights:
 
 - `/uploads/[...path]`: Static file serving for uploaded content
 
-## File Storage System for Weekly Sync
+## File Storage
 
-### File Storage Location
+Files are stored under `uploads/` in the project root. Text notes for sync
+items are inline in the DB (`weekly_sync_items.text_content`); only binary
+attachments touch disk.
 
-Files are stored in the `uploads/` directory in the project root.
-
-### Path Structure
+### Path Structure (post-redesign)
 
 ```
 uploads/
      {userId}/
-         {goalId}/
-             {upload_date}/
-                 {trackingItemId}/
-                     {timestamp}_{fileName}
+         attachments/
+             {attachmentId}.{ext}
 ```
 
-### Path Creation Logic
+The path is keyed only on user — attachments live under their owner
+regardless of which sync item they're attached to. The DB row in
+`attachments` resolves the relationship via `(parentType, parentId)`.
 
-1. **User Folder**: `{userId}/` for user organization
-2. **Goal Organization**: `{goalId}/` to group files by goal
-3. **Date Organization**: `{upload_date}/` in YYYY-MM-DD format for temporal organization
-4. **Tracking Item Level**: `{trackingItemId}/` for specific tracking items
-5. **File Naming**: `{timestamp}_{fileName}` with timestamp prefix to prevent conflicts
+> **Legacy layout** (before the sync redesign):
+> `uploads/{userId}/{goalId}/{date}/{trackingItemId}/{timestamp}_{fileName}`.
+> Migration script `scripts/migrate-sync-storage.ts` rewrites every existing
+> file into the new flat layout and pulls notes.txt into the DB. The
+> follow-up migration that drops `weekly_sync_item_files` is gated on the
+> script having been run.
 
 ### File Types Supported
 
 - **Images**: PNG, JPG, JPEG, GIF, WebP
-- **Documents**: Text files, PDFs, and other documents
-- **Text Content**: Directly saved as `.txt` files for note-taking
+- **Documents**: Text files, PDFs, etc. (note that user-typed sync notes are
+  stored inline in `weekly_sync_items.text_content`, not as files)
 - **Other**: Video, audio, and other file types with appropriate extensions
 
 ### Security Features
 
-- **Path Validation**: Ensure files belong to the authenticated user
-- **Directory Traversal Prevention**: Prevent unauthorized access to other directories
-- **File Type Validation**: Validate uploaded file types
-- **User-Specific Access Control**: Strict ownership verification for all file operations
-- **Base64 Validation**: Validate image data before processing
+- **Ownership Enforcement**: Every attachment row carries `userId`; uploads
+  validate the parent row's owner; deletes match by `id` AND `userId`.
+- **Directory Traversal Prevention**: Paths are constructed server-side from
+  validated ids — no user-supplied path segments.
+- **Base64 Validation**: Validate the payload envelope before touching disk.
+- **Atomic Writes**: DB row first, FS write inside the same tx — a failed
+  write rolls back the row, no orphans.
 
 ### File Operations Available
 
-- **Upload Images/Documents**: For tracking items with automatic organization
-- **Save/Update Text Content**: Built-in text editor functionality
-- **Read Text File Content**: Retrieve and display text files
-- **Delete Files**: With strict ownership verification
-- **Serve Files**: Via protected `/uploads/[...path]` route
+- **Upload Attachments**: `goals.attachments.upload` for binary files on a sync item.
+- **Inline Text Notes**: `goals.weeklySync.setItemText` — DB-only, no filesystem.
+- **Delete Attachments**: `goals.attachments.delete` — DB row delete + unlink.
+- **Serve Files**: Via protected `/uploads/[...path]` route.
 
 ## Important Maintenance Note
 

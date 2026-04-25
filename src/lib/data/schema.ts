@@ -1,4 +1,4 @@
-import { pgTable, text, integer, real, boolean, timestamp, json, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, real, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 
@@ -7,7 +7,7 @@ export const importanceEnum = pgEnum("importance", ["Low", "Medium", "High"]);
 export const fileTypeEnum = pgEnum("file_type", ["image", "document", "video", "audio", "other"]);
 export const goalStatusEnum = pgEnum("goal_status", ["active", "archived"]);
 export const trackingItemStatusEnum = pgEnum("tracking_item_status", ["active", "archived"]);
-
+export const personCategoryEnum = pgEnum("person_category", ["to_process", "exploring", "long_term", "context_bound"]);
 // Users table
 export const users = pgTable("users", {
   id: text("id")
@@ -142,6 +142,133 @@ export const weeklySyncItemFiles = pgTable("weekly_sync_item_files", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// People table (Personal CRM)
+export const people = pgTable("people", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  emoji: text("emoji"),
+  category: personCategoryEnum("category").notNull(),
+  boardOrder: integer("board_order").notNull().default(0),
+  appreciation: text("appreciation"),
+  myNeeds: text("my_needs"),
+  legacyMessage: text("legacy_message"),
+  selfReflection: text("self_reflection"),
+  decideBy: timestamp("decide_by"),
+  archivedAt: timestamp("archived_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Bucket list — things the user wants to do before dying. Flat list, scoped to user.
+// completedAt nullable: null = pending, non-null = completed (timestamp records when).
+// description holds longer-form context; people-to-do-with attached via junction.
+export const bucketListItems = pgTable("bucket_list_items", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  description: text("description"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Junction: bucket list items ↔ people. "People I want to do this with."
+// Cascade-deletes from either side.
+export const bucketListItemPeople = pgTable("bucket_list_item_people", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  bucketItemId: text("bucket_item_id")
+    .notNull()
+    .references(() => bucketListItems.id, { onDelete: "cascade" }),
+  personId: text("person_id")
+    .notNull()
+    .references(() => people.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Gift ideas — a list of gestures/gifts captured per person. Captured when noticed
+// (not when needed) so the well doesn't run dry. Separate table so each idea has
+// its own timestamp and can be deleted atomically once given.
+export const giftIdeas = pgTable("gift_ideas", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  personId: text("person_id")
+    .notNull()
+    .references(() => people.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Task-Referent junction (many-to-many: a task can have multiple referent people,
+// a person can be a referent on multiple tasks).
+export const taskReferents = pgTable("task_referents", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  personId: text("person_id")
+    .notNull()
+    .references(() => people.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Person groups — user-defined tags (Family, Work, University, etc.). A person
+// can belong to multiple groups; a group can contain multiple people.
+export const personGroups = pgTable("person_groups", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  color: text("color").notNull(),
+  orderIdx: integer("order_idx").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const peopleToGroups = pgTable("people_to_groups", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  personId: text("person_id")
+    .notNull()
+    .references(() => people.id, { onDelete: "cascade" }),
+  groupId: text("group_id")
+    .notNull()
+    .references(() => personGroups.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// User Self table (one row per user — the Self space is structurally distinct from a Person)
+export const userSelf = pgTable("user_self", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  userId: text("user_id")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  identityNotes: text("identity_notes"),
+  patterns: text("patterns"),
+  currentWork: text("current_work"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
 
 // Goal-Value junction table (many-to-many relationship)
 export const goalValues = pgTable("goal_values", {
@@ -158,10 +285,90 @@ export const goalValues = pgTable("goal_values", {
 });
 
 // Relations
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ one, many }) => ({
   values: many(values),
   goals: many(goals),
   weeklySync: many(weeklySync),
+  people: many(people),
+  personGroups: many(personGroups),
+  bucketListItems: many(bucketListItems),
+  self: one(userSelf, {
+    fields: [users.id],
+    references: [userSelf.userId],
+  }),
+}));
+
+export const bucketListItemsRelations = relations(bucketListItems, ({ one, many }) => ({
+  user: one(users, {
+    fields: [bucketListItems.userId],
+    references: [users.id],
+  }),
+  peopleLinks: many(bucketListItemPeople),
+}));
+
+export const bucketListItemPeopleRelations = relations(bucketListItemPeople, ({ one }) => ({
+  bucketItem: one(bucketListItems, {
+    fields: [bucketListItemPeople.bucketItemId],
+    references: [bucketListItems.id],
+  }),
+  person: one(people, {
+    fields: [bucketListItemPeople.personId],
+    references: [people.id],
+  }),
+}));
+
+export const peopleRelations = relations(people, ({ one, many }) => ({
+  user: one(users, {
+    fields: [people.userId],
+    references: [users.id],
+  }),
+  taskReferents: many(taskReferents),
+  groupMemberships: many(peopleToGroups),
+  giftIdeas: many(giftIdeas),
+}));
+
+export const giftIdeasRelations = relations(giftIdeas, ({ one }) => ({
+  person: one(people, {
+    fields: [giftIdeas.personId],
+    references: [people.id],
+  }),
+}));
+
+export const personGroupsRelations = relations(personGroups, ({ one, many }) => ({
+  user: one(users, {
+    fields: [personGroups.userId],
+    references: [users.id],
+  }),
+  memberships: many(peopleToGroups),
+}));
+
+export const peopleToGroupsRelations = relations(peopleToGroups, ({ one }) => ({
+  person: one(people, {
+    fields: [peopleToGroups.personId],
+    references: [people.id],
+  }),
+  group: one(personGroups, {
+    fields: [peopleToGroups.groupId],
+    references: [personGroups.id],
+  }),
+}));
+
+export const taskReferentsRelations = relations(taskReferents, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskReferents.taskId],
+    references: [tasks.id],
+  }),
+  person: one(people, {
+    fields: [taskReferents.personId],
+    references: [people.id],
+  }),
+}));
+
+export const userSelfRelations = relations(userSelf, ({ one }) => ({
+  user: one(users, {
+    fields: [userSelf.userId],
+    references: [users.id],
+  }),
 }));
 
 export const valuesRelations = relations(values, ({ one, many }) => ({
@@ -193,11 +400,12 @@ export const goalsRelations = relations(goals, ({ one, many }) => ({
   }),
 }));
 
-export const tasksRelations = relations(tasks, ({ one }) => ({
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
   goal: one(goals, {
     fields: [tasks.goalId],
     references: [goals.id],
   }),
+  referents: many(taskReferents),
 }));
 
 export const connectionsRelations = relations(connections, ({ one }) => ({

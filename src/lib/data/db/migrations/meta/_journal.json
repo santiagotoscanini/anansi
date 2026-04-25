@@ -43,6 +43,13 @@
       "when": 1763076624073,
       "tag": "0005_deep_puff_adder",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777095173936,
+      "tag": "0006_slimy_loa",
+      "breakpoints": true
     }
   ]
 }

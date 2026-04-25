@@ -3,8 +3,18 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
 import { clientAuth } from "~/lib/auth-client";
-import { api } from "~/trpc/react";
-import type { Value, Goal, Task, Connection, TrackingItem, WeeklySync, WeeklySyncItem, CreateGoal, CreateTrackingItem } from "~/lib/api/types";
+import { api, type RouterOutputs } from "~/trpc/react";
+import type {
+  Value,
+  Goal,
+  Task,
+  Connection,
+  TrackingItem,
+  WeeklySync,
+  WeeklySyncItem,
+  CreateGoal,
+  CreateTrackingItem,
+} from "~/lib/api/types";
 
 // Re-export types from the shared API types
 export type {
@@ -17,6 +27,15 @@ export type {
   WeeklySyncItem,
   WeeklySyncItemFile,
 } from "~/lib/api/types";
+
+type WeeklyRetrospectiveOutput = RouterOutputs["goals"]["weeklySync"]["getWeeklyRetrospectiveData"];
+type RawWeeklyRetrospectiveQuery = ReturnType<typeof api.goals.weeklySync.getWeeklyRetrospectiveData.useQuery>;
+// tRPC-next's useQuery return type erases the procedure output into `unknown`
+// in `ReturnType<typeof>`, so we re-narrow `data` to the true shape. All other
+// query properties are preserved.
+type WeeklyRetrospectiveQuery = Omit<RawWeeklyRetrospectiveQuery, "data"> & {
+  data: WeeklyRetrospectiveOutput | undefined;
+};
 
 interface GoalsContextType {
   isAuthenticated: boolean;
@@ -79,7 +98,7 @@ interface GoalsContextType {
   deleteWeeklySyncFile: (fileId: string) => Promise<void>;
 
   // Weekly Retrospective data operations
-  getWeeklyRetrospectiveData: (weekStart: Date) => any;
+  getWeeklyRetrospectiveData: (weekStart: Date) => WeeklyRetrospectiveQuery;
   refreshWeeklyRetrospectiveData: () => Promise<void>;
 
   // Utility functions
@@ -181,30 +200,34 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     }, 0);
   }, []); // Only run once on mount
 
-  // Handle token verification
-  useEffect(() => {
-    if (!token) return;
-
-    if (verifyQuery.isLoading) return;
-
-    if (verifyQuery.data?.isValid) {
+  // Handle token verification — derive during render rather than setState-in-effect.
+  // We track the last processed data via state so setState only runs on real change.
+  const [lastVerifyData, setLastVerifyData] = useState<typeof verifyQuery.data | undefined>(undefined);
+  if (token && !verifyQuery.isLoading && verifyQuery.data !== undefined && verifyQuery.data !== lastVerifyData) {
+    setLastVerifyData(verifyQuery.data);
+    if (verifyQuery.data.isValid) {
       setIsAuthenticated(true);
-      setIsLoading(false);
-    } else if (verifyQuery.data !== undefined) {
+    } else {
       setIsAuthenticated(false);
-      setIsLoading(false);
     }
-  }, [token, verifyQuery.data, verifyQuery.isLoading]);
+    setIsLoading(false);
+  }
 
-  // Handle data loading when authenticated
-  useEffect(() => {
+  // Handle data loading when authenticated — derive during render via state tracking.
+  const [lastProcessedData, setLastProcessedData] = useState<typeof dataQuery.data | undefined>(undefined);
+  const [lastProcessedLoading, setLastProcessedLoading] = useState<boolean | null>(null);
+  if (dataQuery.data !== lastProcessedData) {
+    setLastProcessedData(dataQuery.data);
     if (dataQuery.data) {
       setValues(dataQuery.data.values ?? []);
       setGoals(dataQuery.data.goals ?? []);
       setConnections(dataQuery.data.connections ?? []);
     }
+  }
+  if (dataQuery.isLoading !== lastProcessedLoading) {
+    setLastProcessedLoading(dataQuery.isLoading);
     setIsDataLoading(dataQuery.isLoading);
-  }, [dataQuery.data, dataQuery.isLoading]);
+  }
 
   const authenticate = async (email: string, password: string): Promise<boolean> => {
     try {
@@ -218,7 +241,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
         setIsAuthenticated(true);
         return true;
       }
-    } catch (error) {
+    } catch {
       // Authentication failed
       return false;
     }
@@ -238,7 +261,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
         setIsAuthenticated(true);
         return true;
       }
-    } catch (error) {
+    } catch {
       // Registration failed
       return false;
     }
@@ -341,7 +364,8 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     async (id: string, goal: Partial<Goal>) => {
       try {
         // Remove importance from the goal object since it's calculated on the backend
-        const { importance, ...goalData } = goal;
+        const { importance: _importance, ...goalData } = goal;
+        void _importance;
         await goalsMutations.update.mutateAsync({ id, ...goalData });
         await refreshData();
       } catch (error) {
@@ -501,7 +525,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     return result;
   }, []);
 
-  const getWeeklySyncByWeek = useCallback(async (weekStart: Date): Promise<WeeklySync | null> => {
+  const getWeeklySyncByWeek = useCallback(async (_weekStart: Date): Promise<WeeklySync | null> => {
     try {
       // For now, we'll implement this with a separate hook in the component
       // This is a placeholder that will be overridden by component-level implementation
@@ -607,7 +631,7 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
         // Then create/update the text file
         const result = await filesMutations.create.mutateAsync({
           weeklySyncItemId,
-          fileName: existingFileName || "notes.txt",
+          fileName: existingFileName ?? "notes.txt",
           fileType: "document",
           data: content,
           isText: true,
@@ -636,17 +660,18 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   );
 
   // Weekly retrospective data operations
-  const weeklyRetrospectiveQueryRef = useRef<any>(null);
+  const weeklyRetrospectiveQueryRef = useRef<WeeklyRetrospectiveQuery | null>(null);
 
-  const getWeeklyRetrospectiveData = useCallback((weekStart: Date) => {
-    // This will be used by the component to access the query
-    const query = weeklySyncMutations.getWeeklyRetrospectiveData(
-      { weekStart },
-      { enabled: !!weekStart },
-    );
-    weeklyRetrospectiveQueryRef.current = query;
-    return query;
-  }, [weeklySyncMutations.getWeeklyRetrospectiveData]);
+  const retrospectiveQueryHook = weeklySyncMutations.getWeeklyRetrospectiveData;
+  const getWeeklyRetrospectiveData = useCallback(
+    (weekStart: Date) => {
+      // This will be used by the component to access the query
+      const query = retrospectiveQueryHook({ weekStart }, { enabled: !!weekStart });
+      weeklyRetrospectiveQueryRef.current = query;
+      return query;
+    },
+    [retrospectiveQueryHook],
+  );
 
   const refreshWeeklyRetrospectiveData = useCallback(async (): Promise<void> => {
     try {

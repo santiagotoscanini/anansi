@@ -3,6 +3,7 @@ import { eq, and, asc, isNull, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "../../data";
 import {
+  users,
   values,
   goals,
   tasks,
@@ -12,6 +13,14 @@ import {
   weeklySync,
   weeklySyncItems,
   weeklySyncItemFiles,
+  people,
+  userSelf,
+  taskReferents,
+  personGroups,
+  peopleToGroups,
+  giftIdeas,
+  bucketListItems,
+  bucketListItemPeople,
 } from "../../data/schema";
 import {
   createValueSchema,
@@ -27,6 +36,16 @@ import {
   createWeeklySyncSchema,
   createWeeklySyncItemSchema,
   createWeeklySyncItemFileSchema,
+  createPersonSchema,
+  updatePersonSchema,
+  updateSelfSchema,
+  personCategoryValues,
+  createPersonGroupSchema,
+  updatePersonGroupSchema,
+  createGiftIdeaSchema,
+  createBucketListItemSchema,
+  updateBucketListItemSchema,
+  backupSchema,
   type Goal,
   type TrackingItem,
 } from "../types";
@@ -39,6 +58,7 @@ import {
   getTextFilePath,
   deleteFile,
 } from "../../image-upload";
+import { readFile } from "fs/promises";
 import { log } from "console";
 import path from "path";
 
@@ -100,6 +120,11 @@ export const goalsRouter = createTRPCRouter({
         .innerJoin(goals, eq(tasks.goalId, goals.id))
         .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
 
+      const taskIds = tasksData.map((t) => t.tasks.id);
+      const referentsData = taskIds.length
+        ? await db.select().from(taskReferents).where(inArray(taskReferents.taskId, taskIds))
+        : [];
+
       // Get all goal-value relationships for user's goals
       const goalValuesData = await db
         .select()
@@ -137,11 +162,11 @@ export const goalsRouter = createTRPCRouter({
         id: goal.id,
         title: goal.title,
         description: goal.description,
-        emoji: goal.emoji || undefined,
-        parentId: goal.parentId || undefined,
+        emoji: goal.emoji ?? undefined,
+        parentId: goal.parentId ?? undefined,
         position: { x: goal.positionX, y: goal.positionY },
         importance: calculateImportance(goal.id),
-        status: goal.status as "active" | "archived",
+        status: goal.status,
         valueIds: goalValuesData
           .filter((item) => item.goal_values.goalId === goal.id)
           .map((item) => item.goal_values.valueId),
@@ -152,6 +177,7 @@ export const goalsRouter = createTRPCRouter({
             title: item.tasks.title,
             difficulty: item.tasks.difficulty as 1 | 2 | 3,
             completed: item.tasks.completed,
+            referentIds: referentsData.filter((r) => r.taskId === item.tasks.id).map((r) => r.personId),
           })),
       }));
     }),
@@ -183,14 +209,24 @@ export const goalsRouter = createTRPCRouter({
         );
       }
 
-      // Insert tasks
+      // Insert tasks and their referents
       if (inputTasks.length > 0) {
-        await db.insert(tasks).values(
-          inputTasks.map((task) => ({
-            ...task,
-            goalId: newGoal.id,
-          })),
-        );
+        const insertedTasks = await db
+          .insert(tasks)
+          .values(
+            inputTasks.map(({ referentIds: _ignored, ...rest }) => ({
+              ...rest,
+              goalId: newGoal.id,
+            })),
+          )
+          .returning();
+
+        const referentRows = inputTasks.flatMap((task, idx) => {
+          const inserted = insertedTasks[idx];
+          if (!inserted || !task.referentIds?.length) return [];
+          return task.referentIds.map((personId) => ({ taskId: inserted.id, personId }));
+        });
+        if (referentRows.length > 0) await db.insert(taskReferents).values(referentRows);
       }
 
       return newGoal;
@@ -201,7 +237,7 @@ export const goalsRouter = createTRPCRouter({
 
       // Update goal
       if (Object.keys(goalData).length > 0 || position) {
-        const updateData = { ...goalData, updatedAt: new Date() } as any;
+        const updateData: Partial<typeof goals.$inferInsert> = { ...goalData, updatedAt: new Date() };
         if (position) {
           updateData.positionX = position.x;
           updateData.positionY = position.y;
@@ -233,16 +269,26 @@ export const goalsRouter = createTRPCRouter({
         }
       }
 
-      // Update tasks if provided
+      // Update tasks if provided (full replace — cascades drop their referents).
       if (inputTasks !== undefined) {
         await db.delete(tasks).where(eq(tasks.goalId, id));
         if (inputTasks.length > 0) {
-          await db.insert(tasks).values(
-            inputTasks.map((task) => ({
-              ...task,
-              goalId: id,
-            })),
-          );
+          const insertedTasks = await db
+            .insert(tasks)
+            .values(
+              inputTasks.map(({ referentIds: _ignored, ...rest }) => ({
+                ...rest,
+                goalId: id,
+              })),
+            )
+            .returning();
+
+          const referentRows = inputTasks.flatMap((task, idx) => {
+            const inserted = insertedTasks[idx];
+            if (!inserted || !task.referentIds?.length) return [];
+            return task.referentIds.map((personId) => ({ taskId: inserted.id, personId }));
+          });
+          if (referentRows.length > 0) await db.insert(taskReferents).values(referentRows);
         }
       }
 
@@ -291,9 +337,13 @@ export const goalsRouter = createTRPCRouter({
           .limit(1);
         if (goalExists.length === 0) throw new Error("Goal not found or access denied");
 
-        const [newTask] = await db.insert(tasks).values(input).returning();
+        const { referentIds, ...taskInput } = input;
+        const [newTask] = await db.insert(tasks).values(taskInput).returning();
         if (!newTask) {
           throw new Error("Failed to create task");
+        }
+        if (referentIds?.length) {
+          await db.insert(taskReferents).values(referentIds.map((personId) => ({ taskId: newTask.id, personId })));
         }
         return newTask;
       }),
@@ -301,7 +351,7 @@ export const goalsRouter = createTRPCRouter({
     update: protectedProcedure
       .input(updateTaskSchema.extend({ goalId: z.string() }))
       .mutation(async ({ input, ctx }) => {
-        const { id, goalId, ...updateData } = input;
+        const { id, goalId, referentIds, ...updateData } = input;
         // Verify the goal belongs to the user
         const goalExists = await db
           .select()
@@ -315,6 +365,14 @@ export const goalsRouter = createTRPCRouter({
           .set({ ...updateData, updatedAt: new Date() })
           .where(and(eq(tasks.id, id), eq(tasks.goalId, goalId)))
           .returning();
+
+        // Replace referent set if caller provided one.
+        if (referentIds !== undefined) {
+          await db.delete(taskReferents).where(eq(taskReferents.taskId, id));
+          if (referentIds.length > 0) {
+            await db.insert(taskReferents).values(referentIds.map((personId) => ({ taskId: id, personId })));
+          }
+        }
         return updatedTask;
       }),
 
@@ -450,10 +508,10 @@ export const goalsRouter = createTRPCRouter({
           id: item.id,
           goalId: item.goalId,
           title: item.title,
-          description: item.description || undefined,
+          description: item.description ?? undefined,
           order: item.order,
-          status: item.status as "active" | "archived",
-          deletedAt: item.deletedAt || undefined,
+          status: item.status,
+          deletedAt: item.deletedAt ?? undefined,
         }));
       }),
 
@@ -546,7 +604,7 @@ export const goalsRouter = createTRPCRouter({
         .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, input.weekStart)))
         .limit(1);
 
-      return syncRecord || null;
+      return syncRecord ?? null;
     }),
 
     // Get complete weekly retrospective data in a single optimized query
@@ -568,7 +626,7 @@ export const goalsRouter = createTRPCRouter({
 
         // Get all tracking items for user's goals
         const goalIds = goalsData.map((g) => g.id);
-        let trackingItemsData: any[] = [];
+        let trackingItemsData: (typeof trackingItems.$inferSelect)[] = [];
 
         if (goalIds.length > 0) {
           trackingItemsData = await db
@@ -578,8 +636,8 @@ export const goalsRouter = createTRPCRouter({
         }
 
         // Get weekly sync items if weekly sync exists
-        let weeklySyncItemsData: any[] = [];
-        let weeklySyncItemFilesData: any[] = [];
+        let weeklySyncItemsData: (typeof weeklySyncItems.$inferSelect)[] = [];
+        let weeklySyncItemFilesData: (typeof weeklySyncItemFiles.$inferSelect)[] = [];
 
         if (weeklySyncRecord) {
           // Get weekly sync items
@@ -613,7 +671,14 @@ export const goalsRouter = createTRPCRouter({
         };
 
         // Helper function to read text content from files array
-        const readTextContent = async (files: any[]): Promise<string | null> => {
+        type RetroFile = {
+          id: string;
+          fileName: string;
+          fileType: (typeof weeklySyncItemFiles.$inferSelect)["fileType"];
+          url: string;
+          createdAt: Date;
+        };
+        const readTextContent = async (files: RetroFile[]): Promise<string | null> => {
           try {
             // Find notes.txt file in the files array
             const textFile = files.find((file) => file.fileName === "notes.txt" && file.fileType === "document");
@@ -636,7 +701,7 @@ export const goalsRouter = createTRPCRouter({
 
         // Build the response data structure
         const responseData = {
-          weeklySync: weeklySyncRecord || null,
+          weeklySync: weeklySyncRecord ?? null,
           goals: await Promise.all(
             goalsData
               .filter((goal) => {
@@ -890,7 +955,7 @@ export const goalsRouter = createTRPCRouter({
           };
         } catch (fileError) {
           // If file operation fails, the transaction will roll back the database changes
-          throw new Error(`Failed to save file: ${fileError}`);
+          throw new Error(`Failed to save file: ${String(fileError)}`);
         }
       });
     }),
@@ -928,7 +993,7 @@ export const goalsRouter = createTRPCRouter({
         }
 
         // Determine the date to use
-        const targetDate = input.date || new Date();
+        const targetDate = input.date ?? new Date();
         const weekStart = new Date(targetDate);
         weekStart.setDate(targetDate.getDate() - targetDate.getDay() + 1); // Start of week (Monday)
         weekStart.setHours(0, 0, 0, 0);
@@ -951,7 +1016,7 @@ export const goalsRouter = createTRPCRouter({
         );
 
         return {
-          content: content || "",
+          content: content ?? "",
           filePath: content
             ? getTextFilePath(ctx.user.userId, input.goalId, input.trackingItemId, targetWeeklySync.weekDate)
             : "",
@@ -980,7 +1045,7 @@ export const goalsRouter = createTRPCRouter({
           throw new Error("File not found or access denied");
         }
 
-        const { file, trackingItem, weeklySync: sync } = fileQuery[0]!;
+        const { file } = fileQuery[0]!;
 
         // Use stored file path from database
         const filePath = `uploads/${file.filePath}`;
@@ -1063,6 +1128,10 @@ export const goalsRouter = createTRPCRouter({
               .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")))
           : [];
 
+      const taskIds = tasksData.map((t) => t.tasks.id);
+      const referentsData =
+        taskIds.length > 0 ? await db.select().from(taskReferents).where(inArray(taskReferents.taskId, taskIds)) : [];
+
       // Get connections for user's goals only
       const connectionsData =
         goalIds.length > 0
@@ -1103,11 +1172,11 @@ export const goalsRouter = createTRPCRouter({
         id: goal.id,
         title: goal.title,
         description: goal.description,
-        emoji: goal.emoji || undefined,
-        parentId: goal.parentId || undefined,
+        emoji: goal.emoji ?? undefined,
+        parentId: goal.parentId ?? undefined,
         position: { x: goal.positionX, y: goal.positionY },
         importance: calculateImportance(goal.id),
-        status: goal.status as "active" | "archived",
+        status: goal.status,
         valueIds: goalValuesData
           .filter((item) => item.goal_values.goalId === goal.id)
           .map((item) => item.goal_values.valueId),
@@ -1118,6 +1187,7 @@ export const goalsRouter = createTRPCRouter({
             title: item.tasks.title,
             difficulty: item.tasks.difficulty as 1 | 2 | 3,
             completed: item.tasks.completed,
+            referentIds: referentsData.filter((r) => r.taskId === item.tasks.id).map((r) => r.personId),
           })),
       }));
 
@@ -1127,5 +1197,709 @@ export const goalsRouter = createTRPCRouter({
         connections: connectionsData.map((item) => item.connections),
       };
     }),
+  }),
+
+  // Full-fidelity backup — export everything the user owns (all tables + files),
+  // import replaces the current user's data wholesale inside a transaction.
+  // See: /Users/stoscanini/.claude/plans/can-you-create-a-twinkly-hickey.md
+  // People operations (Personal CRM)
+  people: createTRPCRouter({
+    getAll: protectedProcedure
+      .input(z.object({ includeArchived: z.boolean().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        const rows = await db.select().from(people).where(eq(people.userId, ctx.user.userId));
+        const visible = input?.includeArchived ? rows : rows.filter((p) => p.archivedAt === null);
+        if (visible.length === 0) return [] as ((typeof rows)[number] & { groupIds: string[] })[];
+
+        // Hydrate group memberships so the directory can render group chips
+        // without a per-row query.
+        const memberships = await db
+          .select()
+          .from(peopleToGroups)
+          .where(
+            inArray(
+              peopleToGroups.personId,
+              visible.map((p) => p.id),
+            ),
+          );
+        return visible.map((p) => ({
+          ...p,
+          groupIds: memberships.filter((m) => m.personId === p.id).map((m) => m.groupId),
+        }));
+      }),
+
+    getById: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ ctx, input }) => {
+      const [row] = await db
+        .select()
+        .from(people)
+        .where(and(eq(people.id, input.id), eq(people.userId, ctx.user.userId)))
+        .limit(1);
+      if (!row) return null;
+      const memberships = await db.select().from(peopleToGroups).where(eq(peopleToGroups.personId, row.id));
+      return { ...row, groupIds: memberships.map((m) => m.groupId) };
+    }),
+
+    create: protectedProcedure.input(createPersonSchema).mutation(async ({ input, ctx }) => {
+      const { groupIds, ...rest } = input;
+      const [newPerson] = await db
+        .insert(people)
+        .values({ ...rest, userId: ctx.user.userId })
+        .returning();
+      if (!newPerson) throw new Error("Failed to create person");
+      if (groupIds?.length) {
+        await db.insert(peopleToGroups).values(groupIds.map((groupId) => ({ personId: newPerson.id, groupId })));
+      }
+      return newPerson;
+    }),
+
+    update: protectedProcedure.input(updatePersonSchema).mutation(async ({ input, ctx }) => {
+      const { id, groupIds, ...updateData } = input;
+      const [updated] = await db
+        .update(people)
+        .set({ ...updateData, updatedAt: new Date() })
+        .where(and(eq(people.id, id), eq(people.userId, ctx.user.userId)))
+        .returning();
+
+      if (groupIds !== undefined) {
+        await db.delete(peopleToGroups).where(eq(peopleToGroups.personId, id));
+        if (groupIds.length > 0) {
+          await db.insert(peopleToGroups).values(groupIds.map((groupId) => ({ personId: id, groupId })));
+        }
+      }
+      return updated;
+    }),
+
+    archive: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
+      const [updated] = await db
+        .update(people)
+        .set({ archivedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(people.id, input.id), eq(people.userId, ctx.user.userId)))
+        .returning();
+      return updated;
+    }),
+
+    unarchive: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
+      const [updated] = await db
+        .update(people)
+        .set({ archivedAt: null, updatedAt: new Date() })
+        .where(and(eq(people.id, input.id), eq(people.userId, ctx.user.userId)))
+        .returning();
+      return updated;
+    }),
+
+    delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
+      await db.delete(people).where(and(eq(people.id, input.id), eq(people.userId, ctx.user.userId)));
+      return { success: true };
+    }),
+
+    // Lightweight drag-drop endpoint — updates only category + boardOrder without
+    // requiring the full person payload, and without triggering validation on the
+    // other reflection fields.
+    setCategory: protectedProcedure
+      .input(
+        z.object({
+          id: z.string(),
+          category: z.enum(personCategoryValues),
+          boardOrder: z.number().int().optional(),
+        }),
+      )
+      .mutation(async ({ input, ctx }) => {
+        const [updated] = await db
+          .update(people)
+          .set({
+            category: input.category,
+            boardOrder: input.boardOrder ?? 0,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(people.id, input.id), eq(people.userId, ctx.user.userId)))
+          .returning();
+        return updated;
+      }),
+
+    // Tasks where this person is a referent — used by PersonModal to show the
+    // action surface alongside the reflection fields.
+    getTasksAsReferent: protectedProcedure.input(z.object({ personId: z.string() })).query(async ({ input, ctx }) => {
+      // Verify the person belongs to the user (prevents enumeration via task refs).
+      const [person] = await db
+        .select({ id: people.id })
+        .from(people)
+        .where(and(eq(people.id, input.personId), eq(people.userId, ctx.user.userId)))
+        .limit(1);
+      if (!person) return [];
+
+      const rows = await db
+        .select({
+          taskId: tasks.id,
+          taskTitle: tasks.title,
+          completed: tasks.completed,
+          goalId: goals.id,
+          goalTitle: goals.title,
+          goalEmoji: goals.emoji,
+        })
+        .from(taskReferents)
+        .innerJoin(tasks, eq(taskReferents.taskId, tasks.id))
+        .innerJoin(goals, eq(tasks.goalId, goals.id))
+        .where(
+          and(
+            eq(taskReferents.personId, input.personId),
+            eq(goals.userId, ctx.user.userId),
+            eq(goals.status, "active"),
+          ),
+        );
+      return rows;
+    }),
+
+    // Bucket list items the person is named on. Mirror of getTasksAsReferent — used
+    // by PersonModal to surface the cross-link from the People side.
+    getBucketListItemsAsParticipant: protectedProcedure
+      .input(z.object({ personId: z.string() }))
+      .query(async ({ input, ctx }) => {
+        // Verify the person belongs to the user (prevents enumeration via junction rows).
+        const [person] = await db
+          .select({ id: people.id })
+          .from(people)
+          .where(and(eq(people.id, input.personId), eq(people.userId, ctx.user.userId)))
+          .limit(1);
+        if (!person) return [];
+
+        const rows = await db
+          .select({
+            id: bucketListItems.id,
+            content: bucketListItems.content,
+            completedAt: bucketListItems.completedAt,
+          })
+          .from(bucketListItemPeople)
+          .innerJoin(bucketListItems, eq(bucketListItemPeople.bucketItemId, bucketListItems.id))
+          .where(
+            and(
+              eq(bucketListItemPeople.personId, input.personId),
+              eq(bucketListItems.userId, ctx.user.userId),
+            ),
+          )
+          .orderBy(asc(bucketListItems.createdAt));
+        return rows;
+      }),
+  }),
+
+  // Person groups — user-defined tags. A person can belong to any number of
+  // groups. Groups are scoped per-user.
+  groups: createTRPCRouter({
+    getAll: protectedProcedure.query(async ({ ctx }) => {
+      return await db
+        .select()
+        .from(personGroups)
+        .where(eq(personGroups.userId, ctx.user.userId))
+        .orderBy(asc(personGroups.orderIdx), asc(personGroups.createdAt));
+    }),
+
+    create: protectedProcedure.input(createPersonGroupSchema).mutation(async ({ input, ctx }) => {
+      const [row] = await db
+        .insert(personGroups)
+        .values({ ...input, userId: ctx.user.userId })
+        .returning();
+      if (!row) throw new Error("Failed to create group");
+      return row;
+    }),
+
+    update: protectedProcedure.input(updatePersonGroupSchema).mutation(async ({ input, ctx }) => {
+      const { id, ...rest } = input;
+      const [updated] = await db
+        .update(personGroups)
+        .set({ ...rest, updatedAt: new Date() })
+        .where(and(eq(personGroups.id, id), eq(personGroups.userId, ctx.user.userId)))
+        .returning();
+      return updated;
+    }),
+
+    delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
+      await db.delete(personGroups).where(and(eq(personGroups.id, input.id), eq(personGroups.userId, ctx.user.userId)));
+      return { success: true };
+    }),
+  }),
+
+  // Self space — one row per user, distinct from a Person
+  self: createTRPCRouter({
+    get: protectedProcedure.query(async ({ ctx }) => {
+      const [row] = await db.select().from(userSelf).where(eq(userSelf.userId, ctx.user.userId)).limit(1);
+      return row ?? null;
+    }),
+
+    update: protectedProcedure.input(updateSelfSchema).mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.userId;
+      const [existing] = await db.select().from(userSelf).where(eq(userSelf.userId, userId)).limit(1);
+      if (existing) {
+        const [updated] = await db
+          .update(userSelf)
+          .set({ ...input, updatedAt: new Date() })
+          .where(eq(userSelf.userId, userId))
+          .returning();
+        return updated;
+      }
+      const [created] = await db
+        .insert(userSelf)
+        .values({ ...input, userId })
+        .returning();
+      return created;
+    }),
+  }),
+
+  // Gift ideas — per-person list. Captured when noticed; deleted when given.
+  giftIdeas: createTRPCRouter({
+    list: protectedProcedure.input(z.object({ personId: z.string() })).query(async ({ input, ctx }) => {
+      // Verify the person belongs to the user before returning rows.
+      const [person] = await db
+        .select({ id: people.id })
+        .from(people)
+        .where(and(eq(people.id, input.personId), eq(people.userId, ctx.user.userId)))
+        .limit(1);
+      if (!person) return [];
+      return db
+        .select()
+        .from(giftIdeas)
+        .where(eq(giftIdeas.personId, input.personId))
+        .orderBy(asc(giftIdeas.createdAt));
+    }),
+
+    create: protectedProcedure.input(createGiftIdeaSchema).mutation(async ({ input, ctx }) => {
+      const [person] = await db
+        .select({ id: people.id })
+        .from(people)
+        .where(and(eq(people.id, input.personId), eq(people.userId, ctx.user.userId)))
+        .limit(1);
+      if (!person) throw new Error("Person not found or access denied");
+      const [created] = await db.insert(giftIdeas).values(input).returning();
+      return created;
+    }),
+
+    delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
+      // Verify ownership via JOIN through people, then delete by id.
+      const [row] = await db
+        .select({ id: giftIdeas.id })
+        .from(giftIdeas)
+        .innerJoin(people, eq(giftIdeas.personId, people.id))
+        .where(and(eq(giftIdeas.id, input.id), eq(people.userId, ctx.user.userId)))
+        .limit(1);
+      if (!row) throw new Error("Gift idea not found or access denied");
+      await db.delete(giftIdeas).where(eq(giftIdeas.id, input.id));
+      return { success: true };
+    }),
+  }),
+
+  // Bucket list — things the user wants to do before dying. Flat list, user-scoped.
+  bucketList: createTRPCRouter({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const items = await db
+        .select()
+        .from(bucketListItems)
+        .where(eq(bucketListItems.userId, ctx.user.userId))
+        .orderBy(asc(bucketListItems.createdAt));
+      if (items.length === 0) return [] as ((typeof items)[number] & { personIds: string[] })[];
+
+      // Hydrate person links in a single query, then group by item id.
+      const links = await db
+        .select()
+        .from(bucketListItemPeople)
+        .where(
+          inArray(
+            bucketListItemPeople.bucketItemId,
+            items.map((i) => i.id),
+          ),
+        );
+      return items.map((it) => ({
+        ...it,
+        personIds: links.filter((l) => l.bucketItemId === it.id).map((l) => l.personId),
+      }));
+    }),
+
+    create: protectedProcedure.input(createBucketListItemSchema).mutation(async ({ input, ctx }) => {
+      const [created] = await db
+        .insert(bucketListItems)
+        .values({
+          content: input.content,
+          description: input.description ?? null,
+          userId: ctx.user.userId,
+        })
+        .returning();
+      if (!created) throw new Error("Failed to create item");
+      if (input.personIds?.length) {
+        await db
+          .insert(bucketListItemPeople)
+          .values(input.personIds.map((personId) => ({ bucketItemId: created.id, personId })));
+      }
+      return created;
+    }),
+
+    update: protectedProcedure.input(updateBucketListItemSchema).mutation(async ({ input, ctx }) => {
+      const [updated] = await db
+        .update(bucketListItems)
+        .set({
+          content: input.content,
+          description: input.description ?? null,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(bucketListItems.id, input.id), eq(bucketListItems.userId, ctx.user.userId)))
+        .returning();
+      if (!updated) throw new Error("Item not found or access denied");
+
+      // Replace the person link set if the caller provided one. `undefined` = leave unchanged.
+      if (input.personIds !== undefined) {
+        await db.delete(bucketListItemPeople).where(eq(bucketListItemPeople.bucketItemId, input.id));
+        if (input.personIds.length > 0) {
+          await db
+            .insert(bucketListItemPeople)
+            .values(input.personIds.map((personId) => ({ bucketItemId: input.id, personId })));
+        }
+      }
+      return updated;
+    }),
+
+    // Toggle completion: pass `completed: true` to mark done (sets completedAt = now),
+    // `false` to mark pending again (clears completedAt).
+    toggleCompleted: protectedProcedure
+      .input(z.object({ id: z.string(), completed: z.boolean() }))
+      .mutation(async ({ input, ctx }) => {
+        const [updated] = await db
+          .update(bucketListItems)
+          .set({
+            completedAt: input.completed ? new Date() : null,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(bucketListItems.id, input.id), eq(bucketListItems.userId, ctx.user.userId)))
+          .returning();
+        if (!updated) throw new Error("Item not found or access denied");
+        return updated;
+      }),
+
+    delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
+      await db
+        .delete(bucketListItems)
+        .where(and(eq(bucketListItems.id, input.id), eq(bucketListItems.userId, ctx.user.userId)));
+      return { success: true };
+    }),
+  }),
+
+  backup: createTRPCRouter({
+    export: protectedProcedure.query(async ({ ctx }) => {
+      const userId = ctx.user.userId;
+
+      const [userRow] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (!userRow) throw new Error("User not found");
+
+      const valuesRows = await db.select().from(values).where(eq(values.userId, userId));
+      const goalsRows = await db.select().from(goals).where(eq(goals.userId, userId));
+      const goalIds = goalsRows.map((g) => g.id);
+
+      const tasksRows = goalIds.length ? await db.select().from(tasks).where(inArray(tasks.goalId, goalIds)) : [];
+      const connectionsRows = goalIds.length
+        ? await db.select().from(connections).where(inArray(connections.source, goalIds))
+        : [];
+      const goalValuesRows = goalIds.length
+        ? await db.select().from(goalValues).where(inArray(goalValues.goalId, goalIds))
+        : [];
+      const trackingItemsRows = goalIds.length
+        ? await db.select().from(trackingItems).where(inArray(trackingItems.goalId, goalIds))
+        : [];
+
+      const weeklySyncRows = await db.select().from(weeklySync).where(eq(weeklySync.userId, userId));
+      const weeklySyncIds = weeklySyncRows.map((ws) => ws.id);
+
+      const weeklySyncItemsRows = weeklySyncIds.length
+        ? await db.select().from(weeklySyncItems).where(inArray(weeklySyncItems.weeklySyncId, weeklySyncIds))
+        : [];
+      const weeklySyncItemIds = weeklySyncItemsRows.map((wsi) => wsi.id);
+
+      const weeklySyncItemFilesRows = weeklySyncItemIds.length
+        ? await db
+            .select()
+            .from(weeklySyncItemFiles)
+            .where(inArray(weeklySyncItemFiles.weeklySyncItemId, weeklySyncItemIds))
+        : [];
+
+      const peopleRows = await db.select().from(people).where(eq(people.userId, userId));
+      const [userSelfRow] = await db.select().from(userSelf).where(eq(userSelf.userId, userId)).limit(1);
+      const personGroupRows = await db.select().from(personGroups).where(eq(personGroups.userId, userId));
+      const peopleToGroupsRows = peopleRows.length
+        ? await db
+            .select()
+            .from(peopleToGroups)
+            .where(
+              inArray(
+                peopleToGroups.personId,
+                peopleRows.map((p) => p.id),
+              ),
+            )
+        : [];
+
+      const giftIdeasRows = peopleRows.length
+        ? await db
+            .select()
+            .from(giftIdeas)
+            .where(
+              inArray(
+                giftIdeas.personId,
+                peopleRows.map((p) => p.id),
+              ),
+            )
+        : [];
+
+      const bucketListRows = await db
+        .select()
+        .from(bucketListItems)
+        .where(eq(bucketListItems.userId, userId));
+
+      const bucketListItemPeopleRows = bucketListRows.length
+        ? await db
+            .select()
+            .from(bucketListItemPeople)
+            .where(
+              inArray(
+                bucketListItemPeople.bucketItemId,
+                bucketListRows.map((b) => b.id),
+              ),
+            )
+        : [];
+
+      // Join through tasks→goals to scope referents to this user's graph only.
+      const taskReferentsRows = goalIds.length
+        ? await db
+            .select({
+              id: taskReferents.id,
+              taskId: taskReferents.taskId,
+              personId: taskReferents.personId,
+              createdAt: taskReferents.createdAt,
+            })
+            .from(taskReferents)
+            .innerJoin(tasks, eq(taskReferents.taskId, tasks.id))
+            .where(inArray(tasks.goalId, goalIds))
+        : [];
+
+      // Read each referenced file off disk and base64-encode. Skip missing files with a warn
+      // rather than failing the whole export — files may have been pruned by hand and we'd
+      // rather deliver a partial backup than nothing.
+      const files: { filePath: string; data: string }[] = [];
+      for (const f of weeklySyncItemFilesRows) {
+        const abs = path.join(process.cwd(), "uploads", f.filePath);
+        try {
+          const buf = await readFile(abs);
+          files.push({ filePath: f.filePath, data: buf.toString("base64") });
+        } catch {
+          console.warn(`[backup.export] missing file skipped: ${f.filePath}`);
+        }
+      }
+
+      return {
+        version: 1 as const,
+        exportedAt: new Date(),
+        user: { name: userRow.name, email: userRow.email },
+        values: valuesRows.map(({ userId: _, ...rest }) => rest),
+        goals: goalsRows.map(({ userId: _, ...rest }) => rest),
+        tasks: tasksRows,
+        connections: connectionsRows,
+        goalValues: goalValuesRows,
+        trackingItems: trackingItemsRows,
+        weeklySync: weeklySyncRows.map(({ userId: _, ...rest }) => rest),
+        weeklySyncItems: weeklySyncItemsRows,
+        weeklySyncItemFiles: weeklySyncItemFilesRows,
+        files,
+        people: peopleRows.map(({ userId: _, ...rest }) => rest),
+        userSelf: userSelfRow ? (({ userId: _, ...rest }) => rest)(userSelfRow) : null,
+        taskReferents: taskReferentsRows,
+        personGroups: personGroupRows.map(({ userId: _, ...rest }) => rest),
+        peopleToGroups: peopleToGroupsRows,
+        giftIdeas: giftIdeasRows,
+        bucketListItems: bucketListRows.map(({ userId: _, ...rest }) => rest),
+        bucketListItemPeople: bucketListItemPeopleRows,
+      };
+    }),
+
+    import: protectedProcedure
+      .input(
+        z.object({
+          backup: backupSchema,
+          confirmReplace: z.literal(true),
+        }),
+      )
+      .mutation(async ({ input, ctx }) => {
+        const userId = ctx.user.userId;
+        const b = input.backup;
+
+        // Precompute path rewrite: backups store the original user-id as the first segment
+        // of every filePath. Map old → current user so restored files land in the caller's
+        // uploads/<userId>/… tree regardless of which account produced the backup.
+        const rewritePath = (filePath: string): string => {
+          const slash = filePath.indexOf("/");
+          if (slash === -1) return `${userId}/${filePath}`;
+          return `${userId}${filePath.slice(slash)}`;
+        };
+
+        // All DB changes happen in one transaction; files are written only after commit.
+        await db.transaction(async (tx) => {
+          // Nuke everything the user owns. Cascades take care of tasks, connections,
+          // goalValues, trackingItems, weeklySyncItems, weeklySyncItemFiles.
+          await tx.delete(goals).where(eq(goals.userId, userId));
+          await tx.delete(values).where(eq(values.userId, userId));
+          await tx.delete(weeklySync).where(eq(weeklySync.userId, userId));
+          await tx.delete(people).where(eq(people.userId, userId));
+          await tx.delete(userSelf).where(eq(userSelf.userId, userId));
+          await tx.delete(personGroups).where(eq(personGroups.userId, userId));
+          await tx.delete(bucketListItems).where(eq(bucketListItems.userId, userId));
+
+          if (b.values.length) {
+            await tx.insert(values).values(
+              b.values.map((v) => ({
+                id: v.id,
+                name: v.name,
+                color: v.color,
+                userId,
+                createdAt: v.createdAt,
+                updatedAt: v.updatedAt,
+              })),
+            );
+          }
+
+          // Insert goals with parentId nulled first, then fix up parents in a second pass.
+          // Avoids self-referencing FK ordering issues when the backup lists a child before
+          // its parent.
+          if (b.goals.length) {
+            await tx.insert(goals).values(
+              b.goals.map((g) => ({
+                id: g.id,
+                title: g.title,
+                description: g.description,
+                emoji: g.emoji,
+                parentId: null,
+                positionX: g.positionX,
+                positionY: g.positionY,
+                status: g.status,
+                userId,
+                createdAt: g.createdAt,
+                updatedAt: g.updatedAt,
+              })),
+            );
+
+            for (const g of b.goals) {
+              if (g.parentId) {
+                await tx.update(goals).set({ parentId: g.parentId }).where(eq(goals.id, g.id));
+              }
+            }
+          }
+
+          if (b.tasks.length) await tx.insert(tasks).values(b.tasks);
+          if (b.goalValues.length) await tx.insert(goalValues).values(b.goalValues);
+          if (b.connections.length) await tx.insert(connections).values(b.connections);
+          if (b.trackingItems.length) await tx.insert(trackingItems).values(b.trackingItems);
+
+          if (b.weeklySync.length) {
+            await tx.insert(weeklySync).values(
+              b.weeklySync.map((ws) => ({
+                id: ws.id,
+                userId,
+                weekDate: ws.weekDate,
+                createdAt: ws.createdAt,
+                updatedAt: ws.updatedAt,
+              })),
+            );
+          }
+          if (b.weeklySyncItems.length) await tx.insert(weeklySyncItems).values(b.weeklySyncItems);
+
+          if (b.weeklySyncItemFiles.length) {
+            await tx.insert(weeklySyncItemFiles).values(
+              b.weeklySyncItemFiles.map((f) => ({
+                id: f.id,
+                weeklySyncItemId: f.weeklySyncItemId,
+                filePath: rewritePath(f.filePath),
+                fileType: f.fileType,
+                createdAt: f.createdAt,
+              })),
+            );
+          }
+
+          if (b.people?.length) {
+            await tx.insert(people).values(
+              b.people.map((p) => ({
+                ...p,
+                userId,
+              })),
+            );
+          }
+
+          if (b.userSelf) {
+            await tx.insert(userSelf).values({
+              ...b.userSelf,
+              userId,
+            });
+          }
+
+          if (b.taskReferents?.length) {
+            await tx.insert(taskReferents).values(b.taskReferents);
+          }
+
+          if (b.personGroups?.length) {
+            await tx.insert(personGroups).values(
+              b.personGroups.map((g) => ({
+                ...g,
+                userId,
+              })),
+            );
+          }
+
+          if (b.peopleToGroups?.length) {
+            await tx.insert(peopleToGroups).values(b.peopleToGroups);
+          }
+
+          if (b.giftIdeas?.length) {
+            await tx.insert(giftIdeas).values(b.giftIdeas);
+          }
+
+          if (b.bucketListItems?.length) {
+            await tx.insert(bucketListItems).values(
+              b.bucketListItems.map((it) => ({
+                ...it,
+                userId,
+              })),
+            );
+          }
+
+          if (b.bucketListItemPeople?.length) {
+            await tx.insert(bucketListItemPeople).values(b.bucketListItemPeople);
+          }
+        });
+
+        // Files land on disk after the DB commit. If any write fails we log and continue —
+        // the DB row will point at a 404 until the file is restored by hand, matching the
+        // existing "missing file" handling throughout the app.
+        const fileFailures: string[] = [];
+        for (const file of b.files) {
+          const newPath = rewritePath(file.filePath);
+          try {
+            await saveWeeklySyncFile(file.data, newPath, false);
+          } catch (err) {
+            console.error(`[backup.import] failed to write ${newPath}:`, err);
+            fileFailures.push(newPath);
+          }
+        }
+
+        return {
+          success: true,
+          counts: {
+            values: b.values.length,
+            goals: b.goals.length,
+            tasks: b.tasks.length,
+            connections: b.connections.length,
+            goalValues: b.goalValues.length,
+            trackingItems: b.trackingItems.length,
+            weeklySync: b.weeklySync.length,
+            weeklySyncItems: b.weeklySyncItems.length,
+            weeklySyncItemFiles: b.weeklySyncItemFiles.length,
+            files: b.files.length,
+            people: b.people?.length ?? 0,
+            userSelf: b.userSelf ? 1 : 0,
+            taskReferents: b.taskReferents?.length ?? 0,
+            personGroups: b.personGroups?.length ?? 0,
+            peopleToGroups: b.peopleToGroups?.length ?? 0,
+          },
+          fileFailures,
+        };
+      }),
   }),
 });

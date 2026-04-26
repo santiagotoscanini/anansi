@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { validatePassword, hashPassword } from "../../auth-server";
 import { db } from "../../data";
@@ -32,7 +33,7 @@ export const authRouter = createTRPCRouter({
       .from(users)
       .where(eq(users.id, ctx.user.userId))
       .limit(1);
-    if (!row) throw new Error("User not found");
+    if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
     return row;
   }),
 
@@ -51,7 +52,7 @@ export const authRouter = createTRPCRouter({
           .from(users)
           .where(and(eq(users.email, input.email), ne(users.id, ctx.user.userId)))
           .limit(1);
-        if (existing) throw new Error("Email already in use");
+        if (existing) throw new TRPCError({ code: "CONFLICT", message: "Email already in use" });
       }
       const patch: { name?: string; email?: string; updatedAt: Date } = { updatedAt: new Date() };
       if (input.name !== undefined) patch.name = input.name;
@@ -73,9 +74,9 @@ export const authRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const [row] = await db.select().from(users).where(eq(users.id, ctx.user.userId)).limit(1);
-      if (!row) throw new Error("User not found");
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
       const ok = await validatePassword(input.currentPassword, row.password);
-      if (!ok) throw new Error("Current password is incorrect");
+      if (!ok) throw new TRPCError({ code: "FORBIDDEN", message: "Current password is incorrect" });
       const hashed = await hashPassword(input.newPassword);
       await db.update(users).set({ password: hashed, updatedAt: new Date() }).where(eq(users.id, ctx.user.userId));
       return { success: true };
@@ -97,7 +98,9 @@ export const authRouter = createTRPCRouter({
       try {
         decoded = decodeImageUpload(input.data);
       } catch (err) {
-        if (err instanceof UploadValidationError) throw new Error(err.message);
+        if (err instanceof UploadValidationError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
         throw err;
       }
       const ext = MIME_TO_EXT[decoded.mime!];

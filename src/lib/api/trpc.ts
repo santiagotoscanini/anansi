@@ -1,4 +1,4 @@
-import { initTRPC } from "@trpc/server";
+import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
 import { verifyAuthToken } from "../auth-server";
@@ -86,7 +86,9 @@ export const publicProcedure = trpcBuilder.procedure;
 export const protectedProcedure = trpcBuilder.procedure.use(
   trpcBuilder.middleware(({ ctx, next }) => {
     if (!ctx.user.userId) {
-      throw new Error("Unauthorized");
+      // Surface a real 401 to the client so React Query can distinguish
+      // "session ended, redirect to login" from "server error".
+      throw new TRPCError({ code: "UNAUTHORIZED" });
     }
 
     return next({

@@ -18,7 +18,7 @@ Audit performed 2026-04-26. Items numbered as in the original audit; legend belo
 
 ## 🟠 HIGH — correctness, perf, ergonomics
 
-- ⬜ **#8 — `throw new Error(...)` everywhere → wrong HTTP status codes.** Replace with `TRPCError({ code, message })` in `trpc.ts` middleware + ~62 router sites.
+- ✅ **#8 — `TRPCError` everywhere.** `trpc.ts` middleware now throws `TRPCError({ code: "UNAUTHORIZED" })`. All 60 router sites converted: ownership / not-found → `NOT_FOUND`, email collisions → `CONFLICT`, wrong-current-password → `FORBIDDEN`, batch-validation/upload errors → `BAD_REQUEST`, post-insert no-row → `INTERNAL_SERVER_ERROR`. Smoke-tested: unauth→401, missing goal→404 (both were 500 before).
 - ⬜ **#9 — No rate limiting.** Add `@upstash/ratelimit` (or token bucket) on auth.* and upload mutations.
 - ⬜ **#10 — `refreshData()` refetches full graph on every CRUD.** Convert to targeted `utils.invalidate()` per affected query, optimistic updates on hot paths.
 - ⬜ **#11 — `getGoalProgress` is recursive O(n²) per render.** Memoize via topological computation, single pass on data change.
@@ -34,7 +34,7 @@ Audit performed 2026-04-26. Items numbered as in the original audit; legend belo
 - ⬜ **#18 — `calculateImportance` duplicated 4×, `loadGoalsForUser` 2×.** Extract to shared helpers, prove logic is identical.
 - ⬜ **#19 — Migrate to App Router-native `createTRPCReact` + provider in layout.** Drop `withTRPC` HOC.
 - ⏭ **#20 — `z.date()` vs `z.coerce.date()` inconsistency.** Deferred.
-- ⬜ **#21 — Dual error shape: auth returns `{ success, error }`, others throw.** Converge on TRPCError throws (rolls into #8).
+- ✅ **#21 — Dual error shape converged.** tRPC procedures all throw `TRPCError`; the auth route handlers under `/api/auth/*` return `{ error }` with proper HTTP status codes (401/400/409). Frontend `authenticate`/`register` check `res.ok` instead of parsing a `success` field.
 - ⏭ **#22 — Structured logging (pino).** Deferred.
 - ⏭ **#23 — Security headers (CSP/HSTS/X-Frame-Options).** Deferred.
 - ⬜ **#24 — `debug.getWeeklySyncData` ships in production.** Dead code (verified no callers). Delete.

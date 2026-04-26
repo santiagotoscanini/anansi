@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { eq, and, asc, isNull, inArray, sql } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "../../data";
@@ -156,7 +157,7 @@ export const goalsRouter = createTRPCRouter({
         .values({ ...input, userId: ctx.user.userId })
         .returning();
       if (!newValue) {
-        throw new Error("Failed to create value");
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create value" });
       }
       return newValue;
     }),
@@ -189,7 +190,7 @@ export const goalsRouter = createTRPCRouter({
         .from(values)
         .where(and(eq(values.id, input.valueId), eq(values.userId, ctx.user.userId)))
         .limit(1);
-      if (!value) throw new Error("Value not found or access denied");
+      if (!value) throw new TRPCError({ code: "NOT_FOUND", message: "Value not found or access denied" });
       return await db
         .select()
         .from(valueBehaviors)
@@ -220,7 +221,7 @@ export const goalsRouter = createTRPCRouter({
         .from(values)
         .where(and(eq(values.id, input.valueId), eq(values.userId, ctx.user.userId)))
         .limit(1);
-      if (!value) throw new Error("Value not found or access denied");
+      if (!value) throw new TRPCError({ code: "NOT_FOUND", message: "Value not found or access denied" });
 
       // Append at the end of the value's behavior list.
       const [maxRow] = await db
@@ -233,7 +234,7 @@ export const goalsRouter = createTRPCRouter({
         .insert(valueBehaviors)
         .values({ valueId: input.valueId, content: input.content, orderIdx: nextOrder })
         .returning();
-      if (!created) throw new Error("Failed to add behavior");
+      if (!created) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to add behavior" });
       return created;
     }),
 
@@ -245,7 +246,7 @@ export const goalsRouter = createTRPCRouter({
         .innerJoin(values, eq(valueBehaviors.valueId, values.id))
         .where(and(eq(valueBehaviors.id, input.id), eq(values.userId, ctx.user.userId)))
         .limit(1);
-      if (!row) throw new Error("Behavior not found or access denied");
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Behavior not found or access denied" });
       await db.delete(valueBehaviors).where(eq(valueBehaviors.id, input.id));
       return { success: true };
     }),
@@ -350,7 +351,7 @@ export const goalsRouter = createTRPCRouter({
         .returning();
 
       if (!newGoal) {
-        throw new Error("Failed to create goal");
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create goal" });
       }
 
       // Insert value associations
@@ -417,7 +418,7 @@ export const goalsRouter = createTRPCRouter({
           .from(goals)
           .where(and(eq(goals.id, id), eq(goals.userId, ctx.user.userId)))
           .limit(1);
-        if (goalExists.length === 0) throw new Error("Goal not found or access denied");
+        if (goalExists.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
 
         await db.delete(goalValues).where(eq(goalValues.goalId, id));
         if (valueIds.length > 0) {
@@ -471,7 +472,7 @@ export const goalsRouter = createTRPCRouter({
           .from(goals)
           .where(and(eq(goals.id, input.id), eq(goals.userId, ctx.user.userId)))
           .limit(1);
-        if (goalExists.length === 0) throw new Error("Goal not found or access denied");
+        if (goalExists.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
 
         // Archive the goal (set status to "archived")
         await tx.update(goals).set({ status: "archived", updatedAt: new Date() }).where(eq(goals.id, input.id));
@@ -503,12 +504,12 @@ export const goalsRouter = createTRPCRouter({
           .from(goals)
           .where(and(eq(goals.id, input.goalId), eq(goals.userId, ctx.user.userId)))
           .limit(1);
-        if (goalExists.length === 0) throw new Error("Goal not found or access denied");
+        if (goalExists.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
 
         const { referentIds, groupIds, ...taskInput } = input;
         const [newTask] = await db.insert(tasks).values(taskInput).returning();
         if (!newTask) {
-          throw new Error("Failed to create task");
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create task" });
         }
         if (referentIds?.length) {
           await db.insert(taskReferents).values(referentIds.map((personId) => ({ taskId: newTask.id, personId })));
@@ -529,7 +530,7 @@ export const goalsRouter = createTRPCRouter({
           .from(goals)
           .where(and(eq(goals.id, goalId), eq(goals.userId, ctx.user.userId)))
           .limit(1);
-        if (goalExists.length === 0) throw new Error("Goal not found or access denied");
+        if (goalExists.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
 
         const [updatedTask] = await db
           .update(tasks)
@@ -563,7 +564,7 @@ export const goalsRouter = createTRPCRouter({
           .from(goals)
           .where(and(eq(goals.id, input.goalId), eq(goals.userId, ctx.user.userId)))
           .limit(1);
-        if (goalExists.length === 0) throw new Error("Goal not found or access denied");
+        if (goalExists.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
 
         await db.delete(tasks).where(and(eq(tasks.id, input.id), eq(tasks.goalId, input.goalId)));
         return { success: true };
@@ -583,7 +584,7 @@ export const goalsRouter = createTRPCRouter({
           .innerJoin(goals, eq(tasks.goalId, goals.id))
           .where(and(eq(tasks.id, input.id), eq(goals.userId, ctx.user.userId)))
           .limit(1);
-        if (owned.length === 0) throw new Error("Task not found or access denied");
+        if (owned.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found or access denied" });
 
         await db
           .update(tasks)
@@ -629,12 +630,12 @@ export const goalsRouter = createTRPCRouter({
         .limit(1);
 
       if (sourceGoal.length === 0 || targetGoal.length === 0) {
-        throw new Error("Source or target goal not found or access denied");
+        throw new TRPCError({ code: "NOT_FOUND", message: "Source or target goal not found or access denied" });
       }
 
       const [newConnection] = await db.insert(connections).values(input).returning();
       if (!newConnection) {
-        throw new Error("Failed to create connection");
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create connection" });
       }
       return newConnection;
     }),
@@ -650,7 +651,7 @@ export const goalsRouter = createTRPCRouter({
         .limit(1);
 
       if (connection.length === 0) {
-        throw new Error("Connection not found or access denied");
+        throw new TRPCError({ code: "NOT_FOUND", message: "Connection not found or access denied" });
       }
 
       const [updatedConnection] = await db
@@ -671,7 +672,7 @@ export const goalsRouter = createTRPCRouter({
         .limit(1);
 
       if (connection.length === 0) {
-        throw new Error("Connection not found or access denied");
+        throw new TRPCError({ code: "NOT_FOUND", message: "Connection not found or access denied" });
       }
 
       await db.delete(connections).where(eq(connections.id, input.id));
@@ -708,7 +709,7 @@ export const goalsRouter = createTRPCRouter({
           .from(goals)
           .where(and(eq(goals.id, input.goalId), eq(goals.userId, ctx.user.userId)))
           .limit(1);
-        if (!g) throw new Error("Goal not found or access denied");
+        if (!g) throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
       }
       const [created] = await db
         .insert(trackingItems)
@@ -720,7 +721,7 @@ export const goalsRouter = createTRPCRouter({
           order: input.order ?? 0,
         })
         .returning();
-      if (!created) throw new Error("Failed to create tracking item");
+      if (!created) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create tracking item" });
       return created;
     }),
 
@@ -732,7 +733,7 @@ export const goalsRouter = createTRPCRouter({
         .from(trackingItems)
         .where(and(eq(trackingItems.id, id), eq(trackingItems.userId, ctx.user.userId)))
         .limit(1);
-      if (!existing) throw new Error("Tracking item not found or access denied");
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Tracking item not found or access denied" });
       // If switching/setting goalId, verify the new goal belongs to the user too.
       if (updateData.goalId) {
         const [g] = await db
@@ -740,7 +741,7 @@ export const goalsRouter = createTRPCRouter({
           .from(goals)
           .where(and(eq(goals.id, updateData.goalId), eq(goals.userId, ctx.user.userId)))
           .limit(1);
-        if (!g) throw new Error("Goal not found or access denied");
+        if (!g) throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
       }
       const [updated] = await db
         .update(trackingItems)
@@ -756,7 +757,7 @@ export const goalsRouter = createTRPCRouter({
         .from(trackingItems)
         .where(and(eq(trackingItems.id, input.id), eq(trackingItems.userId, ctx.user.userId)))
         .limit(1);
-      if (!existing) throw new Error("Tracking item not found or access denied");
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Tracking item not found or access denied" });
       // Soft-delete if any sync references this item; hard-delete otherwise.
       const [referenced] = await db
         .select({ id: weeklySyncItems.id })
@@ -816,7 +817,7 @@ export const goalsRouter = createTRPCRouter({
             isDefault: input.isDefault ?? false,
           })
           .returning();
-        if (!created) throw new Error("Failed to create sync template");
+        if (!created) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create sync template" });
         return created;
       });
     }),
@@ -829,7 +830,7 @@ export const goalsRouter = createTRPCRouter({
           .from(syncTemplates)
           .where(and(eq(syncTemplates.id, id), eq(syncTemplates.userId, ctx.user.userId)))
           .limit(1);
-        if (!existing) throw new Error("Template not found or access denied");
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found or access denied" });
         if (updateData.isDefault) {
           await tx
             .update(syncTemplates)
@@ -851,7 +852,7 @@ export const goalsRouter = createTRPCRouter({
         .from(syncTemplates)
         .where(and(eq(syncTemplates.id, input.id), eq(syncTemplates.userId, ctx.user.userId)))
         .limit(1);
-      if (!existing) throw new Error("Template not found or access denied");
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found or access denied" });
       await db.delete(syncTemplates).where(eq(syncTemplates.id, input.id));
       return { success: true };
     }),
@@ -865,7 +866,7 @@ export const goalsRouter = createTRPCRouter({
           .from(syncTemplates)
           .where(and(eq(syncTemplates.id, input.templateId), eq(syncTemplates.userId, ctx.user.userId)))
           .limit(1);
-        if (!existing) throw new Error("Template not found or access denied");
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found or access denied" });
 
         if (input.items.length > 0) {
           const ids = input.items.map((i) => i.trackingItemId);
@@ -874,7 +875,7 @@ export const goalsRouter = createTRPCRouter({
             .from(trackingItems)
             .where(and(inArray(trackingItems.id, ids), eq(trackingItems.userId, ctx.user.userId)));
           if (owned.length !== ids.length) {
-            throw new Error("One or more tracking items not found or access denied");
+            throw new TRPCError({ code: "NOT_FOUND", message: "One or more tracking items not found or access denied" });
           }
         }
 
@@ -1070,7 +1071,7 @@ export const goalsRouter = createTRPCRouter({
             .from(syncTemplates)
             .where(and(eq(syncTemplates.id, templateId), eq(syncTemplates.userId, ctx.user.userId)))
             .limit(1);
-          if (!t) throw new Error("Template not found or access denied");
+          if (!t) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found or access denied" });
         }
 
         const [created] = await tx
@@ -1081,7 +1082,7 @@ export const goalsRouter = createTRPCRouter({
             templateId,
           })
           .returning();
-        if (!created) throw new Error("Failed to create weekly sync");
+        if (!created) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create weekly sync" });
 
         if (templateId) {
           const templateItemRows = await tx
@@ -1112,13 +1113,13 @@ export const goalsRouter = createTRPCRouter({
         .from(weeklySync)
         .where(and(eq(weeklySync.id, input.weeklySyncId), eq(weeklySync.userId, ctx.user.userId)))
         .limit(1);
-      if (!sync) throw new Error("Weekly sync not found or access denied");
+      if (!sync) throw new TRPCError({ code: "NOT_FOUND", message: "Weekly sync not found or access denied" });
       const [item] = await db
         .select()
         .from(trackingItems)
         .where(and(eq(trackingItems.id, input.trackingItemId), eq(trackingItems.userId, ctx.user.userId)))
         .limit(1);
-      if (!item) throw new Error("Tracking item not found or access denied");
+      if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "Tracking item not found or access denied" });
 
       const [existing] = await db
         .select()
@@ -1146,7 +1147,7 @@ export const goalsRouter = createTRPCRouter({
           orderIdx: nextOrder,
         })
         .returning();
-      if (!created) throw new Error("Failed to add sync item");
+      if (!created) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to add sync item" });
       return created;
     }),
 
@@ -1160,7 +1161,7 @@ export const goalsRouter = createTRPCRouter({
         .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
         .where(and(eq(weeklySyncItems.id, input.weeklySyncItemId), eq(weeklySync.userId, ctx.user.userId)))
         .limit(1);
-      if (!row) throw new Error("Sync item not found or access denied");
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Sync item not found or access denied" });
 
       const linkedAttachments = await db
         .select()
@@ -1192,7 +1193,7 @@ export const goalsRouter = createTRPCRouter({
         .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
         .where(and(eq(weeklySyncItems.id, input.weeklySyncItemId), eq(weeklySync.userId, ctx.user.userId)))
         .limit(1);
-      if (!row) throw new Error("Sync item not found or access denied");
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Sync item not found or access denied" });
       await db
         .update(weeklySyncItems)
         .set({ textContent: input.textContent, updatedAt: new Date() })
@@ -1207,7 +1208,7 @@ export const goalsRouter = createTRPCRouter({
           .from(weeklySync)
           .where(and(eq(weeklySync.id, input.weeklySyncId), eq(weeklySync.userId, ctx.user.userId)))
           .limit(1);
-        if (!sync) throw new Error("Sync not found or access denied");
+        if (!sync) throw new TRPCError({ code: "NOT_FOUND", message: "Sync not found or access denied" });
 
         const ids = input.ordering.map((o) => o.id);
         if (ids.length > 0) {
@@ -1216,7 +1217,7 @@ export const goalsRouter = createTRPCRouter({
             .from(weeklySyncItems)
             .where(and(eq(weeklySyncItems.weeklySyncId, input.weeklySyncId), inArray(weeklySyncItems.id, ids)));
           if (owned.length !== ids.length) {
-            throw new Error("Ordering references items not in this sync");
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Ordering references items not in this sync" });
           }
         }
 
@@ -1245,7 +1246,7 @@ export const goalsRouter = createTRPCRouter({
           .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
           .where(and(eq(weeklySyncItems.id, input.parentId), eq(weeklySync.userId, ctx.user.userId)))
           .limit(1);
-        if (!owned) throw new Error("Sync item not found or access denied");
+        if (!owned) throw new TRPCError({ code: "NOT_FOUND", message: "Sync item not found or access denied" });
       }
 
       // Decode + validate (size, image magic-bytes if fileType=image). Throws
@@ -1254,7 +1255,9 @@ export const goalsRouter = createTRPCRouter({
       try {
         decoded = input.fileType === "image" ? decodeImageUpload(input.data) : decodeUpload(input.data);
       } catch (err) {
-        if (err instanceof UploadValidationError) throw new Error(err.message);
+        if (err instanceof UploadValidationError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
         throw err;
       }
       const ext = safeExtension(input.fileName, decoded.mime);
@@ -1277,7 +1280,7 @@ export const goalsRouter = createTRPCRouter({
             sizeBytes: 0,
           })
           .returning();
-        if (!row) throw new Error("Failed to create attachment row");
+        if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create attachment row" });
 
         const { storagePath, sizeBytes } = await writeAttachmentToDisk({
           buffer: decoded.buffer,
@@ -1305,7 +1308,7 @@ export const goalsRouter = createTRPCRouter({
         .from(attachments)
         .where(and(eq(attachments.id, input.id), eq(attachments.userId, ctx.user.userId)))
         .limit(1);
-      if (!existing) throw new Error("Attachment not found or access denied");
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Attachment not found or access denied" });
       await db.delete(attachments).where(eq(attachments.id, input.id));
       await unlinkAttachmentFromDisk(existing.storagePath);
       return { success: true };
@@ -1494,7 +1497,7 @@ export const goalsRouter = createTRPCRouter({
         .insert(people)
         .values({ ...rest, userId: ctx.user.userId })
         .returning();
-      if (!newPerson) throw new Error("Failed to create person");
+      if (!newPerson) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create person" });
       if (groupIds?.length) {
         await db.insert(peopleToGroups).values(groupIds.map((groupId) => ({ personId: newPerson.id, groupId })));
       }
@@ -1616,7 +1619,9 @@ export const goalsRouter = createTRPCRouter({
         try {
           decoded = decodeImageUpload(input.data);
         } catch (err) {
-          if (err instanceof UploadValidationError) throw new Error(err.message);
+          if (err instanceof UploadValidationError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
           throw err;
         }
         const ext = safeExtension(input.fileName, decoded.mime);
@@ -1671,7 +1676,7 @@ export const goalsRouter = createTRPCRouter({
         .insert(personGroups)
         .values({ ...input, userId: ctx.user.userId })
         .returning();
-      if (!row) throw new Error("Failed to create group");
+      if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create group" });
       return row;
     }),
 
@@ -1790,7 +1795,7 @@ export const goalsRouter = createTRPCRouter({
         .from(selfListItems)
         .where(and(eq(selfListItems.id, input.id), eq(selfListItems.userId, ctx.user.userId)))
         .limit(1);
-      if (!row) throw new Error("Self list item not found or access denied");
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Self list item not found or access denied" });
       const patch: { content?: string; patternCategory?: typeof row.patternCategory; updatedAt: Date } = {
         updatedAt: new Date(),
       };
@@ -1846,7 +1851,7 @@ export const goalsRouter = createTRPCRouter({
         .from(people)
         .where(and(eq(people.id, input.personId), eq(people.userId, ctx.user.userId)))
         .limit(1);
-      if (!person) throw new Error("Person not found or access denied");
+      if (!person) throw new TRPCError({ code: "NOT_FOUND", message: "Person not found or access denied" });
       const [created] = await db
         .insert(nextBids)
         .values({
@@ -1865,7 +1870,7 @@ export const goalsRouter = createTRPCRouter({
         .innerJoin(people, eq(nextBids.personId, people.id))
         .where(and(eq(nextBids.id, input.id), eq(people.userId, ctx.user.userId)))
         .limit(1);
-      if (!row) throw new Error("Bid not found or access denied");
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Bid not found or access denied" });
       const patch: { content?: string; dueAt?: Date | null } = {};
       if (input.content !== undefined) patch.content = input.content;
       if (input.dueAt !== undefined) patch.dueAt = input.dueAt;
@@ -1880,7 +1885,7 @@ export const goalsRouter = createTRPCRouter({
         .innerJoin(people, eq(nextBids.personId, people.id))
         .where(and(eq(nextBids.id, input.id), eq(people.userId, ctx.user.userId)))
         .limit(1);
-      if (!row) throw new Error("Bid not found or access denied");
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Bid not found or access denied" });
       const [updated] = await db
         .update(nextBids)
         .set({ completedAt: input.completed ? new Date() : null })
@@ -1897,7 +1902,7 @@ export const goalsRouter = createTRPCRouter({
         .innerJoin(people, eq(nextBids.personId, people.id))
         .where(and(eq(nextBids.id, input.id), eq(people.userId, ctx.user.userId)))
         .limit(1);
-      if (!row) throw new Error("Bid not found or access denied");
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Bid not found or access denied" });
       await db.delete(nextBids).where(eq(nextBids.id, input.id));
       return { success: true };
     }),
@@ -1972,7 +1977,7 @@ export const goalsRouter = createTRPCRouter({
         .from(people)
         .where(and(eq(people.id, input.personId), eq(people.userId, ctx.user.userId)))
         .limit(1);
-      if (!person) throw new Error("Person not found or access denied");
+      if (!person) throw new TRPCError({ code: "NOT_FOUND", message: "Person not found or access denied" });
       const [created] = await db
         .insert(importantDates)
         .values({
@@ -1993,7 +1998,7 @@ export const goalsRouter = createTRPCRouter({
         .innerJoin(people, eq(importantDates.personId, people.id))
         .where(and(eq(importantDates.id, input.id), eq(people.userId, ctx.user.userId)))
         .limit(1);
-      if (!row) throw new Error("Important date not found or access denied");
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Important date not found or access denied" });
       const patch: { label?: string; month?: number; day?: number; year?: number | null; updatedAt?: Date } = {
         updatedAt: new Date(),
       };
@@ -2012,7 +2017,7 @@ export const goalsRouter = createTRPCRouter({
         .innerJoin(people, eq(importantDates.personId, people.id))
         .where(and(eq(importantDates.id, input.id), eq(people.userId, ctx.user.userId)))
         .limit(1);
-      if (!row) throw new Error("Important date not found or access denied");
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Important date not found or access denied" });
       await db.delete(importantDates).where(eq(importantDates.id, input.id));
       return { success: true };
     }),
@@ -2053,7 +2058,7 @@ export const goalsRouter = createTRPCRouter({
           userId: ctx.user.userId,
         })
         .returning();
-      if (!created) throw new Error("Failed to create item");
+      if (!created) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create item" });
       if (input.personIds?.length) {
         await db
           .insert(bucketListItemPeople)
@@ -2072,7 +2077,7 @@ export const goalsRouter = createTRPCRouter({
         })
         .where(and(eq(bucketListItems.id, input.id), eq(bucketListItems.userId, ctx.user.userId)))
         .returning();
-      if (!updated) throw new Error("Item not found or access denied");
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Item not found or access denied" });
 
       // Replace the person link set if the caller provided one. `undefined` = leave unchanged.
       if (input.personIds !== undefined) {
@@ -2099,7 +2104,7 @@ export const goalsRouter = createTRPCRouter({
           })
           .where(and(eq(bucketListItems.id, input.id), eq(bucketListItems.userId, ctx.user.userId)))
           .returning();
-        if (!updated) throw new Error("Item not found or access denied");
+        if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Item not found or access denied" });
         return updated;
       }),
 
@@ -2119,7 +2124,7 @@ export const goalsRouter = createTRPCRouter({
       const userId = ctx.user.userId;
 
       const [userRow] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-      if (!userRow) throw new Error("User not found");
+      if (!userRow) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
 
       const valuesRows = await db.select().from(values).where(eq(values.userId, userId));
       const goalsRows = await db.select().from(goals).where(eq(goals.userId, userId));

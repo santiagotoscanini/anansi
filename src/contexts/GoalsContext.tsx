@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import { api, type RouterOutputs } from "~/trpc/react";
 import type {
@@ -667,80 +667,117 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Progress calculation functions (unchanged logic)
-  const getGoalCompletion = (goalId: string): number => {
-    const goal = goals.find((g) => g.id === goalId);
-    if (!goal || goal.tasks.length === 0) return 0;
+  // Progress calculations are memoized into Map<goalId, ...> on every change
+  // to `goals`/`connections` and looked up in O(1) by the React Flow canvas
+  // and the modals. Previously getGoalProgress recursed per-render per-goal;
+  // on a 30-node graph that meant ~900 traversals per render.
+  const progressCaches = useMemo(() => {
+    type ProgressEntry = { ownProgress: number; dependenciesProgress: number; totalProgress: number };
 
-    const totalWeight = goal.tasks.reduce((sum, task) => sum + task.difficulty, 0);
-    const completedWeight = goal.tasks.filter((task) => task.completed).reduce((sum, task) => sum + task.difficulty, 0);
+    const goalsById = new Map<string, (typeof goals)[number]>();
+    for (const g of goals) goalsById.set(g.id, g);
 
-    return totalWeight > 0 ? (completedWeight / totalWeight) * 100 : 0;
-  };
-
-  const getPathCompletion = (goalId: string): number => {
-    const getAncestors = (id: string): string[] => {
-      const goal = goals.find((g) => g.id === id);
-      if (!goal?.parentId) return [id];
-      return [...getAncestors(goal.parentId), id];
-    };
-
-    const ancestors = getAncestors(goalId);
-    const completions = ancestors.map((id) => getGoalCompletion(id));
-
-    return completions.length > 0 ? completions.reduce((sum, val) => sum + val, 0) / completions.length : 0;
-  };
-
-  // Single source of truth for goal progress calculation
-  const getGoalProgress = (
-    goalId: string,
-  ): { ownProgress: number; dependenciesProgress: number; totalProgress: number } => {
-    const goal = goals.find((g) => g.id === goalId);
-    if (!goal) return { ownProgress: 0, dependenciesProgress: 0, totalProgress: 0 };
-
-    // Get own task completion
-    const ownProgress = getGoalCompletion(goalId);
-
-    // Find predecessor connections (goals that connect TO this goal)
-    const predecessorConnections = connections.filter((c) => c.target === goalId);
-
-    // If no predecessors, return just own completion
-    if (predecessorConnections.length === 0) {
-      return { ownProgress, dependenciesProgress: 0, totalProgress: ownProgress };
+    // Predecessor connections grouped by target (incoming edges per goal).
+    const predsByTarget = new Map<string, typeof connections>();
+    for (const c of connections) {
+      const arr = predsByTarget.get(c.target);
+      if (arr) arr.push(c);
+      else predsByTarget.set(c.target, [c]);
     }
 
-    // Calculate weighted average of predecessor completions
-    let totalPredWeight = 0;
-    let weightedPredCompletion = 0;
-
-    for (const conn of predecessorConnections) {
-      const predGoal = goals.find((g) => g.id === conn.source);
-      if (predGoal) {
-        // Recursively get the total progress of the predecessor
-        const predProgress = getGoalProgress(conn.source).totalProgress;
-        const weight = conn.weight || 1;
-        totalPredWeight += weight;
-        weightedPredCompletion += predProgress * weight;
+    // Own-completion: weighted by task difficulty. One pass over all goals.
+    const completions = new Map<string, number>();
+    for (const g of goals) {
+      if (g.tasks.length === 0) {
+        completions.set(g.id, 0);
+        continue;
       }
+      const total = g.tasks.reduce((s, t) => s + t.difficulty, 0);
+      const done = g.tasks.filter((t) => t.completed).reduce((s, t) => s + t.difficulty, 0);
+      completions.set(g.id, total > 0 ? (done / total) * 100 : 0);
     }
 
-    const dependenciesProgress = totalPredWeight > 0 ? weightedPredCompletion / totalPredWeight : 0;
+    // Total progress: DFS with memo + visiting-set so cycles in the goal
+    // graph don't infinite-loop. Still O(N + E) overall, computed once.
+    const progresses = new Map<string, ProgressEntry>();
+    const visiting = new Set<string>();
 
-    // Calculate final progress: 40% own tasks + 60% predecessors
-    // If no tasks but has predecessors, give more weight to predecessors
-    const hasOwnTasks = goal.tasks && goal.tasks.length > 0;
-    const ownWeight = hasOwnTasks ? 0.4 : 0.1;
-    const predWeight = hasOwnTasks ? 0.6 : 0.9;
+    const compute = (goalId: string): ProgressEntry => {
+      const cached = progresses.get(goalId);
+      if (cached) return cached;
+      const goal = goalsById.get(goalId);
+      if (!goal) return { ownProgress: 0, dependenciesProgress: 0, totalProgress: 0 };
 
-    // Ensure the result is between 0 and 100
-    const totalProgress = Math.min(100, Math.max(0, ownProgress * ownWeight + dependenciesProgress * predWeight));
+      // Cycle guard — pretend we have no predecessors when we hit ourselves.
+      if (visiting.has(goalId)) {
+        const own = completions.get(goalId) ?? 0;
+        return { ownProgress: own, dependenciesProgress: 0, totalProgress: own };
+      }
+      visiting.add(goalId);
 
-    return {
-      ownProgress: Math.min(100, Math.max(0, ownProgress)),
-      dependenciesProgress: Math.min(100, Math.max(0, dependenciesProgress)),
-      totalProgress,
+      const ownProgress = completions.get(goalId) ?? 0;
+      const preds = predsByTarget.get(goalId) ?? [];
+
+      let entry: ProgressEntry;
+      if (preds.length === 0) {
+        entry = { ownProgress, dependenciesProgress: 0, totalProgress: ownProgress };
+      } else {
+        let totalPredWeight = 0;
+        let weightedPredCompletion = 0;
+        for (const conn of preds) {
+          if (!goalsById.has(conn.source)) continue;
+          const predProgress = compute(conn.source).totalProgress;
+          const weight = conn.weight || 1;
+          totalPredWeight += weight;
+          weightedPredCompletion += predProgress * weight;
+        }
+        const dependenciesProgress = totalPredWeight > 0 ? weightedPredCompletion / totalPredWeight : 0;
+        const hasOwnTasks = goal.tasks.length > 0;
+        const ownWeight = hasOwnTasks ? 0.4 : 0.1;
+        const predWeight = hasOwnTasks ? 0.6 : 0.9;
+        const totalProgress = Math.min(100, Math.max(0, ownProgress * ownWeight + dependenciesProgress * predWeight));
+        entry = {
+          ownProgress: Math.min(100, Math.max(0, ownProgress)),
+          dependenciesProgress: Math.min(100, Math.max(0, dependenciesProgress)),
+          totalProgress,
+        };
+      }
+
+      visiting.delete(goalId);
+      progresses.set(goalId, entry);
+      return entry;
     };
-  };
+
+    for (const g of goals) compute(g.id);
+
+    return { goalsById, completions, progresses };
+  }, [goals, connections]);
+
+  const getGoalCompletion = useCallback(
+    (goalId: string): number => progressCaches.completions.get(goalId) ?? 0,
+    [progressCaches],
+  );
+
+  const getPathCompletion = useCallback(
+    (goalId: string): number => {
+      const ids: string[] = [];
+      let cur: string | undefined = goalId;
+      while (cur) {
+        ids.push(cur);
+        cur = progressCaches.goalsById.get(cur)?.parentId;
+      }
+      if (ids.length === 0) return 0;
+      const sum = ids.reduce((s, id) => s + (progressCaches.completions.get(id) ?? 0), 0);
+      return sum / ids.length;
+    },
+    [progressCaches],
+  );
+
+  const getGoalProgress = useCallback(
+    (goalId: string) =>
+      progressCaches.progresses.get(goalId) ?? { ownProgress: 0, dependenciesProgress: 0, totalProgress: 0 },
+    [progressCaches],
+  );
 
   const contextValue: GoalsContextType = {
     isAuthenticated,

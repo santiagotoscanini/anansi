@@ -74,64 +74,82 @@ export const valueBehaviors = pgTable("value_behaviors", {
 });
 
 // Goals table
-export const goals = pgTable("goals", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  emoji: text("emoji"), // Stores either native emoji or URL to custom emoji image
-  parentId: text("parent_id"),
-  positionX: real("position_x").notNull(),
-  positionY: real("position_y").notNull(),
-  status: goalStatusEnum("status").notNull().default("active"),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const goals = pgTable(
+  "goals",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    emoji: text("emoji"), // Stores either native emoji or URL to custom emoji image
+    parentId: text("parent_id"),
+    positionX: real("position_x").notNull(),
+    positionY: real("position_y").notNull(),
+    status: goalStatusEnum("status").notNull().default("active"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  // Every getAll filters by (userId, status='active'); we also list children
+  // by parentId. These are the hot read paths on the canvas.
+  (t) => [index("goals_user_status_idx").on(t.userId, t.status), index("goals_parent_idx").on(t.parentId)],
+);
 
 // Tasks table
-export const tasks = pgTable("tasks", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  goalId: text("goal_id")
-    .notNull()
-    .references(() => goals.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  description: text("description"),
-  emoji: text("emoji"), // Native emoji or URL to custom emoji image — distinct from the parent goal's emoji
-  difficulty: integer("difficulty").notNull(), // 1, 2, or 3
-  completed: boolean("completed").notNull().default(false),
-  // Single deadline date for the task. Null = unscheduled (sits in the
-  // Horizons "Backlog" lane). The Horizons board buckets tasks into
-  // monthly/quarterly/yearly columns by COMPUTING which bucket the date
-  // falls into right now (auto-rollup): a task scheduled for September 15
-  // sits in Yearly until July arrives, then in Quarterly through August,
-  // then promotes to Monthly when September starts. This replaces the
-  // earlier horizon enum + horizonAt anchor — same idea, simpler primitive.
-  scheduledAt: timestamp("scheduled_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    goalId: text("goal_id")
+      .notNull()
+      .references(() => goals.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    emoji: text("emoji"), // Native emoji or URL to custom emoji image — distinct from the parent goal's emoji
+    difficulty: integer("difficulty").notNull(), // 1, 2, or 3
+    completed: boolean("completed").notNull().default(false),
+    // Single deadline date for the task. Null = unscheduled (sits in the
+    // Horizons "Backlog" lane). The Horizons board buckets tasks into
+    // monthly/quarterly/yearly columns by COMPUTING which bucket the date
+    // falls into right now (auto-rollup): a task scheduled for September 15
+    // sits in Yearly until July arrives, then in Quarterly through August,
+    // then promotes to Monthly when September starts. This replaces the
+    // earlier horizon enum + horizonAt anchor — same idea, simpler primitive.
+    scheduledAt: timestamp("scheduled_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  // Every per-goal task fetch joins on goal_id; the Horizons board scans
+  // by scheduled_at for non-null, non-completed tasks.
+  (t) => [index("tasks_goal_idx").on(t.goalId), index("tasks_scheduled_idx").on(t.scheduledAt)],
+);
 
 // Connections table
-export const connections = pgTable("connections", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  source: text("source")
-    .notNull()
-    .references(() => goals.id, { onDelete: "cascade" }),
-  target: text("target")
-    .notNull()
-    .references(() => goals.id, { onDelete: "cascade" }),
-  weight: real("weight").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const connections = pgTable(
+  "connections",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    source: text("source")
+      .notNull()
+      .references(() => goals.id, { onDelete: "cascade" }),
+    target: text("target")
+      .notNull()
+      .references(() => goals.id, { onDelete: "cascade" }),
+    weight: real("weight").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  // Importance/progress calculations scan outgoing edges by source; the
+  // graph also queries incoming edges by target.
+  (t) => [index("connections_source_idx").on(t.source), index("connections_target_idx").on(t.target)],
+);
 
 // Tracking Items table
 //
@@ -165,39 +183,51 @@ export const trackingItems = pgTable(
 // runs against a template, every sync_template_items row is materialized into
 // a weekly_sync_items row with the same orderIdx. Going forward the sync can
 // be edited (add/remove items, reorder) without affecting the template.
-export const weeklySync = pgTable("weekly_sync", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  weekDate: timestamp("week_date").notNull(), // Monday of the retrospective week
-  templateId: text("template_id").references(() => syncTemplates.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const weeklySync = pgTable(
+  "weekly_sync",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    weekDate: timestamp("week_date").notNull(), // Monday of the retrospective week
+    templateId: text("template_id").references(() => syncTemplates.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  // getByWeek and getWeeklyRetrospectiveData filter by (userId, weekDate);
+  // unique because there's exactly one sync per user per week.
+  (t) => [uniqueIndex("weekly_sync_user_week_unique").on(t.userId, t.weekDate)],
+);
 
 // Weekly Sync Items table
 //
 // textContent holds the user's notes inline (no more notes.txt on disk).
 // orderIdx is per-sync ordering — initialized from the template's order at
 // create time, but mutable per sync via reorderItems.
-export const weeklySyncItems = pgTable("weekly_sync_items", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  weeklySyncId: text("weekly_sync_id")
-    .notNull()
-    .references(() => weeklySync.id, { onDelete: "cascade" }),
-  trackingItemId: text("tracking_item_id")
-    .notNull()
-    .references(() => trackingItems.id, { onDelete: "cascade" }),
-  textContent: text("text_content"),
-  orderIdx: integer("order_idx").notNull().default(0),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const weeklySyncItems = pgTable(
+  "weekly_sync_items",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    weeklySyncId: text("weekly_sync_id")
+      .notNull()
+      .references(() => weeklySync.id, { onDelete: "cascade" }),
+    trackingItemId: text("tracking_item_id")
+      .notNull()
+      .references(() => trackingItems.id, { onDelete: "cascade" }),
+    textContent: text("text_content"),
+    orderIdx: integer("order_idx").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  // Every retrospective render reads (weekly_sync_id, order_idx) — give it
+  // a covering index so the ORDER BY doesn't sort.
+  (t) => [index("weekly_sync_items_sync_order_idx").on(t.weeklySyncId, t.orderIdx)],
+);
 
 // Sync templates — named bundles of tracking items. A template is the default
 // recipe for what a sync covers; the partial unique index below enforces
@@ -268,26 +298,30 @@ export const attachments = pgTable(
 );
 
 // People table (Personal CRM)
-export const people = pgTable("people", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  emoji: text("emoji"),
-  category: personCategoryEnum("category").notNull(),
-  boardOrder: integer("board_order").notNull().default(0),
-  appreciation: text("appreciation"),
-  myNeeds: text("my_needs"),
-  legacyMessage: text("legacy_message"),
-  selfReflection: text("self_reflection"),
-  decideBy: timestamp("decide_by"),
-  archivedAt: timestamp("archived_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const people = pgTable(
+  "people",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    emoji: text("emoji"),
+    category: personCategoryEnum("category").notNull(),
+    boardOrder: integer("board_order").notNull().default(0),
+    appreciation: text("appreciation"),
+    myNeeds: text("my_needs"),
+    legacyMessage: text("legacy_message"),
+    selfReflection: text("self_reflection"),
+    decideBy: timestamp("decide_by"),
+    archivedAt: timestamp("archived_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("people_user_idx").on(t.userId)],
+);
 
 // Bucket list — things the user wants to do before dying. Flat list, scoped to user.
 // completedAt nullable: null = pending, non-null = completed (timestamp records when).
@@ -326,53 +360,71 @@ export const bucketListItemPeople = pgTable("bucket_list_item_people", {
 // so the well doesn't run dry. Each row has an optional deadline (`dueAt`)
 // and a completion marker (`completedAt`) — done bids stay visible (struck
 // through) instead of being deleted, so the trail of fulfilled bids is preserved.
-export const nextBids = pgTable("next_bids", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  personId: text("person_id")
-    .notNull()
-    .references(() => people.id, { onDelete: "cascade" }),
-  content: text("content").notNull(),
-  dueAt: timestamp("due_at"),
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const nextBids = pgTable(
+  "next_bids",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    personId: text("person_id")
+      .notNull()
+      .references(() => people.id, { onDelete: "cascade" }),
+    content: text("content").notNull(),
+    dueAt: timestamp("due_at"),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  // Pulse drives `listUpcoming` off open bids by person — partial index on
+  // (person_id) WHERE completed_at IS NULL keeps it tiny and fast.
+  (t) => [
+    index("next_bids_person_idx").on(t.personId),
+    index("next_bids_open_idx").on(t.personId).where(sql`completed_at IS NULL`),
+  ],
+);
 
 // Important dates — yearly-recurring dates per person (birthday, anniversary,
 // graduation, etc.). `month`/`day` define the recurrence; `year` is optional
 // (the original year, used for "turning N this year" math). Surfaces in Pulse
 // when the next occurrence is within the upcoming window. NOT the same as
 // next_bids (`due_at`) — bids are one-shot deadlines, important dates repeat.
-export const importantDates = pgTable("important_dates", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  personId: text("person_id")
-    .notNull()
-    .references(() => people.id, { onDelete: "cascade" }),
-  label: text("label").notNull(),
-  month: integer("month").notNull(),
-  day: integer("day").notNull(),
-  year: integer("year"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const importantDates = pgTable(
+  "important_dates",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    personId: text("person_id")
+      .notNull()
+      .references(() => people.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    month: integer("month").notNull(),
+    day: integer("day").notNull(),
+    year: integer("year"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("important_dates_person_idx").on(t.personId)],
+);
 
 // Task-Referent junction (many-to-many: a task can have multiple referent people,
 // a person can be a referent on multiple tasks).
-export const taskReferents = pgTable("task_referents", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  taskId: text("task_id")
-    .notNull()
-    .references(() => tasks.id, { onDelete: "cascade" }),
-  personId: text("person_id")
-    .notNull()
-    .references(() => people.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const taskReferents = pgTable(
+  "task_referents",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    taskId: text("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    personId: text("person_id")
+      .notNull()
+      .references(() => people.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  // GoalNode reads referents per-task; PersonModal reads them per-person.
+  (t) => [index("task_referents_task_idx").on(t.taskId), index("task_referents_person_idx").on(t.personId)],
+);
 
 // Person groups — user-defined tags (Family, Work, University, etc.). A person
 // can belong to multiple groups; a group can contain multiple people.

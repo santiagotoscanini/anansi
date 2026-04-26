@@ -120,6 +120,13 @@
       "when": 1777200000000,
       "tag": "0016_drop_legacy_and_rename_bids",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1777221335093,
+      "tag": "0017_lush_thunderbolt",
+      "breakpoints": true
     }
   ]
 }

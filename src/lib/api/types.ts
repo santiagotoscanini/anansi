@@ -284,7 +284,11 @@ export const createTaskSchema = taskSchema.omit({ id: true });
 export const updateTaskSchema = taskSchema.partial().required({ id: true });
 
 export const createGoalSchema = goalSchema.omit({ id: true, importance: true, status: true });
-export const updateGoalSchema = goalSchema.omit({ importance: true }).partial().required({ id: true });
+// `tasks` deliberately excluded from goal updates — task CRUD has its own
+// per-task endpoints (goals.tasks.{create,update,delete}). Sending tasks
+// here used to wipe + re-insert every task for the goal, which dropped
+// referent and group memberships and burned task ids on every goal edit.
+export const updateGoalSchema = goalSchema.omit({ importance: true, tasks: true }).partial().required({ id: true });
 
 export const createConnectionSchema = connectionSchema.omit({ id: true });
 export const updateConnectionSchema = connectionSchema.partial().required({ id: true });

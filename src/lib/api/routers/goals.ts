@@ -395,8 +395,10 @@ export const goalsRouter = createTRPCRouter({
       return newGoal;
     }),
 
+    // Goal updates intentionally don't touch tasks — the schema rejects a
+    // `tasks` field. Per-task edits go through goals.tasks.{create,update,delete}.
     update: protectedProcedure.input(updateGoalSchema).mutation(async ({ input, ctx }) => {
-      const { id, valueIds, tasks: inputTasks, position, ...goalData } = input;
+      const { id, valueIds, position, ...goalData } = input;
 
       // Update goal
       if (Object.keys(goalData).length > 0 || position) {
@@ -413,13 +415,13 @@ export const goalsRouter = createTRPCRouter({
 
       // Update value associations if provided
       if (valueIds !== undefined) {
-        // First verify the goal belongs to the user
         const goalExists = await db
           .select()
           .from(goals)
           .where(and(eq(goals.id, id), eq(goals.userId, ctx.user.userId)))
           .limit(1);
-        if (goalExists.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
+        if (goalExists.length === 0)
+          throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
 
         await db.delete(goalValues).where(eq(goalValues.goalId, id));
         if (valueIds.length > 0) {
@@ -429,36 +431,6 @@ export const goalsRouter = createTRPCRouter({
               valueId,
             })),
           );
-        }
-      }
-
-      // Update tasks if provided (full replace — cascades drop referents + group links).
-      if (inputTasks !== undefined) {
-        await db.delete(tasks).where(eq(tasks.goalId, id));
-        if (inputTasks.length > 0) {
-          const insertedTasks = await db
-            .insert(tasks)
-            .values(
-              inputTasks.map(({ referentIds: _r, groupIds: _g, ...rest }) => ({
-                ...rest,
-                goalId: id,
-              })),
-            )
-            .returning();
-
-          const referentRows = inputTasks.flatMap((task, idx) => {
-            const inserted = insertedTasks[idx];
-            if (!inserted || !task.referentIds?.length) return [];
-            return task.referentIds.map((personId) => ({ taskId: inserted.id, personId }));
-          });
-          if (referentRows.length > 0) await db.insert(taskReferents).values(referentRows);
-
-          const groupRows = inputTasks.flatMap((task, idx) => {
-            const inserted = insertedTasks[idx];
-            if (!inserted || !task.groupIds?.length) return [];
-            return task.groupIds.map((groupId) => ({ taskId: inserted.id, groupId }));
-          });
-          if (groupRows.length > 0) await db.insert(tasksToGroups).values(groupRows);
         }
       }
 

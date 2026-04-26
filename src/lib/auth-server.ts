@@ -2,13 +2,20 @@ import "server-only"; // This ensures the file only runs on server
 import { EncryptJWT, jwtDecrypt } from "jose";
 import bcrypt from "bcryptjs";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "gH7$kL9@mN2#pQ5&rT8*vW1!xY4%zA3^";
+// AES-256-GCM needs exactly 32 bytes of key material. We refuse to start
+// without a real secret of at least that length — the previous fallback
+// string was checked into source and would let anyone forge tokens.
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  throw new Error(
+    "JWT_SECRET environment variable must be set and at least 32 characters long. " +
+      "Generate one with: node -e \"console.log(require('crypto').randomBytes(48).toString('base64'))\"",
+  );
+}
 
 const TOKEN_EXPIRY = "14d";
 
-// Ensure secret is exactly 32 bytes for AES-256-GCM
-const secretKey = JWT_SECRET.padEnd(32, "0").slice(0, 32);
-const secret = new TextEncoder().encode(secretKey);
+const secret = new TextEncoder().encode(JWT_SECRET.slice(0, 32));
 
 /**
  * Creates an encrypted JWT token for authentication

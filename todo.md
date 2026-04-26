@@ -74,21 +74,26 @@ Until then: hide the multi-template surface. One default per user, always.
 
 ## Tech debt left from the sync redesign
 
-- [ ] **Replace the `WeeklyRetrospective.tsx` shape adapter** — the component still projects
+- [x] ~~**Replace the `WeeklyRetrospective.tsx` shape adapter** — the component still projects
       the new server shape into the legacy `RetroGoal/RetroTrackingItem` types. Rewrite the
       JSX directly against the new shape (`goal.items[]`, `attachments[]`, `textContent`)
-      so the adapter goes away.
-- [ ] **Backup version bridging** — current code only accepts `version: 2` backups.
-      Either add a one-shot `v1 → v2` converter or document that pre-redesign exports
-      need manual restore.
+      so the adapter goes away.~~
 
-# Improvements found at the plane
+## Tech debt deferred from the 2026-04-26 audit
 
-- ~~Sidebar should be flexible, and collapse when it's too small. It should still have the collapse/expand button.~~
-- ~~No need for data migration. Assume this is the first time using the app, so no need for scripts, backwards compatibility, export/import with fallbacks, etc. The code should assume current version is the only one.~~
-- ~~We should add GitHub Docker deployment, which means that when the package.json is uploaded (use the /commands from santree for patch, minor) a new Docker image should be pushed to GitHub registry, so I don't need to clone the repo on the NAS.~~
-- ~~Cleanup unused functions in the codebase, looks like there are legacy code paths, at a first glance I saw `saveWeeklySyncFile`, but there are probably lot of them.~~
-- ~~On the schemas trackingItems, syncTemplates, etc there is an issue with pgTable: The signature '(name: "tracking_items", columns: { id: HasRuntimeDefault<HasDefault<IsPrimaryKey<NotNull<PgTextBuilderInitial<"id", [string, ...string[]]>>>>>; ... 8 more ...; updatedAt: HasDefault<...>; }, extraConfig: (self: { ...; }) => PgTableExtraConfig): PgTableWithColumns<...>' of 'pgTable' is deprecated.ts(6387). table.d.ts(38, 8): The declaration was marked as deprecated here.~~
-- ~~Drop `weekly_sync_item_files` in a follow-up migration, it's deprecated and legacy.~~
-- ~~Similar to above, there are legacy columns in the userSelf table, drop them~~
-- ~~Similar, migrate gift ideas name to be next_bids, it represent more than just gifts.~~
+See `IMPROVEMENTS.md` for the full audit and its in-progress items. The
+following were deliberately deferred:
+
+- [ ] **Tests** — no unit, integration, or e2e tests exist. Pick when ready: Vitest for
+      unit/router tests + Playwright for the four highest-stakes e2e flows (login, create
+      goal, weekly retro create, backup-import round-trip). _Audit item #16._
+- [ ] **`z.date()` vs `z.coerce.date()` consistency.** Pick `z.coerce.date()` everywhere so
+      non-superjson clients (mobile, curl, future TickTick callbacks) round-trip cleanly.
+      _Audit item #20._
+- [ ] **Structured logging (pino).** 39 `console.*` call-sites with no context tagging
+      (userId, requestId, durationMs). Bring in `pino` + a tRPC middleware that attaches
+      structured fields per request. _Audit item #22._
+- [ ] **Security headers** — `Strict-Transport-Security`, `X-Frame-Options`,
+      `Referrer-Policy`, `Content-Security-Policy`. Baseline CSP for a uploads-rendering
+      app: `img-src 'self'; script-src 'self'`. Configure via `next.config.js`. _Audit
+      item #23._

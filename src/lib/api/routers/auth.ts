@@ -81,11 +81,6 @@ export const authRouter = createTRPCRouter({
       }
     }),
 
-  getUsers: publicProcedure.query(async () => {
-    const allUsers = await db.select().from(users);
-    return allUsers;
-  }),
-
   verify: publicProcedure
     .input(
       z.object({

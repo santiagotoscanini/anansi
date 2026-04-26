@@ -188,7 +188,7 @@ One table for every list-shaped Self section. Server enforces `patternCategory` 
 ## Backend endpoints (tRPC)
 
 ### auth
-- `authenticate`, `register`, `getUsers`, `verify`, `me`
+- `authenticate`, `register`, `me`
 - `updateProfile` (rejects email collisions), `changePassword` (verifies current first)
 - `uploadAvatar` (base64 → `uploads/{userId}/avatar.{ext}`; cleans stale extensions), `removeAvatar`
 

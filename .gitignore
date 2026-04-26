@@ -42,8 +42,9 @@ public/.s3-local/.bucket
 # Mac files
 .DS_Store
 
-# Local image files
-uploads
+# Local image files (top-level user uploads only — must NOT match
+# src/app/uploads/[...path]/, which is the route handler that serves them).
+/uploads/
 
 .playwright-mcp
 

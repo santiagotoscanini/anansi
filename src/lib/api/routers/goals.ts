@@ -68,7 +68,7 @@ import {
   backupSchema,
   type Goal,
 } from "../types";
-import { isValidBase64Image } from "../../image-upload";
+import { decodeUpload, decodeImageUpload, UploadValidationError } from "../../image-upload";
 import { writeFile, readFile, mkdir, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
@@ -76,22 +76,59 @@ import { createId } from "@paralleldrive/cuid2";
 
 const UPLOADS_ROOT = path.join(process.cwd(), "uploads");
 
-// Persist an attachment payload to disk under uploads/{userId}/attachments/{id}.{ext}.
+// Allowed extensions for non-image attachments (images use the sniffed-MIME
+// extension instead). Any extension outside this list is replaced with `.bin`,
+// so a `.exe`/`.html`/`.svg` upload becomes a `.bin` blob that browsers
+// content-disposition-download via mime-types lookup.
+const SAFE_NONIMAGE_EXTS = new Set([
+  ".pdf",
+  ".txt",
+  ".md",
+  ".rtf",
+  ".csv",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".ppt",
+  ".pptx",
+  ".odt",
+  ".ods",
+  ".odp",
+  ".zip",
+  ".mp3",
+  ".wav",
+  ".ogg",
+  ".m4a",
+  ".flac",
+  ".mp4",
+  ".mov",
+  ".webm",
+  ".mkv",
+  ".avi",
+]);
+
+function safeExtension(fileName: string, sniffedImageMime: string | null): string {
+  if (sniffedImageMime) {
+    return sniffedImageMime === "image/jpeg" ? ".jpg" : `.${sniffedImageMime.split("/")[1]}`;
+  }
+  const raw = path.extname(fileName).toLowerCase();
+  return SAFE_NONIMAGE_EXTS.has(raw) ? raw : ".bin";
+}
+
+// Persist a pre-validated buffer under uploads/{userId}/attachments/{id}.{ext}.
 // Caller is responsible for the matching DB row (kept atomic via tx-around-FS).
 async function writeAttachmentToDisk(args: {
-  data: string;
+  buffer: Buffer;
   userId: string;
   attachmentId: string;
-  fileName: string;
+  ext: string;
 }): Promise<{ storagePath: string; sizeBytes: number }> {
-  const ext = path.extname(args.fileName);
-  const relPath = path.join(args.userId, "attachments", `${args.attachmentId}${ext}`);
+  const relPath = path.join(args.userId, "attachments", `${args.attachmentId}${args.ext}`);
   const fullPath = path.join(UPLOADS_ROOT, relPath);
-  const cleanBase64 = args.data.replace(/^data:[^;]+;base64,/, "");
-  const buffer = Buffer.from(cleanBase64, "base64");
   await mkdir(path.dirname(fullPath), { recursive: true });
-  await writeFile(fullPath, buffer);
-  return { storagePath: relPath, sizeBytes: buffer.length };
+  await writeFile(fullPath, args.buffer);
+  return { storagePath: relPath, sizeBytes: args.buffer.length };
 }
 
 async function unlinkAttachmentFromDisk(storagePath: string): Promise<boolean> {
@@ -1211,19 +1248,19 @@ export const goalsRouter = createTRPCRouter({
         if (!owned) throw new Error("Sync item not found or access denied");
       }
 
-      // Sanity-check the base64 envelope before touching the FS.
+      // Decode + validate (size, image magic-bytes if fileType=image). Throws
+      // UploadValidationError on bad input — convert to user-facing Error.
+      let decoded;
       try {
-        Buffer.from(input.data.replace(/^data:[^;]+;base64,/, ""), "base64");
-      } catch {
-        throw new Error("Invalid base64 data");
+        decoded = input.fileType === "image" ? decodeImageUpload(input.data) : decodeUpload(input.data);
+      } catch (err) {
+        if (err instanceof UploadValidationError) throw new Error(err.message);
+        throw err;
       }
-      if (input.fileType === "image" && !isValidBase64Image(input.data)) {
-        throw new Error("Invalid base64 image");
-      }
+      const ext = safeExtension(input.fileName, decoded.mime);
 
       // DB row first; FS write inside the same tx. If FS fails the row rolls back.
       const attachmentId = createId();
-      const ext = path.extname(input.fileName);
       const provisionalStoragePath = path.join(ctx.user.userId, "attachments", `${attachmentId}${ext}`);
 
       return await db.transaction(async (tx) => {
@@ -1243,10 +1280,10 @@ export const goalsRouter = createTRPCRouter({
         if (!row) throw new Error("Failed to create attachment row");
 
         const { storagePath, sizeBytes } = await writeAttachmentToDisk({
-          data: input.data,
+          buffer: decoded.buffer,
           userId: ctx.user.userId,
           attachmentId: row.id,
-          fileName: input.fileName,
+          ext,
         });
 
         await tx.update(attachments).set({ storagePath, sizeBytes }).where(eq(attachments.id, row.id));
@@ -1569,23 +1606,25 @@ export const goalsRouter = createTRPCRouter({
     uploadImage: protectedProcedure
       .input(
         z.object({
-          fileName: z.string().min(1),
-          // base64; data: prefix permitted but not required
+          fileName: z.string().min(1).max(255),
+          // base64; data: prefix permitted but not required. Size + magic-byte validated below.
           data: z.string().min(1),
         }),
       )
       .mutation(async ({ input, ctx }) => {
-        const ext = (path.extname(input.fileName) || ".png").toLowerCase();
-        if (![".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(ext)) {
-          throw new Error("Unsupported image type");
+        let decoded;
+        try {
+          decoded = decodeImageUpload(input.data);
+        } catch (err) {
+          if (err instanceof UploadValidationError) throw new Error(err.message);
+          throw err;
         }
+        const ext = safeExtension(input.fileName, decoded.mime);
         const id = createId();
         const relPath = path.join(ctx.user.userId, "people", `${id}${ext}`);
         const fullPath = path.join(UPLOADS_ROOT, relPath);
-        const cleanBase64 = input.data.replace(/^data:[^;]+;base64,/, "");
-        const buffer = Buffer.from(cleanBase64, "base64");
         await mkdir(path.dirname(fullPath), { recursive: true });
-        await writeFile(fullPath, buffer);
+        await writeFile(fullPath, decoded.buffer);
         return { url: `/uploads/${relPath}` };
       }),
 

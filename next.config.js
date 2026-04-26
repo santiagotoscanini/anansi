@@ -9,24 +9,12 @@ const nextConfig = {
     // the <Image> component can request them.
     localPatterns: [{ pathname: "/uploads/**" }],
   },
-  // Add this section to ensure API routes work correctly
-  async headers() {
-    return [
-      {
-        source: "/api/:path*",
-        headers: [
-          { key: "Access-Control-Allow-Credentials", value: "true" },
-          { key: "Access-Control-Allow-Origin", value: "*" },
-          { key: "Access-Control-Allow-Methods", value: "GET,POST,OPTIONS" },
-          {
-            key: "Access-Control-Allow-Headers",
-            value:
-              "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version",
-          },
-        ],
-      },
-    ];
-  },
+  // No CORS headers: the app is a single-origin Next.js deployment. tRPC and
+  // /api/auth/* are called from the same origin, so allowing cross-origin
+  // requests with credentials would only widen the attack surface (the prior
+  // `Access-Control-Allow-Origin: *` plus `Allow-Credentials: true` was an
+  // invalid combo per spec but signalled confused intent). If a separate
+  // client domain is ever needed, add a strict allow-list here.
 };
 
 export default nextConfig;

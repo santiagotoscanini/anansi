@@ -7,8 +7,19 @@ import { and, eq, ne } from "drizzle-orm";
 import { writeFile, mkdir, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
+import { decodeImageUpload, UploadValidationError } from "../../image-upload";
 
 const UPLOADS_ROOT = path.join(process.cwd(), "uploads");
+
+// Map sniffed MIME → canonical file extension for the on-disk avatar/photo
+// path. We always trust the magic bytes over the user-supplied filename so
+// a `.png` carrying JPEG payload lands as `avatar.jpg`.
+const MIME_TO_EXT: Record<NonNullable<ReturnType<typeof decodeImageUpload>["mime"]>, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+};
 
 // Auth state changes (login, register, logout) live in dedicated Next route
 // handlers under src/app/api/auth/* so they can set HttpOnly cookies on the
@@ -76,22 +87,24 @@ export const authRouter = createTRPCRouter({
   uploadAvatar: protectedProcedure
     .input(
       z.object({
-        fileName: z.string().min(1),
-        // data: base64 with optional data: prefix
+        fileName: z.string().min(1).max(255),
+        // data: base64 with optional data: prefix. Size + magic-byte validated below.
         data: z.string().min(1),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const ext = (path.extname(input.fileName) || ".png").toLowerCase();
-      if (![".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(ext)) {
-        throw new Error("Unsupported image type");
+      let decoded;
+      try {
+        decoded = decodeImageUpload(input.data);
+      } catch (err) {
+        if (err instanceof UploadValidationError) throw new Error(err.message);
+        throw err;
       }
+      const ext = MIME_TO_EXT[decoded.mime!];
       const userDir = path.join(UPLOADS_ROOT, ctx.user.userId);
       if (!existsSync(userDir)) await mkdir(userDir, { recursive: true });
       const fileName = `avatar${ext}`;
       const fullPath = path.join(userDir, fileName);
-      const cleanBase64 = input.data.replace(/^data:[^;]+;base64,/, "");
-      const buffer = Buffer.from(cleanBase64, "base64");
       // Best-effort: clean up old avatar files with different extensions so we
       // don't leak stale ones (e.g. old .jpg when new is .png).
       for (const oldExt of [".png", ".jpg", ".jpeg", ".gif", ".webp"]) {
@@ -105,7 +118,7 @@ export const authRouter = createTRPCRouter({
           }
         }
       }
-      await writeFile(fullPath, buffer);
+      await writeFile(fullPath, decoded.buffer);
       const avatarUrl = `/uploads/${ctx.user.userId}/${fileName}`;
       const [updated] = await db
         .update(users)

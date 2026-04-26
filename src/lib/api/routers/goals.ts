@@ -916,28 +916,49 @@ export const goalsRouter = createTRPCRouter({
     getWeeklyRetrospectiveData: protectedProcedure
       .input(z.object({ weekStart: z.date() }))
       .query(async ({ input, ctx }) => {
-        const [weeklySyncRecord] = await db
-          .select()
-          .from(weeklySync)
-          .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, input.weekStart)))
-          .limit(1);
+        // First batch: independent queries that don't depend on each other —
+        // the sync row, the user's active goals, the full tracking-items
+        // library. Run them in parallel.
+        const [weeklySyncRecord, goalsData, allItems] = await Promise.all([
+          db
+            .select()
+            .from(weeklySync)
+            .where(and(eq(weeklySync.userId, ctx.user.userId), eq(weeklySync.weekDate, input.weekStart)))
+            .limit(1)
+            .then((rows) => rows[0]),
+          db
+            .select()
+            .from(goals)
+            .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active"))),
+          db
+            .select()
+            .from(trackingItems)
+            .where(
+              and(
+                eq(trackingItems.userId, ctx.user.userId),
+                eq(trackingItems.status, "active"),
+                isNull(trackingItems.deletedAt),
+              ),
+            )
+            .orderBy(asc(trackingItems.order), asc(trackingItems.createdAt)),
+        ]);
 
-        const goalsData = await db
-          .select()
-          .from(goals)
-          .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
+        // Second batch: connections (needs goalsData) and sync-items+attachments
+        // (need weeklySyncRecord). Both can run in parallel as well.
+        const goalIds = goalsData.map((g) => g.id);
+        const [allConns, syncItemsData] = await Promise.all([
+          goalIds.length
+            ? db.select().from(connections).where(inArray(connections.source, goalIds))
+            : Promise.resolve([] as (typeof connections.$inferSelect)[]),
+          weeklySyncRecord
+            ? db
+                .select()
+                .from(weeklySyncItems)
+                .where(eq(weeklySyncItems.weeklySyncId, weeklySyncRecord.id))
+                .orderBy(asc(weeklySyncItems.orderIdx), asc(weeklySyncItems.createdAt))
+            : Promise.resolve([] as (typeof weeklySyncItems.$inferSelect)[]),
+        ]);
 
-        const allConns = goalsData.length
-          ? await db
-              .select()
-              .from(connections)
-              .where(
-                inArray(
-                  connections.source,
-                  goalsData.map((g) => g.id),
-                ),
-              )
-          : [];
         const calcImportance = (goalId: string): "Low" | "Medium" | "High" => {
           const out = allConns.filter((c) => c.source === goalId);
           if (out.length === 0) return "Low";
@@ -947,44 +968,23 @@ export const goalsRouter = createTRPCRouter({
           return "High";
         };
 
-        // Full library — for the picker AND for hydrating sync items.
-        const allItems = await db
-          .select()
-          .from(trackingItems)
-          .where(
-            and(
-              eq(trackingItems.userId, ctx.user.userId),
-              eq(trackingItems.status, "active"),
-              isNull(trackingItems.deletedAt),
-            ),
-          )
-          .orderBy(asc(trackingItems.order), asc(trackingItems.createdAt));
-
-        let syncItemsData: (typeof weeklySyncItems.$inferSelect)[] = [];
+        // Attachments depend on which sync items we got back; one more await.
         let attachmentsData: (typeof attachments.$inferSelect)[] = [];
-        if (weeklySyncRecord) {
-          syncItemsData = await db
+        if (syncItemsData.length > 0) {
+          attachmentsData = await db
             .select()
-            .from(weeklySyncItems)
-            .where(eq(weeklySyncItems.weeklySyncId, weeklySyncRecord.id))
-            .orderBy(asc(weeklySyncItems.orderIdx), asc(weeklySyncItems.createdAt));
-          if (syncItemsData.length > 0) {
-            attachmentsData = await db
-              .select()
-              .from(attachments)
-              .where(
-                and(
-                  eq(attachments.parentType, "weekly_sync_item"),
-                  inArray(
-                    attachments.parentId,
-                    syncItemsData.map((i) => i.id),
-                  ),
+            .from(attachments)
+            .where(
+              and(
+                eq(attachments.parentType, "weekly_sync_item"),
+                inArray(
+                  attachments.parentId,
+                  syncItemsData.map((i) => i.id),
                 ),
-              )
-              .orderBy(asc(attachments.createdAt));
-          }
+              ),
+            )
+            .orderBy(asc(attachments.createdAt));
         }
-
         const goalById = new Map(goalsData.map((g) => [g.id, g] as const));
         const itemById = new Map(allItems.map((i) => [i.id, i] as const));
 

@@ -25,7 +25,7 @@ Audit performed 2026-04-26. Items numbered as in the original audit; legend belo
 - ⬜ **#12 — Goal update wipes all tasks on every save.** Stop sending `tasks[]` on `goals.update`; route per-task edits through the per-task endpoints.
 - ⬜ **#13 — Missing DB indexes.** Add indexes on goals(user_id,status), tasks(goal_id), connections(source/target), task_referents(task_id/person_id), attachments(parent_type,parent_id), weekly_sync_items(weekly_sync_id,order_idx), partial on next_bids open, important_dates(person_id).
 - ⬜ **#14 — `getWeeklyRetrospectiveData` runs queries serially.** `Promise.all` the independent ones.
-- ⬜ **#15 — Password min 6 chars.** Bump to 12 + breached-password check (HIBP-style).
+- ✅ **#15 — Password minimum 12 chars.** Updated registerSchema, changePasswordSchema, RegisterModal client validation, and ProfileModal placeholder. Existing accounts with shorter passwords still log in (length is enforced only on new/changed passwords). Note: the dev account `santi@test.local` / `devpassword` (11 chars) keeps working for login; the password just can't be re-used as a *new* password if changed via the profile UI. HIBP / breach-list deferred — added as a follow-up nice-to-have if you want it later.
 - ⏭ **#16 — Zero tests.** Deferred; see `todo.md`.
 
 ## 🟡 MEDIUM — structural

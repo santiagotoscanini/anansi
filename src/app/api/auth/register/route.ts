@@ -13,7 +13,9 @@ const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 14;
 const registerSchema = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email(),
-  password: z.string().min(6),
+  // 12 char minimum — the 2026 baseline. Length matters more than special
+  // characters for resisting offline cracking against the bcrypt(12) hash.
+  password: z.string().min(12, "Password must be at least 12 characters"),
 });
 
 export async function POST(req: NextRequest) {

@@ -248,7 +248,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
             onChange={(e) => setNewPassword(e.target.value)}
             className={inputClass}
             autoComplete="new-password"
-            placeholder="At least 6 characters"
+            placeholder="At least 12 characters"
           />
           <label className={`${fieldLabel} mt-4`}>Confirm new password</label>
           <input

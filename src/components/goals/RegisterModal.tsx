@@ -37,8 +37,8 @@ export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
 
     if (!formData.password) {
       newErrors.password = "Password is required";
-    } else if (formData.password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
+    } else if (formData.password.length < 12) {
+      newErrors.password = "Password must be at least 12 characters";
     }
 
     if (formData.password !== formData.confirmPassword) {
@@ -142,7 +142,7 @@ export default function RegisterModal({ isOpen, onClose }: RegisterModalProps) {
               type="password"
               value={formData.password}
               onChange={(e) => handleInputChange("password", e.target.value)}
-              placeholder="Enter password (min. 6 characters)"
+              placeholder="Enter password (min. 12 characters)"
               className={`w-full rounded-lg border bg-transparent px-4 py-3 text-white placeholder-white/30 outline-none transition-all ${
                 errors.password ? "border-red-500 focus:border-red-400" : "border-white/20 focus:border-white/40"
               }`}

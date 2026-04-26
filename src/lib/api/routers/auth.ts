@@ -70,7 +70,8 @@ export const authRouter = createTRPCRouter({
     .input(
       z.object({
         currentPassword: z.string().min(1),
-        newPassword: z.string().min(6, "New password must be at least 6 characters"),
+        // See register/route.ts — 12 char baseline.
+        newPassword: z.string().min(12, "New password must be at least 12 characters"),
       }),
     )
     .mutation(async ({ input, ctx }) => {

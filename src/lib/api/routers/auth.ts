@@ -9,6 +9,7 @@ import { writeFile, mkdir, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { decodeImageUpload, UploadValidationError } from "../../image-upload";
+import { checkRateLimit } from "../../rate-limit";
 
 const UPLOADS_ROOT = path.join(process.cwd(), "uploads");
 
@@ -94,6 +95,12 @@ export const authRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      // 10 avatar uploads per minute per user is plenty for legitimate use
+      // (cropping retries, format swaps) and stops a runaway client loop.
+      const rl = checkRateLimit("auth.uploadAvatar", `user:${ctx.user.userId}`, { limit: 10, windowMs: 60_000 });
+      if (!rl.allowed) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many uploads, slow down" });
+      }
       let decoded;
       try {
         decoded = decodeImageUpload(input.data);

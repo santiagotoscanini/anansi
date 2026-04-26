@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "~/lib/data";
 import { users } from "~/lib/data/schema";
 import { createAuthToken, hashPassword } from "~/lib/auth-server";
+import { checkRateLimit, clientIpFromHeaders } from "~/lib/rate-limit";
 
 // See login/route.ts for the cookie-shape rationale.
 const COOKIE_NAME = "goals-auth";
@@ -16,6 +17,17 @@ const registerSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  // Rate limit: 3 registrations per hour per IP. The app is single-tenant
+  // self-hosted; legitimate users register at most once.
+  const ip = clientIpFromHeaders(req.headers);
+  const rl = checkRateLimit("auth.register", `ip:${ip}`, { limit: 3, windowMs: 60 * 60_000 });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many registration attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+    );
+  }
+
   let body: unknown;
   try {
     body = await req.json();

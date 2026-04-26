@@ -19,7 +19,7 @@ Audit performed 2026-04-26. Items numbered as in the original audit; legend belo
 ## 🟠 HIGH — correctness, perf, ergonomics
 
 - ✅ **#8 — `TRPCError` everywhere.** `trpc.ts` middleware now throws `TRPCError({ code: "UNAUTHORIZED" })`. All 60 router sites converted: ownership / not-found → `NOT_FOUND`, email collisions → `CONFLICT`, wrong-current-password → `FORBIDDEN`, batch-validation/upload errors → `BAD_REQUEST`, post-insert no-row → `INTERNAL_SERVER_ERROR`. Smoke-tested: unauth→401, missing goal→404 (both were 500 before).
-- ⬜ **#9 — No rate limiting.** Add `@upstash/ratelimit` (or token bucket) on auth.* and upload mutations.
+- ✅ **#9 — Rate limiting (in-memory).** New `lib/rate-limit.ts` with fixed-window token bucket + periodic sweep + `clientIpFromHeaders` (Traefik-aware). Applied: login 5/15min/IP, register 3/hour/IP, avatar upload 10/min/user, person photo 20/min/user, attachments 30/min/user. Smoke-tested: 6 bad-password tries in a row → attempts 1-5 return 401, 6+ return 429 with `Retry-After: 900`.
 - ⬜ **#10 — `refreshData()` refetches full graph on every CRUD.** Convert to targeted `utils.invalidate()` per affected query, optimistic updates on hot paths.
 - ⬜ **#11 — `getGoalProgress` is recursive O(n²) per render.** Memoize via topological computation, single pass on data change.
 - ⬜ **#12 — Goal update wipes all tasks on every save.** Stop sending `tasks[]` on `goals.update`; route per-task edits through the per-task endpoints.

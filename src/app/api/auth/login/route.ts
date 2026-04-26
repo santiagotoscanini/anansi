@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "~/lib/data";
 import { users } from "~/lib/data/schema";
 import { createAuthToken, validatePassword } from "~/lib/auth-server";
+import { checkRateLimit, clientIpFromHeaders } from "~/lib/rate-limit";
 
 // HttpOnly auth cookie. Set server-side from this route handler so XSS in any
 // rendered user content can't read or steal the token. Replaces the older
@@ -18,6 +19,17 @@ const loginSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  // Rate limit: 5 attempts per 15-minute window per source IP. Stops slow
+  // password sprays; legitimate users won't hit this even on multiple typos.
+  const ip = clientIpFromHeaders(req.headers);
+  const rl = checkRateLimit("auth.login", `ip:${ip}`, { limit: 5, windowMs: 15 * 60_000 });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many attempts. Try again later." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+    );
+  }
+
   let body: unknown;
   try {
     body = await req.json();

@@ -70,6 +70,7 @@ import {
   type Goal,
 } from "../types";
 import { decodeUpload, decodeImageUpload, UploadValidationError } from "../../image-upload";
+import { checkRateLimit } from "../../rate-limit";
 import { writeFile, readFile, mkdir, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
@@ -1237,6 +1238,12 @@ export const goalsRouter = createTRPCRouter({
   // the schema is permissive so other entities can opt in without migration.
   attachments: createTRPCRouter({
     upload: protectedProcedure.input(uploadAttachmentSchema).mutation(async ({ input, ctx }) => {
+      // 30 attachments per minute per user — generous for batch uploads,
+      // tight enough that a runaway loop bails before filling disk.
+      const rl = checkRateLimit("attachments.upload", `user:${ctx.user.userId}`, { limit: 30, windowMs: 60_000 });
+      if (!rl.allowed) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many uploads, slow down" });
+      }
       // Validate ownership of the parent. Only weekly_sync_item is supported today;
       // adding more parent types means extending this switch.
       if (input.parentType === "weekly_sync_item") {
@@ -1615,13 +1622,17 @@ export const goalsRouter = createTRPCRouter({
         }),
       )
       .mutation(async ({ input, ctx }) => {
+        const rl = checkRateLimit("people.uploadImage", `user:${ctx.user.userId}`, { limit: 20, windowMs: 60_000 });
+        if (!rl.allowed) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many uploads, slow down" });
+        }
         let decoded;
         try {
           decoded = decodeImageUpload(input.data);
         } catch (err) {
           if (err instanceof UploadValidationError) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
-        }
+            throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+          }
           throw err;
         }
         const ext = safeExtension(input.fileName, decoded.mime);

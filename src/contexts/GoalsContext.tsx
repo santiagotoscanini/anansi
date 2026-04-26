@@ -1,8 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
-import { clientAuth } from "~/lib/auth-client";
 import { api, type RouterOutputs } from "~/trpc/react";
 import type {
   Value,
@@ -112,32 +111,26 @@ interface GoalsContextType {
 const GoalsContext = createContext<GoalsContextType | undefined>(undefined);
 
 export function GoalsProvider({ children }: { children: ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [values, setValues] = useState<Value[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(false);
 
-  // Initialize token state
-  const [token, setToken] = useState<string | null>(null);
-
-  // tRPC queries and mutations
-  const verifyQuery = api.auth.verify.useQuery(
-    { token: token ?? "" },
-    {
-      enabled: !!token,
-      retry: false,
-    },
-  );
+  // Auth state derives from auth.me: success → authenticated; UNAUTHORIZED
+  // (or any error from a missing/expired cookie) → not authenticated. The
+  // cookie itself is HttpOnly so we never touch document.cookie here.
+  const utils = api.useUtils();
+  const meQuery = api.auth.me.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const isAuthenticated = meQuery.data !== undefined && meQuery.error === null;
+  const isLoading = meQuery.isPending;
 
   const dataQuery = api.goals.data.getAll.useQuery(undefined, {
     enabled: isAuthenticated,
     refetchOnWindowFocus: false,
   });
-
-  const authMutation = api.auth.authenticate.useMutation();
-  const registerMutation = api.auth.register.useMutation();
 
   // Mutations for data operations
   const valuesMutations = {
@@ -189,34 +182,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     delete: api.goals.attachments.delete.useMutation(),
   };
 
-  // Initialize token on mount (client-side only)
-  useEffect(() => {
-    // Small delay to ensure client-side hydration
-    setTimeout(() => {
-      const cookieToken = clientAuth.getToken();
-      setToken(cookieToken);
-
-      // If no token, immediately set not authenticated
-      if (!cookieToken) {
-        setIsAuthenticated(false);
-        setIsLoading(false);
-      }
-    }, 0);
-  }, []); // Only run once on mount
-
-  // Handle token verification — derive during render rather than setState-in-effect.
-  // We track the last processed data via state so setState only runs on real change.
-  const [lastVerifyData, setLastVerifyData] = useState<typeof verifyQuery.data | undefined>(undefined);
-  if (token && !verifyQuery.isLoading && verifyQuery.data !== undefined && verifyQuery.data !== lastVerifyData) {
-    setLastVerifyData(verifyQuery.data);
-    if (verifyQuery.data.isValid) {
-      setIsAuthenticated(true);
-    } else {
-      setIsAuthenticated(false);
-    }
-    setIsLoading(false);
-  }
-
   // Handle data loading when authenticated — derive during render via state tracking.
   const [lastProcessedData, setLastProcessedData] = useState<typeof dataQuery.data | undefined>(undefined);
   const [lastProcessedLoading, setLastProcessedLoading] = useState<boolean | null>(null);
@@ -235,60 +200,55 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
 
   const authenticate = async (email: string, password: string): Promise<boolean> => {
     try {
-      const result = await authMutation.mutateAsync({ email, password });
-
-      if (result.success && result.token) {
-        // Store token in cookie
-        clientAuth.setCookie(result.token);
-        // Update state
-        setToken(result.token);
-        setIsAuthenticated(true);
-        return true;
-      }
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) return false;
+      // Cookie is now set HttpOnly server-side. Re-pull `me` so isAuthenticated flips.
+      await utils.auth.me.invalidate();
+      return true;
     } catch {
-      // Authentication failed
       return false;
     }
-
-    return false;
   };
 
   const register = async (name: string, email: string, password: string): Promise<boolean> => {
     try {
-      const result = await registerMutation.mutateAsync({ name, email, password });
-
-      if (result.success && result.token) {
-        // Store token in cookie
-        clientAuth.setCookie(result.token);
-        // Update state
-        setToken(result.token);
-        setIsAuthenticated(true);
-        return true;
-      }
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+      if (!res.ok) return false;
+      await utils.auth.me.invalidate();
+      return true;
     } catch {
-      // Registration failed
       return false;
     }
-
-    return false;
   };
 
   const logout = () => {
-    clientAuth.clearCookie();
-    setToken(null);
-    setIsAuthenticated(false);
+    void (async () => {
+      try {
+        await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      } finally {
+        // Reset cached queries so isAuthenticated flips to false on the next
+        // me refetch (which will 401 now that the cookie is cleared).
+        await utils.auth.me.reset();
+        await utils.goals.data.getAll.reset();
+        setValues([]);
+        setGoals([]);
+        setConnections([]);
+      }
+    })();
   };
 
   const checkAuthentication = async () => {
-    const currentToken = clientAuth.getToken();
-    setToken(currentToken);
-    if (!currentToken) {
-      setIsAuthenticated(false);
-      return;
-    }
-
-    // This will trigger a re-fetch of the verify query
-    await verifyQuery.refetch();
+    await meQuery.refetch();
   };
 
   const refreshData = useCallback(async () => {
@@ -466,8 +426,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   );
 
   // Tracking Items operations
-  const utils = api.useUtils(); // provides access to tRPC's utility functions for cache management and manual query operations. It's essentially tRPC's way of giving you direct control over the query cache and data fetching.
-
   const getTrackingItems = useCallback(
     async (goalId: string): Promise<TrackingItem[]> => {
       try {

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { createAuthToken, verifyAuthToken, validatePassword, hashPassword } from "../../auth-server";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { validatePassword, hashPassword } from "../../auth-server";
 import { db } from "../../data";
 import { users } from "../../data/schema";
 import { and, eq, ne } from "drizzle-orm";
@@ -10,88 +10,10 @@ import path from "path";
 
 const UPLOADS_ROOT = path.join(process.cwd(), "uploads");
 
+// Auth state changes (login, register, logout) live in dedicated Next route
+// handlers under src/app/api/auth/* so they can set HttpOnly cookies on the
+// response. tRPC procedures here only handle authenticated profile reads/writes.
 export const authRouter = createTRPCRouter({
-  register: publicProcedure
-    .input(
-      z.object({
-        name: z.string().min(1, "Name is required"),
-        email: z.string().email("Invalid email address"),
-        password: z.string().min(6, "Password must be at least 6 characters"),
-      }),
-    )
-    .mutation(async ({ input }) => {
-      try {
-        // Check if email already exists
-        const existingUser = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
-        if (existingUser.length > 0) {
-          return { success: false, error: "Email already exists" };
-        }
-
-        // Hash the password
-        const hashedPassword = await hashPassword(input.password);
-
-        // Create the user
-        const newUser = await db
-          .insert(users)
-          .values({
-            name: input.name,
-            email: input.email,
-            password: hashedPassword,
-          })
-          .returning();
-
-        const user = newUser[0]!;
-        const token = await createAuthToken(user.id, user.name);
-
-        return { success: true, token, user: { id: user.id, name: user.name, email: user.email } };
-      } catch (error) {
-        console.error("Registration error:", error);
-        return { success: false, error: "Registration failed" };
-      }
-    }),
-
-  authenticate: publicProcedure
-    .input(
-      z.object({
-        email: z.string().email("Invalid email address"),
-        password: z.string(),
-      }),
-    )
-    .mutation(async ({ input }) => {
-      try {
-        // Find the user by email
-        const user = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
-        if (user.length === 0) {
-          return { success: false, error: "Invalid credentials" };
-        }
-
-        const foundUser = user[0]!;
-
-        // Validate password
-        const isValid = await validatePassword(input.password, foundUser.password);
-        if (!isValid) {
-          return { success: false, error: "Invalid credentials" };
-        }
-
-        const token = await createAuthToken(foundUser.id, foundUser.name);
-        return { success: true, token, user: { id: foundUser.id, name: foundUser.name, email: foundUser.email } };
-      } catch (error) {
-        console.error("Authentication error:", error);
-        return { success: false, error: "Authentication failed" };
-      }
-    }),
-
-  verify: publicProcedure
-    .input(
-      z.object({
-        token: z.string(),
-      }),
-    )
-    .query(async ({ input }) => {
-      const result = await verifyAuthToken(input.token);
-      return result;
-    }),
-
   // Authenticated profile read for the current user.
   me: protectedProcedure.query(async ({ ctx }) => {
     const [row] = await db

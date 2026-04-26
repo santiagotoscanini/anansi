@@ -10,11 +10,11 @@ Audit performed 2026-04-26. Items numbered as in the original audit; legend belo
 
 - ✅ **#1 — Hardcoded JWT secret fallback.** Throws at module load if `JWT_SECRET` is missing or <32 chars. Added `JWT_SECRET` passthrough to `docker-compose.yml`, documented in `.env.example`. **Deploy note:** prod env must export `JWT_SECRET` or the container will refuse to start.
 - ✅ **#2 — `auth.getUsers` deleted.** No callers found. Removed from `auth.ts` and from the CLAUDE.md endpoint list.
-- ⬜ **#3 — JWT cookie not HttpOnly (XSS = takeover).** Move auth state changes to dedicated Next route handlers (`/api/auth/login`, `/api/auth/register`, `/api/auth/logout`). Set the cookie server-side with `HttpOnly; Secure; SameSite=Lax`. Remove `clientAuth.setCookie`.
+- ✅ **#3 — JWT cookie now HttpOnly.** Three Next route handlers (`/api/auth/login`, `/api/auth/register`, `/api/auth/logout`) set the cookie with `HttpOnly; Secure (in prod); SameSite=Lax`. Removed `auth.authenticate`/`auth.register` tRPC mutations and the entire `src/lib/auth-client.ts`. Verified via curl that `Set-Cookie` carries `HttpOnly` and that `me` round-trips with the cookie.
 - ⬜ **#4 — `/uploads/[...path]` is unauthenticated.** Verify JWT from cookie, enforce leading-path-segment matches `userId`. Replace the substring traversal check with `path.normalize` + `startsWith(UPLOADS_ROOT)`.
 - ⬜ **#5 — CORS wildcard with credentials.** Remove the CORS block from `next.config.js`.
 - ⬜ **#6 — Image upload: extension-only, no size limit, no magic-byte sniff.** Add Zod size cap (10MB), magic-byte check, `X-Content-Type-Options: nosniff` on the uploads route.
-- ⬜ **#7 — `auth.verify` is publicProcedure taking the token in body.** Delete it; client uses `auth.me` (already protected).
+- ✅ **#7 — `auth.verify` deleted.** GoalsContext now derives auth state from `auth.me.useQuery()` (already protected) instead of probing token validity through a public endpoint.
 
 ## 🟠 HIGH — correctness, perf, ergonomics
 

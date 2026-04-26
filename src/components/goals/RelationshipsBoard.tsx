@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -13,7 +13,6 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { UserCircle2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "~/trpc/react";
 import type { PersonCategory } from "~/lib/api/types";
@@ -26,102 +25,20 @@ type Column = {
   hint: string;
 };
 
+// Ordered to match the natural arc of a relationship: new people enter via
+// Exploring, settle into either Context-bound (handled well, not deepening)
+// or Long-term (the deepest connections), and only fall into To Process
+// when something specifically needs repair, release, or ending.
 const COLUMNS: Column[] = [
-  { id: "to_process", label: "To Process", hint: "Unfinished — repair, release, or end. Card details say which." },
   { id: "exploring", label: "Exploring", hint: "New, undecided. Each has a decide-by date." },
+  { id: "context_bound", label: "Context-bound", hint: "Handle well, but not deepening." },
   { id: "long_term", label: "Long-term", hint: "Family, closest friends. Erode through neglect, not drama." },
-  { id: "context_bound", label: "Context-bound", hint: "People to handle well but aren't deepening." },
+  { id: "to_process", label: "To Process", hint: "Something to fix — repair, release, or end." },
 ];
 
 function isOverdue(d: Date | null | undefined): boolean {
   if (!d) return false;
   return new Date(d).getTime() < Date.now();
-}
-
-function SelfCard() {
-  const utils = api.useUtils();
-  const query = api.goals.self.get.useQuery();
-  const update = api.goals.self.update.useMutation({
-    onSuccess: () => {
-      void utils.goals.self.get.invalidate();
-    },
-  });
-
-  const [identityNotes, setIdentityNotes] = useState("");
-  const [patterns, setPatterns] = useState("");
-  const [currentWork, setCurrentWork] = useState("");
-  const [hydrated, setHydrated] = useState(false);
-
-  if (!hydrated && query.data !== undefined) {
-    setHydrated(true);
-    if (query.data) {
-      setIdentityNotes(query.data.identityNotes ?? "");
-      setPatterns(query.data.patterns ?? "");
-      setCurrentWork(query.data.currentWork ?? "");
-    }
-  }
-
-  const updateMutateAsync = update.mutateAsync;
-  useEffect(() => {
-    if (!hydrated) return;
-    const t = setTimeout(() => {
-      void updateMutateAsync({
-        identityNotes: identityNotes || null,
-        patterns: patterns || null,
-        currentWork: currentWork || null,
-      });
-    }, 800);
-    return () => clearTimeout(t);
-  }, [identityNotes, patterns, currentWork, hydrated, updateMutateAsync]);
-
-  const inputClass =
-    "w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-white outline-none transition-all placeholder:text-white/30 focus:border-white/40 resize-none";
-
-  return (
-    <div className="rounded-xl border border-white/20 bg-gradient-to-br from-white/10 to-white/[0.02] p-6">
-      <div className="mb-4 flex items-center gap-3">
-        <UserCircle2 className="h-6 w-6 text-white/70" />
-        <div>
-          <h3 className="text-lg font-light">Self</h3>
-          <p className="text-xs text-white/40">
-            The substrate. Not a card among others — a separate space with different structure.
-          </p>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div>
-          <label className="mb-1 block text-sm text-white/60">Who I am right now</label>
-          <textarea
-            value={identityNotes}
-            onChange={(e) => setIdentityNotes(e.target.value)}
-            rows={4}
-            placeholder="Identity notes..."
-            className={inputClass}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-white/60">Patterns I see in myself</label>
-          <textarea
-            value={patterns}
-            onChange={(e) => setPatterns(e.target.value)}
-            rows={4}
-            placeholder="How I show up across relationships..."
-            className={inputClass}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-white/60">Current work on myself</label>
-          <textarea
-            value={currentWork}
-            onChange={(e) => setCurrentWork(e.target.value)}
-            rows={4}
-            placeholder="What I'm working on..."
-            className={inputClass}
-          />
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function PersonCard({
@@ -190,16 +107,16 @@ function DroppableColumn({
   return (
     <section
       ref={setNodeRef}
-      className={`flex w-72 shrink-0 flex-col rounded-xl border bg-white/[0.02] transition-colors ${
+      className={`flex min-w-0 flex-col rounded-xl border bg-white/[0.02] transition-colors ${
         isOver ? "border-white/40 bg-white/[0.06]" : "border-white/10"
       }`}
     >
-      <div className="border-b border-white/5 px-4 py-3">
+      <div className="flex h-20 flex-col justify-start border-b border-white/5 px-4 py-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-white">{column.label}</h3>
           <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/60">{people.length}</span>
         </div>
-        <p className="mt-1 text-xs text-white/40">{column.hint}</p>
+        <p className="mt-1 line-clamp-2 text-xs text-white/40">{column.hint}</p>
       </div>
       <div className="flex flex-1 flex-col gap-2 p-3">
         {people.length === 0 ? (
@@ -300,13 +217,9 @@ export default function RelationshipsBoard() {
         </p>
       </div>
 
-      <div className="shrink-0 px-6 pb-4 md:px-8">
-        <SelfCard />
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="flex gap-4 px-6 pb-8 md:px-8">
+          <div className="grid grid-cols-1 gap-4 px-6 pb-8 sm:grid-cols-2 md:px-8 xl:grid-cols-4">
             {COLUMNS.map((col) => (
               <DroppableColumn key={col.id} column={col} people={byColumn[col.id]} onCardClick={setEditingPerson} />
             ))}

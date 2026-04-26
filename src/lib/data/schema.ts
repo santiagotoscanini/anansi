@@ -8,6 +8,27 @@ export const fileTypeEnum = pgEnum("file_type", ["image", "document", "video", "
 export const goalStatusEnum = pgEnum("goal_status", ["active", "archived"]);
 export const trackingItemStatusEnum = pgEnum("tracking_item_status", ["active", "archived"]);
 export const personCategoryEnum = pgEnum("person_category", ["to_process", "exploring", "long_term", "context_bound"]);
+// Living-portrait list buckets on the Self page. Most rows are short, list-shaped
+// items (energizers, drainers, just-for-me, triggers, releases, year-ahead);
+// patterns are also rows but additionally carry a `pattern_category` so they
+// group on the page (relational / self / communication / body-state / choice).
+export const selfListKindEnum = pgEnum("self_list_kind", [
+  "energizer",
+  "drainer",
+  "just_for_me",
+  "proud",
+  "pattern",
+  "trigger",
+  "release",
+  "year_ahead",
+]);
+export const selfPatternCategoryEnum = pgEnum("self_pattern_category", [
+  "relational",
+  "self_pattern",
+  "communication",
+  "body_state",
+  "choice",
+]);
 // Users table
 export const users = pgTable("users", {
   id: text("id")
@@ -16,6 +37,7 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
+  avatarUrl: text("avatar_url"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -79,8 +101,18 @@ export const tasks = pgTable("tasks", {
     .notNull()
     .references(() => goals.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
+  description: text("description"),
+  emoji: text("emoji"), // Native emoji or URL to custom emoji image — distinct from the parent goal's emoji
   difficulty: integer("difficulty").notNull(), // 1, 2, or 3
   completed: boolean("completed").notNull().default(false),
+  // Single deadline date for the task. Null = unscheduled (sits in the
+  // Horizons "Backlog" lane). The Horizons board buckets tasks into
+  // monthly/quarterly/yearly columns by COMPUTING which bucket the date
+  // falls into right now (auto-rollup): a task scheduled for September 15
+  // sits in Yearly until July arrives, then in Quarterly through August,
+  // then promotes to Monthly when September starts. This replaces the
+  // earlier horizon enum + horizonAt anchor — same idea, simpler primitive.
+  scheduledAt: timestamp("scheduled_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -124,9 +156,7 @@ export const trackingItems = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (t) => ({
-    userIdx: index("tracking_items_user_idx").on(t.userId),
-  }),
+  (t) => [index("tracking_items_user_idx").on(t.userId)],
 );
 
 // Weekly Sync table
@@ -169,21 +199,6 @@ export const weeklySyncItems = pgTable("weekly_sync_items", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// LEGACY — superseded by `attachments`. Kept around for one release so the
-// data-migration script can read existing rows. A follow-up migration will
-// drop this table once the migration script has been run on every environment.
-export const weeklySyncItemFiles = pgTable("weekly_sync_item_files", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
-  weeklySyncItemId: text("weekly_sync_item_id")
-    .notNull()
-    .references(() => weeklySyncItems.id, { onDelete: "cascade" }),
-  filePath: text("file_path").notNull(),
-  fileType: fileTypeEnum("file_type").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
 // Sync templates — named bundles of tracking items. A template is the default
 // recipe for what a sync covers; the partial unique index below enforces
 // "at most one default per user" so a fresh weekly sync knows what to snapshot.
@@ -201,11 +216,11 @@ export const syncTemplates = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (t) => ({
-    oneDefaultPerUser: uniqueIndex("sync_templates_one_default_per_user")
+  (t) => [
+    uniqueIndex("sync_templates_one_default_per_user")
       .on(t.userId)
       .where(sql`is_default = true`),
-  }),
+  ],
 );
 
 // Junction: which tracking items a template includes, and in what order.
@@ -225,16 +240,13 @@ export const syncTemplateItems = pgTable(
     orderIdx: integer("order_idx").notNull().default(0),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => ({
-    uniquePair: uniqueIndex("sync_template_items_pair_unique").on(t.templateId, t.trackingItemId),
-  }),
+  (t) => [uniqueIndex("sync_template_items_pair_unique").on(t.templateId, t.trackingItemId)],
 );
 
-// Generic polymorphic attachments table — replaces weekly_sync_item_files.
-// parent_type discriminates ('weekly_sync_item' is the only producer today;
-// designed to extend to other entities later). Storage path is
-// uploads/{userId}/attachments/{id}.{ext}, decoupled from goal/tracking-item
-// ids so items without goals can still hold files.
+// Generic polymorphic attachments table. parent_type discriminates
+// ('weekly_sync_item' is the only producer today; designed to extend to other
+// entities later). Storage path is uploads/{userId}/attachments/{id}.{ext},
+// decoupled from goal/tracking-item ids so items without goals can still hold files.
 export const attachments = pgTable(
   "attachments",
   {
@@ -252,10 +264,7 @@ export const attachments = pgTable(
     sizeBytes: integer("size_bytes"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => ({
-    parentIdx: index("attachments_parent_idx").on(t.parentType, t.parentId),
-    userIdx: index("attachments_user_idx").on(t.userId),
-  }),
+  (t) => [index("attachments_parent_idx").on(t.parentType, t.parentId), index("attachments_user_idx").on(t.userId)],
 );
 
 // People table (Personal CRM)
@@ -312,10 +321,12 @@ export const bucketListItemPeople = pgTable("bucket_list_item_people", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Gift ideas — a list of gestures/gifts captured per person. Captured when noticed
-// (not when needed) so the well doesn't run dry. Separate table so each idea has
-// its own timestamp and can be deleted atomically once given.
-export const giftIdeas = pgTable("gift_ideas", {
+// Next bids — actionable things I can do to improve a relationship: a gift,
+// a gesture, a check-in, an apology. Captured when noticed (not when needed)
+// so the well doesn't run dry. Each row has an optional deadline (`dueAt`)
+// and a completion marker (`completedAt`) — done bids stay visible (struck
+// through) instead of being deleted, so the trail of fulfilled bids is preserved.
+export const nextBids = pgTable("next_bids", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => createId()),
@@ -323,7 +334,29 @@ export const giftIdeas = pgTable("gift_ideas", {
     .notNull()
     .references(() => people.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
+  dueAt: timestamp("due_at"),
+  completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Important dates — yearly-recurring dates per person (birthday, anniversary,
+// graduation, etc.). `month`/`day` define the recurrence; `year` is optional
+// (the original year, used for "turning N this year" math). Surfaces in Pulse
+// when the next occurrence is within the upcoming window. NOT the same as
+// next_bids (`due_at`) — bids are one-shot deadlines, important dates repeat.
+export const importantDates = pgTable("important_dates", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  personId: text("person_id")
+    .notNull()
+    .references(() => people.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  month: integer("month").notNull(),
+  day: integer("day").notNull(),
+  year: integer("year"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // Task-Referent junction (many-to-many: a task can have multiple referent people,
@@ -370,7 +403,28 @@ export const peopleToGroups = pgTable("people_to_groups", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// User Self table (one row per user — the Self space is structurally distinct from a Person)
+// Tasks ↔ groups. Same `person_groups` rows the people side uses — the
+// group concept is intentionally cross-entity ("Family" can hold both my
+// partner and the "call mom" task). Cascade-deletes on both sides.
+export const tasksToGroups = pgTable("tasks_to_groups", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  groupId: text("group_id")
+    .notNull()
+    .references(() => personGroups.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// User Self table — one row per user, the substrate of the living-portrait Self
+// page. Prose-shaped fields (this-year description, story, attachment, love
+// languages, apology language, conflict style, stress response, note to future
+// self) live on this row; list-shaped buckets (energizers/drainers, just-for-me,
+// patterns, triggers, releases, year-ahead) live in `self_list_items` instead so
+// users can add/remove a single item without rewriting prose.
 export const userSelf = pgTable("user_self", {
   id: text("id")
     .primaryKey()
@@ -379,12 +433,45 @@ export const userSelf = pgTable("user_self", {
     .notNull()
     .unique()
     .references(() => users.id, { onDelete: "cascade" }),
-  identityNotes: text("identity_notes"),
-  patterns: text("patterns"),
-  currentWork: text("current_work"),
+  // Living-portrait prose fields. `descriptionYear` is the calendar year the
+  // current `thisYearSelfDescription` was written for — when the user opens
+  // a new year, the UI offers to archive the previous one.
+  thisYearSelfDescription: text("this_year_self_description"),
+  descriptionYear: integer("description_year"),
+  myStory: text("my_story"),
+  attachmentTendencies: text("attachment_tendencies"),
+  loveLanguageGive: text("love_language_give"),
+  loveLanguageReceive: text("love_language_receive"),
+  apologyLanguage: text("apology_language"),
+  conflictStyle: text("conflict_style"),
+  stressResponse: text("stress_response"),
+  noteToFutureSelf: text("note_to_future_self"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// Self list items — atomic rows for every list-shaped section on the Self page.
+// One table for all kinds keeps the surface small and lets the UI treat them
+// uniformly (add a row, edit content, delete, reorder). `patternCategory` is
+// only meaningful when `kind = 'pattern'` — null for every other kind.
+export const selfListItems = pgTable(
+  "self_list_items",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: selfListKindEnum("kind").notNull(),
+    patternCategory: selfPatternCategoryEnum("pattern_category"),
+    content: text("content").notNull(),
+    orderIdx: integer("order_idx").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("self_list_items_user_kind_idx").on(t.userId, t.kind)],
+);
 
 // Goal-Value junction table (many-to-many relationship)
 export const goalValues = pgTable("goal_values", {
@@ -415,6 +502,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     fields: [users.id],
     references: [userSelf.userId],
   }),
+  selfListItems: many(selfListItems),
 }));
 
 export const bucketListItemsRelations = relations(bucketListItems, ({ one, many }) => ({
@@ -443,12 +531,20 @@ export const peopleRelations = relations(people, ({ one, many }) => ({
   }),
   taskReferents: many(taskReferents),
   groupMemberships: many(peopleToGroups),
-  giftIdeas: many(giftIdeas),
+  nextBids: many(nextBids),
+  importantDates: many(importantDates),
 }));
 
-export const giftIdeasRelations = relations(giftIdeas, ({ one }) => ({
+export const nextBidsRelations = relations(nextBids, ({ one }) => ({
   person: one(people, {
-    fields: [giftIdeas.personId],
+    fields: [nextBids.personId],
+    references: [people.id],
+  }),
+}));
+
+export const importantDatesRelations = relations(importantDates, ({ one }) => ({
+  person: one(people, {
+    fields: [importantDates.personId],
     references: [people.id],
   }),
 }));
@@ -459,6 +555,7 @@ export const personGroupsRelations = relations(personGroups, ({ one, many }) => 
     references: [users.id],
   }),
   memberships: many(peopleToGroups),
+  taskMemberships: many(tasksToGroups),
 }));
 
 export const peopleToGroupsRelations = relations(peopleToGroups, ({ one }) => ({
@@ -486,6 +583,13 @@ export const taskReferentsRelations = relations(taskReferents, ({ one }) => ({
 export const userSelfRelations = relations(userSelf, ({ one }) => ({
   user: one(users, {
     fields: [userSelf.userId],
+    references: [users.id],
+  }),
+}));
+
+export const selfListItemsRelations = relations(selfListItems, ({ one }) => ({
+  user: one(users, {
+    fields: [selfListItems.userId],
     references: [users.id],
   }),
 }));
@@ -533,6 +637,18 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
     references: [goals.id],
   }),
   referents: many(taskReferents),
+  groupMemberships: many(tasksToGroups),
+}));
+
+export const tasksToGroupsRelations = relations(tasksToGroups, ({ one }) => ({
+  task: one(tasks, {
+    fields: [tasksToGroups.taskId],
+    references: [tasks.id],
+  }),
+  group: one(personGroups, {
+    fields: [tasksToGroups.groupId],
+    references: [personGroups.id],
+  }),
 }));
 
 export const connectionsRelations = relations(connections, ({ one }) => ({
@@ -602,7 +718,7 @@ export const weeklySyncRelations = relations(weeklySync, ({ one, many }) => ({
   weeklySyncItems: many(weeklySyncItems),
 }));
 
-export const weeklySyncItemsRelations = relations(weeklySyncItems, ({ one, many }) => ({
+export const weeklySyncItemsRelations = relations(weeklySyncItems, ({ one }) => ({
   weeklySync: one(weeklySync, {
     fields: [weeklySyncItems.weeklySyncId],
     references: [weeklySync.id],
@@ -610,14 +726,6 @@ export const weeklySyncItemsRelations = relations(weeklySyncItems, ({ one, many 
   trackingItem: one(trackingItems, {
     fields: [weeklySyncItems.trackingItemId],
     references: [trackingItems.id],
-  }),
-  files: many(weeklySyncItemFiles),
-}));
-
-export const weeklySyncItemFilesRelations = relations(weeklySyncItemFiles, ({ one }) => ({
-  weeklySyncItem: one(weeklySyncItems, {
-    fields: [weeklySyncItemFiles.weeklySyncItemId],
-    references: [weeklySyncItems.id],
   }),
 }));
 

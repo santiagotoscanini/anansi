@@ -2,6 +2,13 @@
 const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
+  images: {
+    // User-uploaded files (avatars, person pictures, attachments) are served
+    // by our /uploads/[...path] route on the same origin. Next/Image's
+    // optimizer rejects local paths by default — allow-list /uploads/** so
+    // the <Image> component can request them.
+    localPatterns: [{ pathname: "/uploads/**" }],
+  },
   // Add this section to ensure API routes work correctly
   async headers() {
     return [

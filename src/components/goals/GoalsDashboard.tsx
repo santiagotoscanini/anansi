@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  ChevronUp,
   LogOut,
   Target,
   Calendar,
@@ -9,8 +10,7 @@ import {
   Trophy,
   Mountain,
   RefreshCw,
-  Download,
-  Upload,
+  Settings,
   Users,
   Network,
   Menu,
@@ -18,10 +18,11 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Plus,
-  Pencil,
-  Trash2,
   ListChecks,
+  ListTodo,
   Activity,
+  Hourglass,
+  UserCircle2,
 } from "lucide-react";
 import { useGoals } from "~/contexts/GoalsContext";
 import { api } from "~/trpc/react";
@@ -32,10 +33,16 @@ import WeeklyRetrospective from "./WeeklyRetrospective";
 import LifeProgress from "./LifeProgress";
 import PeopleDirectory, { type PeopleFilter } from "./PeopleDirectory";
 import RelationshipsBoard from "./RelationshipsBoard";
+import Self from "./Self";
 import BucketList from "./BucketList";
 import TrackingItemsLibrary from "./TrackingItemsLibrary";
 import Pulse from "./Pulse";
+import Horizons from "./Horizons";
+import Tasks from "./Tasks";
 import BackupImportModal from "./BackupImportModal";
+import ColorPicker from "./ColorPicker";
+import ProfileModal from "./ProfileModal";
+import Avatar from "./Avatar";
 
 // Ananse Ntontan — Adinkra symbol for Anansi (spider). Rendered inline so it
 // inherits currentColor and stays crisp at any size.
@@ -61,9 +68,12 @@ function AnansiMark({ className = "h-5 w-5" }: { className?: string }) {
 
 type TabType =
   | "objectives"
+  | "horizons"
+  | "tasks"
   | "pulse"
   | "sync"
   | "tracking-items"
+  | "self"
   | "values"
   | "progress"
   | "bucket"
@@ -80,12 +90,15 @@ type NavItem = { id: TabType; name: string; icon: typeof Target };
 const pulseNavItem: NavItem = { id: "pulse", name: "Pulse", icon: Activity };
 
 const compassSection: NavItem[] = [
+  { id: "self", name: "Self", icon: UserCircle2 },
   { id: "values", name: "Values", icon: Palette },
   { id: "bucket", name: "Bucket List", icon: Mountain },
 ];
 
 const goalsSection: NavItem[] = [
   { id: "objectives", name: "Objectives", icon: Target },
+  { id: "horizons", name: "Horizons", icon: Hourglass },
+  { id: "tasks", name: "Tasks", icon: ListTodo },
   { id: "progress", name: "Progress", icon: Trophy },
 ];
 
@@ -98,69 +111,121 @@ const peopleNavItem: NavItem = { id: "people", name: "People", icon: Users };
 const relationshipsNavItem: NavItem = { id: "relationships", name: "Relationships", icon: Network };
 
 export default function GoalsDashboard() {
-  const { logout, isDataLoading } = useGoals();
+  const { logout, isDataLoading, goals: allGoals } = useGoals();
   const [activeTab, setActiveTab] = useState<TabType>("objectives");
   const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>({ kind: "all" });
   const [isImportOpen, setIsImportOpen] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  // Desktop-only collapsed state, persisted across sessions.
-  const [collapsed, setCollapsed] = useState(() => {
+  // Desktop sidebar layout. Three knobs:
+  //   - userPrefCollapsed: whether the user clicked the collapse button
+  //   - viewportTooNarrow: forced-collapse below SIDEBAR_AUTOCOLLAPSE_PX so the
+  //     main canvas doesn't get crushed on small screens
+  //   - expandedWidth: user-chosen width when expanded (drag-to-resize handle on
+  //     the right edge). Persisted across sessions.
+  // Effective width = collapsed ? COLLAPSED_PX : expandedWidth.
+  const SIDEBAR_AUTOCOLLAPSE_PX = 1100;
+  const COLLAPSED_PX = 56;
+  const SIDEBAR_MIN_PX = 180;
+  const SIDEBAR_MAX_PX = 400;
+  const SIDEBAR_DEFAULT_PX = 224;
+  const COLLAPSE_THRESHOLD_PX = 110; // dragging below this snaps to collapsed
+  const [userPrefCollapsed, setUserPrefCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("sidebarCollapsed") === "1";
   });
+  const [expandedWidth, setExpandedWidth] = useState(() => {
+    if (typeof window === "undefined") return SIDEBAR_DEFAULT_PX;
+    const raw = localStorage.getItem("sidebarExpandedWidth");
+    const parsed = raw ? parseInt(raw, 10) : NaN;
+    if (Number.isFinite(parsed)) {
+      return Math.min(SIDEBAR_MAX_PX, Math.max(SIDEBAR_MIN_PX, parsed));
+    }
+    return SIDEBAR_DEFAULT_PX;
+  });
+  const [viewportTooNarrow, setViewportTooNarrow] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth < SIDEBAR_AUTOCOLLAPSE_PX;
+  });
+  const [isResizing, setIsResizing] = useState(false);
   useEffect(() => {
-    localStorage.setItem("sidebarCollapsed", collapsed ? "1" : "0");
-  }, [collapsed]);
+    const onResize = () => setViewportTooNarrow(window.innerWidth < SIDEBAR_AUTOCOLLAPSE_PX);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  useEffect(() => {
+    localStorage.setItem("sidebarCollapsed", userPrefCollapsed ? "1" : "0");
+  }, [userPrefCollapsed]);
+  useEffect(() => {
+    localStorage.setItem("sidebarExpandedWidth", String(expandedWidth));
+  }, [expandedWidth]);
+  const collapsed = userPrefCollapsed || viewportTooNarrow;
+  const sidebarWidth = collapsed ? COLLAPSED_PX : expandedWidth;
+  const setCollapsed = (next: boolean | ((prev: boolean) => boolean)) => {
+    setUserPrefCollapsed((prev) => (typeof next === "function" ? next(prev) : next));
+  };
+
+  // Drag-to-resize. The handle is a 4px hot-zone on the right edge of the
+  // sidebar; while dragging we attach mousemove/mouseup to document so the
+  // drag survives crossing into the main pane. Dragging below
+  // COLLAPSE_THRESHOLD_PX snaps to collapsed; dragging back out auto-expands.
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    if (viewportTooNarrow) return; // forced-collapse: don't allow drag
+    e.preventDefault();
+    setIsResizing(true);
+    const onMove = (ev: MouseEvent) => {
+      const x = ev.clientX;
+      if (x < COLLAPSE_THRESHOLD_PX) {
+        setUserPrefCollapsed(true);
+        return;
+      }
+      setUserPrefCollapsed(false);
+      setExpandedWidth(Math.min(SIDEBAR_MAX_PX, Math.max(SIDEBAR_MIN_PX, x)));
+    };
+    const onUp = () => {
+      setIsResizing(false);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
 
   const utils = api.useUtils();
   const groupsQuery = api.goals.groups.getAll.useQuery();
   const peopleQuery = api.goals.people.getAll.useQuery({ includeArchived: false });
+  const meQuery = api.auth.me.useQuery();
   const createGroupMutation = api.goals.groups.create.useMutation();
-  const updateGroupMutation = api.goals.groups.update.useMutation();
-  const deleteGroupMutation = api.goals.groups.delete.useMutation();
 
   const [showNewGroupForm, setShowNewGroupForm] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupColor, setNewGroupColor] = useState("#60a5fa");
-  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
-  const [editGroupName, setEditGroupName] = useState("");
-  const [editGroupColor, setEditGroupColor] = useState("#60a5fa");
 
   const handleLogout = () => {
     logout();
     toast.success("Logged out successfully");
   };
 
-  const handleExport = async () => {
-    if (isExporting) return;
-    setIsExporting(true);
-    toast.loading("Preparing backup…", { id: "backup-export" });
-    try {
-      const backup = await utils.goals.backup.export.fetch();
-      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `goals-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success(`Backup downloaded (${backup.files.length} files)`, { id: "backup-export" });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Export failed", { id: "backup-export" });
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   const groups = groupsQuery.data ?? [];
   const allPeople = peopleQuery.data ?? [];
   const peopleCount = allPeople.length;
   const uncategorizedCount = allPeople.filter((p) => !p.groupIds || p.groupIds.length === 0).length;
-  const countForGroup = (groupId: string) => allPeople.filter((p) => p.groupIds?.includes(groupId)).length;
+  // Group counts span both people and tasks — same `person_groups` rows on
+  // both sides ("Family" can hold both my partner and a "call mom" task).
+  const countForGroup = (groupId: string) => {
+    const p = allPeople.filter((person) => person.groupIds?.includes(groupId)).length;
+    const t = allGoals.reduce(
+      (sum, goal) =>
+        sum + goal.tasks.filter((task) => (task.groupIds ?? []).includes(groupId) && !task.completed).length,
+      0,
+    );
+    return p + t;
+  };
 
   const goToPeople = (filter: PeopleFilter) => {
     setActiveTab("people");
@@ -186,36 +251,6 @@ export default function GoalsDashboard() {
     }
   };
 
-  const submitGroupEdit = async () => {
-    if (!editingGroupId || !editGroupName.trim()) return;
-    try {
-      await updateGroupMutation.mutateAsync({
-        id: editingGroupId,
-        name: editGroupName.trim(),
-        color: editGroupColor,
-      });
-      await utils.goals.groups.getAll.invalidate();
-      setEditingGroupId(null);
-      toast.success("Group updated");
-    } catch {
-      toast.error("Failed to update group");
-    }
-  };
-
-  const handleDeleteGroup = async (id: string, name: string) => {
-    if (!confirm(`Delete group "${name}"? People stay, but their membership in this group is removed.`)) return;
-    try {
-      await deleteGroupMutation.mutateAsync({ id });
-      await Promise.all([utils.goals.groups.getAll.invalidate(), utils.goals.people.getAll.invalidate()]);
-      if (peopleFilter.kind === "group" && peopleFilter.groupId === id) {
-        setPeopleFilter({ kind: "all" });
-      }
-      toast.success("Group deleted");
-    } catch {
-      toast.error("Failed to delete group");
-    }
-  };
-
   const renderNavItem = (item: NavItem, isCollapsed: boolean, active: boolean, onClick: () => void) => {
     const Icon = item.icon;
     return (
@@ -233,11 +268,14 @@ export default function GoalsDashboard() {
     );
   };
 
-  const renderSidebar = (isCollapsed: boolean) => {
+  const renderSidebar = (isCollapsed: boolean, opts?: { resizable?: boolean; widthPx?: number }) => {
+    const resizable = opts?.resizable ?? false;
+    const widthPx = opts?.widthPx ?? (isCollapsed ? COLLAPSED_PX : expandedWidth);
     return (
       <aside
-        className={`flex h-full shrink-0 flex-col border-r border-white/10 bg-black transition-[width] duration-200 ${
-          isCollapsed ? "w-14" : "w-56"
+        style={{ width: `${widthPx}px` }}
+        className={`relative flex h-full shrink-0 flex-col border-r border-white/10 bg-black ${
+          isResizing ? "" : "transition-[width] duration-200"
         }`}
       >
         {/* Brand + collapse toggle */}
@@ -383,76 +421,26 @@ export default function GoalsDashboard() {
               {groups.map((g) => {
                 const selected =
                   activeTab === "people" && peopleFilter.kind === "group" && peopleFilter.groupId === g.id;
-                if (editingGroupId === g.id) {
-                  return (
-                    <div key={g.id} className="flex items-center gap-3 rounded-lg bg-white/5 px-3 py-2">
-                      <input
-                        type="color"
-                        value={editGroupColor}
-                        onChange={(e) => setEditGroupColor(e.target.value)}
-                        className="h-4 w-4 cursor-pointer rounded border-0 bg-transparent p-0"
-                      />
-                      <input
-                        type="text"
-                        value={editGroupName}
-                        onChange={(e) => setEditGroupName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") void submitGroupEdit();
-                          if (e.key === "Escape") setEditingGroupId(null);
-                        }}
-                        className="flex-1 bg-transparent text-sm text-white outline-none"
-                        autoFocus
-                      />
-                    </div>
-                  );
-                }
                 return (
-                  <div
+                  <button
                     key={g.id}
-                    className={`group flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-all ${
+                    onClick={() => goToPeople({ kind: "group", groupId: g.id })}
+                    className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-all ${
                       selected ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
                     }`}
                   >
-                    <button
-                      onClick={() => goToPeople({ kind: "group", groupId: g.id })}
-                      className="flex min-w-0 flex-1 items-center gap-3"
-                    >
+                    <span className="flex min-w-0 items-center gap-3">
                       <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: g.color }} />
                       <span className="truncate">{g.name}</span>
-                    </button>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-white/40">{countForGroup(g.id)}</span>
-                      <button
-                        onClick={() => {
-                          setEditingGroupId(g.id);
-                          setEditGroupName(g.name);
-                          setEditGroupColor(g.color);
-                        }}
-                        className="rounded p-0.5 text-white/40 opacity-100 transition-all hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100"
-                        title="Edit"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </button>
-                      <button
-                        onClick={() => void handleDeleteGroup(g.id, g.name)}
-                        className="rounded p-0.5 text-white/40 opacity-100 transition-all hover:bg-red-500/20 hover:text-red-400 md:opacity-0 md:group-hover:opacity-100"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </div>
+                    </span>
+                    <span className="text-xs text-white/40">{countForGroup(g.id)}</span>
+                  </button>
                 );
               })}
 
               {showNewGroupForm && (
                 <div className="flex items-center gap-3 rounded-lg bg-white/5 px-3 py-2">
-                  <input
-                    type="color"
-                    value={newGroupColor}
-                    onChange={(e) => setNewGroupColor(e.target.value)}
-                    className="h-4 w-4 cursor-pointer rounded border-0 bg-transparent p-0"
-                  />
+                  <ColorPicker value={newGroupColor} onChange={setNewGroupColor} size="sm" />
                   <input
                     type="text"
                     value={newGroupName}
@@ -474,43 +462,35 @@ export default function GoalsDashboard() {
           )}
         </nav>
 
-        {/* Utility actions */}
-        <div className={`flex flex-col gap-1 border-t border-white/10 py-3 ${isCollapsed ? "px-2" : "px-3"}`}>
-          <button
-            onClick={handleExport}
-            disabled={isExporting}
-            title={isCollapsed ? "Export backup" : undefined}
-            className={`flex items-center rounded-lg text-sm transition-all ${
-              isCollapsed ? "justify-center px-0 py-2" : "gap-3 px-3 py-2"
-            } text-white/60 hover:bg-white/5 hover:text-white disabled:opacity-50`}
-          >
-            <Download className="h-4 w-4 shrink-0" />
-            {!isCollapsed && <span>Export backup</span>}
-          </button>
-          <button
-            onClick={() => {
-              setIsImportOpen(true);
+        {/* User pill — opens menu with Profile and Log out. Backups live inside Profile. */}
+        <div className={`border-t border-white/10 py-3 ${isCollapsed ? "px-2" : "px-3"}`}>
+          <UserMenu
+            isCollapsed={isCollapsed}
+            user={meQuery.data ?? null}
+            onProfile={() => {
+              setIsProfileOpen(true);
               setMobileNavOpen(false);
             }}
-            title={isCollapsed ? "Import backup" : undefined}
-            className={`flex items-center rounded-lg text-sm transition-all ${
-              isCollapsed ? "justify-center px-0 py-2" : "gap-3 px-3 py-2"
-            } text-white/60 hover:bg-white/5 hover:text-white`}
-          >
-            <Upload className="h-4 w-4 shrink-0" />
-            {!isCollapsed && <span>Import backup</span>}
-          </button>
-          <button
-            onClick={handleLogout}
-            title={isCollapsed ? "Log out" : undefined}
-            className={`flex items-center rounded-lg text-sm transition-all ${
-              isCollapsed ? "justify-center px-0 py-2" : "gap-3 px-3 py-2"
-            } text-white/60 hover:bg-white/5 hover:text-white`}
-          >
-            <LogOut className="h-4 w-4 shrink-0" />
-            {!isCollapsed && <span>Log out</span>}
-          </button>
+            onLogout={handleLogout}
+          />
         </div>
+
+        {/* Drag handle — sits on the right edge, hot-zone is wider than the
+            visible 1px line so it's easy to grab. Hidden on mobile drawer. */}
+        {resizable && !viewportTooNarrow && (
+          <div
+            onMouseDown={handleResizeMouseDown}
+            className="group absolute right-0 top-0 z-10 -mr-0.5 flex h-full w-1.5 cursor-col-resize items-center justify-center"
+            aria-label="Resize sidebar"
+            role="separator"
+          >
+            <span
+              className={`h-full w-px transition-colors ${
+                isResizing ? "bg-blue-400" : "bg-transparent group-hover:bg-white/20"
+              }`}
+            />
+          </div>
+        )}
       </aside>
     );
   };
@@ -519,12 +499,18 @@ export default function GoalsDashboard() {
     switch (activeTab) {
       case "objectives":
         return <GoalsGraph />;
+      case "horizons":
+        return <Horizons />;
+      case "tasks":
+        return <Tasks />;
       case "pulse":
         return <Pulse />;
       case "sync":
         return <WeeklyRetrospective />;
       case "tracking-items":
         return <TrackingItemsLibrary />;
+      case "self":
+        return <Self />;
       case "values":
         return <ValuesManager />;
       case "progress":
@@ -540,9 +526,12 @@ export default function GoalsDashboard() {
 
   const activeTitle = () => {
     if (activeTab === "objectives") return "Objectives";
+    if (activeTab === "horizons") return "Horizons";
+    if (activeTab === "tasks") return "Tasks";
     if (activeTab === "pulse") return "Pulse";
     if (activeTab === "sync") return "Sync";
     if (activeTab === "tracking-items") return "Tracking Items";
+    if (activeTab === "self") return "Self";
     if (activeTab === "values") return "Values";
     if (activeTab === "progress") return "Progress";
     if (activeTab === "bucket") return "Bucket List";
@@ -561,16 +550,23 @@ export default function GoalsDashboard() {
     <main className="flex h-screen bg-black text-white">
       <Toaster position="top-right" />
       {isImportOpen && <BackupImportModal onClose={() => setIsImportOpen(false)} />}
+      {isProfileOpen && (
+        <ProfileModal
+          onClose={() => setIsProfileOpen(false)}
+          onLogout={handleLogout}
+          onImportBackup={() => setIsImportOpen(true)}
+        />
+      )}
 
       {/* Desktop sidebar */}
-      <div className="hidden md:flex">{renderSidebar(collapsed)}</div>
+      <div className="hidden md:flex">{renderSidebar(collapsed, { resizable: true, widthPx: sidebarWidth })}</div>
 
-      {/* Mobile drawer — always full width */}
+      {/* Mobile drawer — fixed default width, no drag handle */}
       {mobileNavOpen && (
         <div className="fixed inset-0 z-40 flex md:hidden" onClick={() => setMobileNavOpen(false)}>
           <div className="absolute inset-0 bg-black/60" />
           <div className="relative z-50" onClick={(e) => e.stopPropagation()}>
-            {renderSidebar(false)}
+            {renderSidebar(false, { widthPx: SIDEBAR_DEFAULT_PX })}
           </div>
         </div>
       )}
@@ -602,5 +598,91 @@ export default function GoalsDashboard() {
         </div>
       </div>
     </main>
+  );
+}
+
+// ---------------- UserMenu ----------------
+// Bottom-of-sidebar pill that shows the current user. Click to pop a small
+// menu with Profile and Log out. Backups live inside the Profile modal.
+function UserMenu({
+  isCollapsed,
+  user,
+  onProfile,
+  onLogout,
+}: {
+  isCollapsed: boolean;
+  user: { name: string; email: string; avatarUrl: string | null } | null;
+  onProfile: () => void;
+  onLogout: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const displayName = user?.name ?? "Account";
+  const displayEmail = user?.email ?? "";
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        title={isCollapsed ? displayName : undefined}
+        className={`flex w-full items-center rounded-lg text-sm transition-all ${
+          isCollapsed ? "justify-center px-0 py-1.5" : "gap-3 px-2 py-2"
+        } text-white/70 hover:bg-white/5 hover:text-white`}
+      >
+        <Avatar name={displayName} emoji={user?.avatarUrl ?? null} size="sm" shape="circle" />
+        {!isCollapsed && (
+          <>
+            <div className="min-w-0 flex-1 text-left">
+              <div className="truncate text-sm">{displayName}</div>
+              {displayEmail && <div className="truncate text-[11px] text-white/40">{displayEmail}</div>}
+            </div>
+            <ChevronUp className="h-4 w-4 shrink-0 text-white/40" />
+          </>
+        )}
+      </button>
+      {open && (
+        <div
+          className={`absolute z-30 rounded-lg border border-white/10 bg-zinc-950 p-1 shadow-2xl ${
+            isCollapsed ? "bottom-full left-full ml-2 w-44" : "bottom-full left-0 right-0 mb-2"
+          }`}
+        >
+          <button
+            onClick={() => {
+              setOpen(false);
+              onProfile();
+            }}
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-white/80 transition-all hover:bg-white/10 hover:text-white"
+          >
+            <Settings className="h-4 w-4 text-white/50" /> Profile
+          </button>
+          <button
+            onClick={() => {
+              setOpen(false);
+              onLogout();
+            }}
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-white/80 transition-all hover:bg-white/10 hover:text-white"
+          >
+            <LogOut className="h-4 w-4 text-white/50" /> Log out
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

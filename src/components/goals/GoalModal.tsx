@@ -2,14 +2,16 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
-import { X, Trash2, Square, CheckSquare, Check, Edit2, Plus, Users, ChevronDown, ChevronRight } from "lucide-react";
+import { X, Trash2, Square, CheckSquare, Check, Edit2, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { useGoals, type Task, type TrackingItem } from "~/contexts/GoalsContext";
+import { formatScheduledShort } from "~/lib/horizon-period";
 import toast from "react-hot-toast";
 import ValueSelectionModal from "./ValueSelectionModal";
 import EmojiPicker, { type EmojiClickData, Theme } from "emoji-picker-react";
 import { getRandomEmoji, isEmojiUrl } from "~/lib/emoji-utils";
 import { api } from "~/trpc/react";
 import Avatar from "./Avatar";
+import TaskModal from "./TaskModal";
 
 interface GoalModalProps {
   goalId: string | null;
@@ -23,9 +25,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
     addGoal,
     updateGoal,
     deleteGoal,
-    addTask,
     updateTask,
-    deleteTask,
     getGoalCompletion,
     getTrackingItems,
     addTrackingItem,
@@ -41,22 +41,28 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
   const [customEmojiUrl, setCustomEmojiUrl] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [valueIds, setValueIds] = useState<string[]>(existingGoal?.valueIds ?? []);
-  const [tasks, setTasks] = useState<Task[]>(goalId ? [] : []);
-  const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [editTaskTitle, setEditTaskTitle] = useState("");
-  const [editTaskDifficulty, setEditTaskDifficulty] = useState<1 | 2 | 3>(2);
-  const [editTaskReferentIds, setEditTaskReferentIds] = useState<string[]>([]);
-  const [managingReferentsTaskId, setManagingReferentsTaskId] = useState<string | null>(null);
+  // All task editing/creation routes through TaskModal. The row stays
+  // interactive only for the complete checkbox; everything else opens the
+  // modal so there's a single way to do each thing. New goals must save
+  // first before tasks can be added (same constraint as tracking items).
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const [creatingTask, setCreatingTask] = useState(false);
 
-  // People directory for referent assignment on tasks.
-  const peopleQuery = api.goals.people.getAll.useQuery({ includeArchived: false });
-  const people = useMemo(() => peopleQuery.data ?? [], [peopleQuery.data]);
+  // People + groups directories — used to render the read-only avatar/dot
+  // summaries on task rows. The actual picker lives in TaskModal.
+  const peopleData = api.goals.people.getAll.useQuery({ includeArchived: false }).data;
   const peopleById = useMemo(() => {
-    const map = new Map<string, (typeof people)[number]>();
-    for (const p of people) map.set(p.id, p);
+    const map = new Map<string, NonNullable<typeof peopleData>[number]>();
+    for (const p of peopleData ?? []) map.set(p.id, p);
     return map;
-  }, [people]);
+  }, [peopleData]);
+
+  const groupsData = api.goals.groups.getAll.useQuery().data;
+  const groupsById = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof groupsData>[number]>();
+    for (const g of groupsData ?? []) map.set(g.id, g);
+    return map;
+  }, [groupsData]);
 
   // Tracking items state
   const [trackingItems, setTrackingItems] = useState<TrackingItem[]>([]);
@@ -95,13 +101,13 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
       });
       toast.success("Goal updated successfully");
     } else {
-      // For new goals, include the tasks
+      // New goals start with no tasks — they can be added once saved.
       void addGoal({
         title,
         description,
         emoji,
         valueIds,
-        tasks,
+        tasks: [],
         position: { x: 250, y: 250 },
       });
       toast.success("Goal created successfully");
@@ -132,108 +138,22 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
     }
   };
 
-  const handleAddTask = () => {
-    if (!newTaskTitle.trim()) {
-      toast.error("Task title is required");
-      return;
-    }
-
-    const newTask: Task = {
-      id: crypto.randomUUID(),
-      title: newTaskTitle,
-      difficulty: 2, // Default to medium
-      completed: false,
-      referentIds: [],
-    };
-
-    if (goalId) {
-      void addTask(goalId, {
-        title: newTaskTitle,
-        difficulty: 2,
-        completed: false,
-        referentIds: [],
-      });
-    } else {
-      setTasks([...tasks, newTask]);
-    }
-
-    setNewTaskTitle("");
-    toast.success("Task added");
+  // Routes to the dedicated TaskModal — only valid once the goal exists.
+  const openTaskEditor = (task: Task) => {
+    if (!goalId) return;
+    setOpenTaskId(task.id);
   };
 
-  const handleEditTask = (task: Task) => {
-    setEditingTaskId(task.id);
-    setEditTaskTitle(task.title);
-    setEditTaskDifficulty(task.difficulty);
-    setEditTaskReferentIds(task.referentIds ?? []);
-  };
-
-  const handleUpdateTaskEdit = () => {
-    if (!editTaskTitle.trim()) {
-      toast.error("Task title is required");
-      return;
-    }
-
-    if (goalId && editingTaskId) {
-      void updateTask(goalId, editingTaskId, {
-        title: editTaskTitle,
-        difficulty: editTaskDifficulty,
-        referentIds: editTaskReferentIds,
-      });
-    } else {
-      setTasks(
-        tasks.map((t) =>
-          t.id === editingTaskId
-            ? { ...t, title: editTaskTitle, difficulty: editTaskDifficulty, referentIds: editTaskReferentIds }
-            : t,
-        ),
-      );
-    }
-
-    setEditingTaskId(null);
-    toast.success("Task updated");
-  };
-
-  // For existing goals, get tasks from context dynamically; for new goals, use local state
-  const displayTasks = goalId ? (goals.find((g) => g.id === goalId)?.tasks ?? []) : tasks;
-
-  const toggleReferent = (taskId: string, personId: string) => {
-    if (goalId) {
-      const task = displayTasks.find((t) => t.id === taskId);
-      if (!task) return;
-      const current = task.referentIds ?? [];
-      const next = current.includes(personId) ? current.filter((id) => id !== personId) : [...current, personId];
-      void updateTask(goalId, taskId, { referentIds: next });
-    } else {
-      setTasks(
-        tasks.map((t) => {
-          if (t.id !== taskId) return t;
-          const current = t.referentIds ?? [];
-          const next = current.includes(personId) ? current.filter((id) => id !== personId) : [...current, personId];
-          return { ...t, referentIds: next };
-        }),
-      );
-    }
-  };
+  // For existing goals, tasks come from the live cache. New goals start
+  // empty — tasks can only be added after the goal is saved.
+  const displayTasks: Task[] = goalId ? (goals.find((g) => g.id === goalId)?.tasks ?? []) : [];
 
   const handleToggleTask = (taskId: string) => {
-    if (goalId) {
-      const task = displayTasks.find((t) => t.id === taskId);
-      if (task) {
-        void updateTask(goalId, taskId, { completed: !task.completed });
-      }
-    } else {
-      setTasks(tasks.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t)));
+    if (!goalId) return;
+    const task = displayTasks.find((t) => t.id === taskId);
+    if (task) {
+      void updateTask(goalId, taskId, { completed: !task.completed });
     }
-  };
-
-  const handleDeleteTask = (taskId: string) => {
-    if (goalId) {
-      void deleteTask(goalId, taskId);
-    } else {
-      setTasks(tasks.filter((t) => t.id !== taskId));
-    }
-    toast.success("Task deleted");
   };
 
   const getDifficultyLabel = (difficulty: number) => {
@@ -503,189 +423,124 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                 {goalId && <span className="text-xs text-white/40">{Math.round(completion)}%</span>}
               </div>
 
-              {/* Add Task - Simple Input */}
-              <input
-                type="text"
-                value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddTask()}
-                placeholder="Add a task and press Enter…"
-                className="mb-3 w-full rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-white outline-none transition-all placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.05]"
-              />
+              {/* Add task — opens the dedicated TaskModal in create mode.
+                  Disabled before the goal is saved (no goalId to attach to);
+                  same constraint as tracking items. */}
+              <button
+                type="button"
+                onClick={() => goalId && setCreatingTask(true)}
+                disabled={!goalId}
+                title={goalId ? "Add a task" : "Save the goal first to add tasks"}
+                className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-white/15 bg-transparent px-4 py-2 text-sm text-white/60 transition-all hover:border-white/30 hover:bg-white/[0.03] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-white/15 disabled:hover:bg-transparent disabled:hover:text-white/60"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add task
+              </button>
 
-              {/* Tasks List */}
+              {/* Tasks List — click any row to open the editor; only the
+                  checkbox is interactive in place. Other badges are visual
+                  summary only, deliberately not interactive — set them via
+                  the modal so there's a single way to do each thing. */}
               <div className="space-y-1.5">
                 {displayTasks.map((task) => {
                   const referents = (task.referentIds ?? [])
                     .map((id) => peopleById.get(id))
                     .filter((p): p is NonNullable<typeof p> => !!p);
+                  const taskGroups = (task.groupIds ?? [])
+                    .map((id) => groupsById.get(id))
+                    .filter((g): g is NonNullable<typeof g> => !!g);
                   return (
                     <div
                       key={task.id}
-                      className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 transition-colors hover:border-white/10 hover:bg-white/[0.04]"
+                      onClick={() => openTaskEditor(task)}
+                      className="flex cursor-pointer items-center gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 transition-colors hover:border-white/10 hover:bg-white/[0.04]"
                     >
-                      {editingTaskId === task.id ? (
-                        // Edit Mode
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={editTaskTitle}
-                            onChange={(e) => setEditTaskTitle(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleUpdateTaskEdit();
-                              if (e.key === "Escape") setEditingTaskId(null);
-                            }}
-                            className="flex-1 bg-transparent text-sm text-white outline-none"
-                            autoFocus
+                      {/* Only interactive control on the row — toggles complete in place.
+                          stopPropagation so it doesn't open the modal. */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleTask(task.id);
+                        }}
+                        className="transition-all hover:scale-110"
+                        aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
+                      >
+                        {task.completed ? (
+                          <CheckSquare className="h-4 w-4 text-emerald-500" />
+                        ) : (
+                          <Square className="h-4 w-4 text-white/30" />
+                        )}
+                      </button>
+                      {task.emoji ? (
+                        isEmojiUrl(task.emoji) ? (
+                          <Image
+                            src={task.emoji}
+                            alt=""
+                            width={16}
+                            height={16}
+                            className="h-4 w-4 shrink-0 object-contain"
                           />
-                          <select
-                            value={editTaskDifficulty}
-                            onChange={(e) => setEditTaskDifficulty(parseInt(e.target.value) as 1 | 2 | 3)}
-                            className="rounded border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none"
-                          >
-                            <option value={1}>Easy</option>
-                            <option value={2}>Medium</option>
-                            <option value={3}>Hard</option>
-                          </select>
-                          <button
-                            onClick={handleUpdateTaskEdit}
-                            className="rounded p-1 text-emerald-400 transition-all hover:bg-emerald-500/20"
-                            aria-label="Save"
-                          >
-                            <Check className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => setEditingTaskId(null)}
-                            className="rounded p-1 text-white/40 transition-all hover:bg-white/10 hover:text-white"
-                            aria-label="Cancel"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        // View Mode
-                        <>
-                          <div className="flex items-center gap-3">
-                            <button
-                              onClick={() => handleToggleTask(task.id)}
-                              className="transition-all hover:scale-110"
-                              aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
-                            >
-                              {task.completed ? (
-                                <CheckSquare className="h-4 w-4 text-emerald-500" />
-                              ) : (
-                                <Square className="h-4 w-4 text-white/30" />
-                              )}
-                            </button>
-                            <span
-                              className={`flex-1 cursor-pointer text-sm ${
-                                task.completed ? "text-white/40 line-through" : "text-white/90"
-                              }`}
-                              onClick={() => handleEditTask(task)}
-                            >
-                              {task.title}
-                            </span>
-                            <span
-                              className={`text-[10px] font-medium uppercase tracking-wide ${getDifficultyColor(task.difficulty)}`}
-                            >
-                              {getDifficultyLabel(task.difficulty)}
-                            </span>
+                        ) : (
+                          <span className="shrink-0 text-base leading-none">{task.emoji}</span>
+                        )
+                      ) : null}
+                      <span
+                        className={`min-w-0 flex-1 truncate text-sm ${
+                          task.completed ? "text-white/40 line-through" : "text-white/90"
+                        }`}
+                      >
+                        {task.title}
+                      </span>
 
-                            {/* Referent avatar stack — click to open picker */}
-                            <button
-                              onClick={() =>
-                                setManagingReferentsTaskId(managingReferentsTaskId === task.id ? null : task.id)
-                              }
-                              title={
-                                referents.length === 0
-                                  ? "Assign people as referents"
-                                  : `Referents: ${referents.map((p) => p.name).join(", ")}`
-                              }
-                              className="flex shrink-0 items-center rounded transition-all hover:bg-white/5"
+                      {/* Visual-only summary badges */}
+                      <span
+                        className={`shrink-0 text-[10px] font-medium uppercase tracking-wide ${getDifficultyColor(task.difficulty)}`}
+                      >
+                        {getDifficultyLabel(task.difficulty)}
+                      </span>
+                      {task.scheduledAt && (
+                        <span className="shrink-0 text-[11px] text-white/40">
+                          {formatScheduledShort(new Date(task.scheduledAt))}
+                        </span>
+                      )}
+                      {referents.length > 0 && (
+                        <div className="hidden shrink-0 items-center sm:flex">
+                          {referents.slice(0, 3).map((p, i) => (
+                            <div
+                              key={p.id}
+                              style={{ marginLeft: i === 0 ? 0 : -6, zIndex: referents.length - i }}
+                              className="relative"
                             >
-                              {referents.length === 0 ? (
-                                <Users className="h-4 w-4 text-white/30 hover:text-white/60" />
-                              ) : (
-                                <div className="flex items-center px-0.5 py-0.5">
-                                  {referents.slice(0, 3).map((p, i) => (
-                                    <div
-                                      key={p.id}
-                                      style={{ marginLeft: i === 0 ? 0 : -6, zIndex: referents.length - i }}
-                                      className="relative"
-                                    >
-                                      <Avatar
-                                        name={p.name}
-                                        emoji={p.emoji}
-                                        size="xs"
-                                        shape="circle"
-                                        className="ring-2 ring-zinc-950"
-                                      />
-                                    </div>
-                                  ))}
-                                  {referents.length > 3 && (
-                                    <span className="-ml-1.5 rounded-full border border-white/10 bg-white/10 px-1 text-[9px] text-white/60">
-                                      +{referents.length - 3}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </button>
-
-                            {/* Always-visible row actions */}
-                            <button
-                              onClick={() => handleEditTask(task)}
-                              className="rounded p-1 text-white/30 transition-all hover:bg-white/5 hover:text-white/80"
-                              aria-label="Edit task"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteTask(task.id)}
-                              className="rounded p-1 text-white/30 transition-all hover:bg-red-500/10 hover:text-red-400"
-                              aria-label="Delete task"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-
-                          {/* Referent picker — inline, driven by people directory */}
-                          {managingReferentsTaskId === task.id && (
-                            <div className="mt-2 rounded-lg border border-white/10 bg-black/40 p-2.5">
-                              <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-white/40">
-                                <span>Who I&apos;m relying on</span>
-                                <button
-                                  onClick={() => setManagingReferentsTaskId(null)}
-                                  className="rounded p-0.5 transition-all hover:bg-white/10 hover:text-white"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </div>
-                              {people.length === 0 ? (
-                                <p className="text-xs text-white/40">Add someone from the People tab first.</p>
-                              ) : (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {people.map((p) => {
-                                    const selected = (task.referentIds ?? []).includes(p.id);
-                                    return (
-                                      <button
-                                        key={p.id}
-                                        onClick={() => toggleReferent(task.id, p.id)}
-                                        className={`flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-all ${
-                                          selected
-                                            ? "border-white/30 bg-white/15 text-white"
-                                            : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
-                                        }`}
-                                      >
-                                        <Avatar name={p.name} emoji={p.emoji} size="xs" shape="circle" />
-                                        <span>{p.name}</span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
+                              <Avatar
+                                name={p.name}
+                                emoji={p.emoji}
+                                size="xs"
+                                shape="circle"
+                                className="ring-2 ring-zinc-950"
+                              />
                             </div>
+                          ))}
+                          {referents.length > 3 && (
+                            <span className="-ml-1.5 rounded-full border border-white/10 bg-white/10 px-1 text-[9px] text-white/60">
+                              +{referents.length - 3}
+                            </span>
                           )}
-                        </>
+                        </div>
+                      )}
+                      {taskGroups.length > 0 && (
+                        <div className="hidden shrink-0 items-center gap-0.5 sm:flex">
+                          {taskGroups.slice(0, 4).map((g) => (
+                            <span
+                              key={g.id}
+                              title={g.name}
+                              className="h-2 w-2 rounded-full ring-1 ring-zinc-950"
+                              style={{ backgroundColor: g.color }}
+                            />
+                          ))}
+                          {taskGroups.length > 4 && (
+                            <span className="ml-0.5 text-[9px] text-white/60">+{taskGroups.length - 4}</span>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
@@ -693,7 +548,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
 
                 {displayTasks.length === 0 && (
                   <div className="rounded-lg border border-dashed border-white/10 bg-transparent p-4 text-center text-xs text-white/30">
-                    No tasks yet
+                    {goalId ? "No tasks yet — click Add task." : "Save the goal first to add tasks."}
                   </div>
                 )}
               </div>
@@ -890,6 +745,16 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
           onClose={() => setShowValueModal(false)}
         />
       )}
+
+      {/* Task editor — opened from the row title or the edit affordance.
+          key={openTaskId} forces a remount when the user opens a different
+          task while the modal is up, resetting useState initializers. */}
+      {goalId && openTaskId && (
+        <TaskModal key={openTaskId} goalId={goalId} taskId={openTaskId} onClose={() => setOpenTaskId(null)} />
+      )}
+
+      {/* Task creator — opened from the "Add task" button. Same modal, no taskId. */}
+      {goalId && creatingTask && <TaskModal goalId={goalId} taskId={null} onClose={() => setCreatingTask(false)} />}
     </div>
   );
 }

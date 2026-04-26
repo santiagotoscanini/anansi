@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { CheckSquare, HelpCircle, Mountain, Square, Target, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { CalendarDays, CheckSquare, HelpCircle, Loader2, Mountain, Square, Target, Upload, X } from "lucide-react";
 import EmojiPicker, { type EmojiClickData, Theme } from "emoji-picker-react";
 import toast from "react-hot-toast";
 import { api } from "~/trpc/react";
 import type { PersonCategory } from "~/lib/api/types";
 import Avatar from "./Avatar";
+import ColorPicker from "./ColorPicker";
+import DatePicker from "./DatePicker";
 
 export type PersonRow = {
   id: string;
@@ -30,35 +32,21 @@ interface PersonModalProps {
   onSaved: () => void;
 }
 
+// Ordered to match the natural arc of a relationship — see RelationshipsBoard.tsx.
 const CATEGORY_OPTIONS: { value: PersonCategory; label: string; hint: string }[] = [
-  {
-    value: "to_process",
-    label: "To Process",
-    hint: "Unfinished — repair, release, or end. Name what kind in 'If I died tomorrow'.",
-  },
   { value: "exploring", label: "Exploring", hint: 'New, undecided. Add a "decide by" date (default 6 months).' },
-  { value: "long_term", label: "Long-term", hint: "Family, closest friends. Erode through neglect, not drama." },
   {
     value: "context_bound",
     label: "Context-bound",
-    hint: "Colleagues, neighbors — people to handle well but aren't deepening",
+    hint: "Colleagues, neighbors — people to handle well but aren't deepening.",
+  },
+  { value: "long_term", label: "Long-term", hint: "Family, closest friends. Erode through neglect, not drama." },
+  {
+    value: "to_process",
+    label: "To Process",
+    hint: "Something to fix — repair, release, or end. Name what kind in 'If I died tomorrow'.",
   },
 ];
-
-function toDateInputValue(d: Date | null): string {
-  if (!d) return "";
-  const date = new Date(d);
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function fromDateInputValue(s: string): Date | null {
-  if (!s) return null;
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? null : d;
-}
 
 function sixMonthsFromNow(): Date {
   const d = new Date();
@@ -101,6 +89,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
   const [emoji, setEmoji] = useState<string | null>(person?.emoji ?? null);
   const [customUrl, setCustomUrl] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [category, setCategory] = useState<PersonCategory>(person?.category ?? defaultCategory ?? "exploring");
   const [appreciation, setAppreciation] = useState(person?.appreciation ?? "");
   const [myNeeds, setMyNeeds] = useState(person?.myNeeds ?? "");
@@ -114,8 +103,8 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
   const createGroupMutation = api.goals.groups.create.useMutation();
   const utils = api.useUtils();
   const [selfReflection, setSelfReflection] = useState(person?.selfReflection ?? "");
-  const [decideBy, setDecideBy] = useState<string>(
-    toDateInputValue(person?.decideBy ?? (category === "exploring" && !isEdit ? sixMonthsFromNow() : null)),
+  const [decideBy, setDecideBy] = useState<Date | null>(
+    person?.decideBy ?? (category === "exploring" && !isEdit ? sixMonthsFromNow() : null),
   );
 
   const createMutation = api.goals.people.create.useMutation();
@@ -123,6 +112,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
   const archiveMutation = api.goals.people.archive.useMutation();
   const unarchiveMutation = api.goals.people.unarchive.useMutation();
   const deleteMutation = api.goals.people.delete.useMutation();
+  const uploadImageMutation = api.goals.people.uploadImage.useMutation();
 
   const referentTasksQuery = api.goals.people.getTasksAsReferent.useQuery(
     { personId: person?.id ?? "" },
@@ -134,35 +124,118 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
     { enabled: !!person?.id },
   );
 
-  // Gift ideas — only loaded for an existing person (the row must exist before
+  // Bids — only loaded for an existing person (the row must exist before
   // children can be attached). On create, the section shows a "save first" hint.
-  const giftIdeasQuery = api.goals.giftIdeas.list.useQuery({ personId: person?.id ?? "" }, { enabled: !!person?.id });
-  const createGiftIdea = api.goals.giftIdeas.create.useMutation({
-    onSuccess: () => {
-      void utils.goals.giftIdeas.list.invalidate({ personId: person?.id ?? "" });
-    },
-  });
-  const deleteGiftIdea = api.goals.giftIdeas.delete.useMutation({
-    onSuccess: () => {
-      void utils.goals.giftIdeas.list.invalidate({ personId: person?.id ?? "" });
-    },
-  });
-  const [newGiftIdea, setNewGiftIdea] = useState("");
-  const handleAddGiftIdea = async () => {
-    const content = newGiftIdea.trim();
+  const nextBidsQuery = api.goals.nextBids.list.useQuery({ personId: person?.id ?? "" }, { enabled: !!person?.id });
+  const invalidateBids = () => void utils.goals.nextBids.list.invalidate({ personId: person?.id ?? "" });
+  const createNextBid = api.goals.nextBids.create.useMutation({ onSuccess: invalidateBids });
+  const updateNextBid = api.goals.nextBids.update.useMutation({ onSuccess: invalidateBids });
+  const setNextBidCompleted = api.goals.nextBids.setCompleted.useMutation({ onSuccess: invalidateBids });
+  const deleteNextBid = api.goals.nextBids.delete.useMutation({ onSuccess: invalidateBids });
+  const [newNextBid, setNewNextBid] = useState("");
+  const [newNextBidDue, setNewNextBidDue] = useState<Date | null>(null);
+  const handleAddNextBid = async () => {
+    const content = newNextBid.trim();
     if (!content || !person?.id) return;
     try {
-      await createGiftIdea.mutateAsync({ personId: person.id, content });
-      setNewGiftIdea("");
+      await createNextBid.mutateAsync({
+        personId: person.id,
+        content,
+        dueAt: newNextBidDue,
+      });
+      setNewNextBid("");
+      setNewNextBidDue(null);
     } catch {
-      toast.error("Couldn't add gift idea");
+      toast.error("Couldn't add bid");
     }
   };
-  const handleDeleteGiftIdea = async (id: string) => {
+  const handleDeleteNextBid = async (id: string) => {
     try {
-      await deleteGiftIdea.mutateAsync({ id });
+      await deleteNextBid.mutateAsync({ id });
     } catch {
-      toast.error("Couldn't remove gift idea");
+      toast.error("Couldn't remove bid");
+    }
+  };
+  const handleToggleNextBidDone = async (id: string, completed: boolean) => {
+    try {
+      await setNextBidCompleted.mutateAsync({ id, completed });
+    } catch {
+      toast.error("Couldn't update bid");
+    }
+  };
+  const handleEditNextBidDue = async (id: string, dueAt: Date | null) => {
+    try {
+      await updateNextBid.mutateAsync({ id, dueAt });
+    } catch {
+      toast.error("Couldn't update deadline");
+    }
+  };
+  const handleEditNextBidContent = async (id: string, content: string) => {
+    const trimmed = content.trim();
+    if (!trimmed) return;
+    try {
+      await updateNextBid.mutateAsync({ id, content: trimmed });
+    } catch {
+      toast.error("Couldn't update bid");
+    }
+  };
+
+  // Important dates — yearly recurring per person. Same gating as bids.
+  const importantDatesQuery = api.goals.importantDates.list.useQuery(
+    { personId: person?.id ?? "" },
+    { enabled: !!person?.id },
+  );
+  const invalidateDates = () => void utils.goals.importantDates.list.invalidate({ personId: person?.id ?? "" });
+  const createImportantDate = api.goals.importantDates.create.useMutation({ onSuccess: invalidateDates });
+  const updateImportantDate = api.goals.importantDates.update.useMutation({ onSuccess: invalidateDates });
+  const deleteImportantDate = api.goals.importantDates.delete.useMutation({ onSuccess: invalidateDates });
+  const [newDateLabel, setNewDateLabel] = useState("");
+  const [newDateValue, setNewDateValue] = useState<Date | null>(null);
+  const handleAddImportantDate = async () => {
+    if (!person?.id) return;
+    const label = newDateLabel.trim();
+    if (!label || !newDateValue) return;
+    try {
+      await createImportantDate.mutateAsync({
+        personId: person.id,
+        label,
+        month: newDateValue.getMonth() + 1,
+        day: newDateValue.getDate(),
+        year: newDateValue.getFullYear(),
+      });
+      setNewDateLabel("");
+      setNewDateValue(null);
+    } catch {
+      toast.error("Couldn't add date");
+    }
+  };
+  const handleEditImportantDateLabel = async (id: string, label: string) => {
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    try {
+      await updateImportantDate.mutateAsync({ id, label: trimmed });
+    } catch {
+      toast.error("Couldn't update date");
+    }
+  };
+  const handleEditImportantDateValue = async (id: string, date: Date | null) => {
+    if (!date) return;
+    try {
+      await updateImportantDate.mutateAsync({
+        id,
+        month: date.getMonth() + 1,
+        day: date.getDate(),
+        year: date.getFullYear(),
+      });
+    } catch {
+      toast.error("Couldn't update date");
+    }
+  };
+  const handleDeleteImportantDate = async (id: string) => {
+    try {
+      await deleteImportantDate.mutateAsync({ id });
+    } catch {
+      toast.error("Couldn't remove date");
     }
   };
 
@@ -173,7 +246,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
     const next = value as PersonCategory;
     setCategory(next);
     if (next === "exploring" && !decideBy) {
-      setDecideBy(toDateInputValue(sixMonthsFromNow()));
+      setDecideBy(sixMonthsFromNow());
     }
   };
 
@@ -186,7 +259,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
     legacyMessage: legacyMessage.trim() || null,
     groupIds,
     selfReflection: selfReflection.trim() || null,
-    decideBy: category === "exploring" ? fromDateInputValue(decideBy) : null,
+    decideBy: category === "exploring" ? decideBy : null,
   });
 
   const handleSave = async () => {
@@ -243,6 +316,26 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
   const handleEmojiClick = (data: EmojiClickData) => {
     setEmoji(data.emoji);
     setShowEmojiPicker(false);
+  };
+
+  // Read a local file as base64, upload it, stash the returned URL in
+  // `emoji`. Server doesn't need a personId — the file lives at a
+  // content-addressed path so the same flow works for new + existing people.
+  const handleFileUpload = async (file: File) => {
+    try {
+      const data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const { url } = await uploadImageMutation.mutateAsync({ fileName: file.name, data });
+      setEmoji(url);
+      setShowEmojiPicker(false);
+      toast.success("Picture uploaded");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    }
   };
 
   const referentTasks = referentTasksQuery.data ?? [];
@@ -303,6 +396,38 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                     />
                     <div className="mt-2 space-y-2 border-t border-white/5 pt-2">
                       <label className="block text-[10px] uppercase tracking-wider text-white/40">
+                        Upload a picture
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadImageMutation.isPending}
+                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-white/15 bg-white/[0.02] px-3 py-2 text-xs text-white/70 transition-all hover:border-white/30 hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {uploadImageMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Uploading…
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-3.5 w-3.5" />
+                            Choose image
+                          </>
+                        )}
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/gif,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) void handleFileUpload(file);
+                          e.target.value = ""; // Allow re-selecting the same file
+                        }}
+                      />
+                      <label className="block pt-1 text-[10px] uppercase tracking-wider text-white/40">
                         Or paste an image URL
                       </label>
                       <div className="flex gap-2">
@@ -391,12 +516,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                 })}
                 {creatingGroup ? (
                   <div className="flex items-center gap-1.5 rounded-full border border-white/20 bg-white/[0.06] px-2 py-0.5">
-                    <input
-                      type="color"
-                      value={newGroupColor}
-                      onChange={(e) => setNewGroupColor(e.target.value)}
-                      className="h-3.5 w-3.5 cursor-pointer rounded border-0 bg-transparent p-0"
-                    />
+                    <ColorPicker value={newGroupColor} onChange={setNewGroupColor} size="sm" />
                     <input
                       type="text"
                       value={newGroupName}
@@ -443,12 +563,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                 >
                   Decide by
                 </FieldLabel>
-                <input
-                  type="date"
-                  value={decideBy}
-                  onChange={(e) => setDecideBy(e.target.value)}
-                  className={inputClass}
-                />
+                <DatePicker value={decideBy} onChange={setDecideBy} placeholder="Pick a date" />
               </div>
             )}
 
@@ -517,58 +632,115 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
               />
             </div>
 
-            {/* Gift ideas */}
+            {/* Bids — actionable improvements to the relationship. Anything I can do
+                to deepen this — gifts, gestures, conversations, repairs — captured when
+                noticed, with an optional deadline, completed bids stay visible. */}
             <div>
-              <FieldLabel hint="Write ideas when you have them, not when you need them. Gifts stop feeling contrived when they come from a running list.">
-                Gifts and gestures I want to give
+              <FieldLabel hint="Capture what you can do to strengthen this relationship — a gift, a gesture, a conversation, a repair. Add a deadline if it's time-sensitive. Mark done; the trail stays.">
+                Next bids
               </FieldLabel>
               {!person?.id ? (
-                <p className={fieldHelper}>Save the person first — gift ideas attach to a saved row.</p>
+                <p className={fieldHelper}>Save the person first — bids attach to a saved row.</p>
               ) : (
                 <>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <input
                       type="text"
-                      value={newGiftIdea}
-                      onChange={(e) => setNewGiftIdea(e.target.value)}
+                      value={newNextBid}
+                      onChange={(e) => setNewNextBid(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
-                          void handleAddGiftIdea();
+                          void handleAddNextBid();
                         }
                       }}
-                      placeholder="A specific idea — book, gesture, thing they mentioned…"
+                      placeholder="A specific bid — book, gesture, conversation, repair…"
                       className={`${inputClass} flex-1`}
+                    />
+                    <DatePicker
+                      value={newNextBidDue}
+                      onChange={setNewNextBidDue}
+                      placeholder="Deadline (optional)"
+                      className="sm:w-48"
                     />
                     <button
                       type="button"
-                      onClick={() => void handleAddGiftIdea()}
-                      disabled={!newGiftIdea.trim() || createGiftIdea.isPending}
-                      className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-4 text-sm text-white/80 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                      onClick={() => void handleAddNextBid()}
+                      disabled={!newNextBid.trim() || createNextBid.isPending}
+                      className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/80 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Add
                     </button>
                   </div>
-                  {giftIdeasQuery.data && giftIdeasQuery.data.length > 0 && (
-                    <ul className="mt-2 space-y-1">
-                      {giftIdeasQuery.data.map((g) => (
-                        <li
+                  {nextBidsQuery.data && nextBidsQuery.data.length > 0 && (
+                    <ul className="mt-3 divide-y divide-white/5">
+                      {nextBidsQuery.data.map((g) => (
+                        <BidRow
                           key={g.id}
-                          className="group flex items-start gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2"
-                        >
-                          <span className="flex-1 whitespace-pre-wrap break-words text-sm text-white/85">
-                            {g.content}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteGiftIdea(g.id)}
-                            disabled={deleteGiftIdea.isPending}
-                            className="shrink-0 rounded p-1 text-white/30 opacity-100 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed md:opacity-0 md:group-hover:opacity-100"
-                            aria-label="Remove gift idea"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </li>
+                          bid={g}
+                          onToggleDone={(done) => void handleToggleNextBidDone(g.id, done)}
+                          onEditContent={(content) => void handleEditNextBidContent(g.id, content)}
+                          onEditDue={(dueAt) => void handleEditNextBidDue(g.id, dueAt)}
+                          onDelete={() => void handleDeleteNextBid(g.id)}
+                          deleteDisabled={deleteNextBid.isPending}
+                        />
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Important dates — yearly recurring (birthday, anniversary, …).
+                Surfaces in Pulse when the next occurrence is upcoming. */}
+            <div>
+              <FieldLabel hint="Yearly recurring dates — birthdays, anniversaries, anything that comes around again. Pulse surfaces them when the next occurrence is within the next 30 days. Year is optional (used for 'turning N' math).">
+                Important dates
+              </FieldLabel>
+              {!person?.id ? (
+                <p className={fieldHelper}>Save the person first — dates attach to a saved row.</p>
+              ) : (
+                <>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      type="text"
+                      value={newDateLabel}
+                      onChange={(e) => setNewDateLabel(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void handleAddImportantDate();
+                        }
+                      }}
+                      placeholder="Birthday, anniversary, …"
+                      className={`${inputClass} flex-1`}
+                    />
+                    <DatePicker
+                      value={newDateValue}
+                      onChange={setNewDateValue}
+                      placeholder="Pick a date"
+                      className="sm:w-48"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleAddImportantDate()}
+                      disabled={!newDateLabel.trim() || !newDateValue || createImportantDate.isPending}
+                      className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/80 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {importantDatesQuery.data && importantDatesQuery.data.length > 0 && (
+                    <ul className="mt-3 divide-y divide-white/5">
+                      {importantDatesQuery.data.map((d) => (
+                        <ImportantDateRow
+                          key={d.id}
+                          date={d}
+                          onEditLabel={(label) => void handleEditImportantDateLabel(d.id, label)}
+                          onEditDate={(date) => void handleEditImportantDateValue(d.id, date)}
+                          onDelete={() => void handleDeleteImportantDate(d.id)}
+                          deleteDisabled={deleteImportantDate.isPending}
+                        />
                       ))}
                     </ul>
                   )}
@@ -708,5 +880,182 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
         </div>
       </div>
     </div>
+  );
+}
+
+// ---------------- BidRow ----------------
+// Single-line row, Apple-Reminders style: checkbox · text · deadline pill · ×.
+// Click the text to edit in place — the input is borderless and sits at the
+// same width as the static text, so the layout doesn't reflow.
+function BidRow({
+  bid,
+  onToggleDone,
+  onEditContent,
+  onEditDue,
+  onDelete,
+  deleteDisabled,
+}: {
+  bid: { id: string; content: string; dueAt: Date | null; completedAt: Date | null };
+  onToggleDone: (done: boolean) => void;
+  onEditContent: (content: string) => void;
+  onEditDue: (dueAt: Date | null) => void;
+  onDelete: () => void;
+  deleteDisabled: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(bid.content);
+  const done = !!bid.completedAt;
+  // eslint-disable-next-line react-hooks/purity -- comparison-only Date.now() for overdue marker.
+  const overdue = !done && bid.dueAt && new Date(bid.dueAt).getTime() < Date.now();
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== bid.content) onEditContent(trimmed);
+    else setDraft(bid.content);
+    setEditing(false);
+  };
+
+  return (
+    <li className="group flex h-10 items-center gap-3 px-3 transition-colors hover:bg-white/[0.02]">
+      <button
+        type="button"
+        onClick={() => onToggleDone(!done)}
+        className="shrink-0 text-white/40 transition-colors hover:text-white"
+        aria-label={done ? "Mark as not done" : "Mark as done"}
+      >
+        {done ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+      </button>
+      <div className="min-w-0 flex-1">
+        {editing ? (
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commit();
+              }
+              if (e.key === "Escape") {
+                setDraft(bid.content);
+                setEditing(false);
+              }
+            }}
+            autoFocus
+            className="w-full border-0 bg-transparent p-0 text-sm text-white outline-none placeholder:text-white/30"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(bid.content);
+              setEditing(true);
+            }}
+            className={`block w-full truncate text-left text-sm transition-colors ${
+              done ? "text-white/40 line-through" : "text-white/85 hover:text-white"
+            }`}
+            title="Click to edit"
+          >
+            {bid.content}
+          </button>
+        )}
+      </div>
+      <DatePicker
+        value={bid.dueAt}
+        onChange={onEditDue}
+        placeholder="Add deadline"
+        size="sm"
+        align="right"
+        className={overdue ? "[&_button]:!text-amber-300" : ""}
+      />
+      <button
+        type="button"
+        onClick={onDelete}
+        disabled={deleteDisabled}
+        className="shrink-0 rounded p-1 text-white/30 opacity-100 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed md:opacity-0 md:group-hover:opacity-100"
+        aria-label="Remove bid"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </li>
+  );
+}
+
+// ---------------- ImportantDateRow ----------------
+// Single-line row: icon · label · date pill · ×. Click the label to rename;
+// click the date pill to repick.
+function ImportantDateRow({
+  date,
+  onEditLabel,
+  onEditDate,
+  onDelete,
+  deleteDisabled,
+}: {
+  date: { id: string; label: string; month: number; day: number; year: number | null };
+  onEditLabel: (label: string) => void;
+  onEditDate: (date: Date | null) => void;
+  onDelete: () => void;
+  deleteDisabled: boolean;
+}) {
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelDraft, setLabelDraft] = useState(date.label);
+  const dateAsObject = new Date(date.year ?? new Date().getFullYear(), date.month - 1, date.day);
+
+  const commit = () => {
+    const trimmed = labelDraft.trim();
+    if (trimmed && trimmed !== date.label) onEditLabel(trimmed);
+    else setLabelDraft(date.label);
+    setEditingLabel(false);
+  };
+
+  return (
+    <li className="group flex h-10 items-center gap-3 px-3 transition-colors hover:bg-white/[0.02]">
+      <CalendarDays className="h-3.5 w-3.5 shrink-0 text-white/40" />
+      <div className="min-w-0 flex-1">
+        {editingLabel ? (
+          <input
+            type="text"
+            value={labelDraft}
+            onChange={(e) => setLabelDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commit();
+              }
+              if (e.key === "Escape") {
+                setLabelDraft(date.label);
+                setEditingLabel(false);
+              }
+            }}
+            autoFocus
+            className="w-full border-0 bg-transparent p-0 text-sm text-white outline-none placeholder:text-white/30"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setLabelDraft(date.label);
+              setEditingLabel(true);
+            }}
+            className="block w-full truncate text-left text-sm text-white/85 transition-colors hover:text-white"
+            title="Click to rename"
+          >
+            {date.label}
+          </button>
+        )}
+      </div>
+      <DatePicker value={dateAsObject} onChange={onEditDate} clearable={false} size="sm" align="right" />
+      <button
+        type="button"
+        onClick={onDelete}
+        disabled={deleteDisabled}
+        className="shrink-0 rounded p-1 text-white/30 opacity-100 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed md:opacity-0 md:group-hover:opacity-100"
+        aria-label="Remove date"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </li>
   );
 }

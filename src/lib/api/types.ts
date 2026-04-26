@@ -32,9 +32,16 @@ export type ReorderValueBehaviors = z.infer<typeof reorderValueBehaviorsSchema>;
 export const taskSchema = z.object({
   id: z.string(),
   title: z.string(),
+  description: z.string().nullable().optional(),
+  emoji: z.string().nullable().optional(), // Native emoji or URL — separate from the parent goal's emoji
   difficulty: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   completed: z.boolean(),
+  // Single deadline date. Null = unscheduled (Backlog). The Horizons board
+  // computes which monthly/quarterly/yearly bucket the task belongs to right
+  // now from this date — see src/lib/horizon-period.ts.
+  scheduledAt: z.coerce.date().nullable().optional(),
   referentIds: z.array(z.string()).default([]),
+  groupIds: z.array(z.string()).default([]),
 });
 
 export const goalSchema = z.object({
@@ -127,10 +134,62 @@ export const personSchema = z.object({
   archivedAt: z.coerce.date().nullable().optional(),
 });
 
+// Living-portrait Self page. Prose fields are stored on user_self; list-shaped
+// buckets live in self_list_items (see selfListKindValues below).
 export const selfSchema = z.object({
-  identityNotes: z.string().nullable().optional(),
-  patterns: z.string().nullable().optional(),
-  currentWork: z.string().nullable().optional(),
+  thisYearSelfDescription: z.string().nullable().optional(),
+  descriptionYear: z.number().int().nullable().optional(),
+  myStory: z.string().nullable().optional(),
+  attachmentTendencies: z.string().nullable().optional(),
+  loveLanguageGive: z.string().nullable().optional(),
+  loveLanguageReceive: z.string().nullable().optional(),
+  apologyLanguage: z.string().nullable().optional(),
+  conflictStyle: z.string().nullable().optional(),
+  stressResponse: z.string().nullable().optional(),
+  noteToFutureSelf: z.string().nullable().optional(),
+});
+
+export const selfListKindValues = [
+  "energizer",
+  "drainer",
+  "just_for_me",
+  "proud",
+  "pattern",
+  "trigger",
+  "release",
+  "year_ahead",
+] as const;
+export const selfPatternCategoryValues = [
+  "relational",
+  "self_pattern",
+  "communication",
+  "body_state",
+  "choice",
+] as const;
+
+export const selfListItemSchema = z.object({
+  id: z.string(),
+  kind: z.enum(selfListKindValues),
+  patternCategory: z.enum(selfPatternCategoryValues).nullable().optional(),
+  content: z.string().min(1).max(2000),
+  orderIdx: z.number().int().default(0),
+});
+
+export const createSelfListItemSchema = z.object({
+  kind: z.enum(selfListKindValues),
+  patternCategory: z.enum(selfPatternCategoryValues).nullable().optional(),
+  content: z.string().min(1).max(2000),
+});
+
+export const updateSelfListItemSchema = z.object({
+  id: z.string(),
+  content: z.string().min(1).max(2000).optional(),
+  patternCategory: z.enum(selfPatternCategoryValues).nullable().optional(),
+});
+
+export const reorderSelfListItemsSchema = z.object({
+  kind: z.enum(selfListKindValues),
+  ordering: z.array(z.object({ id: z.string(), orderIdx: z.number().int() })),
 });
 
 export const personGroupSchema = z.object({
@@ -140,16 +199,57 @@ export const personGroupSchema = z.object({
   orderIdx: z.number().int().default(0),
 });
 
-export const giftIdeaSchema = z.object({
+export const nextBidSchema = z.object({
   id: z.string(),
   personId: z.string(),
   content: z.string().min(1),
+  dueAt: z.coerce.date().nullable(),
+  completedAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
 });
 
-export const createGiftIdeaSchema = z.object({
+export const createNextBidSchema = z.object({
   personId: z.string(),
   content: z.string().min(1).max(500),
+  dueAt: z.coerce.date().nullable().optional(),
+});
+
+export const updateNextBidSchema = z.object({
+  id: z.string(),
+  content: z.string().min(1).max(500).optional(),
+  dueAt: z.coerce.date().nullable().optional(),
+});
+
+export const setNextBidCompletedSchema = z.object({
+  id: z.string(),
+  completed: z.boolean(),
+});
+
+export const importantDateSchema = z.object({
+  id: z.string(),
+  personId: z.string(),
+  label: z.string().min(1),
+  month: z.number().int().min(1).max(12),
+  day: z.number().int().min(1).max(31),
+  year: z.number().int().nullable(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+
+export const createImportantDateSchema = z.object({
+  personId: z.string(),
+  label: z.string().min(1).max(120),
+  month: z.number().int().min(1).max(12),
+  day: z.number().int().min(1).max(31),
+  year: z.number().int().min(1).max(3000).nullable().optional(),
+});
+
+export const updateImportantDateSchema = z.object({
+  id: z.string(),
+  label: z.string().min(1).max(120).optional(),
+  month: z.number().int().min(1).max(12).optional(),
+  day: z.number().int().min(1).max(31).optional(),
+  year: z.number().int().min(1).max(3000).nullable().optional(),
 });
 
 // Bucket list — things the user wants to do before dying
@@ -322,11 +422,22 @@ export type UpdatePerson = z.infer<typeof updatePersonSchema>;
 export type PersonCategory = (typeof personCategoryValues)[number];
 export type Self = z.infer<typeof selfSchema>;
 export type UpdateSelf = z.infer<typeof updateSelfSchema>;
+export type SelfListKind = (typeof selfListKindValues)[number];
+export type SelfPatternCategory = (typeof selfPatternCategoryValues)[number];
+export type SelfListItem = z.infer<typeof selfListItemSchema>;
+export type CreateSelfListItem = z.infer<typeof createSelfListItemSchema>;
+export type UpdateSelfListItem = z.infer<typeof updateSelfListItemSchema>;
+export type ReorderSelfListItems = z.infer<typeof reorderSelfListItemsSchema>;
 export type PersonGroup = z.infer<typeof personGroupSchema>;
 export type CreatePersonGroup = z.infer<typeof createPersonGroupSchema>;
 export type UpdatePersonGroup = z.infer<typeof updatePersonGroupSchema>;
-export type GiftIdea = z.infer<typeof giftIdeaSchema>;
-export type CreateGiftIdea = z.infer<typeof createGiftIdeaSchema>;
+export type NextBid = z.infer<typeof nextBidSchema>;
+export type CreateNextBid = z.infer<typeof createNextBidSchema>;
+export type UpdateNextBid = z.infer<typeof updateNextBidSchema>;
+export type SetNextBidCompleted = z.infer<typeof setNextBidCompletedSchema>;
+export type ImportantDate = z.infer<typeof importantDateSchema>;
+export type CreateImportantDate = z.infer<typeof createImportantDateSchema>;
+export type UpdateImportantDate = z.infer<typeof updateImportantDateSchema>;
 export type BucketListItem = z.infer<typeof bucketListItemSchema>;
 export type CreateBucketListItem = z.infer<typeof createBucketListItemSchema>;
 export type UpdateBucketListItem = z.infer<typeof updateBucketListItemSchema>;
@@ -342,14 +453,10 @@ export const goalsDataSchema = z.object({
 
 export type GoalsData = z.infer<typeof goalsDataSchema>;
 
-// Full backup export/import schema — userId-neutral.
-// Bumped to version 2 with the sync redesign:
-//   - tracking_items.goalId is now nullable (can be unscoped)
-//   - weekly_sync_items carries text_content + order_idx inline
-//   - weekly_sync_item_files is gone; attachments table replaces it
-//   - sync_templates / sync_template_items added
-// Files referenced by attachments are still base64-payloaded into `files[]`,
-// keyed by attachment id so the import can write to a fresh storage path.
+// Full backup export/import schema — userId-neutral. Strict: every current
+// field is required, no back-compat fallbacks. Files referenced by attachments
+// are base64-payloaded into `files[]`, keyed by attachment id so the import can
+// write to a fresh storage path.
 export const backupValueSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -375,8 +482,11 @@ export const backupTaskSchema = z.object({
   id: z.string(),
   goalId: z.string(),
   title: z.string(),
+  description: z.string().nullable(),
+  emoji: z.string().nullable(),
   difficulty: z.number().int(),
   completed: z.boolean(),
+  scheduledAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
@@ -459,10 +569,10 @@ export const backupPersonSchema = z.object({
   name: z.string(),
   emoji: z.string().nullable(),
   category: z.enum(personCategoryValues),
-  boardOrder: z.number().int().optional().default(0),
+  boardOrder: z.number().int(),
   appreciation: z.string().nullable(),
-  myNeeds: z.string().nullable().optional().default(null),
-  legacyMessage: z.string().nullable().optional().default(null),
+  myNeeds: z.string().nullable(),
+  legacyMessage: z.string().nullable(),
   selfReflection: z.string().nullable(),
   decideBy: z.coerce.date().nullable(),
   archivedAt: z.coerce.date().nullable(),
@@ -493,17 +603,26 @@ export const backupPeopleToGroupSchema = z.object({
   createdAt: z.coerce.date(),
 });
 
-export const backupGiftIdeaSchema = z.object({
+export const backupTasksToGroupSchema = z.object({
+  id: z.string(),
+  taskId: z.string(),
+  groupId: z.string(),
+  createdAt: z.coerce.date(),
+});
+
+export const backupNextBidSchema = z.object({
   id: z.string(),
   personId: z.string(),
   content: z.string(),
+  dueAt: z.coerce.date().nullable(),
+  completedAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
 });
 
 export const backupBucketListItemSchema = z.object({
   id: z.string(),
   content: z.string(),
-  description: z.string().nullable().optional().default(null),
+  description: z.string().nullable(),
   completedAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -518,9 +637,26 @@ export const backupBucketListItemPeopleSchema = z.object({
 
 export const backupUserSelfSchema = z.object({
   id: z.string(),
-  identityNotes: z.string().nullable(),
-  patterns: z.string().nullable(),
-  currentWork: z.string().nullable(),
+  thisYearSelfDescription: z.string().nullable(),
+  descriptionYear: z.number().int().nullable(),
+  myStory: z.string().nullable(),
+  attachmentTendencies: z.string().nullable(),
+  loveLanguageGive: z.string().nullable(),
+  loveLanguageReceive: z.string().nullable(),
+  apologyLanguage: z.string().nullable(),
+  conflictStyle: z.string().nullable(),
+  stressResponse: z.string().nullable(),
+  noteToFutureSelf: z.string().nullable(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+
+export const backupSelfListItemSchema = z.object({
+  id: z.string(),
+  kind: z.enum(selfListKindValues),
+  patternCategory: z.enum(selfPatternCategoryValues).nullable(),
+  content: z.string(),
+  orderIdx: z.number().int(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
@@ -533,7 +669,7 @@ export const backupFileSchema = z.object({
 });
 
 export const backupSchema = z.object({
-  version: z.literal(2),
+  version: z.literal(1),
   exportedAt: z.coerce.date(),
   user: z.object({
     name: z.string(),
@@ -547,18 +683,20 @@ export const backupSchema = z.object({
   trackingItems: z.array(backupTrackingItemSchema),
   weeklySync: z.array(backupWeeklySyncSchema),
   weeklySyncItems: z.array(backupWeeklySyncItemSchema),
-  syncTemplates: z.array(backupSyncTemplateSchema).default([]),
-  syncTemplateItems: z.array(backupSyncTemplateItemSchema).default([]),
-  attachments: z.array(backupAttachmentSchema).default([]),
+  syncTemplates: z.array(backupSyncTemplateSchema),
+  syncTemplateItems: z.array(backupSyncTemplateItemSchema),
+  attachments: z.array(backupAttachmentSchema),
   files: z.array(backupFileSchema),
-  people: z.array(backupPersonSchema).optional().default([]),
-  userSelf: backupUserSelfSchema.nullable().optional().default(null),
-  taskReferents: z.array(backupTaskReferentSchema).optional().default([]),
-  personGroups: z.array(backupPersonGroupSchema).optional().default([]),
-  peopleToGroups: z.array(backupPeopleToGroupSchema).optional().default([]),
-  giftIdeas: z.array(backupGiftIdeaSchema).optional().default([]),
-  bucketListItems: z.array(backupBucketListItemSchema).optional().default([]),
-  bucketListItemPeople: z.array(backupBucketListItemPeopleSchema).optional().default([]),
+  people: z.array(backupPersonSchema),
+  userSelf: backupUserSelfSchema.nullable(),
+  taskReferents: z.array(backupTaskReferentSchema),
+  personGroups: z.array(backupPersonGroupSchema),
+  peopleToGroups: z.array(backupPeopleToGroupSchema),
+  tasksToGroups: z.array(backupTasksToGroupSchema),
+  nextBids: z.array(backupNextBidSchema),
+  bucketListItems: z.array(backupBucketListItemSchema),
+  bucketListItemPeople: z.array(backupBucketListItemPeopleSchema),
+  selfListItems: z.array(backupSelfListItemSchema),
 });
 
 export type Backup = z.infer<typeof backupSchema>;

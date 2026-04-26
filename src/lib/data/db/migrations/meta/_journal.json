@@ -64,6 +64,62 @@
       "when": 1777110482081,
       "tag": "0008_gifted_maximus",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777125344829,
+      "tag": "0009_cheerful_flatman",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1777127647332,
+      "tag": "0010_thin_dust",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1777131318792,
+      "tag": "0011_futuristic_ink",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1777137972945,
+      "tag": "0012_violet_lester",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1777138803251,
+      "tag": "0013_misty_doctor_strange",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1777144402022,
+      "tag": "0014_heavy_prima",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1777145640790,
+      "tag": "0015_magenta_bastion",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1777200000000,
+      "tag": "0016_drop_legacy_and_rename_bids",
+      "breakpoints": true
     }
   ]
 }

@@ -12,15 +12,6 @@ shipped work stays visible until the next prune.
       the route layout, session callback, and edge-runtime guards there. Plan to keep the
       seeded local-dev user (`santi@test.local`) usable during the transition via a credentials
       provider.
-- [ ] **User profile page** — dedicated route under the sidebar (probably bottom of the rail
-      or a click on the avatar). Edit:
-  - Display name
-  - Email (with re-verification email if NextAuth flow requires it)
-  - Profile image (avatar upload — reuse the `attachments` table with
-    `parent_type='user_profile'` so we don't add another file table)
-  - Password change (only when using credentials provider)
-  - Account deletion / data export entry points (export already exists via
-    `goals.backup.export`; surface a button)
 
 ## TickTick integration
 
@@ -37,9 +28,17 @@ shipped work stays visible until the next prune.
     list per top-level goal).
   - Background job — Next.js cron / a long-running queue worker to pull on a schedule.
 
+## Goals & objectives
+
+- [ ] **Books on goals — ISBN / Goodreads links** — let a goal carry a list of books I want to
+      read as part of pursuing it. Capture by ISBN or Goodreads URL; render the list in the
+      goal modal with cover/title fetched from the source. Decide whether the list is its own
+      table (`goal_books`) or a generic "external references" table that future link types
+      (papers, courses, podcasts) can reuse.
+
 ## UI improvements
 
-- [ ] **Goal Modal — "Link existing tracking item" picker** *(open from the original sync redesign plan)*
+- [ ] **Goal Modal — "Link existing tracking item" picker** _(open from the original sync redesign plan)_
       Today the modal only creates new tracking items linked to that goal. Add a picker that
       shows the user's library entries with `goalId IS NULL` (or a different goal) so an
       existing item can be re-pointed without leaving the modal.
@@ -49,8 +48,6 @@ shipped work stays visible until the next prune.
 - [ ] **Empty-state hint on first Sync visit** — if the user has no default template,
       surface a one-line "Set up a template so future syncs auto-fill" with a button that
       opens the template editor pre-focused on the create input.
-- [ ] **Avatar upload** — `Avatar.tsx` already handles URL/emoji/initial fallback; wire the
-      upload flow once profile lands.
 - [ ] **Mobile polish pass** — drawer interaction on the sidebar, tap targets on the values
       page color picker, picker modals on small viewports.
 - [ ] **Graph readability** — on dense graphs the node labels overlap. Either auto-zoom-to-fit
@@ -77,10 +74,6 @@ Until then: hide the multi-template surface. One default per user, always.
 
 ## Tech debt left from the sync redesign
 
-- [ ] **Drop `weekly_sync_item_files` in a follow-up migration** — already empty in every
-      environment after `scripts/migrate-sync-storage.ts`. Schema.ts still keeps it as a
-      deprecated table. Drop the table + its Drizzle entry once a release has gone by with
-      no regressions.
 - [ ] **Replace the `WeeklyRetrospective.tsx` shape adapter** — the component still projects
       the new server shape into the legacy `RetroGoal/RetroTrackingItem` types. Rewrite the
       JSX directly against the new shape (`goal.items[]`, `attachments[]`, `textContent`)
@@ -88,3 +81,14 @@ Until then: hide the multi-template surface. One default per user, always.
 - [ ] **Backup version bridging** — current code only accepts `version: 2` backups.
       Either add a one-shot `v1 → v2` converter or document that pre-redesign exports
       need manual restore.
+
+# Improvements found at the plane
+
+- ~~Sidebar should be flexible, and collapse when it's too small. It should still have the collapse/expand button.~~
+- ~~No need for data migration. Assume this is the first time using the app, so no need for scripts, backwards compatibility, export/import with fallbacks, etc. The code should assume current version is the only one.~~
+- ~~We should add GitHub Docker deployment, which means that when the package.json is uploaded (use the /commands from santree for patch, minor) a new Docker image should be pushed to GitHub registry, so I don't need to clone the repo on the NAS.~~
+- ~~Cleanup unused functions in the codebase, looks like there are legacy code paths, at a first glance I saw `saveWeeklySyncFile`, but there are probably lot of them.~~
+- ~~On the schemas trackingItems, syncTemplates, etc there is an issue with pgTable: The signature '(name: "tracking_items", columns: { id: HasRuntimeDefault<HasDefault<IsPrimaryKey<NotNull<PgTextBuilderInitial<"id", [string, ...string[]]>>>>>; ... 8 more ...; updatedAt: HasDefault<...>; }, extraConfig: (self: { ...; }) => PgTableExtraConfig): PgTableWithColumns<...>' of 'pgTable' is deprecated.ts(6387). table.d.ts(38, 8): The declaration was marked as deprecated here.~~
+- ~~Drop `weekly_sync_item_files` in a follow-up migration, it's deprecated and legacy.~~
+- ~~Similar to above, there are legacy columns in the userSelf table, drop them~~
+- ~~Similar, migrate gift ideas name to be next_bids, it represent more than just gifts.~~

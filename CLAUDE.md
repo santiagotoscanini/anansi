@@ -2,7 +2,7 @@
 
 Personal operating system for goals, relationships, and values. Named after Anansi — the West African spider trickster — whose Adinkra symbol **Ananse Ntontan** (the spider's web) represents wisdom, creativity, and the complexity of life. The app's icon is that web.
 
-Feature surface: visual goal hierarchies with weighted connections, weekly progress retrospectives, a structured Personal CRM for reflecting on relationships, user-defined values that tag goals, and custom groups for categorizing people across contexts.
+Feature surface: visual goal hierarchies with weighted connections, weekly progress retrospectives, a structured Personal CRM for reflecting on relationships, user-defined values that tag goals, and custom groups that span both people and tasks (e.g. "Family" can hold both my partner and the "call mom" task).
 
 ## Local dev credentials
 
@@ -82,13 +82,16 @@ src/
          GoalsGraph.tsx           # Interactive goal network visualization
          GoalNode.tsx             # Individual goal node component
          GoalModal.tsx            # Goal creation/editing modal
+         TaskModal.tsx            # Per-task editor (title, emoji, description, deadline, difficulty, referents, groups, completion)
+         Tasks.tsx                # Cross-goal Tasks tab — search + tasks grouped by goal; row click opens TaskModal
          EditableEdge.tsx         # Connection weight editor
          ValuesManager.tsx        # Values management interface
          WeeklyRetrospective.tsx  # Weekly sync interface
          LifeProgress.tsx         # Progress tracking dashboard
          FileSelectionModal.tsx   # File upload interface
-         PeopleManager.tsx        # Personal CRM list view with Self card + category sections
+         PeopleManager.tsx        # Personal CRM list view with category sections
          PersonModal.tsx          # Create/edit modal for a person
+         Self.tsx                 # Self tab — "living portrait" page: values strip, this-year description, my story, energizes/drains, just-for-me, what I'm proud of, patterns (5 categories), triggers, How I relate (6 framework cards), released, year-ahead, note to future self
      contexts/
         GoalsContext.tsx         # Global state management
      lib/
@@ -134,9 +137,11 @@ uploads/                         # File storage directory (not in src/)
 
 ### Task Management
 
+- **Cross-Goal Tasks Tab**: Sidebar entry under Goals. Searchable flat list of all tasks grouped by parent goal — click any task to open the **TaskModal** for full-fidelity editing (title with optional task-specific emoji, description, difficulty, deadline, referents, groups, completion). The graph + GoalModal still own quick row affordances (toggle complete, inline date picker, referent/group popovers); the Tasks tab is the place for description + emoji edits, since those don't fit on a row.
 - **Difficulty-Based Tasks**: Assign difficulty levels (1-3) to goal-specific tasks
 - **Task Completion Tracking**: Mark tasks as completed for progress monitoring
 - **Task CRUD Operations**: Full task management within goals
+- **Time-Bound Horizons**: Each task carries a single `scheduledAt` deadline date. The dedicated **Horizons** tab buckets tasks into `Backlog` + `This Month` + `This Quarter` + `This Year` (plus auto-flagged `Past due` / `Later` lanes) by computing the right bucket from the date and the current calendar — no enum stored, so a task auto-promotes to a tighter bucket as the deadline approaches. Tasks are also surfaced as count pills on each goal node and a per-task DatePicker in GoalModal. Pulse's "On the horizon" section uses the same auto-rollup; the year bucket is collapsed by default.
 
 ### Goal Connections
 
@@ -185,6 +190,9 @@ uploads/                         # File storage directory (not in src/)
 
 - `id` (text, primary key): Unique user identifier
 - `name` (text): User display name
+- `email` (text, UNIQUE): Email used for sign-in
+- `password` (text): bcrypt hash
+- `avatarUrl` (text, nullable): Path under `/uploads/{userId}/avatar.{ext}`. Null = use deterministic-initial fallback in `Avatar.tsx`.
 - `createdAt`, `updatedAt` (timestamp): Audit timestamps
 
 #### values
@@ -210,9 +218,13 @@ uploads/                         # File storage directory (not in src/)
 - `id` (text, primary key): Unique task identifier
 - `goalId` (text, foreign key): References goals.id
 - `title` (text): Task title
+- `description` (text, nullable): Longer-form context for the task. Surfaced in the Tasks tab list and the TaskModal editor; the GoalModal task row only shows the title.
+- `emoji` (text, nullable): Native emoji or URL to custom emoji image. **Distinct from the parent goal's emoji** — a task can have its own visual marker independent of its goal. Rendered on the row in the GoalModal task list and the Tasks tab.
 - `difficulty` (integer): Difficulty level (1, 2, or 3)
 - `completed` (boolean): Completion status
+- `scheduledAt` (timestamp, **nullable**): Single deadline date. Null = unscheduled (Backlog on the Horizons board). The board buckets tasks into `Backlog` / `This Month` / `This Quarter` / `This Year` (plus auto-flagged `Past due` and `Later` lanes) by COMPUTING which bucket the date falls into right now — no enum stored. Auto-rollup: a Sept 15 task lives in `This Year` until July starts, then `This Quarter` through August, then promotes to `This Month` when September arrives. Bucket computation in `src/lib/horizon-period.ts` (`bucketForDate`, `currentMonthRange`, `endOfCurrentBucket`, `formatScheduledShort`).
 - `createdAt`, `updatedAt` (timestamp): Audit timestamps
+- **Linked surfaces:** referent people via `task_referents`; group tags via `tasks_to_groups`. Both are cascade-deleted with the task.
 
 #### connections
 
@@ -281,7 +293,7 @@ from the template's order at create time but mutable via reorderItems.
 - `orderIdx` (integer, NOT NULL, default 0): Display order within the sync
 - `createdAt`, `updatedAt` (timestamp): Audit timestamps
 
-#### attachments (replaces weeklySyncItemFiles)
+#### attachments
 
 Polymorphic file metadata, keyed on `(parentType, parentId)`. Today's only
 producer is `parentType = 'weekly_sync_item'`, but the schema is permissive
@@ -299,11 +311,6 @@ goal/date/tracking-item ids so items without goals can still hold files.
 - `sizeBytes` (integer, nullable): File size in bytes
 - `createdAt` (timestamp): Creation timestamp
 - Indexed on `(parentType, parentId)` and `userId`.
-
-> **Legacy:** `weeklySyncItemFiles` still exists in schema.ts for one
-> release as a compatibility marker; a follow-up migration will drop it
-> after the data-migration script (`scripts/migrate-sync-storage.ts`) has
-> been run on every environment. New code should not reference it.
 
 #### goalValues (Junction Table)
 
@@ -332,16 +339,35 @@ support relationship thinking, not address-book lookup.
 - `archivedAt` (timestamp, nullable): Retirement marker — excluded from active list but preserved
 - `createdAt`, `updatedAt` (timestamp): Audit timestamps
 
-#### gift_ideas (per-person list)
+#### next_bids (per-person bids)
 
-A list of gift/gesture ideas captured per person — separate table so each idea has its
-own row, deletable atomically once given. Replaces the previous free-text `giftIdeas`
-column on `people`. Captured when noticed, not when needed.
+**Anything actionable I can do to improve this relationship** — a gift, a gesture,
+a check-in, an apology. Captured when noticed, not when needed. Completed bids stay
+visible (struck through) — the trail of fulfilled bids is preserved instead of
+being deleted.
 
-- `id` (text, primary key): Unique gift idea identifier
+- `id` (text, primary key): Unique bid identifier
 - `personId` (text, foreign key): References people.id, cascade delete
-- `content` (text): The idea
+- `content` (text): The bid (free text)
+- `dueAt` (timestamp, nullable): Optional one-shot deadline. Overdue badge shown until completion. NOT a recurring date — that's `important_dates`.
+- `completedAt` (timestamp, nullable): Null = pending; non-null = done. Bid stays visible after completion.
 - `createdAt` (timestamp): Creation timestamp
+
+#### important_dates (yearly recurring per person)
+
+Yearly-recurring dates tied to a person — birthday, anniversary, graduation, etc.
+`month`/`day` define the recurrence; `year` is optional (the original year, used
+for "turning N this year" math). Surfaces in Pulse when the next occurrence is
+within the upcoming 30 days. Distinct from `next_bids.dueAt` — bids are one-shot
+deadlines, important dates repeat yearly.
+
+- `id` (text, primary key): Unique date identifier
+- `personId` (text, foreign key): References people.id, cascade delete
+- `label` (text): Human label ("Birthday", "Wedding anniversary", …)
+- `month` (integer, NOT NULL, 1-12): Recurrence month
+- `day` (integer, NOT NULL, 1-31): Recurrence day
+- `year` (integer, nullable): Original year (optional). Used to compute "turning N" in Pulse.
+- `createdAt`, `updatedAt` (timestamp): Audit timestamps
 
 #### bucket_list_items (life list)
 
@@ -387,6 +413,19 @@ and as chip toggles in PersonModal.
 - `groupId` (text, foreign key): References person_groups.id, cascade delete
 - `createdAt` (timestamp): Creation timestamp
 
+#### tasks_to_groups (junction: tasks ↔ person_groups)
+
+Same `person_groups` rows the People side uses — groups are intentionally
+cross-entity. A "Family" group can tag both my partner (via people_to_groups)
+and the "call mom this weekend" task (via tasks_to_groups). Cascade-deletes
+on both sides. The DB table name keeps `person_groups` for backwards compat
+even though the concept is broader; the user-facing concept is just "Groups."
+
+- `id` (text, primary key): Unique junction identifier
+- `taskId` (text, foreign key): References tasks.id, cascade delete
+- `groupId` (text, foreign key): References person_groups.id, cascade delete
+- `createdAt` (timestamp): Creation timestamp
+
 #### task_referents (junction: tasks ↔ people)
 
 Many-to-many link: a task can have multiple referent people (people I'm relying on to make
@@ -403,13 +442,42 @@ where reflection becomes action.
 #### user_self
 
 One row per user — the Self space is structurally distinct from a Person.
+The Self page is a "living portrait," not a tracker: prose lives on this row,
+list-shaped buckets (energizers, drainers, patterns, etc.) live in
+`self_list_items`. Empty fields are intentional — the user only writes when
+they have something new to add, so untouched sections must read as clean
+pages, not unfinished forms.
 
 - `id` (text, primary key): Unique row identifier
 - `userId` (text, foreign key, UNIQUE): References users.id, cascade delete
-- `identityNotes` (text, nullable): "Who I am right now"
-- `patterns` (text, nullable): Patterns observed across relationships
-- `currentWork` (text, nullable): Current self-work focus
+- **Living-portrait prose fields:**
+  - `thisYearSelfDescription` (text, nullable): "How I'd describe myself to someone new this year"
+  - `descriptionYear` (int, nullable): Calendar year the description was written for; auto-bumps to current year on edit; null prompts the UI to claim a year on first edit
+  - `myStory` (text, nullable): Long-form narrative — childhood, formative events, turning points
+  - `attachmentTendencies` (text, nullable): What I want and fear when close
+  - `loveLanguageGive` (text, nullable): How I show care
+  - `loveLanguageReceive` (text, nullable): How I best receive care
+  - `apologyLanguage` (text, nullable): What I need to hear after harm
+  - `conflictStyle` (text, nullable): The mode I drop into when things go sideways
+  - `stressResponse` (text, nullable): What my body does when overloaded
+  - `noteToFutureSelf` (text, nullable): What I'd want them to know
 - `createdAt`, `updatedAt` (timestamp): Audit timestamps
+
+#### self_list_items
+
+Atomic rows for every list-shaped section on the Self page. One table for all
+kinds keeps the UI surface small — the page treats them uniformly (add a row,
+edit content, delete, reorder). `patternCategory` is only meaningful when
+`kind = 'pattern'` — null for every other kind.
+
+- `id` (text, primary key): Unique row identifier
+- `userId` (text, foreign key, NOT NULL): References users.id, cascade delete
+- `kind` (enum, NOT NULL): One of `energizer | drainer | just_for_me | proud | pattern | trigger | release | year_ahead`
+- `patternCategory` (enum, nullable): When `kind = 'pattern'` — `relational | self_pattern | communication | body_state | choice`. Always null for other kinds (server enforces).
+- `content` (text, NOT NULL): The list item text (max 2000 chars)
+- `orderIdx` (integer, NOT NULL, default 0): Per-(user, kind) ordering. New items append; reorder via `goals.selfListItems.reorder`.
+- `createdAt`, `updatedAt` (timestamp): Audit timestamps
+- Indexed on `(userId, kind)` for fast per-bucket reads.
 
 ### Key Relationships
 
@@ -419,7 +487,7 @@ One row per user — the Self space is structurally distinct from a Person.
 - **Goals** connect to other **Goals** through **Connections**
 - **Goals** associate with **Values** through **GoalValues** junction table
 - **TrackingItems** can be included in multiple **WeeklySyncItems**
-- **WeeklySyncItems** can have multiple **WeeklySyncItemFiles**
+- **WeeklySyncItems** can have multiple **Attachments** (polymorphic, `parentType = 'weekly_sync_item'`)
 - **People** belong to a **User**; categorized for reflection workflow, not relational to Goals
 
 ## Information Calculated (Not Stored in Database)
@@ -446,11 +514,17 @@ Automatically calculated based on outgoing connection weights:
 
 ## Main Backend Endpoints and Features
 
-### Authentication Endpoints
+### Authentication & Profile Endpoints
 
 - `auth.authenticate`: Password-based user authentication
+- `auth.register`: Create a new account (name, email, password)
 - `auth.getUsers`: Retrieve available users for selection
 - `auth.verify`: Verify JWT token validity
+- `auth.me`: Read the current user's profile (id, name, email, avatarUrl)
+- `auth.updateProfile`: Update name and/or email; rejects email collisions with another account
+- `auth.changePassword`: Verify current password, then set a new hashed one
+- `auth.uploadAvatar`: Base64 image upload → `uploads/{userId}/avatar.{ext}`; updates `users.avatarUrl`. Cleans up stale extensions on overwrite.
+- `auth.removeAvatar`: Unlink any avatar files and null out `users.avatarUrl`
 
 ### Goals Management
 
@@ -468,9 +542,11 @@ Automatically calculated based on outgoing connection weights:
 
 ### Tasks Management
 
-- `goals.tasks.create`: Create new task for specific goal
-- `goals.tasks.update`: Update task properties and completion status
+- `goals.tasks.create`: Create new task for specific goal. Accepts `referentIds[]` and `groupIds[]` for the people/group memberships at create time.
+- `goals.tasks.update`: Update task properties and completion status (including `scheduledAt`). `referentIds[]` and `groupIds[]` are replace-set semantics — pass the desired final set, omit to leave unchanged.
 - `goals.tasks.delete`: Delete task from goal
+- `goals.tasks.setScheduled({ id, scheduledAt })`: Lightweight drag-drop endpoint for the Horizons board. Sets (or clears) the scheduled date. The bucket the task lands in is computed client-side from the date and current time; the server only persists the date. Ownership enforced via the task's parent goal.
+- `goals.nextBids.listUpcoming({ withinDays })`: All open bids across the user's people whose `dueAt` falls within the window (default 60 days). Joined with person name + emoji. Drives the unified Pulse "Upcoming" feed alongside `goals.importantDates.list`.
 
 ### Connections Management
 
@@ -504,7 +580,7 @@ Automatically calculated based on outgoing connection weights:
 - `goals.weeklySync.setItemText({ weeklySyncItemId, textContent })`: Direct DB update on the inline text column. No filesystem.
 - `goals.weeklySync.reorderItems({ weeklySyncId, ordering })`: Persist a new `orderIdx` for each item.
 
-### Attachments (replaces the old weeklySyncItemFiles routes)
+### Attachments
 
 - `goals.attachments.upload({ parentType: 'weekly_sync_item', parentId, fileName, fileType, data })`: Base64 → disk under `uploads/{userId}/attachments/{id}.{ext}`. DB row created first; FS write inside the same tx so a failed write rolls back.
 - `goals.attachments.delete({ id })`: DB row delete then unlink.
@@ -525,12 +601,37 @@ Automatically calculated based on outgoing connection weights:
 - `goals.people.setCategory`: Lightweight drag-drop endpoint — updates only category + boardOrder
 - `goals.people.getTasksAsReferent`: Lists tasks (with goal context) where a given person is a referent
 - `goals.people.getBucketListItemsAsParticipant`: Lists bucket list items the person is named on (read-only counterpart shown inside PersonModal)
-- `goals.groups.getAll` / `create` / `update` / `delete`: CRUD for user-defined person groups (tags)
+- `goals.groups.getAll` / `create` / `update` / `delete`: CRUD for user-defined groups (tags). The same group can hold both people (via `people_to_groups`) and tasks (via `tasks_to_groups`).
+- `goals.groups.getTasks({ groupId })`: List tasks tagged with a group, joined with goal context (id/title/emoji + scheduled date + completion). Drives the Tasks section on the group filter view.
+
+### Bids (per-person)
+
+- `goals.nextBids.list({ personId })`: All bids for a person, oldest first
+- `goals.nextBids.create({ personId, content, dueAt? })`: Create a bid, optionally with a deadline
+- `goals.nextBids.update({ id, content?, dueAt? })`: Edit content and/or deadline (`dueAt: null` clears it)
+- `goals.nextBids.setCompleted({ id, completed })`: Toggle done state. Sets/clears `completedAt`. Bid stays visible.
+- `goals.nextBids.delete({ id })`: Hard delete (used only for truly wrong entries — completed bids should be left in place)
+
+### Important Dates
+
+- `goals.importantDates.list({ personId? })`: List dates. Optional `personId` filter; otherwise returns every date across all the user's people, sorted by month/day.
+- `goals.importantDates.create({ personId, label, month, day, year? })`: Create a yearly recurring date
+- `goals.importantDates.update({ id, label?, month?, day?, year? })`: Partial update
+- `goals.importantDates.delete({ id })`: Hard delete
 
 ### Self Space
 
+The Self page is a "living portrait" — prose lives on `user_self`, list-shaped
+buckets live in `self_list_items`. Both are user-scoped; ownership enforced
+on every read/write.
+
 - `goals.self.get`: Fetch the caller's Self row (or null if not yet created)
-- `goals.self.update`: Upsert Self fields (identityNotes, patterns, currentWork)
+- `goals.self.update`: Partial update of any prose field on `user_self`. Same endpoint upserts on first write — accepts `thisYearSelfDescription`, `descriptionYear`, `myStory`, `attachmentTendencies`, `loveLanguageGive`, `loveLanguageReceive`, `apologyLanguage`, `conflictStyle`, `stressResponse`, `noteToFutureSelf`. Only the fields you pass get written.
+- `goals.selfListItems.list`: All list items for the user, ordered by kind then orderIdx. Client groups by kind on render.
+- `goals.selfListItems.create({ kind, content, patternCategory? })`: Append a row at the end of its kind's list. Server zeroes `patternCategory` for every kind except `pattern`.
+- `goals.selfListItems.update({ id, content?, patternCategory? })`: Partial update. Server enforces `patternCategory` only stays set on rows where `kind = 'pattern'`.
+- `goals.selfListItems.delete({ id })`: Hard delete (these are intentionally low-friction).
+- `goals.selfListItems.reorder({ kind, ordering })`: Atomic re-numbering, gated on userId + kind so a forged id from another kind/user is a no-op.
 
 ### Bucket List
 
@@ -555,7 +656,7 @@ Files are stored under `uploads/` in the project root. Text notes for sync
 items are inline in the DB (`weekly_sync_items.text_content`); only binary
 attachments touch disk.
 
-### Path Structure (post-redesign)
+### Path Structure
 
 ```
 uploads/
@@ -567,13 +668,6 @@ uploads/
 The path is keyed only on user — attachments live under their owner
 regardless of which sync item they're attached to. The DB row in
 `attachments` resolves the relationship via `(parentType, parentId)`.
-
-> **Legacy layout** (before the sync redesign):
-> `uploads/{userId}/{goalId}/{date}/{trackingItemId}/{timestamp}_{fileName}`.
-> Migration script `scripts/migrate-sync-storage.ts` rewrites every existing
-> file into the new flat layout and pulls notes.txt into the DB. The
-> follow-up migration that drops `weekly_sync_item_files` is gated on the
-> script having been run.
 
 ### File Types Supported
 
@@ -615,6 +709,30 @@ regardless of which sync item they're attached to. The DB row in
 - UI/UX component restructuring
 
 **Responsibility**: Any developer making changes to the codebase must immediately update this documentation to maintain accuracy and usefulness for future development work.
+
+## Post-change verification (required for every non-trivial change)
+
+After any meaningful change — schema, router, component, refactor — you MUST
+run the full trio and **fix every warning and error before declaring the work
+done**. Skipping this turns the next session's first 30 minutes into cleanup.
+
+```bash
+npm run format    # Prettier — formats in place
+npm run lint      # ESLint — must end with zero warnings AND zero errors
+npm run build     # Next build — must finish cleanly (treat warnings as errors)
+```
+
+Rules:
+- Zero is the only acceptable count. Don't ship "just one warning" — they
+  compound and get ignored.
+- If a warning seems wrong, fix the root cause (rename a variable, restructure
+  a hook, narrow a type) rather than disabling the rule. `eslint-disable`
+  comments need a one-line justification and should be rare.
+- The pre-existing `_global-error` prerender warning during `npm run build`
+  is the documented exception — see the memory note about it. Anything else
+  new is on you to fix.
+- Format failures are usually just whitespace; rerun `npm run format` and
+  recommit.
 
 ## Database migrations
 

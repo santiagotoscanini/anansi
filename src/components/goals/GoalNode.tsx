@@ -6,6 +6,7 @@ import { Handle, Position } from "@xyflow/react";
 import { Target, CheckCircle, Pencil } from "lucide-react";
 import { useGoals, type Goal } from "~/contexts/GoalsContext";
 import { isEmojiUrl } from "~/lib/emoji-utils";
+import { bucketForDate } from "~/lib/horizon-period";
 import { api } from "~/trpc/react";
 import Avatar from "./Avatar";
 
@@ -187,9 +188,48 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
       {/* Description */}
       {data.description && <p className="mb-3 line-clamp-2 text-xs text-white/70">{data.description}</p>}
 
-      {/* Tasks Summary */}
-      <div className="mb-2 text-xs text-white/60">
-        Tasks: {data.tasks.filter((t) => t.completed).length}/{data.tasks.length}
+      {/* Tasks Summary — total count + per-bucket pills computed from
+          each task's scheduledAt date. Pills hide when nothing is scheduled. */}
+      <div className="mb-2 flex items-center justify-between gap-2 text-xs text-white/60">
+        <span>
+          Tasks: {data.tasks.filter((t) => t.completed).length}/{data.tasks.length}
+        </span>
+        {(() => {
+          const now = new Date();
+          let m = 0;
+          let q = 0;
+          let y = 0;
+          for (const t of data.tasks) {
+            if (t.completed || !t.scheduledAt) continue;
+            const b = bucketForDate(new Date(t.scheduledAt), now);
+            if (b === "month") m += 1;
+            else if (b === "quarter") q += 1;
+            else if (b === "year") y += 1;
+          }
+          if (m + q + y === 0) return null;
+          return (
+            <span
+              className="flex shrink-0 items-center gap-1"
+              title={`Open by bucket — This month: ${m}, This quarter: ${q}, This year: ${y}`}
+            >
+              {m > 0 && (
+                <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-emerald-300">
+                  {m}M
+                </span>
+              )}
+              {q > 0 && (
+                <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-sky-300">
+                  {q}Q
+                </span>
+              )}
+              {y > 0 && (
+                <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-violet-300">
+                  {y}Y
+                </span>
+              )}
+            </span>
+          );
+        })()}
       </div>
 
       {/* Progress Bar */}

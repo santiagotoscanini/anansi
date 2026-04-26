@@ -45,11 +45,13 @@ export function getRandomEmoji(): string {
 }
 
 /**
- * Check if a string is a URL (http or https)
+ * Check if a string is an image reference (absolute http(s) URL or our own
+ * `/uploads/...` server-relative path). Treats anything that looks path-like
+ * rather than emoji-glyph-like as a URL — emoji codepoints don't start with `/`.
  */
 export function isEmojiUrl(emoji: string | undefined): boolean {
   if (!emoji) return false;
-  return emoji.startsWith("http://") || emoji.startsWith("https://");
+  return emoji.startsWith("http://") || emoji.startsWith("https://") || emoji.startsWith("/uploads/");
 }
 
 /**

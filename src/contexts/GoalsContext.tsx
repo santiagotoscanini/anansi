@@ -251,47 +251,58 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     await meQuery.refetch();
   };
 
+  // Re-fetch the merged goals/values/connections payload. Most mutations
+  // call invalidateData below — refreshData stays around for components
+  // that explicitly want to wait on the refetch (backup-import flow).
   const refreshData = useCallback(async () => {
     if (isAuthenticated) {
       await dataQuery.refetch();
     }
   }, [isAuthenticated, dataQuery]);
 
+  // Mark the merged data query stale so React Query refetches it on next
+  // observer interest. Cheaper than refetch() because it doesn't block the
+  // mutation handler — the UI continues immediately and updates when the
+  // refetch lands.
+  const invalidateData = useCallback(async () => {
+    if (isAuthenticated) await utils.goals.data.getAll.invalidate();
+  }, [isAuthenticated, utils]);
+
   // Value operations
   const addValue = useCallback(
     async (value: Omit<Value, "id">) => {
       try {
         await valuesMutations.create.mutateAsync(value);
-        await refreshData();
+        await invalidateData();
       } catch (error) {
         console.error("Failed to add value:", error);
       }
     },
-    [valuesMutations.create, refreshData],
+    [valuesMutations.create, invalidateData],
   );
 
   const updateValue = useCallback(
     async (id: string, value: Partial<Value>) => {
       try {
         await valuesMutations.update.mutateAsync({ id, ...value });
-        await refreshData();
+        await invalidateData();
       } catch (error) {
         console.error("Failed to update value:", error);
       }
     },
-    [valuesMutations.update, refreshData],
+    [valuesMutations.update, invalidateData],
   );
 
   const deleteValue = useCallback(
     async (id: string) => {
       try {
         await valuesMutations.delete.mutateAsync({ id });
-        await refreshData();
+        await invalidateData();
       } catch (error) {
         console.error("Failed to delete value:", error);
       }
     },
-    [valuesMutations.delete, refreshData],
+    [valuesMutations.delete, invalidateData],
   );
 
   // Calculate importance based on outgoing edge weights
@@ -316,12 +327,12 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     async (goal: CreateGoal) => {
       try {
         await goalsMutations.create.mutateAsync(goal);
-        await refreshData();
+        await invalidateData();
       } catch (error) {
         console.error("Failed to add goal:", error);
       }
     },
-    [goalsMutations.create, refreshData],
+    [goalsMutations.create, invalidateData],
   );
 
   const updateGoal = useCallback(
@@ -331,24 +342,24 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
         const { importance: _importance, ...goalData } = goal;
         void _importance;
         await goalsMutations.update.mutateAsync({ id, ...goalData });
-        await refreshData();
+        await invalidateData();
       } catch (error) {
         console.error("Failed to update goal:", error);
       }
     },
-    [goalsMutations.update, refreshData],
+    [goalsMutations.update, invalidateData],
   );
 
   const deleteGoal = useCallback(
     async (id: string) => {
       try {
         await goalsMutations.delete.mutateAsync({ id });
-        await refreshData();
+        await invalidateData();
       } catch (error) {
         console.error("Failed to delete goal:", error);
       }
     },
-    [goalsMutations.delete, refreshData],
+    [goalsMutations.delete, invalidateData],
   );
 
   // Task operations
@@ -356,36 +367,55 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     async (goalId: string, task: Omit<Task, "id">) => {
       try {
         await tasksMutations.create.mutateAsync({ ...task, goalId });
-        await refreshData();
+        await invalidateData();
       } catch (error) {
         console.error("Failed to add task:", error);
       }
     },
-    [tasksMutations.create, refreshData],
+    [tasksMutations.create, invalidateData],
   );
 
+  // Optimistic update for the canvas's hottest path: clicking a task's
+  // completion checkbox. Patch the cache immediately so the UI flips
+  // without waiting for the round-trip; on error, roll back.
   const updateTask = useCallback(
     async (goalId: string, taskId: string, task: Partial<Task>) => {
+      const snapshot = utils.goals.data.getAll.getData();
+      if (snapshot) {
+        utils.goals.data.getAll.setData(undefined, {
+          ...snapshot,
+          goals: snapshot.goals.map((g) =>
+            g.id !== goalId
+              ? g
+              : {
+                  ...g,
+                  tasks: g.tasks.map((t) => (t.id !== taskId ? t : { ...t, ...task })),
+                },
+          ),
+        });
+      }
       try {
         await tasksMutations.update.mutateAsync({ id: taskId, goalId, ...task });
-        await refreshData();
+        await invalidateData();
       } catch (error) {
+        // Roll back the optimistic patch.
+        if (snapshot) utils.goals.data.getAll.setData(undefined, snapshot);
         console.error("Failed to update task:", error);
       }
     },
-    [tasksMutations.update, refreshData],
+    [tasksMutations.update, invalidateData, utils],
   );
 
   const deleteTask = useCallback(
     async (goalId: string, taskId: string) => {
       try {
         await tasksMutations.delete.mutateAsync({ id: taskId, goalId });
-        await refreshData();
+        await invalidateData();
       } catch (error) {
         console.error("Failed to delete task:", error);
       }
     },
-    [tasksMutations.delete, refreshData],
+    [tasksMutations.delete, invalidateData],
   );
 
   // Connection operations
@@ -393,36 +423,36 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     async (connection: Omit<Connection, "id">) => {
       try {
         await connectionsMutations.create.mutateAsync(connection);
-        await refreshData();
+        await invalidateData();
       } catch (error) {
         console.error("Failed to add connection:", error);
       }
     },
-    [connectionsMutations.create, refreshData],
+    [connectionsMutations.create, invalidateData],
   );
 
   const updateConnection = useCallback(
     async (id: string, connection: Partial<Connection>) => {
       try {
         await connectionsMutations.update.mutateAsync({ id, ...connection });
-        await refreshData();
+        await invalidateData();
       } catch (error) {
         console.error("Failed to update connection:", error);
       }
     },
-    [connectionsMutations.update, refreshData],
+    [connectionsMutations.update, invalidateData],
   );
 
   const deleteConnection = useCallback(
     async (id: string) => {
       try {
         await connectionsMutations.delete.mutateAsync({ id });
-        await refreshData();
+        await invalidateData();
       } catch (error) {
         console.error("Failed to delete connection:", error);
       }
     },
-    [connectionsMutations.delete, refreshData],
+    [connectionsMutations.delete, invalidateData],
   );
 
   // Tracking Items operations
@@ -451,38 +481,38 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     async (trackingItem: CreateTrackingItem) => {
       try {
         await trackingItemsMutations.create.mutateAsync(trackingItem);
-        await refreshData();
+        await invalidateData();
       } catch (error) {
         console.error("Failed to add tracking item:", error);
       }
     },
-    [trackingItemsMutations.create, refreshData],
+    [trackingItemsMutations.create, invalidateData],
   );
 
   const updateTrackingItem = useCallback(
     async (id: string, trackingItem: Partial<TrackingItem>) => {
       try {
         await trackingItemsMutations.update.mutateAsync({ id, ...trackingItem });
-        await refreshData();
+        await invalidateData();
       } catch (error) {
         console.error("Failed to update tracking item:", error);
       }
     },
-    [trackingItemsMutations.update, refreshData],
+    [trackingItemsMutations.update, invalidateData],
   );
 
   const deleteTrackingItem = useCallback(
     async (id: string): Promise<{ success: boolean; type: "soft_delete" | "hard_delete" }> => {
       try {
         const result = await trackingItemsMutations.delete.mutateAsync({ id });
-        await refreshData();
+        await invalidateData();
         return result;
       } catch (error) {
         console.error("Failed to delete tracking item:", error);
         throw error;
       }
     },
-    [trackingItemsMutations.delete, refreshData],
+    [trackingItemsMutations.delete, invalidateData],
   );
 
   // Weekly Sync functions
@@ -510,14 +540,14 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     async (weekDate: Date): Promise<WeeklySync> => {
       try {
         const result = await weeklySyncMutations.create.mutateAsync({ weekDate });
-        await refreshData();
+        await invalidateData();
         return result;
       } catch (error) {
         console.error("Failed to create weekly sync:", error);
         throw error;
       }
     },
-    [weeklySyncMutations.create, refreshData],
+    [weeklySyncMutations.create, invalidateData],
   );
 
   const createWeeklySyncItem = useCallback(
@@ -527,14 +557,14 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
           weeklySyncId,
           trackingItemId,
         });
-        await refreshData();
+        await invalidateData();
         return result;
       } catch (error) {
         console.error("Failed to add sync item:", error);
         throw error;
       }
     },
-    [syncItemMutations.addItem, refreshData],
+    [syncItemMutations.addItem, invalidateData],
   );
 
   // Idempotent helper used by the upload paths — addItem returns the existing
@@ -633,13 +663,13 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     async (fileId: string): Promise<void> => {
       try {
         await attachmentsMutations.delete.mutateAsync({ id: fileId });
-        await refreshData();
+        await invalidateData();
       } catch (error) {
         console.error("Failed to delete attachment:", error);
         throw error;
       }
     },
-    [attachmentsMutations.delete, refreshData],
+    [attachmentsMutations.delete, invalidateData],
   );
 
   // Weekly retrospective data operations

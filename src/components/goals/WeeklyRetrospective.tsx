@@ -1,15 +1,12 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import NextImage from "next/image";
+import { useState, useCallback } from "react";
 import {
   Calendar,
   Plus,
   Target,
   ChevronLeft,
   ChevronRight,
-  FileText,
-  Image as ImageIcon,
   ChevronDown,
   ChevronUp,
   Trash2,
@@ -19,6 +16,7 @@ import { useGoals } from "~/contexts/GoalsContext";
 import { api, type RouterOutputs } from "~/trpc/react";
 import toast from "react-hot-toast";
 import SyncDefaultEditor from "./SyncDefaultEditor";
+import WeeklySyncItemRow from "./WeeklySyncItemRow";
 
 type WeeklyRetrospectiveData = RouterOutputs["goals"]["weeklySync"]["getWeeklyRetrospectiveData"];
 type SyncItem = WeeklyRetrospectiveData["unscopedItems"][number];
@@ -36,21 +34,10 @@ type DisplayGroup = {
 
 type CollapsedGoals = Record<string, boolean>;
 
-type TextEditingState = Record<
-  string,
-  {
-    content: string;
-    isEditing: boolean;
-  }
->;
-
-type SaveStatus = Record<string, "saving" | "saved" | "idle">;
-
 interface DeleteConfirmation {
   isOpen: boolean;
   fileId: string;
   fileName: string;
-  syncItemId: string;
 }
 
 const getFileType = (fileName: string): "image" | "document" | "video" | "audio" | "other" => {
@@ -120,25 +107,12 @@ export default function WeeklyRetrospective() {
         ];
 
   const [collapsedGoals, setCollapsedGoals] = useState<CollapsedGoals>({});
-  const [textEditingState, setTextEditingState] = useState<TextEditingState>({});
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>({});
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation>({
     isOpen: false,
     fileId: "",
     fileName: "",
-    syncItemId: "",
   });
   const [deletingFiles, setDeletingFiles] = useState<Set<string>>(new Set());
-
-  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const saveTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
-
-  // Reset edit state on week change to avoid cross-week content bleed.
-  const [lastResetWeek, setLastResetWeek] = useState(selectedWeek);
-  if (lastResetWeek !== selectedWeek) {
-    setLastResetWeek(selectedWeek);
-    setTextEditingState({});
-  }
 
   const getWeekDateRange = useCallback((weekStart: Date) => {
     const weekEnd = new Date(weekStart);
@@ -189,84 +163,71 @@ export default function WeeklyRetrospective() {
     }));
   };
 
-  // Auto-save inline textContent on the weekly_sync_items row. Each rendered
-  // item is already a sync item, so we go straight at setItemText with the
-  // sync-item id — no addItem roundtrip needed.
-  const handleTextChange = useCallback(
-    (item: SyncItem, content: string) => {
-      setTextEditingState((prev) => ({
-        ...prev,
-        [item.id]: { content, isEditing: true },
-      }));
-
-      if (saveTimeouts.current[item.id]) {
-        clearTimeout(saveTimeouts.current[item.id]);
+  // Per-item handlers — invoked from WeeklySyncItemRow which owns the local
+  // draft + debounce. The row hands us the resolved content to persist.
+  const saveItemText = useCallback(
+    async (item: SyncItem, content: string) => {
+      try {
+        await setItemTextMutation.mutateAsync({ weeklySyncItemId: item.id, textContent: content });
+        await refreshWeeklyRetrospectiveData();
+      } catch (error) {
+        console.error("Failed to auto-save text:", error);
+        toast.error("Failed to save text");
+        throw error;
       }
-
-      setSaveStatus((prev) => ({ ...prev, [item.id]: "saving" }));
-
-      saveTimeouts.current[item.id] = setTimeout(() => {
-        const runSave = async () => {
-          try {
-            await setItemTextMutation.mutateAsync({
-              weeklySyncItemId: item.id,
-              textContent: content,
-            });
-            await refreshWeeklyRetrospectiveData();
-            setSaveStatus((prev) => ({ ...prev, [item.id]: "saved" }));
-            setTimeout(() => {
-              setSaveStatus((prev) => ({ ...prev, [item.id]: "idle" }));
-            }, 2000);
-          } catch (error) {
-            console.error("Failed to auto-save text:", error);
-            setSaveStatus((prev) => ({ ...prev, [item.id]: "idle" }));
-            toast.error("Failed to save text");
-          }
-        };
-        void runSave();
-      }, 1000);
     },
     [setItemTextMutation, refreshWeeklyRetrospectiveData],
   );
 
-  const handleImageUpload = async (item: SyncItem, files: FileList) => {
-    if (!files || files.length === 0) return;
+  const clearItemText = useCallback(
+    async (item: SyncItem) => {
+      try {
+        await setItemTextMutation.mutateAsync({ weeklySyncItemId: item.id, textContent: "" });
+        await refreshWeeklyRetrospectiveData();
+        toast.success("Notes cleared");
+      } catch (error) {
+        console.error("Failed to clear text:", error);
+        toast.error("Failed to clear notes");
+      }
+    },
+    [setItemTextMutation, refreshWeeklyRetrospectiveData],
+  );
+
+  const uploadItemFiles = async (item: SyncItem, files: FileList) => {
+    if (files.length === 0) return;
     if (!weeklySync?.id) {
       toast.error("No weekly sync available");
       return;
     }
-
     try {
       toast.loading("Uploading images...", { id: "image-upload" });
-
-      const uploadPromises = Array.from(files).map((file) => {
-        return new Promise<void>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const run = async () => {
-              try {
-                if (!reader.result) throw new Error("No file data");
-                await uploadWeeklySyncFile(
-                  reader.result as string,
-                  weeklySync.id,
-                  item.trackingItemId,
-                  file.name,
-                  getFileType(file.name),
-                  false,
-                );
-                resolve();
-              } catch (error) {
-                reject(error instanceof Error ? error : new Error(String(error)));
-              }
+      const uploads = Array.from(files).map(
+        (file) =>
+          new Promise<void>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              void (async () => {
+                try {
+                  if (!reader.result) throw new Error("No file data");
+                  await uploadWeeklySyncFile(
+                    reader.result as string,
+                    weeklySync.id,
+                    item.trackingItemId,
+                    file.name,
+                    getFileType(file.name),
+                    false,
+                  );
+                  resolve();
+                } catch (err) {
+                  reject(err instanceof Error ? err : new Error(String(err)));
+                }
+              })();
             };
-            void run();
-          };
-          reader.onerror = () => reject(new Error("Failed to read file"));
-          reader.readAsDataURL(file);
-        });
-      });
-
-      await Promise.all(uploadPromises);
+            reader.onerror = () => reject(new Error("Failed to read file"));
+            reader.readAsDataURL(file);
+          }),
+      );
+      await Promise.all(uploads);
       await refreshWeeklyRetrospectiveData();
       toast.success(`${files.length} image(s) uploaded successfully`, { id: "image-upload" });
     } catch (error) {
@@ -275,32 +236,12 @@ export default function WeeklyRetrospective() {
     }
   };
 
-  // Clear inline textContent (replaces the legacy "delete .txt file" path).
-  const handleClearText = async (item: SyncItem) => {
-    try {
-      await setItemTextMutation.mutateAsync({
-        weeklySyncItemId: item.id,
-        textContent: "",
-      });
-      await refreshWeeklyRetrospectiveData();
-      setTextEditingState((prev) => {
-        const next = { ...prev };
-        delete next[item.id];
-        return next;
-      });
-      toast.success("Notes cleared");
-    } catch (error) {
-      console.error("Failed to clear text:", error);
-      toast.error("Failed to clear notes");
-    }
-  };
-
-  const handleDeleteFileClick = (fileId: string, fileName: string, syncItemId: string) => {
-    setDeleteConfirmation({ isOpen: true, fileId, fileName, syncItemId });
+  const handleDeleteFileClick = (fileId: string, fileName: string) => {
+    setDeleteConfirmation({ isOpen: true, fileId, fileName });
   };
 
   const handleDeleteCancel = () => {
-    setDeleteConfirmation({ isOpen: false, fileId: "", fileName: "", syncItemId: "" });
+    setDeleteConfirmation({ isOpen: false, fileId: "", fileName: "" });
   };
 
   const handleDeleteConfirm = async () => {
@@ -555,232 +496,18 @@ export default function WeeklyRetrospective() {
                   {!isCollapsed && (
                     <div className="mt-4 space-y-4">
                       {group.items.length > 0 ? (
-                        group.items.map((item) => {
-                          const imageFiles = item.attachments.filter((a) => a.fileType === "image");
-                          const hasStoredText = !!item.textContent && item.textContent.trim().length > 0;
-                          const hasStoredImages = imageFiles.length > 0;
-                          const isEditing = textEditingState[item.id]?.isEditing;
-
-                          return (
-                            <div key={item.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                              {/* Item Header */}
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <h4 className="font-medium">{item.title}</h4>
-                                  {item.description && <p className="mt-1 text-sm opacity-60">{item.description}</p>}
-                                </div>
-
-                                {saveStatus[item.id] && (
-                                  <div className="flex items-center gap-1 text-xs">
-                                    {saveStatus[item.id] === "saving" && (
-                                      <>
-                                        <div className="h-2 w-2 animate-spin rounded-full border border-white/20 border-t-white"></div>
-                                        <span className="opacity-60">Saving...</span>
-                                      </>
-                                    )}
-                                    {saveStatus[item.id] === "saved" && <span className="text-green-400">✓ Saved</span>}
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Action Buttons */}
-                              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                                {!hasStoredText && (
-                                  <button
-                                    onClick={() => {
-                                      setTextEditingState((prev) => ({
-                                        ...prev,
-                                        [item.id]: { content: "", isEditing: true },
-                                      }));
-                                    }}
-                                    className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm transition-all hover:bg-white/20"
-                                  >
-                                    <FileText className="h-4 w-4" />
-                                    Add Text
-                                  </button>
-                                )}
-
-                                <button
-                                  onClick={() => {
-                                    const input = fileInputRefs.current[item.id];
-                                    if (input) input.click();
-                                  }}
-                                  className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm transition-all hover:bg-white/20"
-                                >
-                                  <ImageIcon className="h-4 w-4" />
-                                  Add Images
-                                </button>
-
-                                <input
-                                  ref={(el) => {
-                                    fileInputRefs.current[item.id] = el;
-                                  }}
-                                  type="file"
-                                  accept="image/*"
-                                  multiple
-                                  onChange={(e) => {
-                                    if (e.target.files) {
-                                      void handleImageUpload(item, e.target.files);
-                                    }
-                                  }}
-                                  className="hidden"
-                                />
-
-                                <button
-                                  onClick={() => void handleRemoveFromSync(item.id, item.title)}
-                                  className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-white/60 transition-all hover:border-rose-400/40 hover:bg-rose-500/10 hover:text-rose-200"
-                                  title="Remove from this sync — keeps the item in your library"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  Remove from sync
-                                </button>
-                              </div>
-
-                              {/* Fresh-text editor (only when there is no stored text yet) */}
-                              {!hasStoredText && isEditing && (
-                                <div className="mt-3">
-                                  <textarea
-                                    value={textEditingState[item.id]?.content ?? ""}
-                                    onChange={(e) => handleTextChange(item, e.target.value)}
-                                    placeholder="Add your notes for this tracking item..."
-                                    rows={4}
-                                    className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-all focus:border-white/40"
-                                  />
-                                  <div className="mt-2 flex justify-end">
-                                    <button
-                                      onClick={() => {
-                                        setTextEditingState((prev) => {
-                                          const next = { ...prev };
-                                          delete next[item.id];
-                                          return next;
-                                        });
-                                      }}
-                                      className="rounded-lg border border-white/20 px-3 py-1 text-sm transition-all hover:bg-white/10"
-                                    >
-                                      Done
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Saved content preview */}
-                              {(hasStoredText || hasStoredImages) && (
-                                <div className="mt-3 space-y-3">
-                                  <h5 className="text-sm font-medium opacity-70">Content</h5>
-
-                                  {hasStoredText && (
-                                    <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-                                      <div className="mb-2 flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                          <FileText className="h-4 w-4 opacity-60" />
-                                          <span className="text-sm opacity-70">Saved Notes</span>
-                                        </div>
-                                        <button
-                                          onClick={() => void handleClearText(item)}
-                                          className="rounded p-1 text-red-400 opacity-60 transition-all hover:bg-red-500/20 hover:opacity-100"
-                                          title="Clear notes"
-                                        >
-                                          <Trash2 className="h-3 w-3" />
-                                        </button>
-                                      </div>
-                                      {isEditing ? (
-                                        <div>
-                                          <textarea
-                                            value={textEditingState[item.id]?.content ?? item.textContent ?? ""}
-                                            onChange={(e) => handleTextChange(item, e.target.value)}
-                                            placeholder="Add your notes for this tracking item..."
-                                            rows={4}
-                                            className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-all focus:border-white/40"
-                                            autoFocus
-                                          />
-                                          <div className="mt-2 flex justify-end">
-                                            <button
-                                              onClick={() => {
-                                                setTextEditingState((prev) => {
-                                                  const next = { ...prev };
-                                                  delete next[item.id];
-                                                  return next;
-                                                });
-                                              }}
-                                              className="rounded-lg border border-white/20 px-3 py-1 text-sm transition-all hover:bg-white/10"
-                                            >
-                                              Done
-                                            </button>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <div
-                                          onClick={() => {
-                                            setTextEditingState((prev) => ({
-                                              ...prev,
-                                              [item.id]: {
-                                                content: item.textContent ?? "",
-                                                isEditing: true,
-                                              },
-                                            }));
-                                          }}
-                                          className="cursor-pointer rounded p-2 text-sm opacity-80 transition-all hover:bg-white/5 hover:opacity-100"
-                                          title="Click to edit"
-                                        >
-                                          {item.textContent}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-
-                                  {hasStoredImages && (
-                                    <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-                                      <div className="mb-2 flex items-center gap-2">
-                                        <ImageIcon className="h-4 w-4 opacity-60" />
-                                        <span className="text-sm opacity-70">Saved Images ({imageFiles.length})</span>
-                                      </div>
-                                      <div className="grid grid-cols-4 gap-2">
-                                        {imageFiles.slice(0, 4).map((file, index) => {
-                                          const isDeleting = deletingFiles.has(file.id);
-                                          return (
-                                            <div key={file.id} className="group relative h-16 w-full">
-                                              <NextImage
-                                                src={file.url}
-                                                alt={`Saved ${index + 1}`}
-                                                fill
-                                                sizes="(max-width: 768px) 25vw, 128px"
-                                                className={`rounded object-cover transition-opacity ${
-                                                  isDeleting ? "opacity-50" : ""
-                                                }`}
-                                              />
-
-                                              {!isDeleting && index < 3 && (
-                                                <button
-                                                  onClick={() => handleDeleteFileClick(file.id, file.fileName, item.id)}
-                                                  className="absolute right-1 top-1 block rounded-full bg-red-500/80 p-1 text-white opacity-100 transition-all hover:bg-red-500 md:hidden md:opacity-0 md:group-hover:block md:group-hover:opacity-100"
-                                                  title={`Delete ${file.fileName}`}
-                                                >
-                                                  <Trash2 className="h-3 w-3" />
-                                                </button>
-                                              )}
-
-                                              {isDeleting && (
-                                                <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60">
-                                                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
-                                                </div>
-                                              )}
-
-                                              {index === 3 && imageFiles.length > 4 && (
-                                                <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60 text-xs text-white">
-                                                  +{imageFiles.length - 3}
-                                                </div>
-                                              )}
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })
+                        group.items.map((item) => (
+                          <WeeklySyncItemRow
+                            key={item.id}
+                            item={item}
+                            deletingFileIds={deletingFiles}
+                            onSaveText={(content) => saveItemText(item, content)}
+                            onClearText={() => clearItemText(item)}
+                            onUploadFiles={(files) => uploadItemFiles(item, files)}
+                            onDeleteFileClick={handleDeleteFileClick}
+                            onRemoveFromSync={() => handleRemoveFromSync(item.id, item.title)}
+                          />
+                        ))
                       ) : (
                         <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-center">
                           <p className="text-sm opacity-60">No tracking items for this goal</p>

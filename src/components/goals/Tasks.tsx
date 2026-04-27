@@ -123,6 +123,7 @@ export default function Tasks() {
                         alt=""
                         width={16}
                         height={16}
+                        unoptimized
                         className="h-4 w-4 shrink-0 object-contain"
                       />
                     ) : (
@@ -160,6 +161,7 @@ export default function Tasks() {
                                 alt=""
                                 width={16}
                                 height={16}
+                                unoptimized
                                 className="h-4 w-4 shrink-0 object-contain"
                               />
                             ) : (

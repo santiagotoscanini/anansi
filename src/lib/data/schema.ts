@@ -1,4 +1,15 @@
-import { pgTable, text, integer, real, boolean, timestamp, pgEnum, index, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  integer,
+  real,
+  boolean,
+  timestamp,
+  pgEnum,
+  index,
+  uniqueIndex,
+  type AnyPgColumn,
+} from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 
@@ -83,7 +94,11 @@ export const goals = pgTable(
     title: text("title").notNull(),
     description: text("description").notNull(),
     emoji: text("emoji"), // Stores either native emoji or URL to custom emoji image
-    parentId: text("parent_id"),
+    // Self-FK with ON DELETE SET NULL: deleting a parent goal orphans the
+    // children rather than wiping a sub-tree silently. Drizzle's relations()
+    // block already resolves the link in TS; this adds the Postgres-level
+    // constraint so orphans can't accumulate via direct DB writes or imports.
+    parentId: text("parent_id").references((): AnyPgColumn => goals.id, { onDelete: "set null" }),
     positionX: real("position_x").notNull(),
     positionY: real("position_y").notNull(),
     status: goalStatusEnum("status").notNull().default("active"),

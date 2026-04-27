@@ -1,0 +1,225 @@
+"use client";
+
+import { useState } from "react";
+import { CalendarDays, HelpCircle, X } from "lucide-react";
+import toast from "react-hot-toast";
+import { api } from "~/trpc/react";
+import DatePicker from "./DatePicker";
+
+const fieldHelper = "mt-1.5 text-xs text-white/40";
+const inputClass =
+  "w-full rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-white outline-none transition-all placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.05]";
+
+// Yearly recurring per-person dates (birthdays, anniversaries). Pulse surfaces
+// them when the next occurrence is within 30 days. Year is optional but kept
+// when set so 'turning N' math stays correct.
+//
+// Extracted from PersonModal as part of H2.
+export default function PersonImportantDatesSection({ personId }: { personId: string | null | undefined }) {
+  const enabled = !!personId;
+  const utils = api.useUtils();
+  const invalidate = () => void utils.goals.importantDates.list.invalidate({ personId: personId ?? "" });
+
+  const query = api.goals.importantDates.list.useQuery({ personId: personId ?? "" }, { enabled });
+  const create = api.goals.importantDates.create.useMutation({ onSuccess: invalidate });
+  const update = api.goals.importantDates.update.useMutation({ onSuccess: invalidate });
+  const remove = api.goals.importantDates.delete.useMutation({ onSuccess: invalidate });
+
+  const [labelDraft, setLabelDraft] = useState("");
+  const [dateDraft, setDateDraft] = useState<Date | null>(null);
+
+  const handleAdd = async () => {
+    if (!personId) return;
+    const label = labelDraft.trim();
+    if (!label || !dateDraft) return;
+    try {
+      await create.mutateAsync({
+        personId,
+        label,
+        month: dateDraft.getMonth() + 1,
+        day: dateDraft.getDate(),
+        year: dateDraft.getFullYear(),
+      });
+      setLabelDraft("");
+      setDateDraft(null);
+    } catch {
+      toast.error("Couldn't add date");
+    }
+  };
+
+  return (
+    <div>
+      <SectionLabel hint="Yearly recurring dates — birthdays, anniversaries, anything that comes around again. Pulse surfaces them when the next occurrence is within the next 30 days. Year is optional (used for 'turning N' math).">
+        Important dates
+      </SectionLabel>
+
+      {!enabled ? (
+        <p className={fieldHelper}>Save the person first — dates attach to a saved row.</p>
+      ) : (
+        <>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              type="text"
+              value={labelDraft}
+              onChange={(e) => setLabelDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleAdd();
+                }
+              }}
+              placeholder="Birthday, anniversary, …"
+              className={`${inputClass} flex-1`}
+            />
+            <DatePicker value={dateDraft} onChange={setDateDraft} placeholder="Pick a date" className="sm:w-48" />
+            <button
+              type="button"
+              onClick={() => void handleAdd()}
+              disabled={!labelDraft.trim() || !dateDraft || create.isPending}
+              className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/80 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Add
+            </button>
+          </div>
+
+          {query.data && query.data.length > 0 && (
+            <ul className="mt-3 divide-y divide-white/5">
+              {query.data.map((date) => (
+                <ImportantDateRow
+                  key={date.id}
+                  date={date}
+                  onEditLabel={async (label) => {
+                    const trimmed = label.trim();
+                    if (!trimmed) return;
+                    try {
+                      await update.mutateAsync({ id: date.id, label: trimmed });
+                    } catch {
+                      toast.error("Couldn't update date");
+                    }
+                  }}
+                  onEditDate={async (next) => {
+                    if (!next) return;
+                    try {
+                      await update.mutateAsync({
+                        id: date.id,
+                        month: next.getMonth() + 1,
+                        day: next.getDate(),
+                        year: next.getFullYear(),
+                      });
+                    } catch {
+                      toast.error("Couldn't update date");
+                    }
+                  }}
+                  onDelete={async () => {
+                    try {
+                      await remove.mutateAsync({ id: date.id });
+                    } catch {
+                      toast.error("Couldn't remove date");
+                    }
+                  }}
+                  deleteDisabled={remove.isPending}
+                />
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function SectionLabel({ children, hint }: { children: React.ReactNode; hint?: React.ReactNode }) {
+  return (
+    <div className="mb-1.5 flex items-center gap-1.5">
+      <span className="text-[11px] font-medium uppercase tracking-wider text-white/40">{children}</span>
+      {hint && (
+        <span className="group relative inline-flex">
+          <HelpCircle className="h-3 w-3 cursor-help text-white/25 transition-colors hover:text-white/60" />
+          <span
+            role="tooltip"
+            className="pointer-events-none invisible absolute left-0 top-full z-30 mt-1.5 w-64 rounded-md border border-white/10 bg-zinc-950 p-2.5 text-xs leading-relaxed text-white/70 opacity-0 shadow-2xl transition-opacity group-hover:visible group-hover:opacity-100"
+          >
+            {hint}
+          </span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Single-line row: icon · label · date pill · ×. Click the label to rename;
+// click the date pill to repick.
+function ImportantDateRow({
+  date,
+  onEditLabel,
+  onEditDate,
+  onDelete,
+  deleteDisabled,
+}: {
+  date: { id: string; label: string; month: number; day: number; year: number | null };
+  onEditLabel: (label: string) => void;
+  onEditDate: (date: Date | null) => void;
+  onDelete: () => void;
+  deleteDisabled: boolean;
+}) {
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelDraft, setLabelDraft] = useState(date.label);
+  const dateAsObject = new Date(date.year ?? new Date().getFullYear(), date.month - 1, date.day);
+
+  const commit = () => {
+    const trimmed = labelDraft.trim();
+    if (trimmed && trimmed !== date.label) onEditLabel(trimmed);
+    else setLabelDraft(date.label);
+    setEditingLabel(false);
+  };
+
+  return (
+    <li className="group flex h-10 items-center gap-3 px-3 transition-colors hover:bg-white/[0.02]">
+      <CalendarDays className="h-3.5 w-3.5 shrink-0 text-white/40" />
+      <div className="min-w-0 flex-1">
+        {editingLabel ? (
+          <input
+            type="text"
+            value={labelDraft}
+            onChange={(e) => setLabelDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commit();
+              }
+              if (e.key === "Escape") {
+                setLabelDraft(date.label);
+                setEditingLabel(false);
+              }
+            }}
+            autoFocus
+            className="w-full border-0 bg-transparent p-0 text-sm text-white outline-none placeholder:text-white/30"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setLabelDraft(date.label);
+              setEditingLabel(true);
+            }}
+            className="block w-full truncate text-left text-sm text-white/85 transition-colors hover:text-white"
+            title="Click to rename"
+          >
+            {date.label}
+          </button>
+        )}
+      </div>
+      <DatePicker value={dateAsObject} onChange={onEditDate} clearable={false} size="sm" align="right" />
+      <button
+        type="button"
+        onClick={onDelete}
+        disabled={deleteDisabled}
+        className="shrink-0 rounded p-1 text-white/30 opacity-100 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed md:opacity-0 md:group-hover:opacity-100"
+        aria-label="Remove date"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </li>
+  );
+}

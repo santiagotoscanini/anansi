@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import Image from "next/image";
-import { X, Trash2, Square, CheckSquare, Check, Edit2, Plus, ChevronDown, ChevronRight } from "lucide-react";
-import { useGoals, type Task, type TrackingItem } from "~/contexts/GoalsContext";
+import { X, Square, CheckSquare, Plus } from "lucide-react";
+import { useGoals } from "~/contexts/GoalsContext";
+import type { Task } from "~/lib/api/types";
 import { formatScheduledShort } from "~/lib/horizon-period";
 import toast from "react-hot-toast";
 import ValueSelectionModal from "./ValueSelectionModal";
@@ -19,19 +20,18 @@ interface GoalModalProps {
 }
 
 export default function GoalModal({ goalId, onClose }: GoalModalProps) {
-  const {
-    goals,
-    values,
-    addGoal,
-    updateGoal,
-    deleteGoal,
-    updateTask,
-    getGoalCompletion,
-    getTrackingItems,
-    addTrackingItem,
-    updateTrackingItem,
-    deleteTrackingItem,
-  } = useGoals();
+  const { goals, values, addGoal, updateGoal, deleteGoal, updateTask, getGoalCompletion } = useGoals();
+
+  // Read-only count for the tracking-items hint at the bottom of the modal.
+  // The sidebar TrackingItemsLibrary is the canonical surface for CRUD; the
+  // modal used to embed a duplicate add/edit list, which created two ways to
+  // do the same thing and ~150 LOC of state. H2 dropped that — we just show
+  // a count + a pointer.
+  const trackingItemsCountQuery = api.goals.trackingItems.list.useQuery(
+    { goalId: goalId ?? undefined },
+    { enabled: !!goalId },
+  );
+  const trackingItemCount = trackingItemsCountQuery.data?.length ?? 0;
 
   const existingGoal = goalId ? goals.find((g) => g.id === goalId) : null;
 
@@ -64,26 +64,10 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
     return map;
   }, [groupsData]);
 
-  // Tracking items state
-  const [trackingItems, setTrackingItems] = useState<TrackingItem[]>([]);
-  const [newTrackingTitle, setNewTrackingTitle] = useState("");
-  const [newTrackingDescription, setNewTrackingDescription] = useState("");
-  const [editingTrackingId, setEditingTrackingId] = useState<string | null>(null);
-  const [editTrackingTitle, setEditTrackingTitle] = useState("");
-  const [editTrackingDescription, setEditTrackingDescription] = useState("");
-  const [trackingCollapsed, setTrackingCollapsed] = useState(true);
-
   // Value selection modal state
   const [showValueModal, setShowValueModal] = useState(false);
 
   const completion = goalId ? getGoalCompletion(goalId) : 0;
-
-  // Load tracking items for existing goal
-  useEffect(() => {
-    if (goalId) {
-      void getTrackingItems(goalId).then(setTrackingItems);
-    }
-  }, [goalId, getTrackingItems]);
 
   const handleSave = () => {
     if (!title.trim()) {
@@ -182,90 +166,6 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
     }
   };
 
-  // Tracking item handlers
-  const handleAddTrackingItem = async () => {
-    if (!newTrackingTitle.trim()) {
-      toast.error("Tracking item title is required");
-      return;
-    }
-
-    if (!goalId) {
-      toast.error("Cannot add tracking items to unsaved goals");
-      return;
-    }
-
-    try {
-      await addTrackingItem({
-        goalId,
-        title: newTrackingTitle,
-        description: newTrackingDescription || undefined,
-        order: trackingItems.length,
-      });
-
-      // Refresh tracking items
-      const updated = await getTrackingItems(goalId);
-      setTrackingItems(updated);
-
-      setNewTrackingTitle("");
-      setNewTrackingDescription("");
-      toast.success("Tracking item added");
-    } catch {
-      toast.error("Failed to add tracking item");
-    }
-  };
-
-  const handleEditTrackingItem = (item: TrackingItem) => {
-    setEditingTrackingId(item.id);
-    setEditTrackingTitle(item.title);
-    setEditTrackingDescription(item.description ?? "");
-  };
-
-  const handleUpdateTrackingItem = async () => {
-    if (!editTrackingTitle.trim()) {
-      toast.error("Tracking item title is required");
-      return;
-    }
-
-    if (!goalId || !editingTrackingId) return;
-
-    try {
-      await updateTrackingItem(editingTrackingId, {
-        title: editTrackingTitle,
-        description: editTrackingDescription || undefined,
-      });
-
-      // Refresh tracking items
-      const updated = await getTrackingItems(goalId);
-      setTrackingItems(updated);
-
-      setEditingTrackingId(null);
-      toast.success("Tracking item updated");
-    } catch {
-      toast.error("Failed to update tracking item");
-    }
-  };
-
-  const handleDeleteTrackingItem = async (itemId: string) => {
-    if (!goalId) return;
-
-    try {
-      const result = await deleteTrackingItem(itemId);
-
-      // Refresh tracking items
-      const updated = await getTrackingItems(goalId);
-      setTrackingItems(updated);
-
-      // Show appropriate message based on delete type
-      if (result.type === "soft_delete") {
-        toast.success("Tracking item archived (linked to weekly sync)");
-      } else {
-        toast.success("Tracking item deleted");
-      }
-    } catch {
-      toast.error("Failed to delete tracking item");
-    }
-  };
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
@@ -304,7 +204,14 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                   title="Click to choose emoji"
                 >
                   {isEmojiUrl(emoji) ? (
-                    <Image src={emoji} alt="emoji" width={24} height={24} className="h-6 w-6 object-contain" />
+                    <Image
+                      src={emoji}
+                      alt="emoji"
+                      width={24}
+                      height={24}
+                      unoptimized
+                      className="h-6 w-6 object-contain"
+                    />
                   ) : (
                     <span className="text-2xl leading-none">{emoji}</span>
                   )}
@@ -477,6 +384,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                             src={task.emoji}
                             alt=""
                             width={16}
+                            unoptimized
                             height={16}
                             className="h-4 w-4 shrink-0 object-contain"
                           />
@@ -554,154 +462,26 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
               </div>
             </div>
 
-            {/* Tracking Section - Only show for existing goals.
-                Collapsed by default — tracking items are also editable from
-                the Tracking Items library (sidebar tab), so the modal hides
-                them behind a click to keep the goal-editing form focused. */}
+            {/* Tracking-items pointer. The full CRUD lives in the
+                "Tracking Items" sidebar tab (TrackingItemsLibrary). The modal
+                used to embed a duplicate list here, but two surfaces meant
+                two sources of truth — H2 dropped the inline editor and kept
+                a small count so the user knows tracking exists. */}
             {goalId && (
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setTrackingCollapsed((c) => !c)}
-                  className="group flex w-full items-center gap-2 rounded-md py-1 text-left transition-colors hover:bg-white/[0.02]"
-                  aria-expanded={!trackingCollapsed}
-                >
-                  {trackingCollapsed ? (
-                    <ChevronRight className="h-3.5 w-3.5 text-white/40 transition-transform group-hover:text-white/60" />
-                  ) : (
-                    <ChevronDown className="h-3.5 w-3.5 text-white/40 transition-transform group-hover:text-white/60" />
-                  )}
-                  <span className="text-[11px] font-medium uppercase tracking-wider text-white/40 group-hover:text-white/60">
-                    Tracking items
-                  </span>
-                  <span className="ml-1 rounded-full bg-white/5 px-1.5 py-0.5 text-[10px] tabular-nums text-white/40">
-                    {trackingItems.length}
-                  </span>
-                </button>
-
-                {!trackingCollapsed && (
-                  <>
-                    <p className="mb-3 mt-1.5 text-xs text-white/40">
-                      Metrics or outcomes you want to track weekly. Also editable from the Tracking Items tab.
+              <div className="rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-white/40">Tracking items</p>
+                    <p className="mt-1 text-xs text-white/50">
+                      {trackingItemCount === 0
+                        ? "Nothing tracked yet — add metrics from the Tracking Items tab."
+                        : `${trackingItemCount} tracked. Manage them in the Tracking Items tab.`}
                     </p>
-
-                    {/* Add Tracking Item */}
-                    <div className="mb-3 space-y-2">
-                      <input
-                        type="text"
-                        value={newTrackingTitle}
-                        onChange={(e) => setNewTrackingTitle(e.target.value)}
-                        placeholder="Tracking item title…"
-                        className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-white outline-none transition-all placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.05]"
-                      />
-                      <textarea
-                        value={newTrackingDescription}
-                        onChange={(e) => setNewTrackingDescription(e.target.value)}
-                        placeholder="Description (optional)…"
-                        rows={2}
-                        className="w-full resize-none rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-white outline-none transition-all placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.05]"
-                      />
-                      <button
-                        onClick={handleAddTrackingItem}
-                        className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-white/80 transition-all hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Add tracking item
-                      </button>
-                    </div>
-
-                    {/* Tracking Items List */}
-                    <div className="space-y-1.5">
-                      {trackingItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className="rounded-lg border border-white/5 bg-white/[0.02] p-3 transition-colors hover:border-white/10 hover:bg-white/[0.04]"
-                        >
-                          {editingTrackingId === item.id ? (
-                            // Edit Mode
-                            <div className="space-y-2">
-                              <input
-                                type="text"
-                                value={editTrackingTitle}
-                                onChange={(e) => setEditTrackingTitle(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter" && !e.shiftKey) {
-                                    e.preventDefault();
-                                    void handleUpdateTrackingItem();
-                                  }
-                                  if (e.key === "Escape") setEditingTrackingId(null);
-                                }}
-                                className="w-full bg-transparent text-sm text-white outline-none"
-                                autoFocus
-                              />
-                              <textarea
-                                value={editTrackingDescription}
-                                onChange={(e) => setEditTrackingDescription(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter" && e.ctrlKey) {
-                                    e.preventDefault();
-                                    void handleUpdateTrackingItem();
-                                  }
-                                  if (e.key === "Escape") setEditingTrackingId(null);
-                                }}
-                                placeholder="Description…"
-                                rows={2}
-                                className="w-full resize-none bg-transparent text-xs text-white/70 outline-none placeholder:text-white/30"
-                              />
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={handleUpdateTrackingItem}
-                                  className="rounded p-1 text-green-400 transition-all hover:bg-green-500/20"
-                                >
-                                  <Check className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={() => setEditingTrackingId(null)}
-                                  className="rounded p-1 text-white/40 transition-all hover:bg-white/10"
-                                >
-                                  <X className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            // View Mode
-                            <div className="flex items-start justify-between gap-2">
-                              <div
-                                className="min-w-0 flex-1 cursor-pointer"
-                                onClick={() => handleEditTrackingItem(item)}
-                              >
-                                <h4 className="text-sm font-medium text-white/90">{item.title}</h4>
-                                {item.description && <p className="mt-0.5 text-xs text-white/50">{item.description}</p>}
-                              </div>
-                              <div className="flex shrink-0 gap-0.5">
-                                <button
-                                  onClick={() => handleEditTrackingItem(item)}
-                                  className="rounded p-1 text-white/30 transition-all hover:bg-white/5 hover:text-white/80"
-                                  aria-label="Edit tracking item"
-                                >
-                                  <Edit2 className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteTrackingItem(item.id)}
-                                  className="rounded p-1 text-white/30 transition-all hover:bg-red-500/10 hover:text-red-400"
-                                  aria-label="Delete tracking item"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-
-                      {trackingItems.length === 0 && (
-                        <div className="rounded-lg border border-dashed border-white/10 bg-transparent p-4 text-center text-xs text-white/30">
-                          No tracking items yet
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
+                  </div>
+                  <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] tabular-nums text-white/60">
+                    {trackingItemCount}
+                  </span>
+                </div>
               </div>
             )}
           </div>

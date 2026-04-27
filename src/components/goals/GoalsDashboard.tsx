@@ -43,6 +43,7 @@ import BackupImportModal from "./BackupImportModal";
 import ColorPicker from "./ColorPicker";
 import ProfileModal from "./ProfileModal";
 import Avatar from "./Avatar";
+import { DashboardErrorBoundary } from "./DashboardErrorBoundary";
 
 // Ananse Ntontan — Adinkra symbol for Anansi (spider). Rendered inline so it
 // inherits currentColor and stays crisp at any size.
@@ -593,7 +594,10 @@ export default function GoalsDashboard() {
               <span className="ml-3 text-slate-300">Loading data...</span>
             </div>
           ) : (
-            renderActive()
+            // resetKey scoped to activeTab so a crashed tab can be escaped by
+            // switching tabs (the boundary clears its error state on key
+            // change and gives the new tab a fresh render).
+            <DashboardErrorBoundary resetKey={activeTab}>{renderActive()}</DashboardErrorBoundary>
           )}
         </div>
       </div>

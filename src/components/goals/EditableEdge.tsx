@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from "@xyflow/react";
-import { useGoals, type Connection } from "~/contexts/GoalsContext";
+import { useGoals } from "~/contexts/GoalsContext";
+import type { Connection } from "~/lib/api/types";
 
 const DEFAULT_WEIGHT = 1;
 

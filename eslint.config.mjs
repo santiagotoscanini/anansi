@@ -32,12 +32,13 @@ const config = [
         "error",
         { checksVoidReturn: { attributes: false } },
       ],
-      // React Compiler advisory rules — surface real anti-patterns but silencing
-      // them requires architectural refactors (un-memoizing handlers, moving
-      // setState out of effects). Keep as warnings so signal is preserved
-      // without blocking lint.
-      "react-hooks/preserve-manual-memoization": "warn",
-      "react-hooks/set-state-in-effect": "warn",
+      // React Compiler rules — flipped to error after H1 (drop GoalsContext
+      // mirror state) eliminated the chronic offender. New regressions block
+      // the build instead of decaying into background noise. If a specific
+      // call-site is genuinely unfixable, eslint-disable-next-line + a one-
+      // line justification is the escape hatch.
+      "react-hooks/preserve-manual-memoization": "error",
+      "react-hooks/set-state-in-effect": "error",
     },
   },
 ];

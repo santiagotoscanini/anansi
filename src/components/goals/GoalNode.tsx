@@ -4,7 +4,8 @@ import { memo, useMemo } from "react";
 import Image from "next/image";
 import { Handle, Position } from "@xyflow/react";
 import { Target, CheckCircle, Pencil } from "lucide-react";
-import { useGoals, type Goal } from "~/contexts/GoalsContext";
+import { useGoals } from "~/contexts/GoalsContext";
+import type { Goal } from "~/lib/api/types";
 import { isEmojiUrl } from "~/lib/emoji-utils";
 import { bucketForDate } from "~/lib/horizon-period";
 import { api } from "~/trpc/react";
@@ -162,7 +163,14 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
           {/* Emoji Display */}
           {data.emoji ? (
             isEmojiUrl(data.emoji) ? (
-              <Image src={data.emoji} alt="emoji" width={20} height={20} className="h-5 w-5 object-contain" />
+              <Image
+                src={data.emoji}
+                alt="emoji"
+                width={20}
+                height={20}
+                unoptimized
+                className="h-5 w-5 object-contain"
+              />
             ) : (
               <span className="text-xl leading-none">{data.emoji}</span>
             )

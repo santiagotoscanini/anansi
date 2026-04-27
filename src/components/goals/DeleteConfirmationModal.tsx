@@ -1,7 +1,7 @@
 "use client";
 
 import { X, AlertTriangle } from "lucide-react";
-import type { Goal } from "~/contexts/GoalsContext";
+import type { Goal } from "~/lib/api/types";
 
 interface DeleteConfirmationModalProps {
   goals: Goal[];

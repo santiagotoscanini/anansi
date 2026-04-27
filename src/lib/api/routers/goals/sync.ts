@@ -31,7 +31,7 @@ import { checkRateLimit } from "../../../rate-limit";
 import { computeImportance } from "../../../computation/importance";
 import path from "path";
 import { createId } from "@paralleldrive/cuid2";
-import { safeExtension, writeAttachmentToDisk, unlinkAttachmentFromDisk } from "./_shared";
+import { safeExtension, writeAttachmentToDisk, unlinkAttachmentFromDisk, maybeSweepOrphanAttachments } from "./_shared";
 
 export const syncRouter = createTRPCRouter({
   trackingItems: createTRPCRouter({
@@ -115,10 +115,21 @@ export const syncRouter = createTRPCRouter({
         .where(eq(weeklySyncItems.trackingItemId, input.id))
         .limit(1);
       if (referenced) {
-        await db
+        // .returning() so we can detect the silently-empty case (row was hard-
+        // deleted between the existence check and this update by a concurrent
+        // request, or some other corruption). Better to fail loud than to tell
+        // the client "success" while nothing changed.
+        const updated = await db
           .update(trackingItems)
           .set({ deletedAt: new Date(), updatedAt: new Date() })
-          .where(eq(trackingItems.id, input.id));
+          .where(eq(trackingItems.id, input.id))
+          .returning({ id: trackingItems.id });
+        if (updated.length === 0) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Tracking item soft-delete touched 0 rows",
+          });
+        }
         return { success: true, type: "soft_delete" as const };
       }
       await db.delete(trackingItems).where(eq(trackingItems.id, input.id));
@@ -589,6 +600,11 @@ export const syncRouter = createTRPCRouter({
       if (!rl.allowed) {
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many uploads, slow down" });
       }
+      // Lazy orphan sweep on first upload after process boot — cleans any FS
+      // file whose DB row was lost to a transaction rollback after the write.
+      // Awaited but small (single readdir + DB read) and only fires once.
+      // Don't let a sweep failure block the user's upload.
+      void maybeSweepOrphanAttachments(ctx.user.userId);
       // Validate ownership of the parent. Only weekly_sync_item is supported today;
       // adding more parent types means extending this switch.
       if (input.parentType === "weekly_sync_item") {

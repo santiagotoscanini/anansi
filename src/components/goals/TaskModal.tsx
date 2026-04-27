@@ -164,7 +164,14 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                 >
                   {emoji ? (
                     isEmojiUrl(emoji) ? (
-                      <Image src={emoji} alt="emoji" width={24} height={24} className="h-6 w-6 object-contain" />
+                      <Image
+                        src={emoji}
+                        alt="emoji"
+                        width={24}
+                        height={24}
+                        unoptimized
+                        className="h-6 w-6 object-contain"
+                      />
                     ) : (
                       <span className="text-2xl leading-none">{emoji}</span>
                     )

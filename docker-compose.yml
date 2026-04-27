@@ -45,6 +45,16 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    # Mirror the Dockerfile HEALTHCHECK so `docker compose ps` and any
+    # orchestrator (Traefik service-up routing, NAS health monitor) see the
+    # status. start_period covers the boot window where migrations are still
+    # running before the route is reachable.
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/api/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     labels:
       - "traefik.enable=true"
 

@@ -4,6 +4,7 @@ import { existsSync } from "fs";
 import path from "path";
 import { lookup } from "mime-types";
 import { verifyAuthToken } from "~/lib/auth-server";
+import { sniffImageMime } from "~/lib/image-upload";
 
 const UPLOADS_ROOT = path.join(process.cwd(), "uploads");
 
@@ -47,7 +48,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const buf = await readFile(fullPath);
-    const mimeType = lookup(fullPath) || "application/octet-stream";
+    // Avatars are stored extensionless (uploads/{userId}/avatar) so a single
+    // path always points at the current image regardless of source format.
+    // mime-types.lookup() returns false for those, so we fall back to magic-
+    // byte sniffing — same helper the upload validator uses, no second source
+    // of truth. nosniff is preserved below to neutralize any UA mis-sniffing.
+    // (Coerce `false` from lookup() to null so the chain stays readable with
+    // ?? rather than mixing falsy operators.)
+    const detected = lookup(fullPath) || null;
+    const mimeType = detected ?? sniffImageMime(buf) ?? "application/octet-stream";
 
     return new NextResponse(new Uint8Array(buf), {
       status: 200,

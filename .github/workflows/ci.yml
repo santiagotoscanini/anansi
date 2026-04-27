@@ -1,0 +1,42 @@
+# Validates every PR + every push to main: lint, typecheck, build.
+# Pairs with docker-publish.yml (which only fires on version-bump). The point
+# of CI is to keep main green so docker-publish never fails the actual build.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        # JWT_SECRET is required at module-load by src/lib/auth-server.ts —
+        # any 32+ char string is fine for a build-only smoke. Real secret
+        # is injected at deploy time, never set here.
+        env:
+          JWT_SECRET: ci-build-only-secret-not-used-for-real-auth-32chars
+        run: npm run build

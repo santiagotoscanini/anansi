@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { Plus, Trash2, Edit2, Check, X, ChevronDown, ChevronRight } from "lucide-react";
-import { useGoals, type Value } from "~/contexts/GoalsContext";
+import { useGoals } from "~/contexts/GoalsContext";
+import type { Value } from "~/lib/api/types";
 import { api, type RouterOutputs } from "~/trpc/react";
 import toast from "react-hot-toast";
 import { COLOR_PALETTE as DEFAULT_COLORS } from "~/lib/color-palette";

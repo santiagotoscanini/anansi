@@ -91,7 +91,14 @@ function TaskCard({
           <span className="flex min-w-0 items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-white/60">
             {task.goalEmoji ? (
               isEmojiUrl(task.goalEmoji) ? (
-                <Image src={task.goalEmoji} alt="" width={10} height={10} className="h-2.5 w-2.5 object-contain" />
+                <Image
+                  src={task.goalEmoji}
+                  alt=""
+                  width={10}
+                  height={10}
+                  unoptimized
+                  className="h-2.5 w-2.5 object-contain"
+                />
               ) : (
                 <span className="leading-none">{task.goalEmoji}</span>
               )

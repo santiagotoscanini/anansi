@@ -1,15 +1,15 @@
 #!/bin/sh
-set -e
+# Container boot: apply pending migrations, then exec the Next server as PID 1.
+# - `set -eu` so any failure (or undefined var) kills the script before we try
+#   to start the app on a half-migrated DB.
+# - ERR trap prints which line died so the container logs are useful.
+# - `exec` hands the process group to node, which means SIGTERM from Docker
+#   reaches Next directly and graceful shutdown actually works.
+set -eu
+trap 'echo "[entrypoint] failed at line ${LINENO}" >&2' ERR
 
-echo "Running database migrations..."
+echo "[entrypoint] applying database migrations…"
 npx drizzle-kit migrate
 
-if [ $? -eq 0 ]; then
-  echo "Migrations completed successfully"
-else
-  echo "Migration failed"
-  exit 1
-fi
-
-echo "Starting application..."
+echo "[entrypoint] starting application…"
 exec node server.js

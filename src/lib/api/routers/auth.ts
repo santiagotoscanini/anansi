@@ -13,15 +13,13 @@ import { checkRateLimit } from "../../rate-limit";
 
 const UPLOADS_ROOT = path.join(process.cwd(), "uploads");
 
-// Map sniffed MIME → canonical file extension for the on-disk avatar/photo
-// path. We always trust the magic bytes over the user-supplied filename so
-// a `.png` carrying JPEG payload lands as `avatar.jpg`.
-const MIME_TO_EXT: Record<NonNullable<ReturnType<typeof decodeImageUpload>["mime"]>, string> = {
-  "image/png": ".png",
-  "image/jpeg": ".jpg",
-  "image/gif": ".gif",
-  "image/webp": ".webp",
-};
+// Avatars always live at one fixed path per user — `uploads/{userId}/avatar`,
+// no extension. Each upload overwrites the same file so we never need to
+// clean up alternate-format leftovers, and there's no orphaning surface when
+// a delete-loop swallows an error. The serving route in
+// `src/app/uploads/[...path]/route.ts` falls back to magic-byte mime sniffing
+// when an extensionless file is requested.
+const AVATAR_FILENAME = "avatar";
 
 // Auth state changes (login, register, logout) live in dedicated Next route
 // handlers under src/app/api/auth/* so they can set HttpOnly cookies on the
@@ -111,26 +109,14 @@ export const authRouter = createTRPCRouter({
         }
         throw err;
       }
-      const ext = MIME_TO_EXT[decoded.mime!];
       const userDir = path.join(UPLOADS_ROOT, ctx.user.userId);
       if (!existsSync(userDir)) await mkdir(userDir, { recursive: true });
-      const fileName = `avatar${ext}`;
-      const fullPath = path.join(userDir, fileName);
-      // Best-effort: clean up old avatar files with different extensions so we
-      // don't leak stale ones (e.g. old .jpg when new is .png).
-      for (const oldExt of [".png", ".jpg", ".jpeg", ".gif", ".webp"]) {
-        if (oldExt === ext) continue;
-        const oldPath = path.join(userDir, `avatar${oldExt}`);
-        if (existsSync(oldPath)) {
-          try {
-            await unlink(oldPath);
-          } catch {
-            /* swallow — best-effort cleanup */
-          }
-        }
-      }
+      const fullPath = path.join(userDir, AVATAR_FILENAME);
       await writeFile(fullPath, decoded.buffer);
-      const avatarUrl = `/uploads/${ctx.user.userId}/${fileName}`;
+      // Cache-bust on every upload — the file path is stable so without a
+      // version query the browser would serve the previous bytes for up to
+      // 24h (private,max-age=86400 in the upload-serving route).
+      const avatarUrl = `/uploads/${ctx.user.userId}/${AVATAR_FILENAME}?v=${Date.now()}`;
       const [updated] = await db
         .update(users)
         .set({ avatarUrl, updatedAt: new Date() })
@@ -141,14 +127,15 @@ export const authRouter = createTRPCRouter({
 
   removeAvatar: protectedProcedure.mutation(async ({ ctx }) => {
     const userDir = path.join(UPLOADS_ROOT, ctx.user.userId);
-    for (const ext of [".png", ".jpg", ".jpeg", ".gif", ".webp"]) {
-      const p = path.join(userDir, `avatar${ext}`);
-      if (existsSync(p)) {
-        try {
-          await unlink(p);
-        } catch {
-          /* swallow */
-        }
+    const avatarPath = path.join(userDir, AVATAR_FILENAME);
+    if (existsSync(avatarPath)) {
+      try {
+        await unlink(avatarPath);
+      } catch (err) {
+        // Don't swallow silently — if delete fails we want to know in logs;
+        // the user-facing flow still succeeds (avatarUrl is cleared in DB
+        // either way) so we don't propagate the error.
+        console.warn(`[auth.removeAvatar] failed to unlink ${avatarPath}:`, err);
       }
     }
     const [updated] = await db

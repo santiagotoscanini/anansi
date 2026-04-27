@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { CalendarDays, CheckSquare, HelpCircle, Loader2, Mountain, Square, Target, Upload, X } from "lucide-react";
+import { CheckSquare, HelpCircle, Loader2, Mountain, Square, Target, Upload, X } from "lucide-react";
 import EmojiPicker, { type EmojiClickData, Theme } from "emoji-picker-react";
 import toast from "react-hot-toast";
 import { api } from "~/trpc/react";
@@ -9,6 +9,8 @@ import type { PersonCategory } from "~/lib/api/types";
 import Avatar from "./Avatar";
 import ColorPicker from "./ColorPicker";
 import DatePicker from "./DatePicker";
+import PersonBidsSection from "./PersonBidsSection";
+import PersonImportantDatesSection from "./PersonImportantDatesSection";
 
 export type PersonRow = {
   id: string;
@@ -54,9 +56,10 @@ function sixMonthsFromNow(): Date {
   return d;
 }
 
-// Shared styling tokens — kept at the top so any adjustments cascade.
+// Shared styling tokens — kept at the top so any adjustments cascade. The
+// helper-text class moved out with the bids/dates sections (H2); only the
+// label class is still used here.
 const fieldLabel = "mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-white/40";
-const fieldHelper = "mt-1.5 text-xs text-white/40";
 const inputClass =
   "w-full rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-white outline-none transition-all placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.05]";
 const textareaClass = `${inputClass} resize-none`;
@@ -124,120 +127,10 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
     { enabled: !!person?.id },
   );
 
-  // Bids — only loaded for an existing person (the row must exist before
-  // children can be attached). On create, the section shows a "save first" hint.
-  const nextBidsQuery = api.goals.nextBids.list.useQuery({ personId: person?.id ?? "" }, { enabled: !!person?.id });
-  const invalidateBids = () => void utils.goals.nextBids.list.invalidate({ personId: person?.id ?? "" });
-  const createNextBid = api.goals.nextBids.create.useMutation({ onSuccess: invalidateBids });
-  const updateNextBid = api.goals.nextBids.update.useMutation({ onSuccess: invalidateBids });
-  const setNextBidCompleted = api.goals.nextBids.setCompleted.useMutation({ onSuccess: invalidateBids });
-  const deleteNextBid = api.goals.nextBids.delete.useMutation({ onSuccess: invalidateBids });
-  const [newNextBid, setNewNextBid] = useState("");
-  const [newNextBidDue, setNewNextBidDue] = useState<Date | null>(null);
-  const handleAddNextBid = async () => {
-    const content = newNextBid.trim();
-    if (!content || !person?.id) return;
-    try {
-      await createNextBid.mutateAsync({
-        personId: person.id,
-        content,
-        dueAt: newNextBidDue,
-      });
-      setNewNextBid("");
-      setNewNextBidDue(null);
-    } catch {
-      toast.error("Couldn't add bid");
-    }
-  };
-  const handleDeleteNextBid = async (id: string) => {
-    try {
-      await deleteNextBid.mutateAsync({ id });
-    } catch {
-      toast.error("Couldn't remove bid");
-    }
-  };
-  const handleToggleNextBidDone = async (id: string, completed: boolean) => {
-    try {
-      await setNextBidCompleted.mutateAsync({ id, completed });
-    } catch {
-      toast.error("Couldn't update bid");
-    }
-  };
-  const handleEditNextBidDue = async (id: string, dueAt: Date | null) => {
-    try {
-      await updateNextBid.mutateAsync({ id, dueAt });
-    } catch {
-      toast.error("Couldn't update deadline");
-    }
-  };
-  const handleEditNextBidContent = async (id: string, content: string) => {
-    const trimmed = content.trim();
-    if (!trimmed) return;
-    try {
-      await updateNextBid.mutateAsync({ id, content: trimmed });
-    } catch {
-      toast.error("Couldn't update bid");
-    }
-  };
-
-  // Important dates — yearly recurring per person. Same gating as bids.
-  const importantDatesQuery = api.goals.importantDates.list.useQuery(
-    { personId: person?.id ?? "" },
-    { enabled: !!person?.id },
-  );
-  const invalidateDates = () => void utils.goals.importantDates.list.invalidate({ personId: person?.id ?? "" });
-  const createImportantDate = api.goals.importantDates.create.useMutation({ onSuccess: invalidateDates });
-  const updateImportantDate = api.goals.importantDates.update.useMutation({ onSuccess: invalidateDates });
-  const deleteImportantDate = api.goals.importantDates.delete.useMutation({ onSuccess: invalidateDates });
-  const [newDateLabel, setNewDateLabel] = useState("");
-  const [newDateValue, setNewDateValue] = useState<Date | null>(null);
-  const handleAddImportantDate = async () => {
-    if (!person?.id) return;
-    const label = newDateLabel.trim();
-    if (!label || !newDateValue) return;
-    try {
-      await createImportantDate.mutateAsync({
-        personId: person.id,
-        label,
-        month: newDateValue.getMonth() + 1,
-        day: newDateValue.getDate(),
-        year: newDateValue.getFullYear(),
-      });
-      setNewDateLabel("");
-      setNewDateValue(null);
-    } catch {
-      toast.error("Couldn't add date");
-    }
-  };
-  const handleEditImportantDateLabel = async (id: string, label: string) => {
-    const trimmed = label.trim();
-    if (!trimmed) return;
-    try {
-      await updateImportantDate.mutateAsync({ id, label: trimmed });
-    } catch {
-      toast.error("Couldn't update date");
-    }
-  };
-  const handleEditImportantDateValue = async (id: string, date: Date | null) => {
-    if (!date) return;
-    try {
-      await updateImportantDate.mutateAsync({
-        id,
-        month: date.getMonth() + 1,
-        day: date.getDate(),
-        year: date.getFullYear(),
-      });
-    } catch {
-      toast.error("Couldn't update date");
-    }
-  };
-  const handleDeleteImportantDate = async (id: string) => {
-    try {
-      await deleteImportantDate.mutateAsync({ id });
-    } catch {
-      toast.error("Couldn't remove date");
-    }
-  };
+  // Bids and important-dates sections were extracted to standalone components
+  // (H2). The section owns its own queries + mutations + composer state — all
+  // gated on `personId` so the unsaved-create flow shows a "save first" hint.
+  // The parent only needs to know the personId to pass through.
 
   const isSaving =
     createMutation.isPending || updateMutation.isPending || archiveMutation.isPending || deleteMutation.isPending;
@@ -632,121 +525,9 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
               />
             </div>
 
-            {/* Bids — actionable improvements to the relationship. Anything I can do
-                to deepen this — gifts, gestures, conversations, repairs — captured when
-                noticed, with an optional deadline, completed bids stay visible. */}
-            <div>
-              <FieldLabel hint="Capture what you can do to strengthen this relationship — a gift, a gesture, a conversation, a repair. Add a deadline if it's time-sensitive. Mark done; the trail stays.">
-                Next bids
-              </FieldLabel>
-              {!person?.id ? (
-                <p className={fieldHelper}>Save the person first — bids attach to a saved row.</p>
-              ) : (
-                <>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <input
-                      type="text"
-                      value={newNextBid}
-                      onChange={(e) => setNewNextBid(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          void handleAddNextBid();
-                        }
-                      }}
-                      placeholder="A specific bid — book, gesture, conversation, repair…"
-                      className={`${inputClass} flex-1`}
-                    />
-                    <DatePicker
-                      value={newNextBidDue}
-                      onChange={setNewNextBidDue}
-                      placeholder="Deadline (optional)"
-                      className="sm:w-48"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void handleAddNextBid()}
-                      disabled={!newNextBid.trim() || createNextBid.isPending}
-                      className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/80 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Add
-                    </button>
-                  </div>
-                  {nextBidsQuery.data && nextBidsQuery.data.length > 0 && (
-                    <ul className="mt-3 divide-y divide-white/5">
-                      {nextBidsQuery.data.map((g) => (
-                        <BidRow
-                          key={g.id}
-                          bid={g}
-                          onToggleDone={(done) => void handleToggleNextBidDone(g.id, done)}
-                          onEditContent={(content) => void handleEditNextBidContent(g.id, content)}
-                          onEditDue={(dueAt) => void handleEditNextBidDue(g.id, dueAt)}
-                          onDelete={() => void handleDeleteNextBid(g.id)}
-                          deleteDisabled={deleteNextBid.isPending}
-                        />
-                      ))}
-                    </ul>
-                  )}
-                </>
-              )}
-            </div>
+            <PersonBidsSection personId={person?.id} />
 
-            {/* Important dates — yearly recurring (birthday, anniversary, …).
-                Surfaces in Pulse when the next occurrence is upcoming. */}
-            <div>
-              <FieldLabel hint="Yearly recurring dates — birthdays, anniversaries, anything that comes around again. Pulse surfaces them when the next occurrence is within the next 30 days. Year is optional (used for 'turning N' math).">
-                Important dates
-              </FieldLabel>
-              {!person?.id ? (
-                <p className={fieldHelper}>Save the person first — dates attach to a saved row.</p>
-              ) : (
-                <>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <input
-                      type="text"
-                      value={newDateLabel}
-                      onChange={(e) => setNewDateLabel(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          void handleAddImportantDate();
-                        }
-                      }}
-                      placeholder="Birthday, anniversary, …"
-                      className={`${inputClass} flex-1`}
-                    />
-                    <DatePicker
-                      value={newDateValue}
-                      onChange={setNewDateValue}
-                      placeholder="Pick a date"
-                      className="sm:w-48"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void handleAddImportantDate()}
-                      disabled={!newDateLabel.trim() || !newDateValue || createImportantDate.isPending}
-                      className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/80 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Add
-                    </button>
-                  </div>
-                  {importantDatesQuery.data && importantDatesQuery.data.length > 0 && (
-                    <ul className="mt-3 divide-y divide-white/5">
-                      {importantDatesQuery.data.map((d) => (
-                        <ImportantDateRow
-                          key={d.id}
-                          date={d}
-                          onEditLabel={(label) => void handleEditImportantDateLabel(d.id, label)}
-                          onEditDate={(date) => void handleEditImportantDateValue(d.id, date)}
-                          onDelete={() => void handleDeleteImportantDate(d.id)}
-                          deleteDisabled={deleteImportantDate.isPending}
-                        />
-                      ))}
-                    </ul>
-                  )}
-                </>
-              )}
-            </div>
+            <PersonImportantDatesSection personId={person?.id} />
 
             {/* Tasks where this person is a referent */}
             {isEdit && (
@@ -880,182 +661,5 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
         </div>
       </div>
     </div>
-  );
-}
-
-// ---------------- BidRow ----------------
-// Single-line row, Apple-Reminders style: checkbox · text · deadline pill · ×.
-// Click the text to edit in place — the input is borderless and sits at the
-// same width as the static text, so the layout doesn't reflow.
-function BidRow({
-  bid,
-  onToggleDone,
-  onEditContent,
-  onEditDue,
-  onDelete,
-  deleteDisabled,
-}: {
-  bid: { id: string; content: string; dueAt: Date | null; completedAt: Date | null };
-  onToggleDone: (done: boolean) => void;
-  onEditContent: (content: string) => void;
-  onEditDue: (dueAt: Date | null) => void;
-  onDelete: () => void;
-  deleteDisabled: boolean;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(bid.content);
-  const done = !!bid.completedAt;
-  // eslint-disable-next-line react-hooks/purity -- comparison-only Date.now() for overdue marker.
-  const overdue = !done && bid.dueAt && new Date(bid.dueAt).getTime() < Date.now();
-
-  const commit = () => {
-    const trimmed = draft.trim();
-    if (trimmed && trimmed !== bid.content) onEditContent(trimmed);
-    else setDraft(bid.content);
-    setEditing(false);
-  };
-
-  return (
-    <li className="group flex h-10 items-center gap-3 px-3 transition-colors hover:bg-white/[0.02]">
-      <button
-        type="button"
-        onClick={() => onToggleDone(!done)}
-        className="shrink-0 text-white/40 transition-colors hover:text-white"
-        aria-label={done ? "Mark as not done" : "Mark as done"}
-      >
-        {done ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-      </button>
-      <div className="min-w-0 flex-1">
-        {editing ? (
-          <input
-            type="text"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                commit();
-              }
-              if (e.key === "Escape") {
-                setDraft(bid.content);
-                setEditing(false);
-              }
-            }}
-            autoFocus
-            className="w-full border-0 bg-transparent p-0 text-sm text-white outline-none placeholder:text-white/30"
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              setDraft(bid.content);
-              setEditing(true);
-            }}
-            className={`block w-full truncate text-left text-sm transition-colors ${
-              done ? "text-white/40 line-through" : "text-white/85 hover:text-white"
-            }`}
-            title="Click to edit"
-          >
-            {bid.content}
-          </button>
-        )}
-      </div>
-      <DatePicker
-        value={bid.dueAt}
-        onChange={onEditDue}
-        placeholder="Add deadline"
-        size="sm"
-        align="right"
-        className={overdue ? "[&_button]:!text-amber-300" : ""}
-      />
-      <button
-        type="button"
-        onClick={onDelete}
-        disabled={deleteDisabled}
-        className="shrink-0 rounded p-1 text-white/30 opacity-100 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed md:opacity-0 md:group-hover:opacity-100"
-        aria-label="Remove bid"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
-    </li>
-  );
-}
-
-// ---------------- ImportantDateRow ----------------
-// Single-line row: icon · label · date pill · ×. Click the label to rename;
-// click the date pill to repick.
-function ImportantDateRow({
-  date,
-  onEditLabel,
-  onEditDate,
-  onDelete,
-  deleteDisabled,
-}: {
-  date: { id: string; label: string; month: number; day: number; year: number | null };
-  onEditLabel: (label: string) => void;
-  onEditDate: (date: Date | null) => void;
-  onDelete: () => void;
-  deleteDisabled: boolean;
-}) {
-  const [editingLabel, setEditingLabel] = useState(false);
-  const [labelDraft, setLabelDraft] = useState(date.label);
-  const dateAsObject = new Date(date.year ?? new Date().getFullYear(), date.month - 1, date.day);
-
-  const commit = () => {
-    const trimmed = labelDraft.trim();
-    if (trimmed && trimmed !== date.label) onEditLabel(trimmed);
-    else setLabelDraft(date.label);
-    setEditingLabel(false);
-  };
-
-  return (
-    <li className="group flex h-10 items-center gap-3 px-3 transition-colors hover:bg-white/[0.02]">
-      <CalendarDays className="h-3.5 w-3.5 shrink-0 text-white/40" />
-      <div className="min-w-0 flex-1">
-        {editingLabel ? (
-          <input
-            type="text"
-            value={labelDraft}
-            onChange={(e) => setLabelDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                commit();
-              }
-              if (e.key === "Escape") {
-                setLabelDraft(date.label);
-                setEditingLabel(false);
-              }
-            }}
-            autoFocus
-            className="w-full border-0 bg-transparent p-0 text-sm text-white outline-none placeholder:text-white/30"
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              setLabelDraft(date.label);
-              setEditingLabel(true);
-            }}
-            className="block w-full truncate text-left text-sm text-white/85 transition-colors hover:text-white"
-            title="Click to rename"
-          >
-            {date.label}
-          </button>
-        )}
-      </div>
-      <DatePicker value={dateAsObject} onChange={onEditDate} clearable={false} size="sm" align="right" />
-      <button
-        type="button"
-        onClick={onDelete}
-        disabled={deleteDisabled}
-        className="shrink-0 rounded p-1 text-white/30 opacity-100 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed md:opacity-0 md:group-hover:opacity-100"
-        aria-label="Remove date"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
-    </li>
   );
 }

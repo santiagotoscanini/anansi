@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useMemo, useRef } from "react";
+import React, { createContext, useContext, useCallback, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import { api, type RouterOutputs } from "~/trpc/react";
 import { computeImportance, type Importance } from "~/lib/computation/importance";
@@ -16,17 +16,13 @@ import type {
   CreateTrackingItem,
 } from "~/lib/api/types";
 
-// Re-export types from the shared API types
-export type {
-  Value,
-  Goal,
-  Task,
-  Connection,
-  TrackingItem,
-  WeeklySync,
-  WeeklySyncItem,
-  Attachment,
-} from "~/lib/api/types";
+// Stable empty fallbacks so `dataQuery.data?.values ?? []` doesn't create a
+// fresh array reference each render (which would propagate to every consumer
+// that uses values/goals/connections in a useMemo dep). Module-level so the
+// reference is shared across renders without a useMemo wrapper.
+const EMPTY_VALUES: Value[] = [];
+const EMPTY_GOALS: Goal[] = [];
+const EMPTY_CONNECTIONS: Connection[] = [];
 
 type WeeklyRetrospectiveOutput = RouterOutputs["goals"]["weeklySync"]["getWeeklyRetrospectiveData"];
 type RawWeeklyRetrospectiveQuery = ReturnType<typeof api.goals.weeklySync.getWeeklyRetrospectiveData.useQuery>;
@@ -112,11 +108,6 @@ interface GoalsContextType {
 const GoalsContext = createContext<GoalsContextType | undefined>(undefined);
 
 export function GoalsProvider({ children }: { children: ReactNode }) {
-  const [values, setValues] = useState<Value[]>([]);
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [connections, setConnections] = useState<Connection[]>([]);
-  const [isDataLoading, setIsDataLoading] = useState(false);
-
   // Auth state derives from auth.me: success → authenticated; UNAUTHORIZED
   // (or any error from a missing/expired cookie) → not authenticated. The
   // cookie itself is HttpOnly so we never touch document.cookie here.
@@ -132,6 +123,17 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     enabled: isAuthenticated,
     refetchOnWindowFocus: false,
   });
+
+  // Derive directly from the TanStack cache. Previously we mirrored the data
+  // into local useState and synced via a render-time setState — that broke
+  // the React Compiler's purity guarantee, kept the same data twice in
+  // memory, and lagged the cache by one render after every refetch. The
+  // optimistic-update path in `updateTask` writes via `utils.goals.data.getAll
+  // .setData(...)`, which lands here on the next render with no extra effect.
+  const values = dataQuery.data?.values ?? EMPTY_VALUES;
+  const goals = dataQuery.data?.goals ?? EMPTY_GOALS;
+  const connections = dataQuery.data?.connections ?? EMPTY_CONNECTIONS;
+  const isDataLoading = dataQuery.isLoading;
 
   // Mutations for data operations
   const valuesMutations = {
@@ -183,22 +185,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     delete: api.goals.attachments.delete.useMutation(),
   };
 
-  // Handle data loading when authenticated — derive during render via state tracking.
-  const [lastProcessedData, setLastProcessedData] = useState<typeof dataQuery.data | undefined>(undefined);
-  const [lastProcessedLoading, setLastProcessedLoading] = useState<boolean | null>(null);
-  if (dataQuery.data !== lastProcessedData) {
-    setLastProcessedData(dataQuery.data);
-    if (dataQuery.data) {
-      setValues(dataQuery.data.values ?? []);
-      setGoals(dataQuery.data.goals ?? []);
-      setConnections(dataQuery.data.connections ?? []);
-    }
-  }
-  if (dataQuery.isLoading !== lastProcessedLoading) {
-    setLastProcessedLoading(dataQuery.isLoading);
-    setIsDataLoading(dataQuery.isLoading);
-  }
-
   const authenticate = async (email: string, password: string): Promise<boolean> => {
     try {
       const res = await fetch("/api/auth/login", {
@@ -238,12 +224,11 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
         await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
       } finally {
         // Reset cached queries so isAuthenticated flips to false on the next
-        // me refetch (which will 401 now that the cookie is cleared).
+        // me refetch (which will 401 now that the cookie is cleared). Goals,
+        // values and connections derive from `goals.data.getAll` so they
+        // empty out automatically when this resets.
         await utils.auth.me.reset();
         await utils.goals.data.getAll.reset();
-        setValues([]);
-        setGoals([]);
-        setConnections([]);
       }
     })();
   };
@@ -327,19 +312,39 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     [goalsMutations.create, invalidateData],
   );
 
+  // Optimistic update — patches the cache in place so the canvas drag (the
+  // hot path) doesn't trigger a refetch on every drop. Without this, every
+  // node move replaced the entire `goals` array via TanStack invalidation,
+  // which forced the React Flow `setNodes` rebuild in GoalsGraph.tsx to
+  // remeasure every node. Starting a new drag before measurement finished
+  // produced the "trying to drag a node that is not initialized" warning.
+  //
+  // Importance is server-computed from `connections`, not from the goal row,
+  // so the optimistic merge here doesn't need to recompute it. valueIds are
+  // replace-set on the backend and the optimistic value matches what the
+  // server commits; if any field ever drifts, the on-error rollback +
+  // invalidate gets us back in sync.
   const updateGoal = useCallback(
     async (id: string, goal: Partial<Goal>) => {
+      const { importance: _importance, ...goalData } = goal;
+      void _importance;
+
+      const snapshot = utils.goals.data.getAll.getData();
+      if (snapshot) {
+        utils.goals.data.getAll.setData(undefined, {
+          ...snapshot,
+          goals: snapshot.goals.map((g) => (g.id === id ? { ...g, ...goalData } : g)),
+        });
+      }
       try {
-        // Remove importance from the goal object since it's calculated on the backend
-        const { importance: _importance, ...goalData } = goal;
-        void _importance;
         await goalsMutations.update.mutateAsync({ id, ...goalData });
-        await invalidateData();
       } catch (error) {
+        if (snapshot) utils.goals.data.getAll.setData(undefined, snapshot);
+        await invalidateData();
         console.error("Failed to update goal:", error);
       }
     },
-    [goalsMutations.update, invalidateData],
+    [goalsMutations.update, invalidateData, utils],
   );
 
   const deleteGoal = useCallback(
@@ -370,6 +375,12 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   // Optimistic update for the canvas's hottest path: clicking a task's
   // completion checkbox. Patch the cache immediately so the UI flips
   // without waiting for the round-trip; on error, roll back.
+  //
+  // No `invalidateData()` on the success branch: the optimistic patch already
+  // matches what the server now holds, so a refetch would burn a round-trip
+  // for an identical payload (and could flicker the cache if more mutations
+  // are mid-flight). We invalidate only on error so the rolled-back state
+  // re-syncs with whatever the server actually has.
   const updateTask = useCallback(
     async (goalId: string, taskId: string, task: Partial<Task>) => {
       const snapshot = utils.goals.data.getAll.getData();
@@ -388,10 +399,9 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
       }
       try {
         await tasksMutations.update.mutateAsync({ id: taskId, goalId, ...task });
-        await invalidateData();
       } catch (error) {
-        // Roll back the optimistic patch.
         if (snapshot) utils.goals.data.getAll.setData(undefined, snapshot);
+        await invalidateData();
         console.error("Failed to update task:", error);
       }
     },

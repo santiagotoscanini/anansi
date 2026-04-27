@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { createTRPCRouter, protectedProcedure } from "../../trpc";
 import { db } from "../../../data";
 import {
@@ -138,7 +139,8 @@ export const goalsRouter = createTRPCRouter({
           .from(goals)
           .where(and(eq(goals.id, input.id), eq(goals.userId, ctx.user.userId)))
           .limit(1);
-        if (goalExists.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
+        if (goalExists.length === 0)
+          throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
 
         // Archive the goal (set status to "archived")
         await tx.update(goals).set({ status: "archived", updatedAt: new Date() }).where(eq(goals.id, input.id));
@@ -170,7 +172,8 @@ export const goalsRouter = createTRPCRouter({
           .from(goals)
           .where(and(eq(goals.id, input.goalId), eq(goals.userId, ctx.user.userId)))
           .limit(1);
-        if (goalExists.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
+        if (goalExists.length === 0)
+          throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
 
         const { referentIds, groupIds, ...taskInput } = input;
         const [newTask] = await db.insert(tasks).values(taskInput).returning();
@@ -196,7 +199,8 @@ export const goalsRouter = createTRPCRouter({
           .from(goals)
           .where(and(eq(goals.id, goalId), eq(goals.userId, ctx.user.userId)))
           .limit(1);
-        if (goalExists.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
+        if (goalExists.length === 0)
+          throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
 
         const [updatedTask] = await db
           .update(tasks)
@@ -230,7 +234,8 @@ export const goalsRouter = createTRPCRouter({
           .from(goals)
           .where(and(eq(goals.id, input.goalId), eq(goals.userId, ctx.user.userId)))
           .limit(1);
-        if (goalExists.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
+        if (goalExists.length === 0)
+          throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found or access denied" });
 
         await db.delete(tasks).where(and(eq(tasks.id, input.id), eq(tasks.goalId, input.goalId)));
         return { success: true };
@@ -263,12 +268,16 @@ export const goalsRouter = createTRPCRouter({
   // Connections operations
   connections: createTRPCRouter({
     getAll: protectedProcedure.query(async ({ ctx }) => {
-      // Get connections where both source and target goals belong to the user and are active
-      const sourceGoals = goals;
-      const targetGoals = goals;
+      // Self-join: connections has FKs to goals on both source and target,
+      // so we need DISTINCT aliases for Postgres to allow joining the goals
+      // table twice. Drizzle's `alias()` produces a separately-named handle
+      // that the SQL planner accepts (the previous `const sourceGoals =
+      // goals` shared the same alias on both joins and threw at query time).
+      const sourceGoals = alias(goals, "source_goals");
+      const targetGoals = alias(goals, "target_goals");
 
-      return await db
-        .select()
+      const rows = await db
+        .select({ connection: connections })
         .from(connections)
         .innerJoin(sourceGoals, eq(connections.source, sourceGoals.id))
         .innerJoin(targetGoals, eq(connections.target, targetGoals.id))
@@ -280,6 +289,7 @@ export const goalsRouter = createTRPCRouter({
             eq(targetGoals.status, "active"),
           ),
         );
+      return rows.map((r) => r.connection);
     }),
 
     create: protectedProcedure.input(createConnectionSchema).mutation(async ({ input, ctx }) => {

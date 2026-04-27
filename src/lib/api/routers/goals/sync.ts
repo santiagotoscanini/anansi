@@ -225,7 +225,10 @@ export const syncRouter = createTRPCRouter({
             .from(trackingItems)
             .where(and(inArray(trackingItems.id, ids), eq(trackingItems.userId, ctx.user.userId)));
           if (owned.length !== ids.length) {
-            throw new TRPCError({ code: "NOT_FOUND", message: "One or more tracking items not found or access denied" });
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "One or more tracking items not found or access denied",
+            });
           }
         }
 

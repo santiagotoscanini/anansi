@@ -9,11 +9,31 @@ export const UPLOADS_ROOT = path.join(process.cwd(), "uploads");
 // so a `.exe`/`.html`/`.svg` upload becomes a `.bin` blob that browsers
 // content-disposition-download via mime-types lookup.
 const SAFE_NONIMAGE_EXTS = new Set([
-  ".pdf", ".txt", ".md", ".rtf", ".csv",
-  ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-  ".odt", ".ods", ".odp", ".zip",
-  ".mp3", ".wav", ".ogg", ".m4a", ".flac",
-  ".mp4", ".mov", ".webm", ".mkv", ".avi",
+  ".pdf",
+  ".txt",
+  ".md",
+  ".rtf",
+  ".csv",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".ppt",
+  ".pptx",
+  ".odt",
+  ".ods",
+  ".odp",
+  ".zip",
+  ".mp3",
+  ".wav",
+  ".ogg",
+  ".m4a",
+  ".flac",
+  ".mp4",
+  ".mov",
+  ".webm",
+  ".mkv",
+  ".avi",
 ]);
 
 export function safeExtension(fileName: string, sniffedImageMime: string | null): string {

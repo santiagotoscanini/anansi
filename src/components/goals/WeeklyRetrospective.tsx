@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback } from "react";
 import NextImage from "next/image";
 import {
   Calendar,
@@ -10,7 +10,6 @@ import {
   ChevronRight,
   FileText,
   Image as ImageIcon,
-  Archive,
   ChevronDown,
   ChevronUp,
   Trash2,
@@ -22,40 +21,17 @@ import toast from "react-hot-toast";
 import SyncDefaultEditor from "./SyncDefaultEditor";
 
 type WeeklyRetrospectiveData = RouterOutputs["goals"]["weeklySync"]["getWeeklyRetrospectiveData"];
+type SyncItem = WeeklyRetrospectiveData["unscopedItems"][number];
+type GoalGroup = WeeklyRetrospectiveData["goals"][number];
 
-// Post-redesign shape adapter. The router now hydrates per-sync-item rows
-// directly (under goal.items, plus a top-level unscopedItems array), with
-// inline textContent and an attachments[] grid. The component below was
-// originally written against the older "tracking item with optional
-// weeklySyncItem wrapper + files[]" shape; rather than rewrite every call
-// site, we project the new shape into the legacy fields below. A proper
-// composition rewrite (drag-reorder, "+ add item" picker, template manager)
-// lands in a follow-up session.
-type RetroFile = {
-  id: string;
-  fileName: string;
-  fileType: "image" | "document" | "video" | "audio" | "other";
-  url: string;
-  createdAt: Date;
-};
-
-type RetroTrackingItem = {
-  id: string; // legacy expectation: tracking_item id
-  title: string;
-  description: string | null;
-  order: number;
-  deletedAt: Date | null;
-  weeklySyncItem: { id: string; createdAt: Date } | null;
-  files: RetroFile[];
-  textContent: string | null;
-};
-
-type RetroGoal = {
+// Each rendered group — either a real goal (from data.goals) or the synthesized
+// "Unscoped" bucket for items whose underlying tracking item has goalId IS NULL.
+type DisplayGroup = {
   id: string;
   title: string;
   description: string;
   importance: "Low" | "Medium" | "High";
-  trackingItems: RetroTrackingItem[];
+  items: SyncItem[];
 };
 
 type CollapsedGoals = Record<string, boolean>;
@@ -65,7 +41,6 @@ type TextEditingState = Record<
   {
     content: string;
     isEditing: boolean;
-    fileName?: string;
   }
 >;
 
@@ -75,10 +50,9 @@ interface DeleteConfirmation {
   isOpen: boolean;
   fileId: string;
   fileName: string;
-  trackingItemId: string;
+  syncItemId: string;
 }
 
-// Helper function to determine file type based on file extension
 const getFileType = (fileName: string): "image" | "document" | "video" | "audio" | "other" => {
   const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
 
@@ -100,85 +74,51 @@ export default function WeeklyRetrospective() {
     createWeeklySync,
     getWeekStartDate,
     uploadWeeklySyncFile,
-    saveTextFile,
     createWeeklySyncItem,
     deleteWeeklySyncFile,
     getWeeklyRetrospectiveData,
     refreshWeeklyRetrospectiveData,
   } = useGoals();
 
-  // Sync-item-level operations on the current sync. addItem is exposed via
-  // GoalsContext.createWeeklySyncItem already; removeItem doesn't have a
-  // public surface so we wire it directly. Same with the picker: we read the
-  // user's full library straight from the retrospective query payload.
   const removeSyncItemMutation = api.goals.weeklySync.removeItem.useMutation();
+  const setItemTextMutation = api.goals.weeklySync.setItemText.useMutation();
 
-  // Week navigation state, start in the current week
   const [selectedWeek, setSelectedWeek] = useState(() => {
     const now = new Date();
     return getWeekStartDate(now);
   });
 
-  // Single comprehensive query for all weekly retrospective data
   const weeklyRetrospectiveQuery = getWeeklyRetrospectiveData(selectedWeek);
-
-  // Extract data from the comprehensive query
   const retrospectiveData: WeeklyRetrospectiveData | undefined = weeklyRetrospectiveQuery.data;
   const weeklySync = retrospectiveData?.weeklySync;
   const isLoading = weeklyRetrospectiveQuery.isLoading;
   const hasError = weeklyRetrospectiveQuery.error;
 
-  // Project the new server shape into the legacy RetroGoal/RetroTrackingItem
-  // structure that the rest of this component was built against. The server
-  // already excludes soft-deleted/archived items, so the deletion-window
-  // filtering this hook used to do is no longer necessary. Wrapped in useMemo
-  // so React compiler can preserve the manual memoization on dependent hooks.
-  const { goalsWithTrackingItems, allGroups } = useMemo(() => {
-    const adaptItem = (it: WeeklyRetrospectiveData["unscopedItems"][number]): RetroTrackingItem => ({
-      id: it.trackingItemId,
-      title: it.title,
-      description: it.description,
-      order: it.orderIdx,
-      deletedAt: null,
-      weeklySyncItem: { id: it.id, createdAt: it.createdAt },
-      files: it.attachments.map((a) => ({
-        id: a.id,
-        fileName: a.fileName,
-        fileType: a.fileType,
-        url: a.url,
-        createdAt: a.createdAt,
-      })),
-      textContent: it.textContent,
-    });
-
-    const goalsWithTrackingItems: RetroGoal[] = (retrospectiveData?.goals ?? []).map((goal) => ({
-      id: goal.id,
-      title: goal.title,
-      description: goal.description,
-      importance: goal.importance,
-      trackingItems: goal.items.map(adaptItem),
-    }));
-
-    // Synthesize an "Unscoped" group for sync items whose underlying tracking
-    // item has goal_id IS NULL — surfaces user-level items in the retro alongside
-    // goal-grouped ones. Stable id "__unscoped__" is recognized by the per-item
-    // collapse/status code below.
-    const unscopedGroup: RetroGoal | null =
-      (retrospectiveData?.unscopedItems ?? []).length > 0
-        ? {
+  // Synthesize an "Unscoped" group for sync items whose tracking item has
+  // goalId IS NULL. The id "__unscoped__" is read by the per-item collapse/
+  // status code below. React Compiler memoizes — no manual useMemo.
+  const goalGroups: DisplayGroup[] = (retrospectiveData?.goals ?? []).map((g: GoalGroup) => ({
+    id: g.id,
+    title: g.title,
+    description: g.description,
+    importance: g.importance,
+    items: g.items,
+  }));
+  const unscopedItems = retrospectiveData?.unscopedItems ?? [];
+  const allGroups: DisplayGroup[] =
+    unscopedItems.length === 0
+      ? goalGroups
+      : [
+          ...goalGroups,
+          {
             id: "__unscoped__",
             title: "Unscoped",
             description: "Items not linked to any goal",
             importance: "Low",
-            trackingItems: (retrospectiveData?.unscopedItems ?? []).map(adaptItem),
-          }
-        : null;
-    const allGroups: RetroGoal[] = unscopedGroup ? [...goalsWithTrackingItems, unscopedGroup] : goalsWithTrackingItems;
+            items: unscopedItems,
+          },
+        ];
 
-    return { goalsWithTrackingItems, allGroups };
-  }, [retrospectiveData]);
-
-  // UI state
   const [collapsedGoals, setCollapsedGoals] = useState<CollapsedGoals>({});
   const [textEditingState, setTextEditingState] = useState<TextEditingState>({});
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({});
@@ -186,35 +126,27 @@ export default function WeeklyRetrospective() {
     isOpen: false,
     fileId: "",
     fileName: "",
-    trackingItemId: "",
+    syncItemId: "",
   });
   const [deletingFiles, setDeletingFiles] = useState<Set<string>>(new Set());
 
-  // File upload refs
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-
-  // Debounced auto-save for text
   const saveTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
 
-  // Clear text editing state when week changes to prevent cross-week content bleeding.
-  // Derived-state pattern: reset during render when the tracked key changes, not in an effect.
+  // Reset edit state on week change to avoid cross-week content bleed.
   const [lastResetWeek, setLastResetWeek] = useState(selectedWeek);
   if (lastResetWeek !== selectedWeek) {
     setLastResetWeek(selectedWeek);
     setTextEditingState({});
   }
 
-  // Get week date range display
   const getWeekDateRange = useCallback((weekStart: Date) => {
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
-
     const formatDate = (date: Date) => date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-
     return `${formatDate(weekStart)} - ${formatDate(weekEnd)}, ${weekStart.getFullYear()}`;
   }, []);
 
-  // Check if it's current week
   const isCurrentWeek = useCallback(
     (weekStart: Date) => {
       const now = new Date();
@@ -224,40 +156,6 @@ export default function WeeklyRetrospective() {
     [getWeekStartDate],
   );
 
-  // Helper function to ensure tracking item is added to weekly sync
-  const ensureTrackingItemInWeeklySync = useCallback(
-    async (trackingItemId: string) => {
-      // Only add to sync if we have a weekly sync
-      if (!weeklySync) {
-        return false;
-      }
-
-      // Check if already in weekly sync
-      const goal = goalsWithTrackingItems.find((g) => g.trackingItems.some((item) => item.id === trackingItemId));
-      const trackingItem = goal?.trackingItems.find((item) => item.id === trackingItemId);
-
-      if (trackingItem?.weeklySyncItem) {
-        return true; // Already in sync
-      }
-
-      try {
-        await createWeeklySyncItem(weeklySync.id, trackingItemId);
-
-        toast.success("Added to weekly sync");
-
-        // Refetch data to update UI
-        await refreshWeeklyRetrospectiveData();
-        return true;
-      } catch (error) {
-        console.error("Failed to add tracking item to weekly sync:", error);
-        toast.error("Failed to add item to weekly sync");
-        return false;
-      }
-    },
-    [weeklySync, goalsWithTrackingItems, createWeeklySyncItem, refreshWeeklyRetrospectiveData],
-  );
-
-  // Handle week navigation
   const handleWeekChange = (direction: "prev" | "next") => {
     const newWeek = new Date(selectedWeek);
     if (direction === "prev") {
@@ -268,9 +166,7 @@ export default function WeeklyRetrospective() {
     setSelectedWeek(newWeek);
   };
 
-  // Handle creating weekly sync (can now create for any week)
   const handleStartWeeklySync = async () => {
-    // Prevent weekly sync creation when there are backend errors
     if (hasError) {
       toast.error("Cannot create weekly sync while there are backend errors");
       return;
@@ -278,7 +174,6 @@ export default function WeeklyRetrospective() {
 
     try {
       await createWeeklySync(selectedWeek);
-      // Refetch the query to update the UI
       await refreshWeeklyRetrospectiveData();
       toast.success("Weekly sync started!");
     } catch (error) {
@@ -287,7 +182,6 @@ export default function WeeklyRetrospective() {
     }
   };
 
-  // Handle goal collapse/expand
   const toggleGoalCollapse = (goalId: string) => {
     setCollapsedGoals((prev) => ({
       ...prev,
@@ -295,108 +189,50 @@ export default function WeeklyRetrospective() {
     }));
   };
 
-  // Auto-save text with debouncing
+  // Auto-save inline textContent on the weekly_sync_items row. Each rendered
+  // item is already a sync item, so we go straight at setItemText with the
+  // sync-item id — no addItem roundtrip needed.
   const handleTextChange = useCallback(
-    async (trackingItemId: string, content: string) => {
-      // Ensure tracking item is added to weekly sync when user starts editing
-      await ensureTrackingItemInWeeklySync(trackingItemId);
-
+    (item: SyncItem, content: string) => {
       setTextEditingState((prev) => ({
         ...prev,
-        [trackingItemId]: {
-          ...prev[trackingItemId],
-          content,
-          isEditing: true,
-        },
+        [item.id]: { content, isEditing: true },
       }));
 
-      // Clear existing timeout
-      if (saveTimeouts.current[trackingItemId]) {
-        clearTimeout(saveTimeouts.current[trackingItemId]);
+      if (saveTimeouts.current[item.id]) {
+        clearTimeout(saveTimeouts.current[item.id]);
       }
 
-      // Set save status to saving
-      setSaveStatus((prev) => ({ ...prev, [trackingItemId]: "saving" }));
+      setSaveStatus((prev) => ({ ...prev, [item.id]: "saving" }));
 
-      // Set new timeout for auto-save (1 second)
-      saveTimeouts.current[trackingItemId] = setTimeout(() => {
+      saveTimeouts.current[item.id] = setTimeout(() => {
         const runSave = async () => {
           try {
-            // Find the goal that contains this tracking item
-            let goalId: string | undefined;
-            let trackingItem: RetroTrackingItem | undefined;
-            for (const goal of goalsWithTrackingItems) {
-              const item = goal.trackingItems.find((it) => it.id === trackingItemId);
-              if (item) {
-                goalId = goal.id;
-                trackingItem = item;
-                break;
-              }
-            }
-
-            if (!goalId || !trackingItem) {
-              console.error("Could not find goal or tracking item for:", trackingItemId);
-              return;
-            }
-
-            // Find existing text file name from the files array, or use the one from editing state
-            const existingTextFile = trackingItem.files.find(
-              (file) => file.fileType === "document" && file.fileName.endsWith(".txt"),
-            );
-            const existingFileName = existingTextFile?.fileName ?? textEditingState[trackingItemId]?.fileName;
-
-            if (!weeklySync?.id) {
-              throw new Error("No weekly sync available");
-            }
-            await saveTextFile(content, weeklySync.id, trackingItemId, existingFileName);
-
-            // Refresh data to show the saved content immediately
+            await setItemTextMutation.mutateAsync({
+              weeklySyncItemId: item.id,
+              textContent: content,
+            });
             await refreshWeeklyRetrospectiveData();
-
-            setSaveStatus((prev) => ({ ...prev, [trackingItemId]: "saved" }));
-
-            // Clear saved status after 2 seconds
+            setSaveStatus((prev) => ({ ...prev, [item.id]: "saved" }));
             setTimeout(() => {
-              setSaveStatus((prev) => ({ ...prev, [trackingItemId]: "idle" }));
+              setSaveStatus((prev) => ({ ...prev, [item.id]: "idle" }));
             }, 2000);
           } catch (error) {
             console.error("Failed to auto-save text:", error);
-            setSaveStatus((prev) => ({ ...prev, [trackingItemId]: "idle" }));
+            setSaveStatus((prev) => ({ ...prev, [item.id]: "idle" }));
             toast.error("Failed to save text");
           }
         };
         void runSave();
       }, 1000);
     },
-    [
-      textEditingState,
-      saveTextFile,
-      goalsWithTrackingItems,
-      ensureTrackingItemInWeeklySync,
-      weeklySync,
-      refreshWeeklyRetrospectiveData,
-    ],
+    [setItemTextMutation, refreshWeeklyRetrospectiveData],
   );
 
-  // Handle image upload
-  const handleImageUpload = async (trackingItemId: string, files: FileList) => {
+  const handleImageUpload = async (item: SyncItem, files: FileList) => {
     if (!files || files.length === 0) return;
-
-    // Ensure tracking item is added to weekly sync when user uploads files
-    await ensureTrackingItemInWeeklySync(trackingItemId);
-
-    // Find the goal that contains this tracking item
-    let goalId: string | undefined;
-    for (const goal of goalsWithTrackingItems) {
-      if (goal.trackingItems.some((item) => item.id === trackingItemId)) {
-        goalId = goal.id;
-        break;
-      }
-    }
-
-    if (!goalId) {
-      console.error("Could not find goal for tracking item:", trackingItemId);
-      toast.error("Could not find goal for tracking item");
+    if (!weeklySync?.id) {
+      toast.error("No weekly sync available");
       return;
     }
 
@@ -409,19 +245,15 @@ export default function WeeklyRetrospective() {
           reader.onloadend = () => {
             const run = async () => {
               try {
-                if (reader.result && weeklySync?.id) {
-                  const fileType = getFileType(file.name);
-                  await uploadWeeklySyncFile(
-                    reader.result as string,
-                    weeklySync.id,
-                    trackingItemId,
-                    file.name,
-                    fileType,
-                    false,
-                  );
-                } else {
-                  throw new Error("No weekly sync available or no file data");
-                }
+                if (!reader.result) throw new Error("No file data");
+                await uploadWeeklySyncFile(
+                  reader.result as string,
+                  weeklySync.id,
+                  item.trackingItemId,
+                  file.name,
+                  getFileType(file.name),
+                  false,
+                );
                 resolve();
               } catch (error) {
                 reject(error instanceof Error ? error : new Error(String(error)));
@@ -435,10 +267,7 @@ export default function WeeklyRetrospective() {
       });
 
       await Promise.all(uploadPromises);
-
-      // Refresh data to show the saved images immediately
       await refreshWeeklyRetrospectiveData();
-
       toast.success(`${files.length} image(s) uploaded successfully`, { id: "image-upload" });
     } catch (error) {
       console.error("Failed to upload images:", error);
@@ -446,79 +275,70 @@ export default function WeeklyRetrospective() {
     }
   };
 
-  // Handle opening delete confirmation dialog
-  const handleDeleteFileClick = (fileId: string, fileName: string, trackingItemId: string) => {
-    setDeleteConfirmation({
-      isOpen: true,
-      fileId,
-      fileName,
-      trackingItemId,
-    });
+  // Clear inline textContent (replaces the legacy "delete .txt file" path).
+  const handleClearText = async (item: SyncItem) => {
+    try {
+      await setItemTextMutation.mutateAsync({
+        weeklySyncItemId: item.id,
+        textContent: "",
+      });
+      await refreshWeeklyRetrospectiveData();
+      setTextEditingState((prev) => {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
+      toast.success("Notes cleared");
+    } catch (error) {
+      console.error("Failed to clear text:", error);
+      toast.error("Failed to clear notes");
+    }
   };
 
-  // Handle canceling delete
+  const handleDeleteFileClick = (fileId: string, fileName: string, syncItemId: string) => {
+    setDeleteConfirmation({ isOpen: true, fileId, fileName, syncItemId });
+  };
+
   const handleDeleteCancel = () => {
-    setDeleteConfirmation({
-      isOpen: false,
-      fileId: "",
-      fileName: "",
-      trackingItemId: "",
-    });
+    setDeleteConfirmation({ isOpen: false, fileId: "", fileName: "", syncItemId: "" });
   };
 
-  // Handle confirmed file deletion
   const handleDeleteConfirm = async () => {
     const { fileId, fileName } = deleteConfirmation;
-
     if (!fileId) return;
 
-    // Add to deleting set using fileId
     setDeletingFiles((prev) => new Set(prev).add(fileId));
 
     try {
       await deleteWeeklySyncFile(fileId);
       toast.success(`${fileName} deleted successfully`);
-
-      // Refresh the weekly retrospective data to update file lists
       await refreshWeeklyRetrospectiveData();
     } catch (error) {
       console.error("Failed to delete file:", error);
       toast.error(`Failed to delete ${fileName}`);
     } finally {
-      // Remove from deleting set
       setDeletingFiles((prev) => {
         const newSet = new Set(prev);
         newSet.delete(fileId);
         return newSet;
       });
-
-      // Close confirmation dialog
       handleDeleteCancel();
     }
   };
 
-  // Get tracking item status for current week indicators
-  const getTrackingItemStatus = (trackingItem: RetroTrackingItem): "complete" | "partial" | "missing" => {
-    // Check if tracking item is part of weekly sync and has content
-    if (!trackingItem.weeklySyncItem) return "missing";
-
-    const hasFiles = trackingItem.files.length > 0;
-    const hasText = !!trackingItem.textContent && trackingItem.textContent.trim().length > 0;
-
+  const getItemStatus = (item: SyncItem): "complete" | "partial" | "missing" => {
+    const hasFiles = item.attachments.length > 0;
+    const hasText = !!item.textContent && item.textContent.trim().length > 0;
     if (hasFiles && hasText) return "complete";
     if (hasFiles || hasText) return "partial";
     return "missing";
   };
 
-  // Get goal status based on tracking items
-  const getGoalStatus = (goalId: string): "complete" | "partial" | "missing" => {
-    const goal = goalsWithTrackingItems.find((g) => g.id === goalId);
-    if (!goal || goal.trackingItems.length === 0) return "missing";
-
-    const statuses = goal.trackingItems.map(getTrackingItemStatus);
+  const getGoalStatus = (group: DisplayGroup): "complete" | "partial" | "missing" => {
+    if (group.items.length === 0) return "missing";
+    const statuses = group.items.map(getItemStatus);
     const completeCount = statuses.filter((s) => s === "complete").length;
     const partialCount = statuses.filter((s) => s === "partial").length;
-
     if (completeCount === statuses.length) return "complete";
     if (completeCount > 0 || partialCount > 0) return "partial";
     return "missing";
@@ -527,9 +347,6 @@ export default function WeeklyRetrospective() {
   const [defaultEditorOpen, setDefaultEditorOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Add an existing library item to THIS sync only (not the template). The
-  // picker filters out items already in the sync — the underlying mutation is
-  // idempotent regardless. Refresh data to surface the new sync item.
   const handleAddItemToSync = async (trackingItemId: string) => {
     if (!weeklySync) return;
     try {
@@ -541,8 +358,6 @@ export default function WeeklyRetrospective() {
     }
   };
 
-  // Remove an item from this sync only — the underlying tracking item stays
-  // in the library and on its template. Cascades attachments via the router.
   const handleRemoveFromSync = async (weeklySyncItemId: string, title: string) => {
     if (!confirm(`Remove "${title}" from this sync? It stays in your library.`)) return;
     try {
@@ -554,10 +369,9 @@ export default function WeeklyRetrospective() {
     }
   };
 
-  // Items in the user's library that aren't already on this sync.
   const itemsOnSync = new Set<string>();
   for (const g of allGroups) {
-    for (const it of g.trackingItems) itemsOnSync.add(it.id);
+    for (const it of g.items) itemsOnSync.add(it.trackingItemId);
   }
   const addableItems = (retrospectiveData?.allTrackingItems ?? []).filter((i) => !itemsOnSync.has(i.id));
 
@@ -628,7 +442,6 @@ export default function WeeklyRetrospective() {
             </div>
           </div>
         ) : !weeklySync ? (
-          /* No Weekly Sync - Show Start Button only for current week */
           <div className="rounded-lg border border-white/10 bg-white/5 p-12 text-center">
             <Calendar className="mx-auto h-12 w-12 opacity-30" />
             <p className="mt-4 text-lg font-light">No sync for this week</p>
@@ -647,11 +460,9 @@ export default function WeeklyRetrospective() {
             </button>
           </div>
         ) : (
-          /* Weekly Sync Active - Show Goals and Tracking Items */
           <div className="space-y-6">
             {/* Inline "+ Add item to sync" picker — pulls from the user's
-                library, filtering out items already on this sync. Picking
-                an item adds it just for this period; templates are unchanged. */}
+                library, filtering out items already on this sync. */}
             <div className="rounded-lg border border-white/10 bg-white/5 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -688,17 +499,17 @@ export default function WeeklyRetrospective() {
               )}
             </div>
 
-            {allGroups.map((goal) => {
-              const isCollapsed = collapsedGoals[goal.id];
-              const goalStatus = getGoalStatus(goal.id);
+            {allGroups.map((group) => {
+              const isCollapsed = collapsedGoals[group.id];
+              const groupStatus = getGoalStatus(group);
 
               return (
-                <div key={goal.id} className="rounded-lg border border-white/10 bg-white/5 p-6">
-                  {/* Goal Header */}
+                <div key={group.id} className="rounded-lg border border-white/10 bg-white/5 p-6">
+                  {/* Group Header */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => toggleGoalCollapse(goal.id)}
+                        onClick={() => toggleGoalCollapse(group.id)}
                         className="rounded p-1 transition-all hover:bg-white/10"
                       >
                         {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
@@ -707,188 +518,156 @@ export default function WeeklyRetrospective() {
                       <Target className="h-5 w-5 opacity-60" />
 
                       <div>
-                        <h3 className="font-semibold">{goal.title}</h3>
-                        <p className="text-sm opacity-60">{goal.description}</p>
+                        <h3 className="font-semibold">{group.title}</h3>
+                        <p className="text-sm opacity-60">{group.description}</p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {/* Current Week Status Indicator */}
                       {isCurrentWeek(selectedWeek) && (
                         <div
                           className={`h-3 w-3 rounded-full ${
-                            goalStatus === "complete"
+                            groupStatus === "complete"
                               ? "bg-green-500"
-                              : goalStatus === "partial"
+                              : groupStatus === "partial"
                                 ? "bg-yellow-500"
                                 : "bg-red-500"
                           }`}
-                          title={`Goal status: ${goalStatus}`}
+                          title={`Goal status: ${groupStatus}`}
                         />
                       )}
 
-                      {/* Importance Badge */}
                       <span
                         className={`rounded-full px-2 py-1 text-xs ${
-                          goal.importance === "High"
+                          group.importance === "High"
                             ? "bg-red-500/20 text-red-400"
-                            : goal.importance === "Medium"
+                            : group.importance === "Medium"
                               ? "bg-yellow-500/20 text-yellow-400"
                               : "bg-gray-500/20 text-gray-400"
                         }`}
                       >
-                        {goal.importance}
+                        {group.importance}
                       </span>
                     </div>
                   </div>
 
-                  {/* Tracking Items - Only show when not collapsed */}
+                  {/* Items */}
                   {!isCollapsed && (
                     <div className="mt-4 space-y-4">
-                      {goal.trackingItems.length > 0 ? (
-                        goal.trackingItems.map((trackingItem) => (
-                          <div key={trackingItem.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                            {/* Tracking Item Header */}
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <h4 className="font-medium">{trackingItem.title}</h4>
-                                  {trackingItem.deletedAt && (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/20 px-2 py-1 text-xs text-orange-400">
-                                      <Archive className="h-3 w-3" />
-                                      Archived
-                                    </span>
-                                  )}
+                      {group.items.length > 0 ? (
+                        group.items.map((item) => {
+                          const imageFiles = item.attachments.filter((a) => a.fileType === "image");
+                          const hasStoredText = !!item.textContent && item.textContent.trim().length > 0;
+                          const hasStoredImages = imageFiles.length > 0;
+                          const isEditing = textEditingState[item.id]?.isEditing;
+
+                          return (
+                            <div key={item.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
+                              {/* Item Header */}
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <h4 className="font-medium">{item.title}</h4>
+                                  {item.description && <p className="mt-1 text-sm opacity-60">{item.description}</p>}
                                 </div>
-                                {trackingItem.description && (
-                                  <p className="mt-1 text-sm opacity-60">{trackingItem.description}</p>
+
+                                {saveStatus[item.id] && (
+                                  <div className="flex items-center gap-1 text-xs">
+                                    {saveStatus[item.id] === "saving" && (
+                                      <>
+                                        <div className="h-2 w-2 animate-spin rounded-full border border-white/20 border-t-white"></div>
+                                        <span className="opacity-60">Saving...</span>
+                                      </>
+                                    )}
+                                    {saveStatus[item.id] === "saved" && <span className="text-green-400">✓ Saved</span>}
+                                  </div>
                                 )}
                               </div>
 
-                              {/* Save Status Indicator */}
-                              {saveStatus[trackingItem.id] && (
-                                <div className="flex items-center gap-1 text-xs">
-                                  {saveStatus[trackingItem.id] === "saving" && (
-                                    <>
-                                      <div className="h-2 w-2 animate-spin rounded-full border border-white/20 border-t-white"></div>
-                                      <span className="opacity-60">Saving...</span>
-                                    </>
-                                  )}
-                                  {saveStatus[trackingItem.id] === "saved" && (
-                                    <span className="text-green-400">✓ Saved</span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                              {/* Action Buttons */}
+                              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                                {!hasStoredText && (
+                                  <button
+                                    onClick={() => {
+                                      setTextEditingState((prev) => ({
+                                        ...prev,
+                                        [item.id]: { content: "", isEditing: true },
+                                      }));
+                                    }}
+                                    className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm transition-all hover:bg-white/20"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                    Add Text
+                                  </button>
+                                )}
 
-                            {/* Action Buttons */}
-                            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                              {/* Add Text Button - Only show if no text content exists */}
-                              {!trackingItem.textContent && (
                                 <button
                                   onClick={() => {
-                                    const existingTextFile = trackingItem.files.find(
-                                      (file) => file.fileType === "document" && file.fileName.endsWith(".txt"),
-                                    );
-                                    setTextEditingState((prev) => ({
-                                      ...prev,
-                                      [trackingItem.id]: {
-                                        content: "", // Always start fresh for new text
-                                        isEditing: true,
-                                        fileName: existingTextFile?.fileName,
-                                      },
-                                    }));
+                                    const input = fileInputRefs.current[item.id];
+                                    if (input) input.click();
                                   }}
                                   className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm transition-all hover:bg-white/20"
                                 >
-                                  <FileText className="h-4 w-4" />
-                                  Add Text
+                                  <ImageIcon className="h-4 w-4" />
+                                  Add Images
                                 </button>
-                              )}
 
-                              {/* Add Images Button */}
-                              <button
-                                onClick={() => {
-                                  const input = fileInputRefs.current[trackingItem.id];
-                                  if (input) input.click();
-                                }}
-                                className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm transition-all hover:bg-white/20"
-                              >
-                                <ImageIcon className="h-4 w-4" />
-                                Add Images
-                              </button>
+                                <input
+                                  ref={(el) => {
+                                    fileInputRefs.current[item.id] = el;
+                                  }}
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  onChange={(e) => {
+                                    if (e.target.files) {
+                                      void handleImageUpload(item, e.target.files);
+                                    }
+                                  }}
+                                  className="hidden"
+                                />
 
-                              {/* Hidden File Input, triggered by the "Add Image" button */}
-                              <input
-                                ref={(el) => {
-                                  fileInputRefs.current[trackingItem.id] = el;
-                                }}
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                onChange={(e) => {
-                                  if (e.target.files) {
-                                    void handleImageUpload(trackingItem.id, e.target.files);
-                                  }
-                                }}
-                                className="hidden"
-                              />
-
-                              {/* Remove from this sync (does NOT delete the underlying tracking item). */}
-                              {trackingItem.weeklySyncItem && (
                                 <button
-                                  onClick={() =>
-                                    void handleRemoveFromSync(trackingItem.weeklySyncItem!.id, trackingItem.title)
-                                  }
+                                  onClick={() => void handleRemoveFromSync(item.id, item.title)}
                                   className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-white/60 transition-all hover:border-rose-400/40 hover:bg-rose-500/10 hover:text-rose-200"
                                   title="Remove from this sync — keeps the item in your library"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                   Remove from sync
                                 </button>
-                              )}
-                            </div>
-
-                            {/* Text Editor */}
-                            {!trackingItem.textContent && textEditingState[trackingItem.id]?.isEditing && (
-                              <div className="mt-3">
-                                <textarea
-                                  value={textEditingState[trackingItem.id]?.content ?? ""}
-                                  onChange={(e) => void handleTextChange(trackingItem.id, e.target.value)}
-                                  placeholder="Add your notes for this tracking item..."
-                                  rows={4}
-                                  className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-all focus:border-white/40"
-                                />
-                                <div className="mt-2 flex justify-end">
-                                  <button
-                                    onClick={() => {
-                                      // Clear the editing state completely when done
-                                      setTextEditingState((prev) => {
-                                        const newState = { ...prev };
-                                        delete newState[trackingItem.id];
-                                        return newState;
-                                      });
-                                    }}
-                                    className="rounded-lg border border-white/20 px-3 py-1 text-sm transition-all hover:bg-white/10"
-                                  >
-                                    Done
-                                  </button>
-                                </div>
                               </div>
-                            )}
 
-                            {/* Files Preview Area - Show stored files */}
-                            {(() => {
-                              // Show content if we have actual stored files
-                              const hasStoredText = trackingItem.textContent;
-                              const imageFiles = trackingItem.files.filter((file) => file.fileType === "image");
-                              const hasStoredImages = imageFiles.length > 0;
+                              {/* Fresh-text editor (only when there is no stored text yet) */}
+                              {!hasStoredText && isEditing && (
+                                <div className="mt-3">
+                                  <textarea
+                                    value={textEditingState[item.id]?.content ?? ""}
+                                    onChange={(e) => handleTextChange(item, e.target.value)}
+                                    placeholder="Add your notes for this tracking item..."
+                                    rows={4}
+                                    className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-all focus:border-white/40"
+                                  />
+                                  <div className="mt-2 flex justify-end">
+                                    <button
+                                      onClick={() => {
+                                        setTextEditingState((prev) => {
+                                          const next = { ...prev };
+                                          delete next[item.id];
+                                          return next;
+                                        });
+                                      }}
+                                      className="rounded-lg border border-white/20 px-3 py-1 text-sm transition-all hover:bg-white/10"
+                                    >
+                                      Done
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
 
-                              return hasStoredText || hasStoredImages ? (
+                              {/* Saved content preview */}
+                              {(hasStoredText || hasStoredImages) && (
                                 <div className="mt-3 space-y-3">
                                   <h5 className="text-sm font-medium opacity-70">Content</h5>
 
-                                  {/* Stored Text Content Preview */}
                                   {hasStoredText && (
                                     <div className="rounded-lg border border-white/10 bg-white/5 p-3">
                                       <div className="mb-2 flex items-center justify-between">
@@ -897,30 +676,18 @@ export default function WeeklyRetrospective() {
                                           <span className="text-sm opacity-70">Saved Notes</span>
                                         </div>
                                         <button
-                                          onClick={() => {
-                                            // Find the text file URL to delete
-                                            const textFile = trackingItem.files.find(
-                                              (file) => file.fileType === "document" && file.fileName.endsWith(".txt"),
-                                            );
-                                            if (textFile) {
-                                              handleDeleteFileClick(textFile.id, textFile.fileName, trackingItem.id);
-                                            }
-                                          }}
+                                          onClick={() => void handleClearText(item)}
                                           className="rounded p-1 text-red-400 opacity-60 transition-all hover:bg-red-500/20 hover:opacity-100"
-                                          title="Delete notes"
+                                          title="Clear notes"
                                         >
                                           <Trash2 className="h-3 w-3" />
                                         </button>
                                       </div>
-                                      {textEditingState[trackingItem.id]?.isEditing ? (
+                                      {isEditing ? (
                                         <div>
                                           <textarea
-                                            value={
-                                              textEditingState[trackingItem.id]?.content ??
-                                              trackingItem.textContent ??
-                                              ""
-                                            }
-                                            onChange={(e) => void handleTextChange(trackingItem.id, e.target.value)}
+                                            value={textEditingState[item.id]?.content ?? item.textContent ?? ""}
+                                            onChange={(e) => handleTextChange(item, e.target.value)}
                                             placeholder="Add your notes for this tracking item..."
                                             rows={4}
                                             className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-all focus:border-white/40"
@@ -929,11 +696,10 @@ export default function WeeklyRetrospective() {
                                           <div className="mt-2 flex justify-end">
                                             <button
                                               onClick={() => {
-                                                // Clear the editing state completely when done
                                                 setTextEditingState((prev) => {
-                                                  const newState = { ...prev };
-                                                  delete newState[trackingItem.id];
-                                                  return newState;
+                                                  const next = { ...prev };
+                                                  delete next[item.id];
+                                                  return next;
                                                 });
                                               }}
                                               className="rounded-lg border border-white/20 px-3 py-1 text-sm transition-all hover:bg-white/10"
@@ -945,29 +711,23 @@ export default function WeeklyRetrospective() {
                                       ) : (
                                         <div
                                           onClick={() => {
-                                            // Pre-populate text editor with stored content and existing filename
-                                            const existingTextFile = trackingItem.files.find(
-                                              (file) => file.fileType === "document" && file.fileName.endsWith(".txt"),
-                                            );
                                             setTextEditingState((prev) => ({
                                               ...prev,
-                                              [trackingItem.id]: {
-                                                content: trackingItem.textContent ?? "",
+                                              [item.id]: {
+                                                content: item.textContent ?? "",
                                                 isEditing: true,
-                                                fileName: existingTextFile?.fileName,
                                               },
                                             }));
                                           }}
                                           className="cursor-pointer rounded p-2 text-sm opacity-80 transition-all hover:bg-white/5 hover:opacity-100"
                                           title="Click to edit"
                                         >
-                                          {trackingItem.textContent}
+                                          {item.textContent}
                                         </div>
                                       )}
                                     </div>
                                   )}
 
-                                  {/* Stored Images Preview */}
                                   {hasStoredImages && (
                                     <div className="rounded-lg border border-white/10 bg-white/5 p-3">
                                       <div className="mb-2 flex items-center gap-2">
@@ -989,12 +749,9 @@ export default function WeeklyRetrospective() {
                                                 }`}
                                               />
 
-                                              {/* Delete button overlay */}
                                               {!isDeleting && index < 3 && (
                                                 <button
-                                                  onClick={() =>
-                                                    handleDeleteFileClick(file.id, file.fileName, trackingItem.id)
-                                                  }
+                                                  onClick={() => handleDeleteFileClick(file.id, file.fileName, item.id)}
                                                   className="absolute right-1 top-1 block rounded-full bg-red-500/80 p-1 text-white opacity-100 transition-all hover:bg-red-500 md:hidden md:opacity-0 md:group-hover:block md:group-hover:opacity-100"
                                                   title={`Delete ${file.fileName}`}
                                                 >
@@ -1002,14 +759,12 @@ export default function WeeklyRetrospective() {
                                                 </button>
                                               )}
 
-                                              {/* Loading indicator for deleting files */}
                                               {isDeleting && (
                                                 <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60">
                                                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
                                                 </div>
                                               )}
 
-                                              {/* "+X more" overlay for the 4th image */}
                                               {index === 3 && imageFiles.length > 4 && (
                                                 <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60 text-xs text-white">
                                                   +{imageFiles.length - 3}
@@ -1022,10 +777,10 @@ export default function WeeklyRetrospective() {
                                     </div>
                                   )}
                                 </div>
-                              ) : null;
-                            })()}
-                          </div>
-                        ))
+                              )}
+                            </div>
+                          );
+                        })
                       ) : (
                         <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-center">
                           <p className="text-sm opacity-60">No tracking items for this goal</p>
@@ -1037,7 +792,6 @@ export default function WeeklyRetrospective() {
               );
             })}
 
-            {/* Show message if there's nothing on this sync */}
             {allGroups.length === 0 && (
               <div className="rounded-lg border border-white/10 bg-white/5 p-12 text-center">
                 <Target className="mx-auto h-12 w-12 opacity-30" />

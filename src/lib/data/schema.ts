@@ -378,7 +378,9 @@ export const nextBids = pgTable(
   // (person_id) WHERE completed_at IS NULL keeps it tiny and fast.
   (t) => [
     index("next_bids_person_idx").on(t.personId),
-    index("next_bids_open_idx").on(t.personId).where(sql`completed_at IS NULL`),
+    index("next_bids_open_idx")
+      .on(t.personId)
+      .where(sql`completed_at IS NULL`),
   ],
 );
 

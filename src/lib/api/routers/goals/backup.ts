@@ -27,9 +27,7 @@ import {
   weeklySync,
   weeklySyncItems,
 } from "../../../data/schema";
-import {
-  backupSchema,
-} from "../../types";
+import { backupSchema } from "../../types";
 import { writeFile, readFile, mkdir } from "fs/promises";
 import path from "path";
 import { UPLOADS_ROOT } from "./_shared";

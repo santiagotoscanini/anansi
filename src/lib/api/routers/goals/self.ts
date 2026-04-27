@@ -3,10 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../../trpc";
 import { db } from "../../../data";
-import {
-  selfListItems,
-  userSelf,
-} from "../../../data/schema";
+import { selfListItems, userSelf } from "../../../data/schema";
 import {
   createSelfListItemSchema,
   reorderSelfListItemsSchema,

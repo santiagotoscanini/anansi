@@ -3,16 +3,8 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../../trpc";
 import { db } from "../../../data";
-import {
-  goalValues,
-  valueBehaviors,
-  values,
-} from "../../../data/schema";
-import {
-  createValueBehaviorSchema,
-  createValueSchema,
-  updateValueSchema,
-} from "../../types";
+import { goalValues, valueBehaviors, values } from "../../../data/schema";
+import { createValueBehaviorSchema, createValueSchema, updateValueSchema } from "../../types";
 
 export const valuesRouter = createTRPCRouter({
   values: createTRPCRouter({

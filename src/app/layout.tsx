@@ -2,12 +2,13 @@ import "~/styles/globals.css";
 import type { PropsWithChildren } from "react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/react";
+import { TRPCProvider } from "~/trpc/react";
 
 export default function RootLayout({ children }: PropsWithChildren) {
   return (
     <html className="h-full" lang="en">
       <body className="font-spaceGrotesk h-full">
-        {children}
+        <TRPCProvider>{children}</TRPCProvider>
         <SpeedInsights />
         <Analytics />
       </body>

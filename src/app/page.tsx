@@ -6,7 +6,6 @@ import { Lock } from "lucide-react";
 import GoalsDashboard from "~/components/goals/GoalsDashboard";
 import RegisterModal from "~/components/goals/RegisterModal";
 import toast, { Toaster } from "react-hot-toast";
-import { api } from "~/trpc/react";
 
 function GoalsPageContent() {
   const { isAuthenticated, isLoading, authenticate } = useGoals();
@@ -128,12 +127,12 @@ function GoalsPageContent() {
   return <GoalsDashboard />;
 }
 
-function GoalsPage() {
+// TRPCProvider lives in src/app/layout.tsx now (App-Router-native), so the
+// page just composes its own GoalsProvider on top — no withTRPC HOC needed.
+export default function GoalsPage() {
   return (
     <GoalsProvider>
       <GoalsPageContent />
     </GoalsProvider>
   );
 }
-
-export default api.withTRPC(GoalsPage);

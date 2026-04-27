@@ -71,6 +71,8 @@ import {
 } from "../types";
 import { decodeUpload, decodeImageUpload, UploadValidationError } from "../../image-upload";
 import { checkRateLimit } from "../../rate-limit";
+import { computeImportance } from "../../computation/importance";
+import { loadGoalsForUser } from "../../data/queries/load-goals";
 import { writeFile, readFile, mkdir, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
@@ -256,86 +258,8 @@ export const goalsRouter = createTRPCRouter({
   // Goals operations
   goals: createTRPCRouter({
     getAll: protectedProcedure.query(async ({ ctx }): Promise<Goal[]> => {
-      const goalsData = await db
-        .select()
-        .from(goals)
-        .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
-      const goalIds = goalsData.map((g) => g.id);
-
-      // Get all tasks for user's goals
-      const tasksData = await db
-        .select()
-        .from(tasks)
-        .innerJoin(goals, eq(tasks.goalId, goals.id))
-        .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
-
-      const taskIds = tasksData.map((t) => t.tasks.id);
-      const referentsData = taskIds.length
-        ? await db.select().from(taskReferents).where(inArray(taskReferents.taskId, taskIds))
-        : [];
-      const taskGroupsData = taskIds.length
-        ? await db.select().from(tasksToGroups).where(inArray(tasksToGroups.taskId, taskIds))
-        : [];
-
-      // Get all goal-value relationships for user's goals
-      const goalValuesData = await db
-        .select()
-        .from(goalValues)
-        .innerJoin(goals, eq(goalValues.goalId, goals.id))
-        .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
-
-      // Get all connections for user's goals
-      const connectionsData =
-        goalIds.length > 0
-          ? await db
-              .select()
-              .from(connections)
-              .innerJoin(goals, eq(connections.source, goals.id))
-              .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")))
-          : [];
-
-      // Helper function to calculate importance based on outgoing connections
-      const calculateImportance = (goalId: string): "Low" | "Medium" | "High" => {
-        const outgoingConnections = connectionsData
-          .filter((item) => item.connections.source === goalId)
-          .map((item) => item.connections);
-
-        if (outgoingConnections.length === 0) return "Low";
-
-        const totalWeight = outgoingConnections.reduce((sum, conn) => sum + conn.weight, 0);
-        const averageWeight = totalWeight / outgoingConnections.length;
-
-        if (averageWeight <= 33.3) return "Low";
-        if (averageWeight < 66.6) return "Medium";
-        return "High"; // averageWeight <= 100
-      };
-
-      return goalsData.map((goal) => ({
-        id: goal.id,
-        title: goal.title,
-        description: goal.description,
-        emoji: goal.emoji ?? undefined,
-        parentId: goal.parentId ?? undefined,
-        position: { x: goal.positionX, y: goal.positionY },
-        importance: calculateImportance(goal.id),
-        status: goal.status,
-        valueIds: goalValuesData
-          .filter((item) => item.goal_values.goalId === goal.id)
-          .map((item) => item.goal_values.valueId),
-        tasks: tasksData
-          .filter((item) => item.tasks.goalId === goal.id)
-          .map((item) => ({
-            id: item.tasks.id,
-            title: item.tasks.title,
-            description: item.tasks.description ?? null,
-            emoji: item.tasks.emoji ?? null,
-            difficulty: item.tasks.difficulty as 1 | 2 | 3,
-            completed: item.tasks.completed,
-            scheduledAt: item.tasks.scheduledAt ?? null,
-            referentIds: referentsData.filter((r) => r.taskId === item.tasks.id).map((r) => r.personId),
-            groupIds: taskGroupsData.filter((g) => g.taskId === item.tasks.id).map((g) => g.groupId),
-          })),
-      }));
+      const { goals } = await loadGoalsForUser(ctx.user.userId);
+      return goals;
     }),
 
     create: protectedProcedure.input(createGoalSchema).mutation(async ({ input, ctx }) => {
@@ -931,14 +855,7 @@ export const goalsRouter = createTRPCRouter({
             : Promise.resolve([] as (typeof weeklySyncItems.$inferSelect)[]),
         ]);
 
-        const calcImportance = (goalId: string): "Low" | "Medium" | "High" => {
-          const out = allConns.filter((c) => c.source === goalId);
-          if (out.length === 0) return "Low";
-          const avg = out.reduce((s, c) => s + c.weight, 0) / out.length;
-          if (avg <= 33.3) return "Low";
-          if (avg < 66.6) return "Medium";
-          return "High";
-        };
+        // computeImportance reads the same `(source, weight)` shape we already have.
 
         // Attachments depend on which sync items we got back; one more await.
         let attachmentsData: (typeof attachments.$inferSelect)[] = [];
@@ -1007,7 +924,7 @@ export const goalsRouter = createTRPCRouter({
             id: g.id,
             title: g.title,
             description: g.description,
-            importance: calcImportance(g.id),
+            importance: computeImportance(allConns, g.id),
             items: itemsByGoal.get(g.id) ?? [],
           }));
 
@@ -1294,138 +1211,19 @@ export const goalsRouter = createTRPCRouter({
     }),
   }),
 
-  // User operations
-  user: createTRPCRouter({
-    getCurrent: protectedProcedure.query(async ({ ctx }) => {
-      return {
-        userId: ctx.user.userId,
-        userName: ctx.user.userName,
-      };
-    }),
-  }),
-
-  // Debug operations
-  debug: createTRPCRouter({
-    getWeeklySyncData: protectedProcedure.query(async ({ ctx }) => {
-      const weeklySyncs = await db.select().from(weeklySync).where(eq(weeklySync.userId, ctx.user.userId));
-
-      const weeklySyncItemsData = await db
-        .select()
-        .from(weeklySyncItems)
-        .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
-        .where(eq(weeklySync.userId, ctx.user.userId));
-
-      const attachmentsData = await db
-        .select()
-        .from(attachments)
-        .where(and(eq(attachments.userId, ctx.user.userId), eq(attachments.parentType, "weekly_sync_item")));
-
-      return {
-        weeklySyncs,
-        weeklySyncItems: weeklySyncItemsData,
-        attachments: attachmentsData,
-        counts: {
-          weeklySyncs: weeklySyncs.length,
-          weeklySyncItems: weeklySyncItemsData.length,
-          attachments: attachmentsData.length,
-        },
-      };
-    }),
-  }),
-
   // Data operations (for importing/exporting)
   data: createTRPCRouter({
     getAll: protectedProcedure.query(async ({ ctx }) => {
-      const valuesData = await db.select().from(values).where(eq(values.userId, ctx.user.userId));
-      const goalsData = await db
-        .select()
-        .from(goals)
-        .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")));
-
-      // Get tasks for user's goals only
-      const goalIds = goalsData.map((g) => g.id);
-      const tasksData =
-        goalIds.length > 0
-          ? await db
-              .select()
-              .from(tasks)
-              .innerJoin(goals, eq(tasks.goalId, goals.id))
-              .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")))
-          : [];
-
-      const taskIds = tasksData.map((t) => t.tasks.id);
-      const referentsData =
-        taskIds.length > 0 ? await db.select().from(taskReferents).where(inArray(taskReferents.taskId, taskIds)) : [];
-      const taskGroupsData =
-        taskIds.length > 0 ? await db.select().from(tasksToGroups).where(inArray(tasksToGroups.taskId, taskIds)) : [];
-
-      // Get connections for user's goals only
-      const connectionsData =
-        goalIds.length > 0
-          ? await db
-              .select()
-              .from(connections)
-              .innerJoin(goals, eq(connections.source, goals.id))
-              .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")))
-          : [];
-
-      // Get goal-value relationships for user's goals only
-      const goalValuesData =
-        goalIds.length > 0
-          ? await db
-              .select()
-              .from(goalValues)
-              .innerJoin(goals, eq(goalValues.goalId, goals.id))
-              .where(and(eq(goals.userId, ctx.user.userId), eq(goals.status, "active")))
-          : [];
-
-      // Helper function to calculate importance based on outgoing connections
-      const calculateImportance = (goalId: string): "Low" | "Medium" | "High" => {
-        const outgoingConnections = connectionsData
-          .filter((item) => item.connections.source === goalId)
-          .map((item) => item.connections);
-
-        if (outgoingConnections.length === 0) return "Low";
-
-        const totalWeight = outgoingConnections.reduce((sum, conn) => sum + conn.weight, 0);
-        const averageWeight = totalWeight / outgoingConnections.length;
-
-        if (averageWeight <= 33.3) return "Low";
-        if (averageWeight < 66.6) return "Medium";
-        return "High"; // averageWeight <= 100
-      };
-
-      const mappedGoals: Goal[] = goalsData.map((goal) => ({
-        id: goal.id,
-        title: goal.title,
-        description: goal.description,
-        emoji: goal.emoji ?? undefined,
-        parentId: goal.parentId ?? undefined,
-        position: { x: goal.positionX, y: goal.positionY },
-        importance: calculateImportance(goal.id),
-        status: goal.status,
-        valueIds: goalValuesData
-          .filter((item) => item.goal_values.goalId === goal.id)
-          .map((item) => item.goal_values.valueId),
-        tasks: tasksData
-          .filter((item) => item.tasks.goalId === goal.id)
-          .map((item) => ({
-            id: item.tasks.id,
-            title: item.tasks.title,
-            description: item.tasks.description ?? null,
-            emoji: item.tasks.emoji ?? null,
-            difficulty: item.tasks.difficulty as 1 | 2 | 3,
-            completed: item.tasks.completed,
-            scheduledAt: item.tasks.scheduledAt ?? null,
-            referentIds: referentsData.filter((r) => r.taskId === item.tasks.id).map((r) => r.personId),
-            groupIds: taskGroupsData.filter((g) => g.taskId === item.tasks.id).map((g) => g.groupId),
-          })),
-      }));
-
+      // values is the only table data.getAll exposes that goals.getAll
+      // doesn't — load it in parallel with the merged goals payload.
+      const [valuesData, loaded] = await Promise.all([
+        db.select().from(values).where(eq(values.userId, ctx.user.userId)),
+        loadGoalsForUser(ctx.user.userId),
+      ]);
       return {
         values: valuesData,
-        goals: mappedGoals,
-        connections: connectionsData.map((item) => item.connections),
+        goals: loaded.goals,
+        connections: loaded.connections,
       };
     }),
   }),

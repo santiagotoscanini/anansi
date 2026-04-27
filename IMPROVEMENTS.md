@@ -31,13 +31,13 @@ Audit performed 2026-04-26. Items numbered as in the original audit; legend belo
 ## 🟡 MEDIUM — structural
 
 - ⬜ **#17 — Split `goals.ts` (2433 lines) and `GoalsContext.tsx` (839 lines).** Per-feature router files; auth pulled out of the goals context.
-- ⬜ **#18 — `calculateImportance` duplicated 4×, `loadGoalsForUser` 2×.** Extract to shared helpers, prove logic is identical.
+- ✅ **#18 — Shared helpers extracted.** `src/lib/computation/importance.ts` exports `computeImportance(connections, goalId)` — used by 3 router endpoints (`goals.getAll`, `data.getAll`, `weeklySync.getWeeklyRetrospectiveData`) and `GoalsContext.calculateImportance`. `src/lib/data/queries/load-goals.ts` exports `loadGoalsForUser(userId)` — collapses the 6-query goal-hydration logic that was duplicated between `goals.getAll` and `data.getAll`. Math/output verified by side-by-side smoke test: both endpoints return identical goal counts, task counts, and importance values on the dev DB.
 - ⬜ **#19 — Migrate to App Router-native `createTRPCReact` + provider in layout.** Drop `withTRPC` HOC.
 - ⏭ **#20 — `z.date()` vs `z.coerce.date()` inconsistency.** Deferred.
 - ✅ **#21 — Dual error shape converged.** tRPC procedures all throw `TRPCError`; the auth route handlers under `/api/auth/*` return `{ error }` with proper HTTP status codes (401/400/409). Frontend `authenticate`/`register` check `res.ok` instead of parsing a `success` field.
 - ⏭ **#22 — Structured logging (pino).** Deferred.
 - ⏭ **#23 — Security headers (CSP/HSTS/X-Frame-Options).** Deferred.
-- ⬜ **#24 — `debug.getWeeklySyncData` ships in production.** Dead code (verified no callers). Delete.
+- ✅ **#24 — Dead `debug.*` and `user.*` sub-routers deleted.** Both verified to have zero callers in `src/`. Removed `goals.debug.getWeeklySyncData` (full sync-data dump, authenticated but useless in prod) and `goals.user.getCurrent` (returned what `auth.me` already provides).
 - ⏸ **#25 — Dockerfile installs drizzle-kit in runner.** Skip — self-hosted, migrations must run inside container.
 - ⏸ **#26 — `docker-compose.yml` hardcoded userId in volume mount.** Skip — file is unused, kept for local dev.
 - ⏸ **#27 — Vercel Speed Insights/Analytics on self-hosted.** Skip — leave as-is.

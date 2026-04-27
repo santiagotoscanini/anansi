@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import { api, type RouterOutputs } from "~/trpc/react";
+import { computeImportance, type Importance } from "~/lib/computation/importance";
 import type {
   Value,
   Goal,
@@ -104,7 +105,7 @@ interface GoalsContextType {
   getGoalCompletion: (goalId: string) => number;
   getPathCompletion: (goalId: string) => number;
   getGoalProgress: (goalId: string) => { ownProgress: number; dependenciesProgress: number; totalProgress: number };
-  calculateImportance: (goalId: string) => "Low" | "Medium" | "High";
+  calculateImportance: (goalId: string) => Importance;
   getWeekStartDate: (date: Date) => Date;
 }
 
@@ -305,20 +306,11 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     [valuesMutations.delete, invalidateData],
   );
 
-  // Calculate importance based on outgoing edge weights
+  // Importance is computed from outgoing-edge weights via the canonical
+  // helper in `lib/computation/importance.ts` (also used by every server
+  // endpoint that hydrates goals, so client + server agree on thresholds).
   const calculateImportance = useCallback(
-    (goalId: string): "Low" | "Medium" | "High" => {
-      const outgoingConnections = connections.filter((c) => c.source === goalId);
-
-      if (outgoingConnections.length === 0) return "Low";
-
-      const totalWeight = outgoingConnections.reduce((sum, conn) => sum + conn.weight, 0);
-      const averageWeight = totalWeight / outgoingConnections.length;
-
-      if (averageWeight <= 33.3) return "Low";
-      if (averageWeight < 66.6) return "Medium";
-      return "High"; // averageWeight <= 100
-    },
+    (goalId: string): Importance => computeImportance(connections, goalId),
     [connections],
   );
 

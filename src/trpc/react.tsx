@@ -55,8 +55,18 @@ export function TRPCProvider({ children }: { children: ReactNode }) {
     api.createClient({
       links: [
         loggerLink({
-          enabled: (op) =>
-            process.env.NODE_ENV === "development" || (op.direction === "down" && op.result instanceof Error),
+          enabled: (op) => {
+            // UNAUTHORIZED is the expected response for a signed-out visitor —
+            // tRPC's loggerLink calls console.error on errored results, and
+            // Next 16's devtools turn every console.error into an overlay
+            // entry. Suppress that case so the dev overlay stays clean.
+            if (op.direction === "down" && op.result instanceof Error) {
+              const code = (op.result as { data?: { code?: string } }).data?.code;
+              if (code === "UNAUTHORIZED") return false;
+              return true;
+            }
+            return process.env.NODE_ENV === "development";
+          },
         }),
         httpBatchLink({
           url: getBaseUrl() + "/api/trpc",

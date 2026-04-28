@@ -41,11 +41,14 @@ Deeper architectural detail lives in [`CLAUDE.md`](./CLAUDE.md) — it's the sin
 
 ## Local development
 
-Requires Docker (for the DB) and Node 20+.
+Requires Node 20+ and a Postgres database. The simplest free option is a [Supabase](https://supabase.com) project — use the **Session pooler** connection string (Project → Connect → Session pooler), which is IPv4-compatible and works on the free tier.
 
 ```bash
-# 1. Bring up Postgres on localhost:15822
-docker compose -f docker-compose.dev.yml up -d
+# 1. Create .env at the repo root.
+cp .env.example .env
+# then fill in:
+#   DATABASE_URL — Supabase Session pooler URL (URL-encode special chars in the password)
+#   JWT_SECRET   — 32+ chars; generate with: openssl rand -base64 48
 
 # 2. Install deps
 npm ci
@@ -59,12 +62,16 @@ npm run dev
 
 App lands on <http://localhost:3000>.
 
-A seeded test user exists for automated flows (Playwright, smoke testing):
+### First user
 
-- **Email:** `santi@test.local`
-- **Password:** `devpassword`
+There's no seed script — register your first user via the app's `/register` page. For automated flows (Playwright, smoke testing), the conventional credentials are `santi@test.local` / `devpassword`. To insert that user directly:
 
-Reset the password if it drifts (see CLAUDE.md → "Local dev credentials").
+```bash
+HASH=$(node -e "console.log(require('bcryptjs').hashSync('devpassword', 10))")
+ID=$(node -e "console.log(require('@paralleldrive/cuid2').createId())")
+psql "$DATABASE_URL" \
+  -c "INSERT INTO users (id, name, email, password) VALUES ('$ID', 'Santi', 'santi@test.local', '$HASH');"
+```
 
 ## Pre-flight checks
 

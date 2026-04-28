@@ -6,20 +6,29 @@ Feature surface: visual goal hierarchies with weighted connections, weekly progr
 
 ## Local dev credentials
 
-The local Postgres (`docker-compose.dev.yml`, port 15822) has a single seeded test user for automated flows (Playwright, manual smoke testing):
+Local dev runs against an external Postgres (Supabase Session Pooler URL in `.env` → `DATABASE_URL`). There is no seed script — the conventional test user for automated flows (Playwright, manual smoke testing) is:
 
 - **Email:** `santi@test.local`
 - **Password:** `devpassword`
 
-Local dev DB only — do not reuse in production. To reset if the password drifts:
+Create it after `npm run db:migrate`:
 
 ```bash
 HASH=$(node -e "console.log(require('bcryptjs').hashSync('devpassword', 10))")
-docker exec goals-db psql -U user -d goals_db \
+ID=$(node -e "console.log(require('@paralleldrive/cuid2').createId())")
+psql "$DATABASE_URL" \
+  -c "INSERT INTO users (id, name, email, password) VALUES ('$ID', 'Santi', 'santi@test.local', '$HASH');"
+```
+
+Reset the password if it drifts:
+
+```bash
+HASH=$(node -e "console.log(require('bcryptjs').hashSync('devpassword', 10))")
+psql "$DATABASE_URL" \
   -c "UPDATE users SET password = '$HASH', updated_at = now() WHERE email = 'santi@test.local';"
 ```
 
-To log in: open `http://localhost:3000`, enter the email + password above, click "Sign In".
+Local dev DB only — do not reuse credentials in production. To log in: open `http://localhost:3000`, enter the email + password above, click "Sign In".
 
 ## Stack
 

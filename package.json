@@ -15,8 +15,7 @@
     "db:pull": "npx drizzle-kit pull",
     "db:check": "npx drizzle-kit check",
     "db:up": "npx drizzle-kit up",
-    "db:studio": "npx drizzle-kit studio",
-    "db:seed": "npx tsx src/lib/db/seed.ts"
+    "db:studio": "npx drizzle-kit studio"
   },
   "type": "module",
   "dependencies": {

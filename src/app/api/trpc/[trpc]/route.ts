@@ -15,6 +15,9 @@ const handler = (req: NextRequest) =>
       });
     },
     onError: ({ path, error }) => {
+      // UNAUTHORIZED is the expected outcome of auth.me / any protected query
+      // for a signed-out visitor — not a server fault worth logging.
+      if (error.code === "UNAUTHORIZED") return;
       console.error(`❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`);
     },
   });

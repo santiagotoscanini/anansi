@@ -24,7 +24,7 @@ import {
   Hourglass,
   UserCircle2,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useGoals } from "~/contexts/GoalsContext";
 import { api } from "~/trpc/react";
 import toast, { Toaster } from "react-hot-toast";
@@ -61,6 +61,29 @@ type TabType =
   | "people"
   | "relationships";
 
+const TAB_SLUGS: ReadonlySet<TabType> = new Set([
+  "objectives",
+  "horizons",
+  "tasks",
+  "pulse",
+  "sync",
+  "tracking-items",
+  "self",
+  "values",
+  "progress",
+  "bucket",
+  "people",
+  "relationships",
+]);
+const DEFAULT_TAB: TabType = "objectives";
+
+const APP_PATH_RE = /^\/app(?:\/([^/]+))?/;
+function tabFromPathname(pathname: string): TabType {
+  const m = APP_PATH_RE.exec(pathname);
+  const slug = m?.[1];
+  return slug && TAB_SLUGS.has(slug as TabType) ? (slug as TabType) : DEFAULT_TAB;
+}
+
 type NavItem = { id: TabType; name: string; icon: typeof Target };
 
 // Pulse — the at-a-glance summary of Anansi. Lives at the top of the
@@ -94,7 +117,11 @@ const relationshipsNavItem: NavItem = { id: "relationships", name: "Relationship
 export default function GoalsDashboard() {
   const { logout, isDataLoading, goals: allGoals } = useGoals();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabType>("objectives");
+  const pathname = usePathname();
+  const activeTab: TabType = tabFromPathname(pathname);
+  const setActiveTab = (tab: TabType) => {
+    if (tab !== activeTab) router.push(`/app/${tab}`);
+  };
   const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>({ kind: "all" });
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);

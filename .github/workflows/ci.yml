@@ -1,6 +1,4 @@
 # Validates every PR + every push to main: lint, typecheck, build.
-# Pairs with docker-publish.yml (which only fires on version-bump). The point
-# of CI is to keep main green so docker-publish never fails the actual build.
 name: CI
 
 on:

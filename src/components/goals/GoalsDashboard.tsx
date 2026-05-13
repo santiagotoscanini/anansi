@@ -24,6 +24,7 @@ import {
   Hourglass,
   UserCircle2,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useGoals } from "~/contexts/GoalsContext";
 import { api } from "~/trpc/react";
 import toast, { Toaster } from "react-hot-toast";
@@ -44,28 +45,7 @@ import ColorPicker from "./ColorPicker";
 import ProfileModal from "./ProfileModal";
 import Avatar from "./Avatar";
 import { DashboardErrorBoundary } from "./DashboardErrorBoundary";
-
-// Ananse Ntontan — Adinkra symbol for Anansi (spider). Rendered inline so it
-// inherits currentColor and stays crisp at any size.
-function AnansiMark({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden>
-      <g stroke="currentColor" strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" fill="none">
-        <line x1="50" y1="50" x2="50" y2="8" />
-        <line x1="50" y1="50" x2="79.7" y2="20.3" />
-        <line x1="50" y1="50" x2="92" y2="50" />
-        <line x1="50" y1="50" x2="79.7" y2="79.7" />
-        <line x1="50" y1="50" x2="50" y2="92" />
-        <line x1="50" y1="50" x2="20.3" y2="79.7" />
-        <line x1="50" y1="50" x2="8" y2="50" />
-        <line x1="50" y1="50" x2="20.3" y2="20.3" />
-        <polygon points="50,8 79.7,20.3 92,50 79.7,79.7 50,92 20.3,79.7 8,50 20.3,20.3" />
-        <polygon points="50,22 69.8,30.2 78,50 69.8,69.8 50,78 30.2,69.8 22,50 30.2,30.2" />
-        <polygon points="50,36 59.9,40.1 64,50 59.9,59.9 50,64 40.1,59.9 36,50 40.1,40.1" />
-      </g>
-    </svg>
-  );
-}
+import { AnansiMark, BrandLockup } from "./Brand";
 
 type TabType =
   | "objectives"
@@ -113,6 +93,7 @@ const relationshipsNavItem: NavItem = { id: "relationships", name: "Relationship
 
 export default function GoalsDashboard() {
   const { logout, isDataLoading, goals: allGoals } = useGoals();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>("objectives");
   const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>({ kind: "all" });
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -209,7 +190,12 @@ export default function GoalsDashboard() {
 
   const handleLogout = () => {
     logout();
-    toast.success("Logged out successfully");
+    toast.success("Logged out");
+    // Route-based app now — push to /login so the auth screen is the
+    // explicit landing surface for a returning user. (The /app route
+    // also auto-redirects on isAuthenticated=false, but a `router.push`
+    // here gives an instant nav instead of waiting for that effect.)
+    router.push("/login");
   };
 
   const groups = groupsQuery.data ?? [];
@@ -259,11 +245,22 @@ export default function GoalsDashboard() {
         key={item.id}
         onClick={onClick}
         title={isCollapsed ? item.name : undefined}
-        className={`flex items-center rounded-lg text-sm transition-all ${
+        className={`group flex items-center rounded-lg text-[13px] transition-all ${
           isCollapsed ? "justify-center px-0 py-2" : "gap-3 px-3 py-2"
-        } ${active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"}`}
+        }`}
+        style={{
+          color: active ? "var(--clay-deep)" : "var(--ink-2)",
+          background: active ? "var(--clay-soft)" : "transparent",
+          fontWeight: active ? 500 : 400,
+        }}
+        onMouseEnter={(e) => {
+          if (!active) e.currentTarget.style.background = "var(--vellum)";
+        }}
+        onMouseLeave={(e) => {
+          if (!active) e.currentTarget.style.background = "transparent";
+        }}
       >
-        <Icon className="h-4 w-4 shrink-0" />
+        <Icon className="h-[15px] w-[15px] shrink-0" />
         {!isCollapsed && <span>{item.name}</span>}
       </button>
     );
@@ -274,31 +271,30 @@ export default function GoalsDashboard() {
     const widthPx = opts?.widthPx ?? (isCollapsed ? COLLAPSED_PX : expandedWidth);
     return (
       <aside
-        style={{ width: `${widthPx}px` }}
-        className={`relative flex h-full shrink-0 flex-col border-r border-white/10 bg-black ${
-          isResizing ? "" : "transition-[width] duration-200"
-        }`}
+        style={{
+          width: `${widthPx}px`,
+          background: "var(--paper-deep)",
+          borderRight: "1px solid var(--hairline)",
+          color: "var(--ink)",
+        }}
+        className={`relative flex h-full shrink-0 flex-col ${isResizing ? "" : "transition-[width] duration-200"}`}
       >
-        {/* Brand + collapse toggle */}
+        {/* Brand lockup + chrome controls — italic Cormorant wordmark with
+            the clay drop on the 'i', or the mark alone when collapsed. */}
         <div className={`flex items-center py-5 ${isCollapsed ? "justify-center px-2" : "justify-between px-5"}`}>
-          {isCollapsed ? (
-            <AnansiMark className="h-6 w-6 text-white/80" />
-          ) : (
-            <div className="flex items-center gap-2">
-              <AnansiMark className="h-5 w-5 text-white/80" />
-              <h1 className="text-lg font-light tracking-tight">Anansi</h1>
-            </div>
-          )}
+          {isCollapsed ? <AnansiMark size={22} /> : <BrandLockup size={20} />}
           <button
             onClick={() => setMobileNavOpen(false)}
-            className="rounded p-1 text-white/60 transition-all hover:bg-white/10 hover:text-white md:hidden"
+            className="rounded p-1 transition-all md:hidden"
+            style={{ color: "var(--ink-3)" }}
             aria-label="Close navigation"
           >
             <X className="h-5 w-5" />
           </button>
           <button
             onClick={() => setCollapsed((c) => !c)}
-            className="hidden rounded p-1 text-white/50 transition-all hover:bg-white/10 hover:text-white md:inline-flex"
+            className="hidden rounded p-1 transition-all md:inline-flex"
+            style={{ color: "var(--ink-3)" }}
             aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
@@ -316,9 +312,14 @@ export default function GoalsDashboard() {
 
           {/* Compass section */}
           {!isCollapsed ? (
-            <div className="mb-1 mt-4 px-2 text-[10px] uppercase tracking-wider text-white/30">Compass</div>
+            <div
+              className="mb-1 mt-4 px-2 text-[10px] font-medium uppercase tracking-[0.12em]"
+              style={{ color: "var(--ink-3)" }}
+            >
+              Compass
+            </div>
           ) : (
-            <div className="my-2 h-px bg-white/10" />
+            <div className="my-2 h-px" style={{ background: "var(--hairline)" }} />
           )}
           {compassSection.map((item) =>
             renderNavItem(item, isCollapsed, activeTab === item.id, () => {
@@ -329,9 +330,14 @@ export default function GoalsDashboard() {
 
           {/* Goals section */}
           {!isCollapsed ? (
-            <div className="mb-1 mt-4 px-2 text-[10px] uppercase tracking-wider text-white/30">Goals</div>
+            <div
+              className="mb-1 mt-4 px-2 text-[10px] font-medium uppercase tracking-[0.12em]"
+              style={{ color: "var(--ink-3)" }}
+            >
+              Goals
+            </div>
           ) : (
-            <div className="my-2 h-px bg-white/10" />
+            <div className="my-2 h-px" style={{ background: "var(--hairline)" }} />
           )}
           {goalsSection.map((item) =>
             renderNavItem(item, isCollapsed, activeTab === item.id, () => {
@@ -342,9 +348,14 @@ export default function GoalsDashboard() {
 
           {/* Sync section */}
           {!isCollapsed ? (
-            <div className="mb-1 mt-4 px-2 text-[10px] uppercase tracking-wider text-white/30">Sync</div>
+            <div
+              className="mb-1 mt-4 px-2 text-[10px] font-medium uppercase tracking-[0.12em]"
+              style={{ color: "var(--ink-3)" }}
+            >
+              Sync
+            </div>
           ) : (
-            <div className="my-2 h-px bg-white/10" />
+            <div className="my-2 h-px" style={{ background: "var(--hairline)" }} />
           )}
           {syncSection.map((item) =>
             renderNavItem(item, isCollapsed, activeTab === item.id, () => {
@@ -355,9 +366,14 @@ export default function GoalsDashboard() {
 
           {/* Connections section */}
           {!isCollapsed ? (
-            <div className="mb-1 mt-4 px-2 text-[10px] uppercase tracking-wider text-white/30">Connections</div>
+            <div
+              className="mb-1 mt-4 px-2 text-[10px] font-medium uppercase tracking-[0.12em]"
+              style={{ color: "var(--ink-3)" }}
+            >
+              Connections
+            </div>
           ) : (
-            <div className="my-2 h-px bg-white/10" />
+            <div className="my-2 h-px" style={{ background: "var(--hairline)" }} />
           )}
 
           {/* People — only active when no group filter is on */}
@@ -368,15 +384,34 @@ export default function GoalsDashboard() {
               <button
                 onClick={() => goToPeople({ kind: "all" })}
                 title={isCollapsed ? peopleNavItem.name : undefined}
-                className={`flex items-center rounded-lg text-sm transition-all ${
+                className={`flex items-center rounded-lg text-[13px] transition-all ${
                   isCollapsed ? "justify-center px-0 py-2" : "gap-3 px-3 py-2"
-                } ${active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"}`}
+                }`}
+                style={{
+                  color: active ? "var(--clay-deep)" : "var(--ink-2)",
+                  background: active ? "var(--clay-soft)" : "transparent",
+                  fontWeight: active ? 500 : 400,
+                }}
+                onMouseEnter={(e) => {
+                  if (!active) e.currentTarget.style.background = "var(--vellum)";
+                }}
+                onMouseLeave={(e) => {
+                  if (!active) e.currentTarget.style.background = "transparent";
+                }}
               >
-                <Icon className="h-4 w-4 shrink-0" />
+                <Icon className="h-[15px] w-[15px] shrink-0" />
                 {!isCollapsed && (
                   <span className="flex flex-1 items-center justify-between">
                     <span>{peopleNavItem.name}</span>
-                    <span className="text-xs text-white/40">{peopleCount}</span>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                        color: active ? "var(--clay-deep)" : "var(--ink-3)",
+                      }}
+                    >
+                      {peopleCount}
+                    </span>
                   </span>
                 )}
               </button>
@@ -393,31 +428,48 @@ export default function GoalsDashboard() {
           {!isCollapsed && (
             <>
               <div className="mb-1 mt-4 flex items-center justify-between px-2">
-                <span className="text-[10px] uppercase tracking-wider text-white/30">Groups</span>
+                <span className="text-[10px] font-medium uppercase tracking-[0.12em]" style={{ color: "var(--ink-3)" }}>
+                  Groups
+                </span>
                 <button
                   onClick={() => setShowNewGroupForm(true)}
                   title="New group"
-                  className="rounded p-0.5 text-white/40 transition-all hover:bg-white/10 hover:text-white"
+                  className="rounded p-0.5 transition-all"
+                  style={{ color: "var(--ink-3)" }}
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </button>
               </div>
 
-              {/* Uncategorized — pseudo-group at the top, like Starred in Mesh */}
-              <button
-                onClick={() => goToPeople({ kind: "uncategorized" })}
-                className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-all ${
-                  activeTab === "people" && peopleFilter.kind === "uncategorized"
-                    ? "bg-white/10 text-white"
-                    : "text-white/60 hover:bg-white/5 hover:text-white"
-                }`}
-              >
-                <span className="flex items-center gap-3">
-                  <span className="h-2 w-2 rounded-full border border-white/30" />
-                  <span>Uncategorized</span>
-                </span>
-                <span className="text-xs text-white/40">{uncategorizedCount}</span>
-              </button>
+              {/* Uncategorized — pseudo-group at the top */}
+              {(() => {
+                const selected = activeTab === "people" && peopleFilter.kind === "uncategorized";
+                return (
+                  <button
+                    onClick={() => goToPeople({ kind: "uncategorized" })}
+                    className="flex items-center justify-between rounded-lg px-3 py-2 text-[13px] transition-all"
+                    style={{
+                      color: selected ? "var(--clay-deep)" : "var(--ink-2)",
+                      background: selected ? "var(--clay-soft)" : "transparent",
+                      fontWeight: selected ? 500 : 400,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!selected) e.currentTarget.style.background = "var(--vellum)";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!selected) e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="h-2 w-2 rounded-full" style={{ border: "1px solid var(--ink-4)" }} />
+                      <span>Uncategorized</span>
+                    </span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink-3)" }}>
+                      {uncategorizedCount}
+                    </span>
+                  </button>
+                );
+              })()}
 
               {groups.map((g) => {
                 const selected =
@@ -426,21 +478,32 @@ export default function GoalsDashboard() {
                   <button
                     key={g.id}
                     onClick={() => goToPeople({ kind: "group", groupId: g.id })}
-                    className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-all ${
-                      selected ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
-                    }`}
+                    className="flex items-center justify-between rounded-lg px-3 py-2 text-[13px] transition-all"
+                    style={{
+                      color: selected ? "var(--clay-deep)" : "var(--ink-2)",
+                      background: selected ? "var(--clay-soft)" : "transparent",
+                      fontWeight: selected ? 500 : 400,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!selected) e.currentTarget.style.background = "var(--vellum)";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!selected) e.currentTarget.style.background = "transparent";
+                    }}
                   >
                     <span className="flex min-w-0 items-center gap-3">
                       <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: g.color }} />
                       <span className="truncate">{g.name}</span>
                     </span>
-                    <span className="text-xs text-white/40">{countForGroup(g.id)}</span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink-3)" }}>
+                      {countForGroup(g.id)}
+                    </span>
                   </button>
                 );
               })}
 
               {showNewGroupForm && (
-                <div className="flex items-center gap-3 rounded-lg bg-white/5 px-3 py-2">
+                <div className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ background: "var(--vellum)" }}>
                   <ColorPicker value={newGroupColor} onChange={setNewGroupColor} size="sm" />
                   <input
                     type="text"
@@ -454,7 +517,8 @@ export default function GoalsDashboard() {
                       }
                     }}
                     placeholder="Group name"
-                    className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/40"
+                    className="flex-1 bg-transparent text-sm outline-none"
+                    style={{ color: "var(--ink)" }}
                     autoFocus
                   />
                 </div>
@@ -464,7 +528,7 @@ export default function GoalsDashboard() {
         </nav>
 
         {/* User pill — opens menu with Profile and Log out. Backups live inside Profile. */}
-        <div className={`border-t border-white/10 py-3 ${isCollapsed ? "px-2" : "px-3"}`}>
+        <div className={`py-3 ${isCollapsed ? "px-2" : "px-3"}`} style={{ borderTop: "1px solid var(--hairline)" }}>
           <UserMenu
             isCollapsed={isCollapsed}
             user={meQuery.data ?? null}
@@ -486,9 +550,10 @@ export default function GoalsDashboard() {
             role="separator"
           >
             <span
-              className={`h-full w-px transition-colors ${
-                isResizing ? "bg-blue-400" : "bg-transparent group-hover:bg-white/20"
-              }`}
+              className="h-full w-px transition-colors"
+              style={{
+                background: isResizing ? "var(--clay)" : "transparent",
+              }}
             />
           </div>
         )}
@@ -548,7 +613,7 @@ export default function GoalsDashboard() {
   };
 
   return (
-    <main className="flex h-screen bg-black text-white">
+    <main className="flex h-screen" style={{ background: "var(--paper)", color: "var(--ink)" }}>
       <Toaster position="top-right" />
       {isImportOpen && <BackupImportModal onClose={() => setIsImportOpen(false)} />}
       {isProfileOpen && (
@@ -565,7 +630,7 @@ export default function GoalsDashboard() {
       {/* Mobile drawer — fixed default width, no drag handle */}
       {mobileNavOpen && (
         <div className="fixed inset-0 z-40 flex md:hidden" onClick={() => setMobileNavOpen(false)}>
-          <div className="absolute inset-0 bg-black/60" />
+          <div className="absolute inset-0" style={{ background: "rgba(28, 20, 8, 0.45)" }} />
           <div className="relative z-50" onClick={(e) => e.stopPropagation()}>
             {renderSidebar(false, { widthPx: SIDEBAR_DEFAULT_PX })}
           </div>
@@ -575,23 +640,29 @@ export default function GoalsDashboard() {
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile top bar */}
-        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 md:hidden">
+        <div
+          className="flex items-center justify-between px-4 py-3 md:hidden"
+          style={{ borderBottom: "1px solid var(--hairline)", background: "var(--paper)" }}
+        >
           <button
             onClick={() => setMobileNavOpen(true)}
-            className="rounded-lg p-2 text-white/60 transition-all hover:bg-white/10 hover:text-white"
+            className="rounded-lg p-2 transition-all"
+            style={{ color: "var(--ink-2)" }}
             aria-label="Open navigation"
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="text-sm text-white/70">{activeTitle()}</span>
+          <span style={{ fontFamily: "var(--font-display)", fontSize: 16, color: "var(--ink)" }}>{activeTitle()}</span>
           <span className="w-9" />
         </div>
 
         <div className="flex-1 overflow-auto">
           {isDataLoading ? (
-            <div className="flex h-64 items-center justify-center">
-              <RefreshCw className="h-8 w-8 animate-spin text-blue-400" />
-              <span className="ml-3 text-slate-300">Loading data...</span>
+            <div className="flex h-64 items-center justify-center" style={{ color: "var(--ink-3)" }}>
+              <RefreshCw className="h-5 w-5 animate-spin" style={{ color: "var(--clay)" }} />
+              <span className="ml-3 text-sm italic" style={{ fontFamily: "var(--font-text)" }}>
+                Looking for your threads…
+              </span>
             </div>
           ) : (
             // resetKey scoped to activeTab so a crashed tab can be escaped by
@@ -646,44 +717,68 @@ function UserMenu({
       <button
         onClick={() => setOpen((o) => !o)}
         title={isCollapsed ? displayName : undefined}
-        className={`flex w-full items-center rounded-lg text-sm transition-all ${
+        className={`flex w-full items-center rounded-lg transition-all ${
           isCollapsed ? "justify-center px-0 py-1.5" : "gap-3 px-2 py-2"
-        } text-white/70 hover:bg-white/5 hover:text-white`}
+        }`}
+        style={{ color: "var(--ink-2)" }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "var(--vellum)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "transparent";
+        }}
       >
         <Avatar name={displayName} emoji={user?.avatarUrl ?? null} size="sm" shape="circle" />
         {!isCollapsed && (
           <>
             <div className="min-w-0 flex-1 text-left">
-              <div className="truncate text-sm">{displayName}</div>
-              {displayEmail && <div className="truncate text-[11px] text-white/40">{displayEmail}</div>}
+              <div className="truncate text-[13px]" style={{ color: "var(--ink)" }}>
+                {displayName}
+              </div>
+              {displayEmail && (
+                <div className="truncate text-[10px]" style={{ color: "var(--ink-3)" }}>
+                  {displayEmail}
+                </div>
+              )}
             </div>
-            <ChevronUp className="h-4 w-4 shrink-0 text-white/40" />
+            <ChevronUp className="h-4 w-4 shrink-0" style={{ color: "var(--ink-3)" }} />
           </>
         )}
       </button>
       {open && (
         <div
-          className={`absolute z-30 rounded-lg border border-white/10 bg-zinc-950 p-1 shadow-2xl ${
+          className={`absolute z-30 rounded-lg p-1 ${
             isCollapsed ? "bottom-full left-full ml-2 w-44" : "bottom-full left-0 right-0 mb-2"
           }`}
+          style={{
+            background: "var(--canvas)",
+            border: "1px solid var(--hairline-2)",
+            boxShadow: "var(--shadow-pop)",
+          }}
         >
           <button
             onClick={() => {
               setOpen(false);
               onProfile();
             }}
-            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-white/80 transition-all hover:bg-white/10 hover:text-white"
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] transition-all"
+            style={{ color: "var(--ink)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--vellum)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
           >
-            <Settings className="h-4 w-4 text-white/50" /> Profile
+            <Settings className="h-4 w-4" style={{ color: "var(--ink-3)" }} /> Profile
           </button>
           <button
             onClick={() => {
               setOpen(false);
               onLogout();
             }}
-            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-white/80 transition-all hover:bg-white/10 hover:text-white"
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] transition-all"
+            style={{ color: "var(--ink)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--vellum)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
           >
-            <LogOut className="h-4 w-4 text-white/50" /> Log out
+            <LogOut className="h-4 w-4" style={{ color: "var(--ink-3)" }} /> Log out
           </button>
         </div>
       )}

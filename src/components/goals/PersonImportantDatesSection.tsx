@@ -6,9 +6,9 @@ import toast from "react-hot-toast";
 import { api } from "~/trpc/react";
 import DatePicker from "./DatePicker";
 
-const fieldHelper = "mt-1.5 text-xs text-white/40";
+const fieldHelper = "mt-1.5 text-xs text-[var(--ink-3)]";
 const inputClass =
-  "w-full rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-white outline-none transition-all placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.05]";
+  "w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]";
 
 // Yearly recurring per-person dates (birthdays, anniversaries). Pulse surfaces
 // them when the next occurrence is within 30 days. Year is optional but kept
@@ -76,14 +76,14 @@ export default function PersonImportantDatesSection({ personId }: { personId: st
               type="button"
               onClick={() => void handleAdd()}
               disabled={!labelDraft.trim() || !dateDraft || create.isPending}
-              className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/80 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+              className="shrink-0 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               Add
             </button>
           </div>
 
           {query.data && query.data.length > 0 && (
-            <ul className="mt-3 divide-y divide-white/5">
+            <ul className="mt-3 divide-y divide-[var(--hairline)]">
               {query.data.map((date) => (
                 <ImportantDateRow
                   key={date.id}
@@ -131,13 +131,13 @@ export default function PersonImportantDatesSection({ personId }: { personId: st
 function SectionLabel({ children, hint }: { children: React.ReactNode; hint?: React.ReactNode }) {
   return (
     <div className="mb-1.5 flex items-center gap-1.5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-white/40">{children}</span>
+      <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">{children}</span>
       {hint && (
         <span className="group relative inline-flex">
-          <HelpCircle className="h-3 w-3 cursor-help text-white/25 transition-colors hover:text-white/60" />
+          <HelpCircle className="h-3 w-3 cursor-help text-[var(--ink-4)] transition-colors hover:text-[var(--ink-2)]" />
           <span
             role="tooltip"
-            className="pointer-events-none invisible absolute left-0 top-full z-30 mt-1.5 w-64 rounded-md border border-white/10 bg-zinc-950 p-2.5 text-xs leading-relaxed text-white/70 opacity-0 shadow-2xl transition-opacity group-hover:visible group-hover:opacity-100"
+            className="pointer-events-none invisible absolute left-0 top-full z-30 mt-1.5 w-64 rounded-md border border-[var(--hairline)] bg-[var(--canvas)] p-2.5 text-xs leading-relaxed text-[var(--ink-2)] opacity-0 shadow-2xl transition-opacity group-hover:visible group-hover:opacity-100"
           >
             {hint}
           </span>
@@ -174,8 +174,8 @@ function ImportantDateRow({
   };
 
   return (
-    <li className="group flex h-10 items-center gap-3 px-3 transition-colors hover:bg-white/[0.02]">
-      <CalendarDays className="h-3.5 w-3.5 shrink-0 text-white/40" />
+    <li className="group flex h-10 items-center gap-3 px-3 transition-colors hover:bg-[var(--vellum)]">
+      <CalendarDays className="h-3.5 w-3.5 shrink-0 text-[var(--ink-3)]" />
       <div className="min-w-0 flex-1">
         {editingLabel ? (
           <input
@@ -194,7 +194,7 @@ function ImportantDateRow({
               }
             }}
             autoFocus
-            className="w-full border-0 bg-transparent p-0 text-sm text-white outline-none placeholder:text-white/30"
+            className="w-full border-0 bg-transparent p-0 text-sm text-[var(--ink)] outline-none placeholder:text-[var(--ink-4)]"
           />
         ) : (
           <button
@@ -203,7 +203,7 @@ function ImportantDateRow({
               setLabelDraft(date.label);
               setEditingLabel(true);
             }}
-            className="block w-full truncate text-left text-sm text-white/85 transition-colors hover:text-white"
+            className="block w-full truncate text-left text-sm text-[var(--ink)] transition-colors hover:text-[var(--ink)]"
             title="Click to rename"
           >
             {date.label}
@@ -215,7 +215,7 @@ function ImportantDateRow({
         type="button"
         onClick={onDelete}
         disabled={deleteDisabled}
-        className="shrink-0 rounded p-1 text-white/30 opacity-100 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed md:opacity-0 md:group-hover:opacity-100"
+        className="shrink-0 rounded p-1 text-[var(--ink-4)] opacity-100 transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:cursor-not-allowed md:opacity-0 md:group-hover:opacity-100"
         aria-label="Remove date"
       >
         <X className="h-3.5 w-3.5" />

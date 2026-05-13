@@ -56,16 +56,16 @@ function PersonCard({
       onClick={onClick}
       className={`flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
         isDragging
-          ? "border-white/40 bg-black shadow-2xl"
-          : "cursor-grab border-white/10 bg-white/5 hover:border-white/30 hover:bg-white/10 active:cursor-grabbing"
+          ? "border-[var(--hairline-2)] bg-[var(--paper)] shadow-2xl"
+          : "cursor-grab border-[var(--hairline)] bg-[var(--vellum)] hover:border-[var(--hairline-2)] hover:bg-[var(--vellum)] active:cursor-grabbing"
       }`}
     >
       <Avatar name={person.name} emoji={person.emoji} size="sm" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium text-white">{person.name}</span>
+          <span className="truncate text-sm font-medium text-[var(--ink)]">{person.name}</span>
           {overdue && (
-            <span className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-amber-300">
+            <span className="shrink-0 rounded-full border border-[var(--amber)] bg-[var(--amber-soft)] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[var(--amber)]">
               overdue
             </span>
           )}
@@ -107,20 +107,22 @@ function DroppableColumn({
   return (
     <section
       ref={setNodeRef}
-      className={`flex min-w-0 flex-col rounded-xl border bg-white/[0.02] transition-colors ${
-        isOver ? "border-white/40 bg-white/[0.06]" : "border-white/10"
+      className={`flex min-w-0 flex-col rounded-xl border bg-[var(--vellum)] transition-colors ${
+        isOver ? "border-[var(--hairline-2)] bg-[var(--vellum)]" : "border-[var(--hairline)]"
       }`}
     >
-      <div className="flex h-20 flex-col justify-start border-b border-white/5 px-4 py-3">
+      <div className="flex h-20 flex-col justify-start border-b border-[var(--hairline)] px-4 py-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-white">{column.label}</h3>
-          <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/60">{people.length}</span>
+          <h3 className="text-sm font-medium text-[var(--ink)]">{column.label}</h3>
+          <span className="rounded-full bg-[var(--vellum)] px-2 py-0.5 text-xs text-[var(--ink-2)]">
+            {people.length}
+          </span>
         </div>
-        <p className="mt-1 line-clamp-2 text-xs text-white/40">{column.hint}</p>
+        <p className="mt-1 line-clamp-2 text-xs text-[var(--ink-3)]">{column.hint}</p>
       </div>
       <div className="flex flex-1 flex-col gap-2 p-3">
         {people.length === 0 ? (
-          <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-white/10 text-xs text-white/30">
+          <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-[var(--hairline)] text-xs text-[var(--ink-4)]">
             Drop here
           </div>
         ) : (
@@ -208,14 +210,45 @@ export default function RelationshipsBoard() {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="shrink-0 px-6 pb-4 pt-8 md:px-8">
-        <h2 className="text-2xl font-light">Relationships</h2>
-        <p className="mt-1 max-w-3xl text-sm text-white/60">
-          Drag people between columns as your relationships change. Monthly pass: move cards, retire completed ones. The
-          system is a map, not an archive.
+    <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--paper)" }}>
+      <header className="shrink-0 px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: "1px solid var(--hairline)" }}>
+        <div
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            letterSpacing: "0.08em",
+            color: "var(--ink-3)",
+            textTransform: "uppercase",
+            marginBottom: 10,
+          }}
+        >
+          Connections · relationships
+        </div>
+        <h1
+          style={{
+            fontFamily: "var(--font-display)",
+            fontSize: 44,
+            lineHeight: 1.2,
+            letterSpacing: "-0.02em",
+            color: "var(--ink)",
+          }}
+        >
+          Who&apos;s <span className="brand-em">close,</span> who&apos;s drifting.
+        </h1>
+        <p
+          className="mt-3 max-w-2xl"
+          style={{
+            fontFamily: "var(--font-text)",
+            fontStyle: "italic",
+            fontSize: 17,
+            color: "var(--ink-2)",
+            lineHeight: 1.4,
+          }}
+        >
+          Four columns. Move people between them as your reality shifts. Exploring people have a decide-by date — a
+          quiet reminder, not a clock.
         </p>
-      </div>
+      </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>

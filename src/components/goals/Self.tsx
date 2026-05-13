@@ -121,10 +121,10 @@ function EditableProse({
   const textBase = "whitespace-pre-wrap break-words leading-relaxed";
   const textSize =
     variant === "hero"
-      ? "text-xl text-white/90"
+      ? "text-xl text-[var(--ink)]"
       : variant === "story"
-        ? "text-base text-white/85"
-        : "text-sm text-white/85";
+        ? "text-base text-[var(--ink)]"
+        : "text-sm text-[var(--ink)]";
   const editingSize = variant === "hero" ? "text-xl" : variant === "story" ? "text-base" : "text-sm";
 
   if (editing) {
@@ -144,7 +144,7 @@ function EditableProse({
         autoFocus
         rows={rows}
         placeholder={placeholder}
-        className={`w-full resize-none rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 ${editingSize} text-white outline-none transition-colors placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.05]`}
+        className={`w-full resize-none rounded-xl border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-3 ${editingSize} text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]`}
       />
     );
   }
@@ -153,7 +153,7 @@ function EditableProse({
     return (
       <button
         onClick={startEdit}
-        className={`block w-full rounded-xl border border-dashed border-white/10 px-4 py-3 text-left ${editingSize} italic text-white/30 transition-colors hover:border-white/20 hover:text-white/50`}
+        className={`block w-full rounded-xl border border-dashed border-[var(--hairline)] px-4 py-3 text-left ${editingSize} italic text-[var(--ink-4)] transition-colors hover:border-[var(--hairline-2)] hover:text-[var(--ink-3)]`}
       >
         {placeholder}
       </button>
@@ -163,7 +163,7 @@ function EditableProse({
   return (
     <div
       onClick={startEdit}
-      className={`group cursor-text rounded-xl px-4 py-3 transition-colors hover:bg-white/[0.02] ${textBase} ${textSize}`}
+      className={`group cursor-text rounded-xl px-4 py-3 transition-colors hover:bg-[var(--vellum)] ${textBase} ${textSize}`}
     >
       {value}
     </div>
@@ -213,13 +213,13 @@ function ListRow({
             setEditing(false);
           }
         }}
-        className="w-full rounded-lg border border-white/20 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none focus:border-white/40"
+        className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--hairline-2)]"
       />
     );
   }
 
   return (
-    <div className="group flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-white/85 transition-colors hover:bg-white/[0.03]">
+    <div className="group flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--ink)] transition-colors hover:bg-[var(--vellum)]">
       <button onClick={startEdit} className="flex-1 cursor-text text-left leading-relaxed">
         {content}
       </button>
@@ -228,7 +228,7 @@ function ListRow({
         className="opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
         title="Remove"
       >
-        <Trash2 className="h-3.5 w-3.5 text-white/40 hover:text-rose-300" />
+        <Trash2 className="h-3.5 w-3.5 text-[var(--ink-3)] hover:text-[var(--rust)]" />
       </button>
     </div>
   );
@@ -285,12 +285,12 @@ function ListBucket({
             }
           }}
           placeholder={placeholder}
-          className="w-full rounded-lg border border-white/20 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/40"
+          className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-none placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
         />
       ) : (
         <button
           onClick={() => setAdding(true)}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-white/40 transition-colors hover:bg-white/[0.02] hover:text-white/70"
+          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-[var(--ink-3)] transition-colors hover:bg-[var(--vellum)] hover:text-[var(--ink-2)]"
         >
           <Plus className="h-3.5 w-3.5" />
           {items.length === 0 ? emptyAffordance : "Add another"}
@@ -306,9 +306,9 @@ function ListBucket({
 function SectionHeader({ eyebrow, title, helper }: { eyebrow: string; title: string; helper?: string }) {
   return (
     <div className="mb-4">
-      <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/35">{eyebrow}</div>
-      <h3 className="mt-1.5 text-2xl font-light text-white/95">{title}</h3>
-      {helper && <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-white/45">{helper}</p>}
+      <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--ink-4)]">{eyebrow}</div>
+      <h3 className="mt-1.5 text-2xl font-light text-[var(--ink)]">{title}</h3>
+      {helper && <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-[var(--ink-3)]">{helper}</p>}
     </div>
   );
 }
@@ -317,10 +317,10 @@ function SectionHeader({ eyebrow, title, helper }: { eyebrow: string; title: str
 // default — you only open it if you want a refresher on the framework.
 function ReferencePanel({ items }: { items: Reference[] }) {
   return (
-    <div className="mt-3 space-y-2 rounded-xl border border-white/5 bg-white/[0.015] p-4">
+    <div className="mt-3 space-y-2 rounded-xl border border-[var(--hairline)] bg-[var(--vellum)] p-4">
       {items.map((it) => (
-        <div key={it.name} className="text-xs leading-relaxed text-white/55">
-          <span className="font-medium text-white/80">{it.name}</span> — {it.description}
+        <div key={it.name} className="text-xs leading-relaxed text-[var(--ink-3)]">
+          <span className="font-medium text-[var(--ink)]">{it.name}</span> — {it.description}
         </div>
       ))}
     </div>
@@ -345,18 +345,18 @@ function RelationCard({
 }) {
   const [refOpen, setRefOpen] = useState(false);
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.015] p-5 transition-colors hover:border-white/15">
+    <div className="flex h-full flex-col rounded-2xl border border-[var(--hairline)] bg-[var(--vellum)] p-5 transition-colors hover:border-[var(--hairline)]">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h4 className="text-sm font-medium text-white/90">{title}</h4>
-          <p className="mt-0.5 text-xs leading-relaxed text-white/45">{subtitle}</p>
+          <h4 className="text-sm font-medium text-[var(--ink)]">{title}</h4>
+          <p className="mt-0.5 text-xs leading-relaxed text-[var(--ink-3)]">{subtitle}</p>
         </div>
         <button
           onClick={() => setRefOpen((v) => !v)}
           className={`flex shrink-0 items-center justify-center rounded-full border p-1.5 transition-colors ${
             refOpen
-              ? "border-white/25 bg-white/[0.05] text-white/80"
-              : "border-white/10 text-white/40 hover:border-white/20 hover:text-white/70"
+              ? "border-[var(--hairline-2)] bg-[var(--vellum)] text-[var(--ink)]"
+              : "border-[var(--hairline)] text-[var(--ink-3)] hover:border-[var(--hairline-2)] hover:text-[var(--ink-2)]"
           }`}
           aria-label={refOpen ? "Hide reference" : "Show reference"}
           title={refOpen ? "Hide reference" : "Show reference"}
@@ -378,8 +378,8 @@ function RelationCard({
 function SubsectionHeader({ label }: { label: string }) {
   return (
     <div className="mb-4 flex items-center gap-3">
-      <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/40">{label}</span>
-      <span className="h-px flex-1 bg-white/[0.06]" />
+      <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--ink-3)]">{label}</span>
+      <span className="h-px flex-1 bg-[var(--vellum)]" />
     </div>
   );
 }
@@ -504,25 +504,53 @@ export default function Self() {
   const onItemDelete = (id: string) => deleteItemMut.mutate({ id });
 
   return (
-    <div className="h-full overflow-y-auto bg-gradient-to-b from-transparent via-transparent to-black/20 px-6 py-10 md:px-8">
+    <div className="h-full overflow-y-auto px-6 py-10 md:px-8" style={{ background: "var(--paper)" }}>
       <div className="mx-auto max-w-3xl">
-        {/* Hero — avatar + name + values reminder */}
+        {/* Hero — avatar + name with display headline + values reminder */}
         <header className="mb-12">
-          <div className="mb-6 flex items-center gap-4">
+          <div className="mb-6 flex items-center gap-5">
             <Avatar name={me?.name ?? ""} emoji={me?.avatarUrl ?? null} size="lg" shape="circle" />
             <div>
-              <div className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/35">Self</div>
-              <h1 className="mt-0.5 text-3xl font-light text-white">{me?.name ?? "\u00A0"}</h1>
+              <div
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  color: "var(--ink-3)",
+                }}
+              >
+                Self · a living portrait · {currentYear}
+              </div>
+              <h1
+                className="mt-1.5"
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 44,
+                  lineHeight: 1.2,
+                  letterSpacing: "-0.02em",
+                  color: "var(--ink)",
+                }}
+              >
+                {me?.name ?? "\u00A0"}
+                {me?.name ? (
+                  <>
+                    , <span className="brand-em">this year.</span>
+                  </>
+                ) : null}
+              </h1>
             </div>
           </div>
           {values.length > 0 && (
-            <div className="rounded-xl border border-white/5 bg-white/[0.015] px-4 py-3">
-              <div className="mb-2 text-[10px] font-medium uppercase tracking-[0.18em] text-white/35">What I value</div>
+            <div className="rounded-xl border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-3">
+              <div className="mb-2 text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--ink-4)]">
+                What I value
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 {values.map((v) => (
                   <span
                     key={v.id}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs text-white/75"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[var(--hairline)] bg-[var(--vellum)] px-2.5 py-1 text-xs text-[var(--ink-2)]"
                   >
                     <span className="h-2 w-2 rounded-full" style={{ background: v.color }} aria-hidden />
                     {v.name}
@@ -548,7 +576,7 @@ export default function Self() {
             variant="hero"
           />
           {showYearHint && (
-            <p className="mt-2 px-4 text-xs text-white/35">
+            <p className="mt-2 px-4 text-xs text-[var(--ink-4)]">
               Last written for {heroYear}. Editing claims it for {currentYear}.
             </p>
           )}
@@ -579,7 +607,7 @@ export default function Self() {
           />
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div>
-              <div className="mb-2 text-xs font-medium text-emerald-300/80">Energizes</div>
+              <div className="mb-2 text-xs font-medium text-[var(--moss)]">Energizes</div>
               <ListBucket
                 items={itemsByKind.get("energizer") ?? []}
                 placeholder="What lights you up?"
@@ -590,7 +618,7 @@ export default function Self() {
               />
             </div>
             <div>
-              <div className="mb-2 text-xs font-medium text-rose-300/80">Drains</div>
+              <div className="mb-2 text-xs font-medium text-[var(--clay-deep)]">Drains</div>
               <ListBucket
                 items={itemsByKind.get("drainer") ?? []}
                 placeholder="What pulls you under?"
@@ -653,11 +681,11 @@ export default function Self() {
             {PATTERN_CATEGORIES.map((cat) => (
               <div
                 key={cat.value}
-                className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-4 transition-colors hover:border-white/10"
+                className="rounded-xl border border-white/[0.06] bg-[var(--vellum)] p-4 transition-colors hover:border-[var(--hairline)]"
               >
                 <div className="mb-2.5">
-                  <div className="text-xs font-medium text-white/80">{cat.label}</div>
-                  <div className="mt-0.5 text-[11px] italic leading-relaxed text-white/30">{cat.helper}</div>
+                  <div className="text-xs font-medium text-[var(--ink)]">{cat.label}</div>
+                  <div className="mt-0.5 text-[11px] italic leading-relaxed text-[var(--ink-4)]">{cat.helper}</div>
                 </div>
                 <ListBucket
                   items={patternsByCategory.get(cat.value) ?? []}

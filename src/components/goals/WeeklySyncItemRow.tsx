@@ -84,7 +84,7 @@ export default function WeeklySyncItemRow({
   };
 
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+    <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-4">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <h4 className="font-medium">{item.title}</h4>
@@ -95,11 +95,11 @@ export default function WeeklySyncItemRow({
           <div className="flex items-center gap-1 text-xs">
             {saveStatus === "saving" && (
               <>
-                <div className="h-2 w-2 animate-spin rounded-full border border-white/20 border-t-white" />
+                <div className="h-2 w-2 animate-spin rounded-full border border-[var(--hairline-2)] border-t-white" />
                 <span className="opacity-60">Saving...</span>
               </>
             )}
-            {saveStatus === "saved" && <span className="text-green-400">✓ Saved</span>}
+            {saveStatus === "saved" && <span className="text-[var(--moss)]">✓ Saved</span>}
           </div>
         )}
       </div>
@@ -108,7 +108,7 @@ export default function WeeklySyncItemRow({
         {!hasStoredText && (
           <button
             onClick={() => startEditing("")}
-            className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm transition-all hover:bg-white/20"
+            className="flex items-center gap-2 rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm transition-all hover:bg-[var(--vellum)]"
           >
             <FileText className="h-4 w-4" />
             Add Text
@@ -117,7 +117,7 @@ export default function WeeklySyncItemRow({
 
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm transition-all hover:bg-white/20"
+          className="flex items-center gap-2 rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm transition-all hover:bg-[var(--vellum)]"
         >
           <ImageIcon className="h-4 w-4" />
           Add Images
@@ -138,7 +138,7 @@ export default function WeeklySyncItemRow({
 
         <button
           onClick={() => void onRemoveFromSync()}
-          className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-white/60 transition-all hover:border-rose-400/40 hover:bg-rose-500/10 hover:text-rose-200"
+          className="flex items-center gap-2 rounded-lg border border-[var(--hairline)] px-3 py-2 text-sm text-[var(--ink-2)] transition-all hover:border-[var(--rust)] hover:bg-[var(--rust-soft)] hover:text-[var(--rust)]"
           title="Remove from this sync — keeps the item in your library"
         >
           <Trash2 className="h-4 w-4" />
@@ -154,12 +154,12 @@ export default function WeeklySyncItemRow({
             onChange={(e) => handleTextChange(e.target.value)}
             placeholder="Add your notes for this tracking item..."
             rows={4}
-            className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-all focus:border-white/40"
+            className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition-all focus:border-[var(--hairline-2)]"
           />
           <div className="mt-2 flex justify-end">
             <button
               onClick={stopEditing}
-              className="rounded-lg border border-white/20 px-3 py-1 text-sm transition-all hover:bg-white/10"
+              className="rounded-lg border border-[var(--hairline-2)] px-3 py-1 text-sm transition-all hover:bg-[var(--vellum)]"
             >
               Done
             </button>
@@ -172,7 +172,7 @@ export default function WeeklySyncItemRow({
           <h5 className="text-sm font-medium opacity-70">Content</h5>
 
           {hasStoredText && (
-            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+            <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-3">
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4 opacity-60" />
@@ -180,7 +180,7 @@ export default function WeeklySyncItemRow({
                 </div>
                 <button
                   onClick={() => void onClearText()}
-                  className="rounded p-1 text-red-400 opacity-60 transition-all hover:bg-red-500/20 hover:opacity-100"
+                  className="rounded p-1 text-[var(--rust)] opacity-60 transition-all hover:bg-[var(--rust-soft)] hover:opacity-100"
                   title="Clear notes"
                 >
                   <Trash2 className="h-3 w-3" />
@@ -193,13 +193,13 @@ export default function WeeklySyncItemRow({
                     onChange={(e) => handleTextChange(e.target.value)}
                     placeholder="Add your notes for this tracking item..."
                     rows={4}
-                    className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-all focus:border-white/40"
+                    className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition-all focus:border-[var(--hairline-2)]"
                     autoFocus
                   />
                   <div className="mt-2 flex justify-end">
                     <button
                       onClick={stopEditing}
-                      className="rounded-lg border border-white/20 px-3 py-1 text-sm transition-all hover:bg-white/10"
+                      className="rounded-lg border border-[var(--hairline-2)] px-3 py-1 text-sm transition-all hover:bg-[var(--vellum)]"
                     >
                       Done
                     </button>
@@ -208,7 +208,7 @@ export default function WeeklySyncItemRow({
               ) : (
                 <div
                   onClick={() => startEditing(item.textContent ?? "")}
-                  className="cursor-pointer rounded p-2 text-sm opacity-80 transition-all hover:bg-white/5 hover:opacity-100"
+                  className="cursor-pointer rounded p-2 text-sm opacity-80 transition-all hover:bg-[var(--vellum)] hover:opacity-100"
                   title="Click to edit"
                 >
                   {item.textContent}
@@ -218,7 +218,7 @@ export default function WeeklySyncItemRow({
           )}
 
           {hasStoredImages && (
-            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+            <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-3">
               <div className="mb-2 flex items-center gap-2">
                 <ImageIcon className="h-4 w-4 opacity-60" />
                 <span className="text-sm opacity-70">Saved Images ({imageFiles.length})</span>
@@ -240,7 +240,7 @@ export default function WeeklySyncItemRow({
                       {!isDeleting && index < 3 && (
                         <button
                           onClick={() => onDeleteFileClick(file.id, file.fileName)}
-                          className="absolute right-1 top-1 block rounded-full bg-red-500/80 p-1 text-white opacity-100 transition-all hover:bg-red-500 md:hidden md:opacity-0 md:group-hover:block md:group-hover:opacity-100"
+                          className="absolute right-1 top-1 block rounded-full bg-[var(--rust)] p-1 text-[var(--ink)] opacity-100 transition-all hover:bg-[var(--rust)] md:hidden md:opacity-0 md:group-hover:block md:group-hover:opacity-100"
                           title={`Delete ${file.fileName}`}
                         >
                           <Trash2 className="h-3 w-3" />
@@ -248,13 +248,13 @@ export default function WeeklySyncItemRow({
                       )}
 
                       {isDeleting && (
-                        <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60">
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        <div className="bg-[var(--ink)]/60 absolute inset-0 flex items-center justify-center rounded">
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--hairline-2)] border-t-white" />
                         </div>
                       )}
 
                       {index === 3 && imageFiles.length > 4 && (
-                        <div className="absolute inset-0 flex items-center justify-center rounded bg-black/60 text-xs text-white">
+                        <div className="bg-[var(--ink)]/60 absolute inset-0 flex items-center justify-center rounded text-xs text-[var(--ink)]">
                           +{imageFiles.length - 3}
                         </div>
                       )}

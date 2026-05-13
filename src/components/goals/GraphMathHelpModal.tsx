@@ -6,33 +6,33 @@ interface GraphMathHelpModalProps {
   onClose: () => void;
 }
 
-const sectionTitle = "text-sm font-medium text-white";
+const sectionTitle = "text-sm font-medium text-[var(--ink)]";
 const equation =
-  "overflow-x-auto whitespace-pre rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 font-mono text-xs text-white/85";
-const muted = "text-xs leading-relaxed text-white/55";
-const exampleHeader = "text-[10px] uppercase tracking-wider text-white/40";
+  "overflow-x-auto whitespace-pre rounded-md border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 font-mono text-xs text-[var(--ink)]";
+const muted = "text-xs leading-relaxed text-[var(--ink-3)]";
+const exampleHeader = "text-[10px] uppercase tracking-wider text-[var(--ink-3)]";
 
 export default function GraphMathHelpModal({ onClose }: GraphMathHelpModalProps) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+      className="bg-[var(--ink)]/80 fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950/95 shadow-2xl backdrop-blur"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--hairline)] bg-[var(--canvas)] shadow-2xl backdrop-blur"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Sticky header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-zinc-950/95 px-6 py-4 backdrop-blur">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--hairline)] bg-[var(--canvas)] px-6 py-4 backdrop-blur">
           <div>
             <h2 className="text-lg font-medium tracking-tight">How the graph thinks</h2>
-            <p className="mt-0.5 text-xs text-white/50">
+            <p className="mt-0.5 text-xs text-[var(--ink-3)]">
               Every number on a node comes from a formula. Here&apos;s each one.
             </p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-white/50 transition-all hover:bg-white/5 hover:text-white"
+            className="rounded-lg p-1.5 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
@@ -49,12 +49,12 @@ export default function GraphMathHelpModal({ onClose }: GraphMathHelpModalProps)
               goal&apos;s percentage than a finished easy one. If a goal has no tasks, its <em>own</em> progress is 0 by
               definition — completion has to come from somewhere upstream.
             </p>
-            <div className="rounded-md border border-white/5 bg-white/[0.02] p-3 text-xs">
+            <div className="rounded-md border border-[var(--hairline)] bg-[var(--vellum)] p-3 text-xs">
               <div className={exampleHeader}>Example</div>
-              <p className="mt-1 text-white/70">
+              <p className="mt-1 text-[var(--ink-2)]">
                 Three tasks: difficulty 1 (done), 2 (done), 3 (not done). Total weight = 6, completed weight = 3.
                 <br />
-                <span className="font-mono text-white/85">own = 3 / 6 × 100 = 50%</span>
+                <span className="font-mono text-[var(--ink)]">own = 3 / 6 × 100 = 50%</span>
               </p>
             </div>
           </section>
@@ -68,12 +68,12 @@ export default function GraphMathHelpModal({ onClose }: GraphMathHelpModalProps)
               weights say <em>how much</em>. Dependency progress is the weighted average of every predecessor&apos;s{" "}
               <strong>total progress</strong> (so the calculation cascades all the way back through the graph).
             </p>
-            <div className="rounded-md border border-white/5 bg-white/[0.02] p-3 text-xs">
+            <div className="rounded-md border border-[var(--hairline)] bg-[var(--vellum)] p-3 text-xs">
               <div className={exampleHeader}>Example</div>
-              <p className="mt-1 text-white/70">
+              <p className="mt-1 text-[var(--ink-2)]">
                 Goal A depends on B (weight 70, 80% complete) and C (weight 30, 50% complete).
                 <br />
-                <span className="font-mono text-white/85">
+                <span className="font-mono text-[var(--ink)]">
                   deps = (80×70 + 50×30) / (70+30) = (5600 + 1500) / 100 = 71%
                 </span>
               </p>
@@ -127,32 +127,32 @@ green  if total ≥ 67%`}
           </section>
 
           {/* Rationale */}
-          <section className="space-y-2 border-t border-white/5 pt-5">
+          <section className="space-y-2 border-t border-[var(--hairline)] pt-5">
             <h3 className={sectionTitle}>Why model goals this way?</h3>
             <p className={muted}>
               The graph treats goals as a network, not a list. Two ideas drive every formula above:
             </p>
-            <ul className="list-disc space-y-1 pl-5 text-xs text-white/55">
+            <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--ink-3)]">
               <li>
-                <strong className="text-white/75">Connections carry meaning.</strong> An edge isn&apos;t decoration — it
-                says &ldquo;this feeds that.&rdquo; Importance and dependency progress both fall out of the same edges;
-                you only have to maintain one piece of structure.
+                <strong className="text-[var(--ink-2)]">Connections carry meaning.</strong> An edge isn&apos;t
+                decoration — it says &ldquo;this feeds that.&rdquo; Importance and dependency progress both fall out of
+                the same edges; you only have to maintain one piece of structure.
               </li>
               <li>
-                <strong className="text-white/75">Difficulty matters.</strong> Counting completed tasks alone treats a
-                10-minute errand the same as a multi-week project. Weighting by difficulty makes percentages mean
-                something closer to actual effort.
+                <strong className="text-[var(--ink-2)]">Difficulty matters.</strong> Counting completed tasks alone
+                treats a 10-minute errand the same as a multi-week project. Weighting by difficulty makes percentages
+                mean something closer to actual effort.
               </li>
             </ul>
           </section>
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 flex items-center justify-end border-t border-white/5 bg-zinc-950/95 px-6 py-3 backdrop-blur">
+        <div className="sticky bottom-0 flex items-center justify-end border-t border-[var(--hairline)] bg-[var(--canvas)] px-6 py-3 backdrop-blur">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-white/15 bg-white/[0.03] px-4 py-1.5 text-sm text-white/80 transition-all hover:bg-white/10 hover:text-white"
+            className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-1.5 text-sm text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
           >
             Got it
           </button>

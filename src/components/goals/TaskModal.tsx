@@ -52,8 +52,8 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
 
   if (!goal || (!isCreate && !task)) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
-        <div className="rounded-lg border border-white/10 bg-zinc-950 p-6 text-sm text-white/60">
+      <div className="bg-[var(--ink)]/80 fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div className="rounded-lg border border-[var(--hairline)] bg-[var(--canvas)] p-6 text-sm text-[var(--ink-2)]">
           {!goal ? "Goal not found." : "Task not found."}
         </div>
       </div>
@@ -125,23 +125,23 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
+    <div className="bg-[var(--ink)]/80 fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950/95 shadow-2xl backdrop-blur"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--hairline)] bg-[var(--canvas)] shadow-2xl backdrop-blur"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-zinc-950/95 px-6 py-4 backdrop-blur">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--hairline)] bg-[var(--canvas)] px-6 py-4 backdrop-blur">
           <div className="flex min-w-0 items-center gap-2">
             <h2 className="truncate text-lg font-medium tracking-tight">{isCreate ? "New Task" : "Edit Task"}</h2>
-            <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-white/60">
+            <span className="shrink-0 rounded-full border border-[var(--hairline)] bg-[var(--vellum)] px-2 py-0.5 text-[11px] text-[var(--ink-2)]">
               {goal.emoji && !isEmojiUrl(goal.emoji) ? `${goal.emoji} ` : ""}
               {goal.title}
             </span>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-white/50 transition-all hover:bg-white/5 hover:text-white"
+            className="rounded-lg p-1.5 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
@@ -152,14 +152,14 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
           <div className="space-y-5">
             {/* Title + emoji */}
             <div>
-              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-white/40">
+              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
                 Title
               </label>
               <div className="relative flex gap-2">
                 <button
                   type="button"
                   onClick={() => setShowEmojiPicker((s) => !s)}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/20 bg-white/5 transition-all hover:border-white/40 hover:bg-white/10"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] transition-all hover:border-[var(--hairline-2)] hover:bg-[var(--vellum)]"
                   title="Click to choose emoji"
                 >
                   {emoji ? (
@@ -176,7 +176,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                       <span className="text-2xl leading-none">{emoji}</span>
                     )
                   ) : (
-                    <span className="text-xs text-white/40">+</span>
+                    <span className="text-xs text-[var(--ink-3)]">+</span>
                   )}
                 </button>
 
@@ -185,12 +185,12 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Task title…"
-                  className="h-10 flex-1 rounded-lg border border-white/20 bg-white/5 px-4 text-white outline-none transition-all focus:border-white/40"
+                  className="h-10 flex-1 rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-4 text-[var(--ink)] outline-none transition-all focus:border-[var(--hairline-2)]"
                   autoFocus
                 />
 
                 {showEmojiPicker && (
-                  <div className="absolute left-0 top-full z-50 mt-2 rounded-lg border border-white/20 bg-black p-2 shadow-xl">
+                  <div className="absolute left-0 top-full z-50 mt-2 rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] p-2 shadow-xl">
                     <EmojiPicker
                       onEmojiClick={handleEmojiClick}
                       width={350}
@@ -198,8 +198,8 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                       theme={Theme.DARK}
                       searchPlaceHolder="Search emoji..."
                     />
-                    <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
-                      <label className="text-xs text-white/60">Custom emoji URL:</label>
+                    <div className="mt-3 space-y-2 border-t border-[var(--hairline)] pt-3">
+                      <label className="text-xs text-[var(--ink-2)]">Custom emoji URL:</label>
                       <div className="flex gap-2">
                         <input
                           type="url"
@@ -210,12 +210,12 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                             if (e.key === "Enter") handleCustomEmojiUrl();
                           }}
                           placeholder="https://..."
-                          className="flex-1 rounded border border-white/20 bg-white/5 px-3 py-1.5 text-sm text-white outline-none transition-all placeholder:text-white/30 focus:border-white/40"
+                          className="flex-1 rounded border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-1.5 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
                         />
                         <button
                           type="button"
                           onClick={handleCustomEmojiUrl}
-                          className="rounded border border-white/20 bg-white/10 px-3 py-1.5 text-sm text-white transition-all hover:bg-white/20"
+                          className="rounded border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-1.5 text-sm text-[var(--ink)] transition-all hover:bg-[var(--vellum)]"
                         >
                           Set
                         </button>
@@ -227,7 +227,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                             setEmoji("");
                             setShowEmojiPicker(false);
                           }}
-                          className="text-xs text-white/40 underline transition-colors hover:text-white/70"
+                          className="text-xs text-[var(--ink-3)] underline transition-colors hover:text-[var(--ink-2)]"
                         >
                           Clear emoji
                         </button>
@@ -240,7 +240,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
 
             {/* Description */}
             <div>
-              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-white/40">
+              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
                 Description
               </label>
               <textarea
@@ -248,20 +248,20 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="What does this task entail?"
                 rows={4}
-                className="w-full resize-none rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm text-white outline-none transition-all placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.05]"
+                className="w-full resize-none rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2.5 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"
               />
             </div>
 
             {/* Difficulty + Deadline + Completed */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-white/40">
+                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
                   Difficulty
                 </label>
                 <select
                   value={difficulty}
                   onChange={(e) => setDifficulty(parseInt(e.target.value) as 1 | 2 | 3)}
-                  className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 text-sm text-white outline-none transition-all focus:border-white/30"
+                  className="h-10 w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 text-sm text-[var(--ink)] outline-none transition-all focus:border-[var(--hairline-2)]"
                 >
                   <option value={1}>Easy</option>
                   <option value={2}>Medium</option>
@@ -269,29 +269,29 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                 </select>
               </div>
               <div>
-                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-white/40">
+                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
                   Deadline
                 </label>
                 <DatePicker value={scheduledAt} onChange={setScheduledAt} placeholder="No deadline" size="md" />
               </div>
               <div>
-                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-white/40">
+                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
                   Status
                 </label>
                 <button
                   type="button"
                   onClick={() => setCompleted((c) => !c)}
-                  className="flex h-10 w-full items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 text-sm transition-all hover:border-white/30"
+                  className="flex h-10 w-full items-center gap-2 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 text-sm transition-all hover:border-[var(--hairline-2)]"
                 >
                   {completed ? (
                     <>
-                      <CheckSquare className="h-4 w-4 text-emerald-500" />
-                      <span className="text-white/80">Completed</span>
+                      <CheckSquare className="h-4 w-4 text-[var(--moss)]" />
+                      <span className="text-[var(--ink)]">Completed</span>
                     </>
                   ) : (
                     <>
-                      <Square className="h-4 w-4 text-white/30" />
-                      <span className="text-white/60">Open</span>
+                      <Square className="h-4 w-4 text-[var(--ink-4)]" />
+                      <span className="text-[var(--ink-2)]">Open</span>
                     </>
                   )}
                 </button>
@@ -300,11 +300,11 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
 
             {/* Referents */}
             <div>
-              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-white/40">
+              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
                 Who I&apos;m relying on
               </label>
               {people.length === 0 ? (
-                <p className="text-xs text-white/40">Add someone in the People tab first.</p>
+                <p className="text-xs text-[var(--ink-3)]">Add someone in the People tab first.</p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {people.map((p) => {
@@ -316,8 +316,8 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                         onClick={() => toggleReferent(p.id)}
                         className={`flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-all ${
                           selected
-                            ? "border-white/30 bg-white/15 text-white"
-                            : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
+                            ? "border-[var(--hairline-2)] bg-[var(--vellum)] text-[var(--ink)]"
+                            : "border-[var(--hairline)] bg-[var(--vellum)] text-[var(--ink-2)] hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
                         }`}
                       >
                         <Avatar name={p.name} emoji={p.emoji} size="xs" shape="circle" />
@@ -331,11 +331,11 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
 
             {/* Groups */}
             <div>
-              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-white/40">
+              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
                 Groups
               </label>
               {groups.length === 0 ? (
-                <p className="text-xs text-white/40">Create a group from the sidebar first.</p>
+                <p className="text-xs text-[var(--ink-3)]">Create a group from the sidebar first.</p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {groups.map((g) => {
@@ -347,8 +347,8 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                         onClick={() => toggleGroup(g.id)}
                         className={`flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-all ${
                           selected
-                            ? "border-white/30 bg-white/15 text-white"
-                            : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"
+                            ? "border-[var(--hairline-2)] bg-[var(--vellum)] text-[var(--ink)]"
+                            : "border-[var(--hairline)] bg-[var(--vellum)] text-[var(--ink-2)] hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
                         }`}
                       >
                         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: g.color }} />
@@ -362,13 +362,13 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
           </div>
 
           {/* Footer */}
-          <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-between gap-3 border-t border-white/5 bg-zinc-950/95 px-6 py-4 backdrop-blur">
+          <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-between gap-3 border-t border-[var(--hairline)] bg-[var(--canvas)] px-6 py-4 backdrop-blur">
             {isCreate ? (
               <span />
             ) : (
               <button
                 onClick={handleDelete}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-white/40 transition-all hover:bg-red-500/10 hover:text-red-400"
+                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-[var(--ink-3)] transition-all hover:bg-[var(--rust-soft)] hover:text-[var(--rust)]"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 Delete task
@@ -377,13 +377,13 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
             <div className="flex items-center gap-2">
               <button
                 onClick={onClose}
-                className="rounded-lg px-4 py-2 text-sm text-white/70 transition-all hover:bg-white/5 hover:text-white"
+                className="rounded-lg px-4 py-2 text-sm text-[var(--ink-2)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
               >
                 Cancel
               </button>
               <button
                 onClick={() => void handleSave()}
-                className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-all hover:bg-white/90"
+                className="rounded-lg bg-[var(--paper)] px-4 py-2 text-sm font-medium text-black transition-all hover:bg-[var(--paper)]"
               >
                 {isCreate ? "Create task" : "Save changes"}
               </button>

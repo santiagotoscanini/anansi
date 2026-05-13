@@ -6,14 +6,14 @@ import { isEmojiUrl } from "~/lib/emoji-utils";
 // Deterministic pastel-on-dark palette for initial-avatars. Hash the name so
 // the same person always gets the same color across renders and sessions.
 const INITIAL_COLORS = [
-  { bg: "bg-blue-500/20", text: "text-blue-300", border: "border-blue-500/30" },
-  { bg: "bg-emerald-500/20", text: "text-emerald-300", border: "border-emerald-500/30" },
-  { bg: "bg-amber-500/20", text: "text-amber-300", border: "border-amber-500/30" },
-  { bg: "bg-rose-500/20", text: "text-rose-300", border: "border-rose-500/30" },
-  { bg: "bg-violet-500/20", text: "text-violet-300", border: "border-violet-500/30" },
-  { bg: "bg-orange-500/20", text: "text-orange-300", border: "border-orange-500/30" },
-  { bg: "bg-teal-500/20", text: "text-teal-300", border: "border-teal-500/30" },
-  { bg: "bg-pink-500/20", text: "text-pink-300", border: "border-pink-500/30" },
+  { bg: "bg-[var(--indigo-soft)]", text: "text-[var(--indigo)]", border: "border-[var(--indigo)]" },
+  { bg: "bg-[var(--moss-soft)]", text: "text-[var(--moss)]", border: "border-[var(--moss)]" },
+  { bg: "bg-[var(--amber-soft)]", text: "text-[var(--amber)]", border: "border-[var(--amber)]" },
+  { bg: "bg-[var(--rust-soft)]", text: "text-[var(--rust)]", border: "border-[var(--rust)]" },
+  { bg: "bg-[var(--plum-soft)]", text: "text-[var(--plum)]", border: "border-[var(--plum)]" },
+  { bg: "bg-[var(--amber-soft)]", text: "text-[var(--amber)]", border: "border-[var(--amber)]" },
+  { bg: "bg-[var(--moss-soft)]", text: "text-[var(--moss)]", border: "border-[var(--moss)]" },
+  { bg: "bg-[var(--plum-soft)]", text: "text-[var(--plum)]", border: "border-[var(--plum)]" },
 ];
 
 function colorForName(name: string): (typeof INITIAL_COLORS)[number] {
@@ -56,7 +56,7 @@ export default function Avatar({ name, emoji, size = "md", shape = "square", cla
     if (isEmojiUrl(emoji)) {
       return (
         <div
-          className={`flex ${s.box} ${radius} shrink-0 items-center justify-center overflow-hidden border border-white/10 bg-white/5 ${className}`}
+          className={`flex ${s.box} ${radius} shrink-0 items-center justify-center overflow-hidden border border-[var(--hairline)] bg-[var(--vellum)] ${className}`}
         >
           {/*
            * unoptimized: the /uploads/[...path] route is auth-gated by the
@@ -72,7 +72,7 @@ export default function Avatar({ name, emoji, size = "md", shape = "square", cla
     }
     return (
       <div
-        className={`flex ${s.box} ${radius} shrink-0 items-center justify-center border border-white/10 bg-white/5 ${className}`}
+        className={`flex ${s.box} ${radius} shrink-0 items-center justify-center border border-[var(--hairline)] bg-[var(--vellum)] ${className}`}
       >
         <span className={`${s.emoji} leading-none`}>{emoji}</span>
       </div>

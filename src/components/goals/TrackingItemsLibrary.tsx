@@ -116,44 +116,86 @@ export default function TrackingItemsLibrary() {
   };
 
   return (
-    <div className="flex h-full flex-col text-white">
-      <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
-        <div>
-          <h2 className="text-xl font-semibold">Tracking Items</h2>
-          <p className="text-sm text-white/60">Things you track on weekly syncs. Goal optional.</p>
+    <div className="flex h-full flex-col" style={{ background: "var(--paper)", color: "var(--ink)" }}>
+      <header
+        className="flex items-end justify-between gap-4 px-6 pb-7 pt-10 md:px-12"
+        style={{ borderBottom: "1px solid var(--hairline)" }}
+      >
+        <div className="min-w-0 flex-1">
+          <div
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              letterSpacing: "0.08em",
+              color: "var(--ink-3)",
+              textTransform: "uppercase",
+              marginBottom: 10,
+            }}
+          >
+            Sync · tracking items · library
+          </div>
+          <h1
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: 40,
+              lineHeight: 1.2,
+              letterSpacing: "-0.02em",
+              color: "var(--ink)",
+            }}
+          >
+            The <span className="brand-em">questions</span> you ask yourself.
+          </h1>
+          <p
+            className="mt-3 max-w-2xl"
+            style={{
+              fontFamily: "var(--font-text)",
+              fontStyle: "italic",
+              fontSize: 16,
+              color: "var(--ink-2)",
+              lineHeight: 1.4,
+            }}
+          >
+            Your library of prompts. Each new weekly sync auto-fills from these. Add, edit, retire — the prompts evolve
+            as you do.
+          </p>
         </div>
         {!creatingOpen && (
           <button
             onClick={() => setCreatingOpen(true)}
-            className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm hover:bg-white/15"
+            className="flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm transition-all"
+            style={{
+              background: "var(--clay)",
+              color: "var(--paper)",
+              boxShadow: "var(--shadow-sm)",
+            }}
           >
             <Plus className="h-4 w-4" />
             New item
           </button>
         )}
-      </div>
+      </header>
 
       <div className="flex-1 overflow-y-auto p-6">
         {creatingOpen && (
-          <div className="mb-6 rounded-xl border border-white/15 bg-white/5 p-4">
+          <div className="mb-6 rounded-xl border border-[var(--hairline)] bg-[var(--vellum)] p-4">
             <input
               autoFocus
               value={draftTitle}
               onChange={(e) => setDraftTitle(e.target.value)}
               placeholder="Title (e.g., Sleep, Journaling, Time with mom)"
-              className="w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 text-sm outline-none focus:border-white/40"
+              className="w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
             />
             <textarea
               value={draftDescription}
               onChange={(e) => setDraftDescription(e.target.value)}
               placeholder="Optional description"
               rows={2}
-              className="mt-2 w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 text-sm outline-none focus:border-white/40"
+              className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
             />
             <select
               value={draftGoalId}
               onChange={(e) => setDraftGoalId(e.target.value)}
-              className="mt-2 w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 text-sm outline-none focus:border-white/40"
+              className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
             >
               <option value="">— Unscoped (no goal) —</option>
               {[...goalsById.values()].map((g) => (
@@ -163,13 +205,16 @@ export default function TrackingItemsLibrary() {
               ))}
             </select>
             <div className="mt-3 flex justify-end gap-2">
-              <button onClick={cancelCreate} className="rounded-md px-3 py-1.5 text-sm text-white/70 hover:bg-white/10">
+              <button
+                onClick={cancelCreate}
+                className="rounded-md px-3 py-1.5 text-sm text-[var(--ink-2)] hover:bg-[var(--vellum)]"
+              >
                 Cancel
               </button>
               <button
                 onClick={handleCreate}
                 disabled={createMutation.isPending}
-                className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium hover:bg-emerald-500 disabled:opacity-60"
+                className="rounded-md bg-[var(--moss)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--moss)] disabled:opacity-60"
               >
                 {createMutation.isPending ? "Creating…" : "Create"}
               </button>
@@ -178,10 +223,10 @@ export default function TrackingItemsLibrary() {
         )}
 
         {itemsQuery.isLoading ? (
-          <div className="text-sm text-white/60">Loading…</div>
+          <div className="text-sm text-[var(--ink-2)]">Loading…</div>
         ) : items.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/15 p-8 text-center text-white/60">
-            No tracking items yet. Click <span className="font-medium text-white">New item</span> to add one.
+          <div className="rounded-xl border border-dashed border-[var(--hairline)] p-8 text-center text-[var(--ink-2)]">
+            No tracking items yet. Click <span className="font-medium text-[var(--ink)]">New item</span> to add one.
           </div>
         ) : (
           <ul className="space-y-2">
@@ -189,24 +234,24 @@ export default function TrackingItemsLibrary() {
               const isEditing = editingId === item.id;
               const goal = item.goalId ? goalsById.get(item.goalId) : null;
               return (
-                <li key={item.id} className="rounded-xl border border-white/10 bg-white/5">
+                <li key={item.id} className="rounded-xl border border-[var(--hairline)] bg-[var(--vellum)]">
                   {isEditing ? (
                     <div className="p-4">
                       <input
                         value={editTitle}
                         onChange={(e) => setEditTitle(e.target.value)}
-                        className="w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 text-sm outline-none focus:border-white/40"
+                        className="w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
                       />
                       <textarea
                         value={editDescription}
                         onChange={(e) => setEditDescription(e.target.value)}
                         rows={2}
-                        className="mt-2 w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 text-sm outline-none focus:border-white/40"
+                        className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
                       />
                       <select
                         value={editGoalId}
                         onChange={(e) => setEditGoalId(e.target.value)}
-                        className="mt-2 w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 text-sm outline-none focus:border-white/40"
+                        className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
                       >
                         <option value="">— Unscoped —</option>
                         {[...goalsById.values()].map((g) => (
@@ -218,14 +263,14 @@ export default function TrackingItemsLibrary() {
                       <div className="mt-3 flex justify-end gap-2">
                         <button
                           onClick={cancelEdit}
-                          className="flex items-center gap-1 rounded-md px-3 py-1.5 text-sm text-white/70 hover:bg-white/10"
+                          className="flex items-center gap-1 rounded-md px-3 py-1.5 text-sm text-[var(--ink-2)] hover:bg-[var(--vellum)]"
                         >
                           <X className="h-4 w-4" /> Cancel
                         </button>
                         <button
                           onClick={handleSaveEdit}
                           disabled={updateMutation.isPending}
-                          className="flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium hover:bg-emerald-500 disabled:opacity-60"
+                          className="flex items-center gap-1 rounded-md bg-[var(--moss)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--moss)] disabled:opacity-60"
                         >
                           <Check className="h-4 w-4" /> Save
                         </button>
@@ -237,26 +282,28 @@ export default function TrackingItemsLibrary() {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="truncate font-medium">{item.title}</span>
                           {goal ? (
-                            <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-xs text-blue-200">
+                            <span className="rounded-full bg-[var(--indigo-soft)] px-2 py-0.5 text-xs text-[var(--indigo)]">
                               {goal.title}
                             </span>
                           ) : (
-                            <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/60">Unscoped</span>
+                            <span className="rounded-full bg-[var(--vellum)] px-2 py-0.5 text-xs text-[var(--ink-2)]">
+                              Unscoped
+                            </span>
                           )}
                         </div>
-                        {item.description && <p className="mt-1 text-sm text-white/60">{item.description}</p>}
+                        {item.description && <p className="mt-1 text-sm text-[var(--ink-2)]">{item.description}</p>}
                       </div>
                       <div className="flex shrink-0 gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                         <button
                           onClick={() => beginEdit(item)}
-                          className="rounded-md p-1.5 text-white/70 hover:bg-white/10"
+                          className="rounded-md p-1.5 text-[var(--ink-2)] hover:bg-[var(--vellum)]"
                           title="Edit"
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(item)}
-                          className="rounded-md p-1.5 text-white/70 hover:bg-rose-500/20 hover:text-rose-200"
+                          className="rounded-md p-1.5 text-[var(--ink-2)] hover:bg-[var(--rust-soft)] hover:text-[var(--rust)]"
                           title="Delete"
                         >
                           <Trash2 className="h-4 w-4" />

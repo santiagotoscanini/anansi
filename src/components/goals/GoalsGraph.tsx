@@ -325,31 +325,83 @@ export default function GoalsGraph() {
   ]);
 
   return (
-    <div className="h-full">
-      <div className="relative h-full">
-        {/* Add Goal Button — text + shortcut hidden on mobile to save room next to the help button */}
-        <button
-          onClick={handleAddGoal}
-          className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-lg border border-white/20 bg-black px-3 py-2 text-sm transition-all hover:bg-white hover:text-black md:left-8 md:top-8 md:px-4"
-          title="Add new goal (Ctrl+G)"
-          aria-label="Add new goal"
-        >
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Add Goal</span>
-          <span className="ml-1 hidden text-xs opacity-60 md:inline">(Ctrl+G)</span>
-        </button>
+    <div className="flex h-full flex-col" style={{ background: "var(--paper)" }}>
+      {/* Warm ScreenHeader on top of the graph — matches the design's
+          Objectives view. New Goal + How-it-works moved into the action
+          row instead of floating chips on the canvas. */}
+      <header className="shrink-0 px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: "1px solid var(--hairline)" }}>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                letterSpacing: "0.08em",
+                color: "var(--ink-3)",
+                textTransform: "uppercase",
+                marginBottom: 10,
+              }}
+            >
+              Goals · objectives
+            </div>
+            <h1
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 44,
+                lineHeight: 1.2,
+                letterSpacing: "-0.02em",
+                color: "var(--ink)",
+              }}
+            >
+              A graph of what <span className="brand-em">I want.</span>
+            </h1>
+            <p
+              className="mt-3 max-w-2xl"
+              style={{
+                fontFamily: "var(--font-text)",
+                fontStyle: "italic",
+                fontSize: 17,
+                color: "var(--ink-2)",
+                lineHeight: 1.4,
+              }}
+            >
+              Cards on a free-positioned canvas. Edges carry weight. Look at the canvas and the heaviness shows you
+              where to look.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              onClick={() => setIsHelpOpen(true)}
+              className="flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm transition-all"
+              style={{
+                background: "var(--canvas)",
+                color: "var(--ink)",
+                border: "1px solid var(--hairline-2)",
+                boxShadow: "var(--shadow-sm)",
+              }}
+              title="How are progress and importance calculated?"
+            >
+              <HelpCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">How it works</span>
+            </button>
+            <button
+              onClick={handleAddGoal}
+              className="flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm transition-all"
+              style={{
+                background: "var(--clay)",
+                color: "var(--paper)",
+                boxShadow: "var(--shadow-sm)",
+              }}
+              title="Add new goal (Ctrl+G)"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">New goal</span>
+            </button>
+          </div>
+        </div>
+      </header>
 
-        {/* Help button — explains graph calculations */}
-        <button
-          onClick={() => setIsHelpOpen(true)}
-          className="absolute right-4 top-4 z-10 flex items-center gap-2 rounded-lg border border-white/20 bg-black px-3 py-2 text-sm text-white/70 transition-all hover:bg-white hover:text-black md:right-8 md:top-8"
-          title="How are progress and importance calculated?"
-          aria-label="How does the graph work?"
-        >
-          <HelpCircle className="h-4 w-4" />
-          <span className="hidden sm:inline">How it works</span>
-        </button>
-
+      <div className="relative min-h-0 flex-1">
         {/* React Flow Graph */}
         <ReactFlow
           nodes={nodes}
@@ -366,22 +418,24 @@ export default function GoalsGraph() {
           edgeTypes={edgeTypes}
           fitView
           proOptions={{ hideAttribution: true }}
-          className="bg-black"
+          className="bg-[var(--paper)]"
         >
-          <Controls className="!border-white/20 !bg-black [&>button>svg]:!fill-white [&>button]:!border [&>button]:!border-white/20 [&>button]:!bg-black [&>button]:!text-white" />
+          <Controls className="!rounded-lg !border-[var(--hairline-2)] !bg-[var(--canvas)] !shadow-sm [&>button:hover]:!bg-[var(--vellum)] [&>button>svg]:!fill-[var(--ink-2)] [&>button]:!border-b [&>button]:!border-[var(--hairline)] [&>button]:!bg-[var(--canvas)] [&>button]:!text-[var(--ink)]" />
           {/* MiniMap is dead weight on a phone — hide on small screens to free real estate. */}
           <MiniMap
-            className="!hidden !border-white/20 !bg-white/10 md:!block"
+            className="!hidden !border-[var(--hairline-2)] !bg-[var(--vellum)] md:!block"
             nodeColor={(node) => {
               const goal = goals.find((g) => g.id === node.id);
-              if (!goal) return "#666";
+              if (!goal) return "oklch(0.72 0.012 65)";
               const completion = getGoalProgress(goal.id).totalProgress;
-              if (completion < 33) return "#ef4444";
-              if (completion < 67) return "#eab308";
-              return "#22c55e";
+              if (completion < 33) return "oklch(0.55 0.14 28)"; // rust
+              if (completion < 67) return "oklch(0.72 0.13 75)"; // amber
+              return "oklch(0.55 0.09 135)"; // moss
             }}
           />
-          <Background color="#333" gap={20} />
+          {/* Warm dot grid — uses a tinted ink color (~6% opacity) so it
+              reads as paper texture, not a CRT graticule. */}
+          <Background color="#1c140822" gap={22} />
         </ReactFlow>
 
         {/* Empty State */}

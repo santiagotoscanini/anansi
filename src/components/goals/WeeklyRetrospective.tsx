@@ -317,28 +317,71 @@ export default function WeeklyRetrospective() {
   const addableItems = (retrospectiveData?.allTrackingItems ?? []).filter((i) => !itemsOnSync.has(i.id));
 
   return (
-    <div className="h-full overflow-y-auto px-4 py-6 md:px-8 md:py-8">
+    <div className="h-full overflow-y-auto" style={{ background: "var(--paper)" }}>
       {defaultEditorOpen && <SyncDefaultEditor onClose={() => setDefaultEditorOpen(false)} />}
-      <div className="mx-auto max-w-6xl">
-        {/* Header */}
-        <div className="mb-8 flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-light">Weekly Goal Sync</h2>
-            <p className="mt-2 text-sm opacity-60">Track your weekly progress and sync goals with your activities</p>
+      <header className="px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: "1px solid var(--hairline)" }}>
+        <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                letterSpacing: "0.08em",
+                color: "var(--ink-3)",
+                textTransform: "uppercase",
+                marginBottom: 10,
+              }}
+            >
+              Sync · weekly retrospective
+            </div>
+            <h1
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 44,
+                lineHeight: 1.2,
+                letterSpacing: "-0.02em",
+                color: "var(--ink)",
+              }}
+            >
+              The weekly <span className="brand-em">sync.</span>
+            </h1>
+            <p
+              className="mt-3 max-w-2xl"
+              style={{
+                fontFamily: "var(--font-text)",
+                fontStyle: "italic",
+                fontSize: 17,
+                color: "var(--ink-2)",
+                lineHeight: 1.4,
+              }}
+            >
+              Your weekly sync, grouped by goal. Use it on Friday afternoon or Sunday morning. There&apos;s no right
+              answer.
+            </p>
           </div>
           <button
             onClick={() => setDefaultEditorOpen(true)}
-            className="flex items-center gap-2 rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+            className="flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm transition-all"
+            style={{
+              border: "1px solid var(--hairline-2)",
+              background: "var(--canvas)",
+              color: "var(--ink)",
+              boxShadow: "var(--shadow-sm)",
+            }}
             title="Edit the default items every new sync starts with"
           >
             <Settings className="h-4 w-4" />
             Default items
           </button>
         </div>
-
+      </header>
+      <div className="mx-auto max-w-6xl px-6 py-7 md:px-12">
         {/* Week Selector */}
-        <div className="mb-8 flex items-center justify-between rounded-lg border border-white/20 bg-white/5 p-4">
-          <button onClick={() => handleWeekChange("prev")} className="rounded-lg p-2 transition-all hover:bg-white/10">
+        <div className="mb-8 flex items-center justify-between rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] p-4">
+          <button
+            onClick={() => handleWeekChange("prev")}
+            className="rounded-lg p-2 transition-all hover:bg-[var(--vellum)]"
+          >
             <ChevronLeft className="h-5 w-5" />
           </button>
 
@@ -349,25 +392,28 @@ export default function WeeklyRetrospective() {
                 Week of {selectedWeek.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </span>
               {isCurrentWeek(selectedWeek) && (
-                <span className="rounded-full bg-green-500/20 px-2 py-1 text-xs text-green-400">Current</span>
+                <span className="rounded-full bg-[var(--moss-soft)] px-2 py-1 text-xs text-[var(--moss)]">Current</span>
               )}
             </div>
             <span className="text-sm opacity-60">{getWeekDateRange(selectedWeek)}</span>
           </div>
 
-          <button onClick={() => handleWeekChange("next")} className="rounded-lg p-2 transition-all hover:bg-white/10">
+          <button
+            onClick={() => handleWeekChange("next")}
+            className="rounded-lg p-2 transition-all hover:bg-[var(--vellum)]"
+          >
             <ChevronRight className="h-5 w-5" />
           </button>
         </div>
 
         {/* Error Display */}
         {hasError && (
-          <div className="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 p-4">
+          <div className="mb-6 rounded-lg border border-[var(--rust)] bg-[var(--rust-soft)] p-4">
             <div className="flex items-center gap-2">
-              <div className="h-4 w-4 rounded-full bg-red-500"></div>
-              <span className="font-medium text-red-400">Backend Error</span>
+              <div className="h-4 w-4 rounded-full bg-[var(--rust)]"></div>
+              <span className="font-medium text-[var(--rust)]">Backend Error</span>
             </div>
-            <p className="mt-2 text-sm text-red-300">
+            <p className="mt-2 text-sm text-[var(--rust)]">
               {hasError.message || "An error occurred while loading weekly retrospective data"}
             </p>
             <p className="mt-1 text-xs opacity-60">Weekly sync creation is disabled until this error is resolved</p>
@@ -378,12 +424,12 @@ export default function WeeklyRetrospective() {
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
-              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white"></div>
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[var(--hairline-2)] border-t-white"></div>
               <p className="mt-2 text-sm opacity-60">Loading...</p>
             </div>
           </div>
         ) : !weeklySync ? (
-          <div className="rounded-lg border border-white/10 bg-white/5 p-12 text-center">
+          <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-12 text-center">
             <Calendar className="mx-auto h-12 w-12 opacity-30" />
             <p className="mt-4 text-lg font-light">No sync for this week</p>
             <p className="mt-2 text-sm opacity-60">Start a weekly sync to track your goal progress for this week</p>
@@ -392,8 +438,8 @@ export default function WeeklyRetrospective() {
               disabled={!!hasError}
               className={`mt-6 rounded-lg border px-4 py-2 transition-all ${
                 hasError
-                  ? "cursor-not-allowed border-red-500/20 bg-red-500/10 text-red-400 opacity-50"
-                  : "border-white/20 bg-white/10 hover:bg-white hover:text-black"
+                  ? "cursor-not-allowed border-[var(--rust)] bg-[var(--rust-soft)] text-[var(--rust)] opacity-50"
+                  : "border-[var(--hairline-2)] bg-[var(--vellum)] hover:bg-[var(--paper)] hover:text-black"
               }`}
             >
               <Plus className="mr-2 inline h-4 w-4" />
@@ -404,7 +450,7 @@ export default function WeeklyRetrospective() {
           <div className="space-y-6">
             {/* Inline "+ Add item to sync" picker — pulls from the user's
                 library, filtering out items already on this sync. */}
-            <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+            <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium">Add item to this sync</p>
@@ -415,22 +461,22 @@ export default function WeeklyRetrospective() {
                 <button
                   onClick={() => setPickerOpen((p) => !p)}
                   disabled={addableItems.length === 0}
-                  className="flex items-center gap-2 rounded-md border border-white/20 px-3 py-1.5 text-sm hover:bg-white/10 disabled:opacity-50"
+                  className="flex items-center gap-2 rounded-md border border-[var(--hairline-2)] px-3 py-1.5 text-sm hover:bg-[var(--vellum)] disabled:opacity-50"
                 >
                   <Plus className="h-4 w-4" />
                   {pickerOpen ? "Close picker" : addableItems.length === 0 ? "Nothing to add" : "Pick item"}
                 </button>
               </div>
               {pickerOpen && addableItems.length > 0 && (
-                <ul className="mt-3 max-h-56 overflow-y-auto rounded-md border border-white/10 bg-black/30 p-2">
+                <ul className="mt-3 max-h-56 overflow-y-auto rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] p-2">
                   {addableItems.map((item) => (
                     <li key={item.id}>
                       <button
                         onClick={() => void handleAddItemToSync(item.id)}
-                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-white/10"
+                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-[var(--vellum)]"
                       >
                         <span className="truncate">{item.title}</span>
-                        <span className="ml-2 shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide opacity-70">
+                        <span className="ml-2 shrink-0 rounded-full bg-[var(--vellum)] px-2 py-0.5 text-[10px] uppercase tracking-wide opacity-70">
                           {item.goalTitle ?? "Unscoped"}
                         </span>
                       </button>
@@ -445,13 +491,13 @@ export default function WeeklyRetrospective() {
               const groupStatus = getGoalStatus(group);
 
               return (
-                <div key={group.id} className="rounded-lg border border-white/10 bg-white/5 p-6">
+                <div key={group.id} className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-6">
                   {/* Group Header */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => toggleGoalCollapse(group.id)}
-                        className="rounded p-1 transition-all hover:bg-white/10"
+                        className="rounded p-1 transition-all hover:bg-[var(--vellum)]"
                       >
                         {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
                       </button>
@@ -469,10 +515,10 @@ export default function WeeklyRetrospective() {
                         <div
                           className={`h-3 w-3 rounded-full ${
                             groupStatus === "complete"
-                              ? "bg-green-500"
+                              ? "bg-[var(--moss)]"
                               : groupStatus === "partial"
-                                ? "bg-yellow-500"
-                                : "bg-red-500"
+                                ? "bg-[var(--amber)]"
+                                : "bg-[var(--rust)]"
                           }`}
                           title={`Goal status: ${groupStatus}`}
                         />
@@ -481,10 +527,10 @@ export default function WeeklyRetrospective() {
                       <span
                         className={`rounded-full px-2 py-1 text-xs ${
                           group.importance === "High"
-                            ? "bg-red-500/20 text-red-400"
+                            ? "bg-[var(--rust-soft)] text-[var(--rust)]"
                             : group.importance === "Medium"
-                              ? "bg-yellow-500/20 text-yellow-400"
-                              : "bg-gray-500/20 text-gray-400"
+                              ? "bg-[var(--amber-soft)] text-[var(--amber)]"
+                              : "bg-[var(--ink-3-soft)] text-[var(--ink-3)]"
                         }`}
                       >
                         {group.importance}
@@ -509,7 +555,7 @@ export default function WeeklyRetrospective() {
                           />
                         ))
                       ) : (
-                        <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-center">
+                        <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-4 text-center">
                           <p className="text-sm opacity-60">No tracking items for this goal</p>
                         </div>
                       )}
@@ -520,7 +566,7 @@ export default function WeeklyRetrospective() {
             })}
 
             {allGroups.length === 0 && (
-              <div className="rounded-lg border border-white/10 bg-white/5 p-12 text-center">
+              <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-12 text-center">
                 <Target className="mx-auto h-12 w-12 opacity-30" />
                 <p className="mt-4 text-lg font-light">No items on this sync yet</p>
                 <p className="mt-2 text-sm opacity-60">
@@ -533,15 +579,15 @@ export default function WeeklyRetrospective() {
 
         {/* Delete Confirmation Dialog */}
         {deleteConfirmation.isOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="mx-4 w-full max-w-md rounded-lg border border-white/20 bg-gray-900 p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--paper-deep)]">
+            <div className="mx-4 w-full max-w-md rounded-lg border border-[var(--hairline-2)] bg-[var(--ink-3)] p-6">
               <div className="mb-4 flex items-start gap-3">
-                <div className="flex-shrink-0 rounded-full bg-red-500/20 p-2">
-                  <Trash2 className="h-5 w-5 text-red-400" />
+                <div className="flex-shrink-0 rounded-full bg-[var(--rust-soft)] p-2">
+                  <Trash2 className="h-5 w-5 text-[var(--rust)]" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-white">Delete File</h3>
-                  <p className="mt-1 text-sm text-gray-300">
+                  <h3 className="text-lg font-semibold text-[var(--ink)]">Delete File</h3>
+                  <p className="mt-1 text-sm text-[var(--ink-3)]">
                     Are you sure you want to delete &quot;{deleteConfirmation.fileName}&quot;? This action cannot be
                     undone.
                   </p>
@@ -551,13 +597,13 @@ export default function WeeklyRetrospective() {
               <div className="flex gap-3">
                 <button
                   onClick={handleDeleteCancel}
-                  className="flex-1 rounded-lg border border-white/20 px-4 py-2 text-sm transition-all hover:bg-white/10"
+                  className="flex-1 rounded-lg border border-[var(--hairline-2)] px-4 py-2 text-sm transition-all hover:bg-[var(--vellum)]"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleDeleteConfirm}
-                  className="flex-1 rounded-lg bg-red-500 px-4 py-2 text-sm text-white transition-all hover:bg-red-600"
+                  className="flex-1 rounded-lg bg-[var(--rust)] px-4 py-2 text-sm text-[var(--ink)] transition-all hover:bg-[var(--rust)]"
                 >
                   Delete
                 </button>

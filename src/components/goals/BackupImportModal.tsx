@@ -69,9 +69,9 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
   const b = parsed?.backup;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
+    <div className="bg-[var(--ink)]/80 fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-lg border border-white/20 bg-black p-6"
+        className="w-full max-w-md rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -80,7 +80,7 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
             <Upload className="h-5 w-5" />
             <h3 className="text-lg font-light">Import backup</h3>
           </div>
-          <button onClick={onClose} className="rounded-lg p-2 transition-all hover:bg-white/10">
+          <button onClick={onClose} className="rounded-lg p-2 transition-all hover:bg-[var(--vellum)]">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -100,12 +100,12 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full rounded-lg border border-dashed border-white/30 px-4 py-8 text-sm text-white/70 transition-all hover:border-white/60 hover:bg-white/5"
+              className="w-full rounded-lg border border-dashed border-[var(--hairline-2)] px-4 py-8 text-sm text-[var(--ink-2)] transition-all hover:border-[var(--hairline-2)] hover:bg-[var(--vellum)]"
             >
               Choose backup file (.json)
             </button>
             {parseError && (
-              <p className="mt-2 flex items-start gap-1.5 text-sm text-red-400">
+              <p className="mt-2 flex items-start gap-1.5 text-sm text-[var(--rust)]">
                 <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                 <span>{parseError}</span>
               </p>
@@ -116,35 +116,36 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
         {/* Summary + confirmation */}
         {parsed && b && (
           <div className="space-y-4">
-            <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm">
-              <div className="mb-2 truncate text-white/50">{parsed.fileName}</div>
+            <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-3 text-sm">
+              <div className="mb-2 truncate text-[var(--ink-3)]">{parsed.fileName}</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                <div className="text-white/60">Exported</div>
+                <div className="text-[var(--ink-2)]">Exported</div>
                 <div className="text-right">{b.exportedAt.toISOString().slice(0, 10)}</div>
-                <div className="text-white/60">Account</div>
+                <div className="text-[var(--ink-2)]">Account</div>
                 <div className="truncate text-right" title={b.user.email}>
                   {b.user.email}
                 </div>
-                <div className="text-white/60">Goals</div>
+                <div className="text-[var(--ink-2)]">Goals</div>
                 <div className="text-right">{b.goals.length}</div>
-                <div className="text-white/60">Values</div>
+                <div className="text-[var(--ink-2)]">Values</div>
                 <div className="text-right">{b.values.length}</div>
-                <div className="text-white/60">Connections</div>
+                <div className="text-[var(--ink-2)]">Connections</div>
                 <div className="text-right">{b.connections.length}</div>
-                <div className="text-white/60">Tracking items</div>
+                <div className="text-[var(--ink-2)]">Tracking items</div>
                 <div className="text-right">{b.trackingItems.length}</div>
-                <div className="text-white/60">Weekly syncs</div>
+                <div className="text-[var(--ink-2)]">Weekly syncs</div>
                 <div className="text-right">{b.weeklySync.length}</div>
-                <div className="text-white/60">Files</div>
+                <div className="text-[var(--ink-2)]">Files</div>
                 <div className="text-right">{b.files.length}</div>
               </div>
             </div>
 
-            <div className="flex items-start gap-2 rounded-lg border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-200">
-              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-400" />
+            <div className="flex items-start gap-2 rounded-lg border border-[var(--rust)] bg-[var(--rust-soft)] p-3 text-sm text-[var(--rust)]">
+              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--rust)]" />
               <span>
                 This will <strong>permanently delete</strong> everything currently in your account and replace it with
-                the contents of this backup. Type <code className="rounded bg-black/40 px-1">REPLACE</code> to confirm.
+                the contents of this backup. Type <code className="rounded bg-[var(--paper-deep)] px-1">REPLACE</code>{" "}
+                to confirm.
               </span>
             </div>
 
@@ -153,7 +154,7 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
               value={confirmToken}
               onChange={(e) => setConfirmToken(e.target.value)}
               placeholder="Type REPLACE"
-              className="w-full rounded-lg border border-white/20 bg-transparent px-4 py-2 text-white placeholder-white/30 outline-none transition-all focus:border-white/40"
+              className="w-full rounded-lg border border-[var(--hairline-2)] bg-transparent px-4 py-2 text-[var(--ink)] placeholder-[var(--ink-4)] outline-none transition-all focus:border-[var(--hairline-2)]"
               autoFocus
             />
 
@@ -161,14 +162,14 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
               <button
                 onClick={onClose}
                 disabled={importMutation.isPending}
-                className="flex-1 rounded-lg border border-white/20 px-4 py-2 transition-all hover:bg-white/10 disabled:opacity-50"
+                className="flex-1 rounded-lg border border-[var(--hairline-2)] px-4 py-2 transition-all hover:bg-[var(--vellum)] disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirm}
                 disabled={!canConfirm}
-                className="flex-1 rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-2 text-red-400 transition-all hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex-1 rounded-lg border border-[var(--rust)] bg-[var(--rust-soft)] px-4 py-2 text-[var(--rust)] transition-all hover:bg-[var(--rust-soft)] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {importMutation.isPending ? "Restoring…" : "Replace everything"}
               </button>

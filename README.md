@@ -84,24 +84,18 @@ npm run typecheck   # tsc --noEmit
 npm run build       # next build
 ```
 
-CI runs lint + typecheck + build on every PR (`.github/workflows/ci.yml`). The Docker image is published on version-bump only (`docker-publish.yml`).
+CI runs lint + typecheck + build on every PR (`.github/workflows/ci.yml`).
 
 ## Deployment
 
-Anansi is a standalone Next.js app behind Traefik on a NAS. Image is published to `ghcr.io/<owner>/<repo>:latest` on every `package.json` version bump.
-
-```bash
-# Pull and run on the host (see docker-compose.yml for the production layout)
-docker compose pull
-docker compose up -d
-```
+Anansi is a Next.js app deployed to your platform of choice (Vercel, Fly, Render, …). It needs a Postgres database (Supabase works out of the box — `DATABASE_URL` is the only DB-side requirement).
 
 Required env:
 
 - `DATABASE_URL` — Postgres connection string.
 - `JWT_SECRET` — at least 32 characters; the app refuses to boot without it. Generate with `openssl rand -base64 48`.
 
-The container runs as a non-root `app` user, exposes a `/api/healthz` route (DB roundtrip check), and applies pending migrations on boot before exec-ing into Next.
+A `/api/healthz` route does a DB round-trip check. Run `npx drizzle-kit migrate` to apply pending migrations before starting the server.
 
 ## Documentation
 

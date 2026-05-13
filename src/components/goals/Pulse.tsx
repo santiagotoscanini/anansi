@@ -3,7 +3,6 @@
 import { useMemo, useRef, useState } from "react";
 import NextImage from "next/image";
 import {
-  Calendar,
   CalendarDays,
   ChevronDown,
   ChevronRight,
@@ -13,19 +12,21 @@ import {
   Loader2,
   Trash2,
   Users,
+  Check,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useGoals } from "~/contexts/GoalsContext";
 import { api, type RouterOutputs } from "~/trpc/react";
 import { bucketForDate, formatScheduledShort } from "~/lib/horizon-period";
 import Avatar from "./Avatar";
+import { Btn, Card, Eyebrow, SecLabel } from "./ui";
 
 type WeeklyRetroData = RouterOutputs["goals"]["weeklySync"]["getWeeklyRetrospectiveData"];
 
-// "Pulse" — the weekly heartbeat surface. The simple landing for everyday use:
-// the current week's items rendered as a flat to-fill list, no goal grouping,
-// no default-items editor, no week navigation. Heavy management lives on the
-// Sync tab. Pulse is what you open daily/weekly to actually do the work.
+// "Pulse" — the warm daily landing. Header reads as a journal entry
+// (eyebrow + display headline with inline italic clay accent), body is
+// a flat list of this week's prompts. Heavy management still lives on
+// the Sync tab.
 export default function Pulse() {
   const {
     goals,
@@ -38,20 +39,16 @@ export default function Pulse() {
     refreshWeeklyRetrospectiveData,
   } = useGoals();
 
-  // Side queries for the secondary Pulse sections.
   const peopleQuery = api.goals.people.getAll.useQuery();
   const importantDatesQuery = api.goals.importantDates.list.useQuery();
   const upcomingBidsQuery = api.goals.nextBids.listUpcoming.useQuery();
   const [showYearlySection, setShowYearlySection] = useState(false);
 
-  // Pulse is always "this week" — no navigation. selectedWeek is computed
-  // once on mount from today's date.
   const [weekStart] = useState<Date>(() => getWeekStartDate(new Date()));
   const query = getWeeklyRetrospectiveData(weekStart);
   const data: WeeklyRetroData | undefined = query.data;
   const weeklySync = data?.weeklySync;
 
-  // Flatten goal-grouped + unscoped items into one list, sorted by orderIdx.
   const items = useMemo(() => {
     if (!data) return [];
     const flat = [
@@ -64,16 +61,11 @@ export default function Pulse() {
     });
   }, [data]);
 
-  // Progress: an item counts as "filled" if it has any text or attachments.
   const filled = items.filter((it) => (it.textContent ?? "").trim().length > 0 || it.attachments.length > 0);
   const progress = items.length === 0 ? 0 : Math.round((filled.length / items.length) * 100);
 
-  // Time-bound tasks bucketed by computed proximity to today (see
-  // src/lib/horizon-period.ts). Auto-rollup: a Sept 15 task lives in
-  // "year" until July starts, then "quarter" through August, then promotes
-  // to "month" when September arrives. Pulse renders THIS-month and
-  // THIS-quarter as full lists; THIS-year stays collapsed by default
-  // because it's typically large and rarely the daily focus.
+  // Horizon bucket math — see horizon-period.ts. month/quarter render
+  // inline, year stays collapsed by default.
   const horizonBuckets = useMemo(() => {
     type FlatTask = {
       id: string;
@@ -113,15 +105,7 @@ export default function Pulse() {
     return { month, quarter, year };
   }, [goals]);
 
-  // People needing attention. Each row names the SPECIFIC reason — Pulse is
-  // for action, not a count, so "Alice — decision due in 3 days" beats
-  // "2 exploring …". Reasons surfaced today:
-  //   - "to_process": person is sitting in the inbox waiting to be sorted
-  //   - "exploring" past decideBy: decision is overdue
-  //   - "exploring" with decideBy ≤ 14 days: decision due soon
-  // Sorted by urgency (overdue first, then soonest decideBy, then inbox).
-  // Computed inline rather than via useMemo because Date.now() is impure
-  // (React compiler purity rule); the filter set is small.
+  // People needing attention — same logic as before, just colored warm.
   const peopleRows = peopleQuery.data ?? [];
   type AttentionReason =
     | { kind: "overdue"; daysOverdue: number; decideBy: Date }
@@ -163,20 +147,16 @@ export default function Pulse() {
     if (r.kind === "overdue") return 0;
     if (r.kind === "due-soon") return 1;
     if (r.kind === "exploring-no-date") return 2;
-    return 3; // inbox
+    return 3;
   };
   attentionRows.sort((a, b) => {
     const r = reasonRank(a.reason) - reasonRank(b.reason);
     if (r !== 0) return r;
-    // Within "due-soon"/"overdue", earlier dates first.
     const aDate = "decideBy" in a.reason ? a.reason.decideBy.getTime() : Number.POSITIVE_INFINITY;
     const bDate = "decideBy" in b.reason ? b.reason.decideBy.getTime() : Number.POSITIVE_INFINITY;
     return aDate - bDate || a.person.name.localeCompare(b.person.name);
   });
 
-  // Important dates — yearly recurring (birthdays, anniversaries, …). Show
-  // every date whose next occurrence is within the upcoming 30 days. Computed
-  // inline for the same reason as peopleNudges (Date.now() is impure).
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const personById = new Map(peopleRows.map((p) => [p.id, p]));
@@ -192,9 +172,6 @@ export default function Pulse() {
     .filter((d) => d.daysUntil >= 0 && d.daysUntil <= 30 && d.person?.archivedAt === null)
     .sort((a, b) => a.daysUntil - b.daysUntil);
 
-  // Unified upcoming feed — important dates (yearly recurring) + bids
-  // (one-shot per-person actions with dueAt). Each row carries `kind` so
-  // the renderer can pick the right icon and chrome.
   type UpcomingRow =
     | { kind: "date"; id: string; date: Date; daysUntil: number; person: string; label: string; turning: number | null }
     | {
@@ -250,156 +227,359 @@ export default function Pulse() {
     return `${fmt(start)} – ${fmt(end)}, ${start.getFullYear()}`;
   };
 
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 5) return "Up late";
+    if (h < 12) return "Good morning";
+    if (h < 18) return "Good afternoon";
+    return "Good evening";
+  })();
+
   if (query.isLoading) {
     return (
-      <div className="flex h-full items-center justify-center text-white/50">
+      <div className="flex h-full items-center justify-center" style={{ color: "var(--ink-3)" }}>
         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading…
       </div>
     );
   }
 
   return (
-    <div className="h-full overflow-y-auto px-4 py-6 md:px-8 md:py-8">
-      <div className="mx-auto max-w-3xl">
-        {/* Header — week range + compact progress */}
-        <header className="mb-6">
-          <div className="flex items-baseline justify-between gap-3">
-            <h1 className="text-2xl font-light">Pulse</h1>
-            <span className="flex items-center gap-1.5 text-xs text-white/50">
-              <Calendar className="h-3.5 w-3.5" />
+    <div className="h-full overflow-y-auto" style={{ background: "var(--paper)" }}>
+      {/* Pulse hero — eyebrow + warm headline + italic Newsreader subtitle */}
+      <header
+        className="px-6 pb-7 pt-10 md:px-12 md:pb-8 md:pt-14"
+        style={{ borderBottom: "1px solid var(--hairline)" }}
+      >
+        <div className="mx-auto flex max-w-5xl flex-wrap items-baseline justify-between gap-6">
+          <div className="min-w-0 flex-1">
+            <Eyebrow>
+              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} ·{" "}
               {formatRange(weekStart)}
-            </span>
+            </Eyebrow>
+            <h1
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 52,
+                lineHeight: 1.18,
+                letterSpacing: "-0.02em",
+                color: "var(--ink)",
+                paddingBottom: 8,
+              }}
+            >
+              {greeting}, <span className="brand-em">this week.</span>
+            </h1>
+            <p
+              style={{
+                fontFamily: "var(--font-text)",
+                fontStyle: "italic",
+                fontSize: 19,
+                color: "var(--ink-2)",
+                marginTop: 12,
+                lineHeight: 1.4,
+                maxWidth: 580,
+              }}
+            >
+              This week, in one place. Fill what&apos;s true.
+            </p>
           </div>
-          <p className="mt-1 text-sm text-white/50">This week, in one place. Fill what&apos;s true.</p>
-
           {weeklySync && items.length > 0 && (
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-xs text-white/50">
+            <div className="flex flex-col items-end gap-2">
+              <div
+                className="flex items-center gap-3"
+                style={{ color: "var(--ink-3)", fontSize: 11, fontFamily: "var(--font-mono)" }}
+              >
                 <span>
-                  {filled.length} of {items.length} item{items.length === 1 ? "" : "s"} filled
+                  <span style={{ color: "var(--ink)" }}>{filled.length}</span>/{items.length} filled
                 </span>
-                <span className="tabular-nums">{progress}%</span>
-              </div>
-              <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10">
-                <div className="h-full bg-emerald-400/80 transition-all" style={{ width: `${progress}%` }} />
+                <span
+                  style={{
+                    width: 96,
+                    height: 4,
+                    background: "var(--vellum)",
+                    borderRadius: 99,
+                    overflow: "hidden",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "block",
+                      width: `${progress}%`,
+                      height: "100%",
+                      background: "var(--clay)",
+                      transition: "width var(--dur-3) var(--ease)",
+                    }}
+                  />
+                </span>
+                <span>{progress}%</span>
               </div>
             </div>
           )}
-        </header>
+        </div>
+      </header>
 
-        {/* Body */}
-        {!weeklySync ? (
-          <EmptyState
-            title="No sync for this week yet"
-            body="Start the week to load your default items, or set them up in the Sync tab first."
-            cta={{ label: "Start this week", onClick: () => void handleStart() }}
-          />
-        ) : items.length === 0 ? (
-          <EmptyState
-            title="Sync started, no items yet"
-            body="Add items via the Sync tab — set up your default items so future weeks auto-fill."
-          />
-        ) : (
-          <ul className="space-y-3">
-            {items.map((it) => (
-              <PulseItemRow
-                key={it.id}
-                item={it}
-                weeklySyncId={weeklySync.id}
-                onSaveText={(content) =>
-                  saveTextFile(content, weeklySync.id, it.trackingItemId).then(() => {
-                    /* return signature ignored; refresh handled below by debounced caller */
-                  })
-                }
-                onUploadImages={async (files) => {
-                  for (const file of Array.from(files)) {
-                    const reader = new FileReader();
-                    const data = await new Promise<string>((resolve, reject) => {
-                      reader.onload = () => resolve(reader.result as string);
-                      reader.onerror = reject;
-                      reader.readAsDataURL(file);
-                    });
-                    await uploadWeeklySyncFile(data, weeklySync.id, it.trackingItemId, file.name, "image", false);
-                  }
-                  await refreshWeeklyRetrospectiveData();
-                }}
-                onDeleteAttachment={async (id) => {
-                  await deleteWeeklySyncFile(id);
-                  await refreshWeeklyRetrospectiveData();
-                }}
-              />
-            ))}
-          </ul>
-        )}
-
-        {/* On the horizon — three sub-sections. This month + this quarter
-            render inline; this year stays collapsed by default since it's
-            usually a long tail. Tasks auto-roll up: as the calendar
-            advances, items in "year" promote to "quarter" then to "month". */}
-        {(horizonBuckets.month.length > 0 || horizonBuckets.quarter.length > 0 || horizonBuckets.year.length > 0) && (
-          <section className="mt-8">
-            <div className="mb-3 flex items-baseline justify-between">
-              <h2 className="flex items-center gap-2 text-sm font-medium text-white/80">
-                <Hourglass className="h-3.5 w-3.5" />
-                On the horizon
-              </h2>
-            </div>
-
-            <BucketList
-              label="This month"
-              accent="emerald"
-              tasks={horizonBuckets.month}
-              empty="Nothing scheduled for this month yet."
-            />
-
-            {horizonBuckets.quarter.length > 0 && (
-              <div className="mt-3">
-                <BucketList label="This quarter" accent="sky" tasks={horizonBuckets.quarter} />
-              </div>
+      {/* 2-column body — LEFT: the week so far · RIGHT: Upcoming + On the
+          horizon. The split matches Screens.html's pulse layout
+          (1.4fr / 1fr at desktop, single-column on mobile). */}
+      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-0 px-0 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        {/* LEFT — the week so far */}
+        <section className="px-6 py-7 md:px-10" style={{ borderRight: "1px solid var(--hairline)" }}>
+          <div className="mb-4 flex items-baseline justify-between">
+            <SecLabel>The week so far</SecLabel>
+            {weeklySync && (
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink-3)" }}>
+                auto-saved · just now
+              </span>
             )}
+          </div>
 
-            {horizonBuckets.year.length > 0 && (
-              <div className="mt-3 rounded-md border border-white/10 bg-white/[0.02]">
+          {!weeklySync ? (
+            <EmptyState
+              title="No sync for this week yet"
+              body="Start the week to load your default items, or set them up in the Sync tab first."
+              cta={{ label: "Start this week", onClick: () => void handleStart() }}
+            />
+          ) : items.length === 0 ? (
+            <EmptyState
+              title="Sync started, no items yet"
+              body="Add items via the Sync tab — set up your default items so future weeks auto-fill."
+            />
+          ) : (
+            <ul className="space-y-3">
+              {items.map((it) => (
+                <PulseItemRow
+                  key={it.id}
+                  item={it}
+                  weeklySyncId={weeklySync.id}
+                  onSaveText={(content) =>
+                    saveTextFile(content, weeklySync.id, it.trackingItemId).then(() => {
+                      /* refresh handled by debounced caller */
+                    })
+                  }
+                  onUploadImages={async (files) => {
+                    for (const file of Array.from(files)) {
+                      const reader = new FileReader();
+                      const data = await new Promise<string>((resolve, reject) => {
+                        reader.onload = () => resolve(reader.result as string);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                      });
+                      await uploadWeeklySyncFile(data, weeklySync.id, it.trackingItemId, file.name, "image", false);
+                    }
+                    await refreshWeeklyRetrospectiveData();
+                  }}
+                  onDeleteAttachment={async (id) => {
+                    await deleteWeeklySyncFile(id);
+                    await refreshWeeklyRetrospectiveData();
+                  }}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* RIGHT — paper-deep sidebar with Upcoming feed + On the horizon */}
+        <aside className="px-6 py-7 md:px-8" style={{ background: "var(--paper-deep)" }}>
+          {/* Upcoming — important dates + bids */}
+          {upcomingFeed.length > 0 && (
+            <>
+              <div className="mb-2 flex items-center gap-2">
+                <CalendarDays className="h-3.5 w-3.5" style={{ color: "var(--ink-3)" }} />
+                <SecLabel>Upcoming</SecLabel>
+              </div>
+              <p
+                className="mb-4"
+                style={{
+                  fontFamily: "var(--font-text)",
+                  fontStyle: "italic",
+                  fontSize: 13,
+                  color: "var(--ink-3)",
+                }}
+              >
+                Next bids and important dates, in time order.
+              </p>
+              <ul>
+                {upcomingFeed.map((row, i) => (
+                  <li
+                    key={row.id}
+                    className="flex items-start gap-3 py-3"
+                    style={{ borderBottom: i === upcomingFeed.length - 1 ? "none" : "1px solid var(--hairline)" }}
+                  >
+                    {row.kind === "date" ? (
+                      <span
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+                        style={{ background: "var(--amber-soft)", color: "var(--amber)" }}
+                        title="Important date"
+                      >
+                        <CalendarDays className="h-3 w-3" />
+                      </span>
+                    ) : (
+                      <span
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+                        style={{ background: "var(--plum-soft)", color: "var(--plum)" }}
+                        title="Bid"
+                      >
+                        <Gift className="h-3 w-3" />
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px]" style={{ color: "var(--ink)", fontWeight: 500 }}>
+                        {row.kind === "date" ? row.label : row.content}
+                        {row.kind === "date" && row.turning !== null && row.turning > 0 && (
+                          <span className="ml-1.5" style={{ fontSize: 11, color: "var(--ink-3)", fontWeight: 400 }}>
+                            · turning {row.turning}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 text-xs" style={{ color: "var(--ink-3)" }}>
+                        {row.person} ·{" "}
+                        <span
+                          style={{
+                            color:
+                              row.daysUntil <= 0 ? "var(--rust)" : row.daysUntil <= 3 ? "var(--clay)" : "var(--ink-3)",
+                          }}
+                        >
+                          {row.daysUntil <= 0
+                            ? row.daysUntil === 0
+                              ? "today"
+                              : `${-row.daysUntil}d overdue`
+                            : row.daysUntil === 1
+                              ? "tomorrow"
+                              : `in ${row.daysUntil} days`}
+                        </span>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {/* On the horizon — bucketed tasks */}
+          {(horizonBuckets.month.length > 0 || horizonBuckets.quarter.length > 0 || horizonBuckets.year.length > 0) && (
+            <div className={upcomingFeed.length > 0 ? "mt-8" : ""}>
+              <div className="mb-3 flex items-center gap-2">
+                <Hourglass className="h-3.5 w-3.5" style={{ color: "var(--ink-3)" }} />
+                <SecLabel>On the horizon</SecLabel>
+              </div>
+
+              {horizonBuckets.month.length > 0 && (
+                <Card pad={14} style={{ marginBottom: 8 }}>
+                  <div className="mb-2 flex items-baseline justify-between">
+                    <span
+                      className="inline-flex items-center gap-2"
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                        color: "var(--clay)",
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--clay)" }} />
+                      This month
+                    </span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink-2)" }}>
+                      {horizonBuckets.month.length}
+                    </span>
+                  </div>
+                  {horizonBuckets.month.slice(0, 5).map((t) => (
+                    <div
+                      key={t.id}
+                      className="flex items-center gap-2 py-1 text-[13px]"
+                      style={{ color: "var(--ink)" }}
+                    >
+                      {t.goalEmoji && !t.goalEmoji.startsWith("http") && (
+                        <span className="leading-none">{t.goalEmoji}</span>
+                      )}
+                      <span className="min-w-0 flex-1 truncate">{t.title}</span>
+                      <span
+                        className="shrink-0 tabular-nums"
+                        style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink-3)" }}
+                      >
+                        {formatScheduledShort(t.scheduledAt)}
+                      </span>
+                    </div>
+                  ))}
+                </Card>
+              )}
+
+              {horizonBuckets.quarter.length > 0 && (
+                <button
+                  onClick={() => setShowYearlySection(false)}
+                  className="mb-1.5 flex w-full items-center gap-2 rounded-lg px-3.5 py-2.5 text-xs"
+                  style={{
+                    border: "1px dashed var(--hairline-2)",
+                    color: "var(--ink-3)",
+                    background: "transparent",
+                  }}
+                >
+                  <ChevronRight className="h-3 w-3" /> This quarter · {horizonBuckets.quarter.length} task
+                  {horizonBuckets.quarter.length === 1 ? "" : "s"}
+                </button>
+              )}
+
+              {horizonBuckets.year.length > 0 && (
                 <button
                   onClick={() => setShowYearlySection((v) => !v)}
-                  className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-white/60 hover:text-white/80"
+                  className="flex w-full items-center gap-2 rounded-lg px-3.5 py-2.5 text-xs"
+                  style={{
+                    border: "1px dashed var(--hairline-2)",
+                    color: "var(--ink-3)",
+                    background: "transparent",
+                  }}
                 >
-                  <span className="flex items-center gap-2">
-                    {showYearlySection ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                    This year
-                  </span>
-                  <span className="text-violet-300">{horizonBuckets.year.length} scheduled</span>
+                  {showYearlySection ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} This
+                  year · {horizonBuckets.year.length} task{horizonBuckets.year.length === 1 ? "" : "s"}
                 </button>
-                {showYearlySection && (
-                  <div className="border-t border-white/5 p-2">
-                    <BucketList label="" accent="violet" tasks={horizonBuckets.year} hideHeader />
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-        )}
+              )}
 
-        {/* People needing attention — one row per person, with the
-            specific reason. Pulse is for action, so "Alice — decision
-            overdue 3 days" beats "2 exploring …". Sorted: overdue,
-            due soon (earliest first), exploring-without-date, inbox. */}
+              {showYearlySection && horizonBuckets.year.length > 0 && (
+                <Card pad={14} style={{ marginTop: 8 }}>
+                  {horizonBuckets.year.slice(0, 10).map((t) => (
+                    <div
+                      key={t.id}
+                      className="flex items-center gap-2 py-1 text-[13px]"
+                      style={{ color: "var(--ink)" }}
+                    >
+                      {t.goalEmoji && !t.goalEmoji.startsWith("http") && (
+                        <span className="leading-none">{t.goalEmoji}</span>
+                      )}
+                      <span className="min-w-0 flex-1 truncate">{t.title}</span>
+                      <span
+                        className="shrink-0 tabular-nums"
+                        style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink-3)" }}
+                      >
+                        {formatScheduledShort(t.scheduledAt)}
+                      </span>
+                    </div>
+                  ))}
+                </Card>
+              )}
+            </div>
+          )}
+        </aside>
+      </div>
+
+      {/* People needing attention — sits below the 2-col split as a
+          full-width section so the rust/amber callouts have room to
+          breathe. */}
+      <div className="mx-auto max-w-6xl px-6 py-7 md:px-12">
         {attentionRows.length > 0 && (
-          <section className="mt-8">
-            <div className="mb-3 flex items-baseline justify-between">
-              <h2 className="flex items-center gap-2 text-sm font-medium text-white/80">
-                <Users className="h-3.5 w-3.5" />
-                People needing attention
-              </h2>
+          <section>
+            <div className="mb-4 flex items-baseline justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="h-3.5 w-3.5" style={{ color: "var(--ink-3)" }} />
+                <SecLabel>People needing attention</SecLabel>
+              </div>
             </div>
             <ul className="space-y-2">
               {attentionRows.map(({ person, reason }) => {
-                const accent =
+                const accentStyle =
                   reason.kind === "overdue"
-                    ? "border-rose-500/30 bg-rose-500/5"
+                    ? { borderColor: "var(--rust)", background: "var(--rust-soft)", textColor: "var(--rust)" }
                     : reason.kind === "due-soon"
-                      ? "border-amber-500/30 bg-amber-500/5"
-                      : "border-white/10 bg-white/[0.03]";
+                      ? { borderColor: "var(--amber)", background: "var(--amber-soft)", textColor: "var(--amber)" }
+                      : { borderColor: "var(--hairline-2)", background: "var(--canvas)", textColor: "var(--ink-2)" };
                 const reasonLabel =
                   reason.kind === "overdue"
                     ? `Decision overdue · ${reason.daysOverdue}d`
@@ -411,93 +591,21 @@ export default function Pulse() {
                 return (
                   <li
                     key={person.id}
-                    className={`flex items-center gap-3 rounded-md border px-3 py-2 text-sm ${accent}`}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm"
+                    style={{
+                      border: `1px solid ${accentStyle.borderColor}`,
+                      background: accentStyle.background,
+                    }}
                   >
                     <Avatar name={person.name} emoji={person.emoji} size="sm" shape="circle" />
                     <span className="min-w-0 flex-1">
-                      <span className="text-white/90">{person.name}</span>
-                      <span className="mx-1.5 text-white/40">·</span>
-                      <span
-                        className={
-                          reason.kind === "overdue"
-                            ? "text-rose-300"
-                            : reason.kind === "due-soon"
-                              ? "text-amber-300"
-                              : "text-white/65"
-                        }
-                      >
-                        {reasonLabel}
-                      </span>
+                      <span style={{ color: "var(--ink)" }}>{person.name}</span>
+                      <span style={{ color: "var(--ink-4)", margin: "0 6px" }}>·</span>
+                      <span style={{ color: accentStyle.textColor }}>{reasonLabel}</span>
                     </span>
                   </li>
                 );
               })}
-            </ul>
-          </section>
-        )}
-
-        {/* Upcoming — unified feed of important dates (yearly recurring,
-            birthdays/anniversaries) and bids (one-shot per-person actions
-            with deadlines). Distinguished by leading icon: CalendarDays for
-            dates, Gift for bids. Sorted by absolute date. */}
-        {upcomingFeed.length > 0 && (
-          <section className="mt-8">
-            <div className="mb-3 flex items-baseline justify-between">
-              <h2 className="flex items-center gap-2 text-sm font-medium text-white/80">
-                <CalendarDays className="h-3.5 w-3.5" />
-                Upcoming
-              </h2>
-              <span className="text-xs text-white/40">Dates · Bids</span>
-            </div>
-            <ul className="space-y-2">
-              {upcomingFeed.map((row) => (
-                <li
-                  key={row.id}
-                  className="flex items-center gap-3 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm"
-                >
-                  {row.kind === "date" ? (
-                    <span
-                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300"
-                      title="Important date"
-                    >
-                      <CalendarDays className="h-3 w-3" />
-                    </span>
-                  ) : (
-                    <span
-                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-pink-500/30 bg-pink-500/10 text-pink-300"
-                      title="Bid"
-                    >
-                      <Gift className="h-3 w-3" />
-                    </span>
-                  )}
-                  <span className="shrink-0 text-xs tabular-nums text-white/50">
-                    {row.date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">
-                    <span className="text-white/85">{row.person}</span>
-                    <span className="mx-1.5 text-white/40">·</span>
-                    {row.kind === "date" ? (
-                      <>
-                        <span className="text-white/70">{row.label}</span>
-                        {row.turning !== null && row.turning > 0 && (
-                          <span className="ml-2 text-[11px] text-white/40">turning {row.turning}</span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-white/70">{row.content}</span>
-                    )}
-                  </span>
-                  <span className="shrink-0 text-[11px] text-white/40">
-                    {row.daysUntil <= 0
-                      ? row.daysUntil === 0
-                        ? "today"
-                        : `${-row.daysUntil}d overdue`
-                      : row.daysUntil === 1
-                        ? "tomorrow"
-                        : `in ${row.daysUntil} days`}
-                  </span>
-                </li>
-              ))}
             </ul>
           </section>
         )}
@@ -523,18 +631,10 @@ interface PulseItemProps {
 }
 
 function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: PulseItemProps) {
-  // Local working copy of the textarea, debounced into the server. The
-  // initial server value is used as the seed; we don't try to reconcile late
-  // server-side updates back into the textarea (would clobber active typing).
   const [text, setText] = useState(item.textContent ?? "");
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
   const timer = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Note: we don't reconcile late server-side updates back into the textarea
-  // (would clobber active typing). The textarea is seeded once from
-  // item.textContent and the row remounts when the underlying item.id changes
-  // (key is set on the parent map), so cross-week navigation refreshes cleanly.
 
   const handleChange = (next: string) => {
     setText(next);
@@ -550,139 +650,157 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
     }, 700);
   };
 
+  const isFilled = text.trim().length > 0 || item.attachments.length > 0;
+
   return (
-    <li className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-      <div className="flex items-start justify-between gap-3">
+    <Card pad={18} style={{ background: "var(--canvas)" }}>
+      <div className="flex items-start gap-3">
+        <span
+          className="mt-1 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full"
+          style={{
+            border: `1.5px solid ${isFilled ? "var(--moss)" : "var(--ink-4)"}`,
+            background: isFilled ? "var(--moss)" : "transparent",
+            color: "var(--paper)",
+            transition: "background var(--dur-1) var(--ease)",
+          }}
+        >
+          {isFilled && <Check size={13} />}
+        </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-2">
-            <h3 className="font-medium">{item.title}</h3>
+            <h3
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 19,
+                lineHeight: 1.3,
+                color: "var(--ink)",
+              }}
+            >
+              {item.title}
+            </h3>
             {item.goalTitle ? (
-              <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-blue-200">
+              <span
+                className="rounded-full px-2 py-0.5"
+                style={{
+                  background: "var(--clay-soft)",
+                  color: "var(--clay-deep)",
+                  fontSize: 10,
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                  fontWeight: 500,
+                }}
+              >
                 {item.goalTitle}
               </span>
             ) : (
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/50">
+              <span
+                className="rounded-full px-2 py-0.5"
+                style={{
+                  background: "var(--vellum)",
+                  color: "var(--ink-3)",
+                  fontSize: 10,
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                  fontWeight: 500,
+                }}
+              >
                 Unscoped
               </span>
             )}
+            <div className="ml-auto shrink-0 text-xs" style={{ color: "var(--ink-3)" }}>
+              {status === "saving" && (
+                <span className="flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Saving
+                </span>
+              )}
+              {status === "saved" && <span style={{ color: "var(--moss)" }}>Saved</span>}
+            </div>
           </div>
-          {item.description && <p className="mt-0.5 text-sm text-white/50">{item.description}</p>}
-        </div>
-        <div className="shrink-0 text-xs text-white/40">
-          {status === "saving" && (
-            <span className="flex items-center gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" /> Saving
-            </span>
+          {item.description && (
+            <p
+              className="mt-1"
+              style={{
+                fontFamily: "var(--font-text)",
+                fontStyle: "italic",
+                fontSize: 13,
+                color: "var(--ink-3)",
+              }}
+            >
+              {item.description}
+            </p>
           )}
-          {status === "saved" && <span className="text-emerald-300/80">Saved</span>}
+
+          <textarea
+            value={text}
+            onChange={(e) => handleChange(e.target.value)}
+            rows={3}
+            placeholder="What happened with this, this week?"
+            className="mt-3 w-full resize-y rounded-md p-3 text-sm outline-none"
+            style={{
+              background: "var(--paper-deep)",
+              border: "1px solid var(--hairline)",
+              color: "var(--ink)",
+              fontFamily: "var(--font-text)",
+              lineHeight: 1.55,
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = "var(--clay)";
+              e.currentTarget.style.boxShadow = "0 0 0 3px var(--clay-soft)";
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = "var(--hairline)";
+              e.currentTarget.style.boxShadow = "none";
+            }}
+          />
+
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {item.attachments.map((a) => (
+              <div
+                key={a.id}
+                className="group relative h-12 w-12 overflow-hidden rounded-md"
+                style={{ border: "1px solid var(--hairline-2)" }}
+              >
+                <NextImage src={a.url} alt={a.fileName} fill sizes="48px" className="object-cover" unoptimized />
+                <button
+                  onClick={() => void onDeleteAttachment(a.id)}
+                  className="absolute right-0.5 top-0.5 rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+                  style={{ background: "rgba(28, 20, 8, 0.75)", color: "var(--paper)" }}
+                  aria-label="Remove attachment"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex h-12 w-12 items-center justify-center rounded-md"
+              style={{
+                border: "1px dashed var(--hairline-2)",
+                color: "var(--ink-3)",
+                background: "transparent",
+              }}
+              aria-label="Add image"
+              title="Add image"
+            >
+              <ImagePlus className="h-4 w-4" />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  void onUploadImages(e.target.files);
+                  e.target.value = "";
+                }
+              }}
+              className="hidden"
+            />
+          </div>
         </div>
       </div>
-
-      <textarea
-        value={text}
-        onChange={(e) => handleChange(e.target.value)}
-        rows={3}
-        placeholder="What happened with this, this week?"
-        className="mt-3 w-full resize-y rounded-md border border-white/10 bg-black/30 p-2 text-sm outline-none placeholder:text-white/30 focus:border-white/30"
-      />
-
-      {/* Attachments strip */}
-      {(item.attachments.length > 0 || true) && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {item.attachments.map((a) => (
-            <div key={a.id} className="group relative h-12 w-12 overflow-hidden rounded-md border border-white/10">
-              <NextImage src={a.url} alt={a.fileName} fill sizes="48px" className="object-cover" unoptimized />
-              <button
-                onClick={() => void onDeleteAttachment(a.id)}
-                className="absolute right-0.5 top-0.5 rounded-full bg-black/70 p-0.5 text-white/80 opacity-0 transition-opacity group-hover:opacity-100"
-                aria-label="Remove attachment"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-white/20 text-white/50 hover:border-white/40 hover:text-white/80"
-            aria-label="Add image"
-            title="Add image"
-          >
-            <ImagePlus className="h-4 w-4" />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={(e) => {
-              if (e.target.files && e.target.files.length > 0) {
-                void onUploadImages(e.target.files);
-                e.target.value = "";
-              }
-            }}
-            className="hidden"
-          />
-        </div>
-      )}
-    </li>
-  );
-}
-
-function BucketList({
-  label,
-  accent,
-  tasks,
-  empty,
-  hideHeader = false,
-}: {
-  label: string;
-  accent: "emerald" | "sky" | "violet";
-  tasks: {
-    id: string;
-    title: string;
-    goalId: string;
-    goalTitle: string;
-    goalEmoji: string | undefined;
-    scheduledAt: Date;
-  }[];
-  empty?: string;
-  hideHeader?: boolean;
-}) {
-  // Tailwind needs full class strings to compile, so map accent to fixed
-  // classes rather than interpolating. Tiny-but-explicit beats clever-but-broken.
-  const headerColor = accent === "emerald" ? "text-emerald-300" : accent === "sky" ? "text-sky-300" : "text-violet-300";
-  return (
-    <div>
-      {!hideHeader && (
-        <div className="mb-1.5 flex items-baseline justify-between">
-          <span className={`text-[11px] font-medium uppercase tracking-wider ${headerColor}`}>{label}</span>
-          {tasks.length > 0 && <span className="text-[11px] text-white/40">{tasks.length}</span>}
-        </div>
-      )}
-      {tasks.length === 0 ? (
-        empty ? (
-          <p className="text-xs text-white/40">{empty}</p>
-        ) : null
-      ) : (
-        <ul className="space-y-1.5">
-          {tasks.map((t) => (
-            <li
-              key={t.id}
-              className="flex items-center gap-2.5 rounded-md border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm"
-            >
-              <span className="shrink-0 text-xs tabular-nums text-white/50">{formatScheduledShort(t.scheduledAt)}</span>
-              <span className="min-w-0 flex-1 truncate text-white/85">{t.title}</span>
-              <span className="shrink-0 text-[11px] text-white/50">
-                {t.goalEmoji && !t.goalEmoji.startsWith("http") ? (
-                  <span className="mr-1 leading-none">{t.goalEmoji}</span>
-                ) : null}
-                {t.goalTitle}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    </Card>
   );
 }
 
@@ -696,16 +814,43 @@ function EmptyState({
   cta?: { label: string; onClick: () => void };
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-white/10 p-12 text-center">
-      <p className="text-lg font-light">{title}</p>
-      <p className="mt-2 text-sm text-white/50">{body}</p>
+    <div
+      className="rounded-2xl px-8 py-16 text-center"
+      style={{
+        border: "1px dashed var(--hairline-2)",
+        background: "var(--paper-deep)",
+      }}
+    >
+      <p
+        style={{
+          fontFamily: "var(--font-display)",
+          fontSize: 24,
+          color: "var(--ink)",
+          letterSpacing: "-0.01em",
+        }}
+      >
+        {title}
+      </p>
+      <p
+        className="mt-3"
+        style={{
+          fontFamily: "var(--font-text)",
+          fontStyle: "italic",
+          fontSize: 15,
+          color: "var(--ink-2)",
+          lineHeight: 1.5,
+          maxWidth: 520,
+          margin: "12px auto 0",
+        }}
+      >
+        {body}
+      </p>
       {cta && (
-        <button
-          onClick={cta.onClick}
-          className="mt-5 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm hover:bg-white hover:text-black"
-        >
-          {cta.label}
-        </button>
+        <div className="mt-6 flex justify-center">
+          <Btn kind="primary" size="lg" onClick={cta.onClick}>
+            {cta.label}
+          </Btn>
+        </div>
       )}
     </div>
   );

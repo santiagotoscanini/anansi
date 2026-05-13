@@ -55,13 +55,13 @@ export default function ColorPicker({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`${TRIGGER_SIZE[size]} cursor-pointer rounded-full border border-white/20 transition-all hover:scale-110`}
+        className={`${TRIGGER_SIZE[size]} cursor-pointer rounded-full border border-[var(--hairline-2)] transition-all hover:scale-110`}
         style={{ backgroundColor: value }}
         aria-label={ariaLabel}
       />
       {open && (
         <div
-          className={`absolute top-full z-30 mt-2 w-44 rounded-lg border border-white/15 bg-neutral-900 p-2 shadow-xl ${
+          className={`absolute top-full z-30 mt-2 w-44 rounded-lg border border-[var(--hairline)] bg-[var(--ink-3)] p-2 shadow-xl ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >
@@ -86,7 +86,7 @@ export default function ColorPicker({
               );
             })}
           </div>
-          <div className="mt-2 border-t border-white/10 pt-2">
+          <div className="mt-2 border-t border-[var(--hairline)] pt-2">
             {showCustom ? (
               <input
                 type="color"
@@ -99,7 +99,7 @@ export default function ColorPicker({
               <button
                 type="button"
                 onClick={() => setShowCustom(true)}
-                className="w-full rounded px-1.5 py-1 text-left text-[11px] text-white/50 transition-all hover:bg-white/5 hover:text-white"
+                className="w-full rounded px-1.5 py-1 text-left text-[11px] text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
               >
                 Custom…
               </button>

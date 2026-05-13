@@ -59,9 +59,9 @@ function sixMonthsFromNow(): Date {
 // Shared styling tokens — kept at the top so any adjustments cascade. The
 // helper-text class moved out with the bids/dates sections (H2); only the
 // label class is still used here.
-const fieldLabel = "mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-white/40";
+const fieldLabel = "mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]";
 const inputClass =
-  "w-full rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-white outline-none transition-all placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.05]";
+  "w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]";
 const textareaClass = `${inputClass} resize-none`;
 
 // Field label with an optional hint surfaced via a hover tooltip on a small `?` icon —
@@ -69,13 +69,13 @@ const textareaClass = `${inputClass} resize-none`;
 function FieldLabel({ children, hint }: { children: React.ReactNode; hint?: React.ReactNode }) {
   return (
     <div className="mb-1.5 flex items-center gap-1.5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-white/40">{children}</span>
+      <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">{children}</span>
       {hint && (
         <span className="group relative inline-flex">
-          <HelpCircle className="h-3 w-3 cursor-help text-white/25 transition-colors hover:text-white/60" />
+          <HelpCircle className="h-3 w-3 cursor-help text-[var(--ink-4)] transition-colors hover:text-[var(--ink-2)]" />
           <span
             role="tooltip"
-            className="pointer-events-none invisible absolute left-0 top-full z-30 mt-1.5 w-64 rounded-md border border-white/10 bg-zinc-950 p-2.5 text-xs leading-relaxed text-white/70 opacity-0 shadow-2xl transition-opacity group-hover:visible group-hover:opacity-100"
+            className="pointer-events-none invisible absolute left-0 top-full z-30 mt-1.5 w-64 rounded-md border border-[var(--hairline)] bg-[var(--canvas)] p-2.5 text-xs leading-relaxed text-[var(--ink-2)] opacity-0 shadow-2xl transition-opacity group-hover:visible group-hover:opacity-100"
           >
             {hint}
           </span>
@@ -237,19 +237,19 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+      className="bg-[var(--ink)]/80 fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950/95 shadow-2xl backdrop-blur"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--hairline)] bg-[var(--canvas)] shadow-2xl backdrop-blur"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Sticky header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/5 bg-zinc-950/95 px-6 py-4 backdrop-blur">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--hairline)] bg-[var(--canvas)] px-6 py-4 backdrop-blur">
           <h2 className="text-lg font-medium tracking-tight">{isEdit ? "Edit Person" : "Add Person"}</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-white/50 transition-all hover:bg-white/5 hover:text-white"
+            className="rounded-lg p-1.5 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
             aria-label="Close"
           >
             <X className="h-4 w-4" />
@@ -275,11 +275,11 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Name…"
-                  className={`h-10 flex-1 rounded-lg border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none transition-all placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.05]`}
+                  className={`h-10 flex-1 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]`}
                   autoFocus
                 />
                 {showEmojiPicker && (
-                  <div className="absolute left-0 top-full z-50 mt-2 rounded-xl border border-white/10 bg-zinc-950 p-2 shadow-2xl">
+                  <div className="absolute left-0 top-full z-50 mt-2 rounded-xl border border-[var(--hairline)] bg-[var(--canvas)] p-2 shadow-2xl">
                     <EmojiPicker
                       onEmojiClick={handleEmojiClick}
                       width={350}
@@ -287,15 +287,15 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                       theme={Theme.DARK}
                       searchPlaceHolder="Search emoji…"
                     />
-                    <div className="mt-2 space-y-2 border-t border-white/5 pt-2">
-                      <label className="block text-[10px] uppercase tracking-wider text-white/40">
+                    <div className="mt-2 space-y-2 border-t border-[var(--hairline)] pt-2">
+                      <label className="block text-[10px] uppercase tracking-wider text-[var(--ink-3)]">
                         Upload a picture
                       </label>
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={uploadImageMutation.isPending}
-                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-white/15 bg-white/[0.02] px-3 py-2 text-xs text-white/70 transition-all hover:border-white/30 hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 text-xs text-[var(--ink-2)] transition-all hover:border-[var(--hairline-2)] hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {uploadImageMutation.isPending ? (
                           <>
@@ -320,7 +320,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                           e.target.value = ""; // Allow re-selecting the same file
                         }}
                       />
-                      <label className="block pt-1 text-[10px] uppercase tracking-wider text-white/40">
+                      <label className="block pt-1 text-[10px] uppercase tracking-wider text-[var(--ink-3)]">
                         Or paste an image URL
                       </label>
                       <div className="flex gap-2">
@@ -337,7 +337,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                             }
                           }}
                           placeholder="https://…"
-                          className="flex-1 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-white outline-none placeholder:text-white/30 focus:border-white/30"
+                          className="flex-1 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-1.5 text-xs text-[var(--ink)] outline-none placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
                         />
                         <button
                           type="button"
@@ -348,7 +348,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                               setShowEmojiPicker(false);
                             }
                           }}
-                          className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 transition-all hover:bg-white/10 hover:text-white"
+                          className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-1.5 text-xs text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
                         >
                           Set
                         </button>
@@ -360,7 +360,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                             setEmoji(null);
                             setShowEmojiPicker(false);
                           }}
-                          className="text-xs text-white/50 underline-offset-2 hover:text-white hover:underline"
+                          className="text-xs text-[var(--ink-3)] underline-offset-2 hover:text-[var(--ink)] hover:underline"
                         >
                           Use initial instead
                         </button>
@@ -376,7 +376,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
               <FieldLabel hint={CATEGORY_OPTIONS.find((c) => c.value === category)?.hint}>Category</FieldLabel>
               <select value={category} onChange={(e) => handleCategoryChange(e.target.value)} className={inputClass}>
                 {CATEGORY_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value} className="bg-zinc-950">
+                  <option key={opt.value} value={opt.value} className="bg-[var(--canvas)]">
                     {opt.label}
                   </option>
                 ))}
@@ -398,8 +398,8 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                       }
                       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs transition-all ${
                         selected
-                          ? "border-white/30 bg-white/15 text-white"
-                          : "border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06] hover:text-white"
+                          ? "border-[var(--hairline-2)] bg-[var(--vellum)] text-[var(--ink)]"
+                          : "border-[var(--hairline)] bg-[var(--vellum)] text-[var(--ink-2)] hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
                       }`}
                     >
                       <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: g.color }} />
@@ -408,7 +408,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                   );
                 })}
                 {creatingGroup ? (
-                  <div className="flex items-center gap-1.5 rounded-full border border-white/20 bg-white/[0.06] px-2 py-0.5">
+                  <div className="flex items-center gap-1.5 rounded-full border border-[var(--hairline-2)] bg-[var(--vellum)] px-2 py-0.5">
                     <ColorPicker value={newGroupColor} onChange={setNewGroupColor} size="sm" />
                     <input
                       type="text"
@@ -432,7 +432,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                         }
                       }}
                       placeholder="Group name"
-                      className="w-28 bg-transparent text-xs text-white outline-none placeholder:text-white/40"
+                      className="w-28 bg-transparent text-xs text-[var(--ink)] outline-none placeholder:text-[var(--ink-3)]"
                       autoFocus
                     />
                   </div>
@@ -440,7 +440,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                   <button
                     type="button"
                     onClick={() => setCreatingGroup(true)}
-                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-white/15 px-2.5 py-0.5 text-xs text-white/50 transition-all hover:border-white/30 hover:text-white/80"
+                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-[var(--hairline)] px-2.5 py-0.5 text-xs text-[var(--ink-3)] transition-all hover:border-[var(--hairline-2)] hover:text-[var(--ink)]"
                   >
                     + New group
                   </button>
@@ -463,9 +463,9 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
             {/* Reflection — quiet section divider */}
             <div className="pt-2">
               <div className="mb-4 flex items-center gap-3">
-                <div className="h-px flex-1 bg-white/5" />
-                <span className="text-[10px] uppercase tracking-widest text-white/30">Reflection</span>
-                <div className="h-px flex-1 bg-white/5" />
+                <div className="h-px flex-1 bg-[var(--vellum)]" />
+                <span className="text-[10px] uppercase tracking-widest text-[var(--ink-4)]">Reflection</span>
+                <div className="h-px flex-1 bg-[var(--vellum)]" />
               </div>
             </div>
 
@@ -533,17 +533,17 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
             {isEdit && (
               <div className="pt-2">
                 <div className="mb-3 flex items-center gap-3">
-                  <div className="h-px flex-1 bg-white/5" />
-                  <span className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-white/30">
+                  <div className="h-px flex-1 bg-[var(--vellum)]" />
+                  <span className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-[var(--ink-4)]">
                     <Target className="h-3 w-3" />
                     Tasks I&apos;m relying on them for
                   </span>
-                  <div className="h-px flex-1 bg-white/5" />
+                  <div className="h-px flex-1 bg-[var(--vellum)]" />
                 </div>
                 {referentTasksQuery.isLoading ? (
-                  <p className="text-xs text-white/40">Loading…</p>
+                  <p className="text-xs text-[var(--ink-3)]">Loading…</p>
                 ) : referentTasks.length === 0 ? (
-                  <p className="text-xs text-white/30">
+                  <p className="text-xs text-[var(--ink-4)]">
                     None yet. Assign them as a referent from a goal&apos;s tasks list.
                   </p>
                 ) : (
@@ -551,18 +551,20 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                     {referentTasks.map((t) => (
                       <li
                         key={t.taskId}
-                        className="flex items-start gap-2.5 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-sm transition-colors hover:border-white/10 hover:bg-white/[0.04]"
+                        className="flex items-start gap-2.5 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 text-sm transition-colors hover:border-[var(--hairline)] hover:bg-[var(--vellum)]"
                       >
                         {t.completed ? (
-                          <CheckSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                          <CheckSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--moss)]" />
                         ) : (
-                          <Square className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/30" />
+                          <Square className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--ink-4)]" />
                         )}
                         <div className="min-w-0 flex-1">
-                          <div className={`truncate ${t.completed ? "text-white/40 line-through" : "text-white/90"}`}>
+                          <div
+                            className={`truncate ${t.completed ? "text-[var(--ink-3)] line-through" : "text-[var(--ink)]"}`}
+                          >
                             {t.taskTitle}
                           </div>
-                          <div className="mt-0.5 flex items-center gap-1 text-xs text-white/40">
+                          <div className="mt-0.5 flex items-center gap-1 text-xs text-[var(--ink-3)]">
                             {t.goalEmoji && <span>{t.goalEmoji}</span>}
                             <span className="truncate">{t.goalTitle}</span>
                           </div>
@@ -579,17 +581,17 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
             {isEdit && (
               <div className="pt-2">
                 <div className="mb-3 flex items-center gap-3">
-                  <div className="h-px flex-1 bg-white/5" />
-                  <span className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-white/30">
+                  <div className="h-px flex-1 bg-[var(--vellum)]" />
+                  <span className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-[var(--ink-4)]">
                     <Mountain className="h-3 w-3" />
                     Bucket list — together
                   </span>
-                  <div className="h-px flex-1 bg-white/5" />
+                  <div className="h-px flex-1 bg-[var(--vellum)]" />
                 </div>
                 {bucketListItemsQuery.isLoading ? (
-                  <p className="text-xs text-white/40">Loading…</p>
+                  <p className="text-xs text-[var(--ink-3)]">Loading…</p>
                 ) : bucketListItems.length === 0 ? (
-                  <p className="text-xs text-white/30">
+                  <p className="text-xs text-[var(--ink-4)]">
                     Not on any bucket list items yet. Add them from the Bucket List tab.
                   </p>
                 ) : (
@@ -597,16 +599,16 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                     {bucketListItems.map((b) => (
                       <li
                         key={b.id}
-                        className="flex items-start gap-2.5 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-sm transition-colors hover:border-white/10 hover:bg-white/[0.04]"
+                        className="flex items-start gap-2.5 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 text-sm transition-colors hover:border-[var(--hairline)] hover:bg-[var(--vellum)]"
                       >
                         {b.completedAt ? (
-                          <CheckSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                          <CheckSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--moss)]" />
                         ) : (
-                          <Square className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/30" />
+                          <Square className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--ink-4)]" />
                         )}
                         <div
                           className={`min-w-0 flex-1 truncate ${
-                            b.completedAt ? "text-white/40 line-through" : "text-white/90"
+                            b.completedAt ? "text-[var(--ink-3)] line-through" : "text-[var(--ink)]"
                           }`}
                         >
                           {b.content}
@@ -621,21 +623,21 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
         </div>
 
         {/* Sticky footer */}
-        <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-white/5 bg-zinc-950/95 px-6 py-4 backdrop-blur">
+        <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-[var(--hairline)] bg-[var(--canvas)] px-6 py-4 backdrop-blur">
           <div className="flex items-center gap-1">
             {isEdit && (
               <>
                 <button
                   onClick={handleArchiveToggle}
                   disabled={isSaving}
-                  className="rounded-lg px-3 py-2 text-sm text-white/50 transition-all hover:bg-white/5 hover:text-white disabled:opacity-50"
+                  className="rounded-lg px-3 py-2 text-sm text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:opacity-50"
                 >
                   {person?.archivedAt ? "Unarchive" : "Archive"}
                 </button>
                 <button
                   onClick={handleDelete}
                   disabled={isSaving}
-                  className="rounded-lg px-3 py-2 text-sm text-white/40 transition-all hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
+                  className="rounded-lg px-3 py-2 text-sm text-[var(--ink-3)] transition-all hover:bg-[var(--rust-soft)] hover:text-[var(--rust)] disabled:opacity-50"
                 >
                   Delete
                 </button>
@@ -646,14 +648,14 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
             <button
               onClick={onClose}
               disabled={isSaving}
-              className="rounded-lg px-4 py-2 text-sm text-white/70 transition-all hover:bg-white/5 hover:text-white disabled:opacity-50"
+              className="rounded-lg px-4 py-2 text-sm text-[var(--ink-2)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-all hover:bg-white/90 disabled:opacity-50"
+              className="rounded-lg bg-[var(--paper)] px-4 py-2 text-sm font-medium text-black transition-all hover:bg-[var(--paper)] disabled:opacity-50"
             >
               {isEdit ? "Save changes" : "Add person"}
             </button>

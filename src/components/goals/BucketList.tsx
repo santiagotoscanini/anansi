@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, Mountain, Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "~/trpc/react";
 import type { BucketListItem } from "~/lib/api/types";
@@ -31,56 +31,116 @@ function ItemRow({
   const linkedPeople = item.personIds.map((id) => peopleById.get(id)).filter((p): p is PersonLite => !!p);
 
   return (
-    <li className="group flex items-start gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2.5 transition-colors hover:border-white/10">
-      {/* Checkbox — kept inline so toggling is one click without opening the modal */}
+    <li
+      className="group flex items-start gap-5 rounded-2xl transition-all"
+      style={{
+        background: "var(--canvas)",
+        border: "1px solid var(--hairline)",
+        padding: 20,
+        boxShadow: "var(--shadow-sm)",
+        opacity: completed ? 0.72 : 1,
+      }}
+    >
+      {/* Inline check + leading bullet — a single click to toggle without
+          opening the modal, large enough to feel tappable on mobile. */}
       <button
         type="button"
         onClick={onToggle}
         disabled={busy}
         aria-label={completed ? "Mark as not done" : "Mark as done"}
-        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all disabled:cursor-not-allowed ${
-          completed
-            ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25"
-            : "border-white/20 text-transparent hover:border-white/50 hover:text-white/40"
-        }`}
+        className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all disabled:cursor-not-allowed"
+        style={{
+          border: `1.5px solid ${completed ? "var(--moss)" : "var(--ink-4)"}`,
+          background: completed ? "var(--moss)" : "transparent",
+          color: "var(--paper)",
+        }}
       >
-        <Check className="h-3 w-3" />
+        {completed && <Check className="h-3.5 w-3.5" />}
       </button>
 
-      {/* Content area — clicking anywhere here opens the modal for full editing */}
       <button
         type="button"
         onClick={onOpen}
         disabled={busy}
         className="min-w-0 flex-1 cursor-pointer text-left disabled:cursor-not-allowed"
       >
-        <p className={`break-words text-sm ${completed ? "text-white/40 line-through" : "text-white/85"}`}>
-          {item.content}
-        </p>
-        {item.description && (
-          <p className={`mt-0.5 line-clamp-1 text-xs ${completed ? "text-white/25" : "text-white/45"}`}>
-            {item.description}
-          </p>
-        )}
-        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-          {linkedPeople.length > 0 && (
-            <div className="flex -space-x-1.5">
-              {linkedPeople.slice(0, 5).map((p) => (
-                <span key={p.id} className="rounded-full ring-2 ring-zinc-950" title={p.name}>
-                  <Avatar name={p.name} emoji={p.emoji} size="xs" shape="circle" />
-                </span>
-              ))}
-              {linkedPeople.length > 5 && (
-                <span className="ml-1 text-[10px] text-white/40">+{linkedPeople.length - 5}</span>
-              )}
-            </div>
-          )}
-          {completed && item.completedAt && (
-            <span className="text-[10px] uppercase tracking-wider text-emerald-300/50">
-              Done {formatCompletedDate(new Date(item.completedAt))}
+        <div className="flex items-baseline gap-2.5">
+          <h3
+            className="break-words"
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: 22,
+              lineHeight: 1.25,
+              letterSpacing: "-0.01em",
+              color: completed ? "var(--ink-3)" : "var(--ink)",
+              textDecoration: completed ? "line-through" : "none",
+            }}
+          >
+            {item.content}
+          </h3>
+          {completed && (
+            <span
+              className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5"
+              style={{
+                background: "var(--moss-soft)",
+                color: "var(--moss)",
+                fontSize: 10,
+                fontWeight: 500,
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+              }}
+            >
+              <Check className="h-2.5 w-2.5" /> done
             </span>
           )}
         </div>
+
+        {/* Metadata row — completed date (when completed) + with-avatars
+            cluster. Uses mono small caps for the date so it reads as
+            quiet metadata, not body text. */}
+        <div
+          className="mt-2 flex flex-wrap items-center gap-4"
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            color: "var(--ink-3)",
+            letterSpacing: "0.04em",
+          }}
+        >
+          {completed && item.completedAt && (
+            <span className="inline-flex items-center gap-1.5" style={{ color: "var(--moss)" }}>
+              done · {formatCompletedDate(new Date(item.completedAt))}
+            </span>
+          )}
+          {linkedPeople.length > 0 && (
+            <span className="inline-flex items-center gap-1.5">
+              with
+              <span className="flex -space-x-1.5">
+                {linkedPeople.slice(0, 5).map((p) => (
+                  <span key={p.id} className="rounded-full ring-2 ring-[var(--canvas)]" title={p.name}>
+                    <Avatar name={p.name} emoji={p.emoji} size="xs" shape="circle" />
+                  </span>
+                ))}
+              </span>
+              {linkedPeople.length > 5 && <span>+{linkedPeople.length - 5}</span>}
+            </span>
+          )}
+        </div>
+
+        {item.description && (
+          <p
+            className="mt-3"
+            style={{
+              fontFamily: "var(--font-text)",
+              fontStyle: "italic",
+              fontSize: 14,
+              color: "var(--ink-2)",
+              lineHeight: 1.5,
+            }}
+          >
+            {item.description}
+          </p>
+        )}
       </button>
     </li>
   );
@@ -136,19 +196,48 @@ export default function BucketList() {
   const busy = createMutation.isPending || toggleMutation.isPending;
 
   return (
-    <div className="h-full overflow-y-auto px-6 py-8 md:px-8">
-      <div className="mx-auto max-w-3xl space-y-6">
-        <header>
-          <div className="flex items-center gap-3">
-            <Mountain className="h-6 w-6 text-white/70" />
-            <h2 className="text-2xl font-light">Bucket List</h2>
+    <div className="h-full overflow-y-auto" style={{ background: "var(--paper)" }}>
+      <header className="px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: "1px solid var(--hairline)" }}>
+        <div className="mx-auto max-w-3xl">
+          <div
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              letterSpacing: "0.08em",
+              color: "var(--ink-3)",
+              textTransform: "uppercase",
+              marginBottom: 10,
+            }}
+          >
+            Compass · bucket list · {items.length}
           </div>
-          <p className="mt-2 max-w-2xl text-sm text-white/60">
-            Things to do before you die. Add when you think of them. Click to add who you want there or describe what it
-            really means. Check them off when you do them.
+          <h1
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: 44,
+              lineHeight: 1.2,
+              letterSpacing: "-0.02em",
+              color: "var(--ink)",
+            }}
+          >
+            Things to do <span className="brand-em">before dying.</span>
+          </h1>
+          <p
+            className="mt-3 max-w-2xl"
+            style={{
+              fontFamily: "var(--font-text)",
+              fontStyle: "italic",
+              fontSize: 17,
+              color: "var(--ink-2)",
+              lineHeight: 1.4,
+            }}
+          >
+            Not a list of trophies. A list of moments you&apos;d grieve not having tried. Tag the people you want to be
+            with when it happens.
           </p>
-        </header>
-
+        </div>
+      </header>
+      <div className="mx-auto max-w-3xl space-y-6 px-6 py-7 md:px-12">
         {/* Quick add — Enter creates with content only; click an item to add people/description */}
         <div className="flex gap-2">
           <input
@@ -163,13 +252,13 @@ export default function BucketList() {
             }}
             placeholder="Something to do before you die…"
             maxLength={500}
-            className="flex-1 rounded-lg border border-white/15 bg-white/[0.03] px-4 py-2.5 text-sm text-white outline-none transition-all placeholder:text-white/30 focus:border-white/40 focus:bg-white/[0.05]"
+            className="flex-1 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2.5 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"
           />
           <button
             type="button"
             onClick={() => void handleQuickAdd()}
             disabled={!newContent.trim() || createMutation.isPending}
-            className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white px-4 text-sm text-black transition-all hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] px-4 text-sm text-black transition-all hover:bg-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Plus className="h-4 w-4" />
             Add
@@ -177,7 +266,7 @@ export default function BucketList() {
           <button
             type="button"
             onClick={() => setModalState({ kind: "create" })}
-            className="rounded-lg border border-white/15 bg-white/[0.03] px-3 text-sm text-white/70 transition-all hover:bg-white/[0.06] hover:text-white"
+            className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 text-sm text-[var(--ink-2)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
             title="Add with details"
           >
             …
@@ -187,14 +276,14 @@ export default function BucketList() {
         {/* To do */}
         <section>
           <div className="mb-2 flex items-baseline justify-between">
-            <h3 className="text-[11px] font-medium uppercase tracking-wider text-white/50">
-              To do <span className="text-white/30">({pending.length})</span>
+            <h3 className="text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+              To do <span className="text-[var(--ink-4)]">({pending.length})</span>
             </h3>
           </div>
           {listQuery.isLoading ? (
-            <p className="text-xs text-white/40">Loading…</p>
+            <p className="text-xs text-[var(--ink-3)]">Loading…</p>
           ) : pending.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.01] p-6 text-center text-sm text-white/40">
+            <div className="rounded-lg border border-dashed border-[var(--hairline)] bg-[var(--vellum)] p-6 text-center text-sm text-[var(--ink-3)]">
               Nothing here yet. Add the first thing.
             </div>
           ) : (
@@ -217,8 +306,8 @@ export default function BucketList() {
         {done.length > 0 && (
           <section>
             <div className="mb-2 flex items-baseline justify-between">
-              <h3 className="text-[11px] font-medium uppercase tracking-wider text-emerald-300/60">
-                Done <span className="text-emerald-300/30">({done.length})</span>
+              <h3 className="text-[11px] font-medium uppercase tracking-wider text-[var(--moss)]">
+                Done <span className="text-[var(--moss)]">({done.length})</span>
               </h3>
             </div>
             <ul className="space-y-1.5">

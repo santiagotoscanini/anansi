@@ -41,9 +41,9 @@ type FlatTask = {
 };
 
 function difficultyDot(difficulty: 1 | 2 | 3) {
-  if (difficulty === 1) return "bg-green-500";
-  if (difficulty === 2) return "bg-yellow-500";
-  return "bg-red-500";
+  if (difficulty === 1) return "bg-[var(--moss)]";
+  if (difficulty === 2) return "bg-[var(--amber)]";
+  return "bg-[var(--rust)]";
 }
 
 function bucketColumnId(t: FlatTask, now: Date): ColumnId {
@@ -68,8 +68,8 @@ function TaskCard({
       onClick={onClick}
       className={`group flex w-full items-start gap-2.5 rounded-lg border p-3 text-left transition-colors ${
         isDragging
-          ? "border-white/40 bg-black shadow-2xl"
-          : "cursor-grab border-white/10 bg-white/5 hover:border-white/30 hover:bg-white/10 active:cursor-grabbing"
+          ? "border-[var(--hairline-2)] bg-[var(--paper)] shadow-2xl"
+          : "cursor-grab border-[var(--hairline)] bg-[var(--vellum)] hover:border-[var(--hairline-2)] hover:bg-[var(--vellum)] active:cursor-grabbing"
       }`}
     >
       <button
@@ -78,17 +78,19 @@ function TaskCard({
           onToggleComplete?.(e);
         }}
         onPointerDown={(e) => e.stopPropagation()}
-        className="mt-0.5 shrink-0 text-white/60 hover:text-white"
+        className="mt-0.5 shrink-0 text-[var(--ink-2)] hover:text-[var(--ink)]"
         aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
       >
-        {task.completed ? <Check className="h-4 w-4 text-emerald-400" /> : <Square className="h-4 w-4" />}
+        {task.completed ? <Check className="h-4 w-4 text-[var(--moss)]" /> : <Square className="h-4 w-4" />}
       </button>
       <div className="min-w-0 flex-1">
-        <div className={`text-sm leading-snug ${task.completed ? "text-white/40 line-through" : "text-white/90"}`}>
+        <div
+          className={`text-sm leading-snug ${task.completed ? "text-[var(--ink-3)] line-through" : "text-[var(--ink)]"}`}
+        >
           {task.title}
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <span className="flex min-w-0 items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-white/60">
+          <span className="flex min-w-0 items-center gap-1 rounded-full border border-[var(--hairline)] bg-[var(--vellum)] px-2 py-0.5 text-[10px] text-[var(--ink-2)]">
             {task.goalEmoji ? (
               isEmojiUrl(task.goalEmoji) ? (
                 <Image
@@ -106,7 +108,7 @@ function TaskCard({
             <span className="truncate">{task.goalTitle}</span>
           </span>
           {task.scheduledAt && (
-            <span className="flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] text-white/55">
+            <span className="flex shrink-0 items-center gap-1 rounded-full border border-[var(--hairline)] bg-[var(--vellum)] px-1.5 py-0.5 text-[10px] text-[var(--ink-3)]">
               <Clock className="h-2.5 w-2.5" />
               {formatScheduledShort(task.scheduledAt)}
             </span>
@@ -175,23 +177,23 @@ function DroppableColumn({
   return (
     <section
       ref={setNodeRef}
-      className={`flex min-w-0 flex-col rounded-xl border bg-white/[0.02] transition-colors ${
-        isOver ? "border-white/40 bg-white/[0.06]" : "border-white/10"
+      className={`flex min-w-0 flex-col rounded-xl border bg-[var(--vellum)] transition-colors ${
+        isOver ? "border-[var(--hairline-2)] bg-[var(--vellum)]" : "border-[var(--hairline)]"
       }`}
     >
-      <div className="flex h-20 flex-col justify-start border-b border-white/5 px-4 py-3">
+      <div className="flex h-20 flex-col justify-start border-b border-[var(--hairline)] px-4 py-3">
         <div className="flex items-center justify-between">
-          <h3 className="flex items-center gap-2 text-sm font-medium text-white">
-            <Icon className="h-3.5 w-3.5 text-white/50" />
+          <h3 className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
+            <Icon className="h-3.5 w-3.5 text-[var(--ink-3)]" />
             {title}
           </h3>
-          <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/60">{count}</span>
+          <span className="rounded-full bg-[var(--vellum)] px-2 py-0.5 text-xs text-[var(--ink-2)]">{count}</span>
         </div>
-        <p className="mt-1 line-clamp-2 text-xs text-white/40">{hint}</p>
+        <p className="mt-1 line-clamp-2 text-xs text-[var(--ink-3)]">{hint}</p>
       </div>
       <div className="flex flex-1 flex-col gap-2 p-3">
         {tasks.length === 0 ? (
-          <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-white/10 text-xs text-white/30">
+          <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-[var(--hairline)] text-xs text-[var(--ink-4)]">
             Drop here
           </div>
         ) : (
@@ -341,25 +343,59 @@ export default function Horizons() {
   const yearLabel = labelForBucket("year", now);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="shrink-0 px-6 pb-4 pt-8 md:px-8">
-        <h2 className="text-2xl font-light">Horizons</h2>
-        <p className="mt-1 max-w-3xl text-sm text-white/60">
-          One date per task. The board buckets by how close that date is — drag a card to commit it for end of month,
-          quarter, or year. Cards auto-promote to a tighter bucket as the deadline approaches.
+    <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--paper)" }}>
+      <header className="shrink-0 px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: "1px solid var(--hairline)" }}>
+        <div
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            letterSpacing: "0.08em",
+            color: "var(--ink-3)",
+            textTransform: "uppercase",
+            marginBottom: 10,
+          }}
+        >
+          Goals · horizons
+        </div>
+        <h1
+          style={{
+            fontFamily: "var(--font-display)",
+            fontSize: 44,
+            lineHeight: 1.2,
+            letterSpacing: "-0.02em",
+            color: "var(--ink)",
+          }}
+        >
+          Where things <span className="brand-em">live in time.</span>
+        </h1>
+        <p
+          className="mt-3 max-w-2xl"
+          style={{
+            fontFamily: "var(--font-text)",
+            fontStyle: "italic",
+            fontSize: 17,
+            color: "var(--ink-2)",
+            lineHeight: 1.4,
+          }}
+        >
+          Tasks bucket themselves by how close their deadline is. As the deadline approaches, they walk toward you —
+          Year → Quarter → Month → Now.
         </p>
         {goals.length > 0 && (
-          <div className="mt-3 flex gap-4 text-xs text-white/50">
+          <div
+            className="mt-4 flex gap-4"
+            style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink-3)" }}
+          >
             <span>
-              <span className="text-white/80">{openCount}</span> open
+              <span style={{ color: "var(--ink)" }}>{openCount}</span> open
             </span>
             <span>·</span>
             <span>
-              <span className="text-white/80">{scheduledCount}</span> scheduled
+              <span style={{ color: "var(--ink)" }}>{scheduledCount}</span> scheduled
             </span>
           </div>
         )}
-      </div>
+      </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -367,8 +403,8 @@ export default function Horizons() {
               user must reschedule via the card or open the goal to fix it. */}
           {byColumn.past.length > 0 && (
             <div className="px-6 pb-4 md:px-8">
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
-                <h3 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-amber-300">
+              <div className="rounded-xl border border-[var(--amber)] bg-[var(--amber-soft)] p-3">
+                <h3 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-[var(--amber)]">
                   <Clock className="h-3 w-3" />
                   Past due ({byColumn.past.filter((t) => !t.completed).length})
                 </h3>
@@ -429,8 +465,8 @@ export default function Horizons() {
               this lane (user can shift via DatePicker on the card). */}
           {byColumn.later.length > 0 && (
             <div className="px-6 pb-8 md:px-8">
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
-                <h3 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-white/50">
+              <div className="rounded-xl border border-[var(--hairline)] bg-[var(--vellum)] p-3">
+                <h3 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-[var(--ink-3)]">
                   <Clock className="h-3 w-3" />
                   Later ({byColumn.later.filter((t) => !t.completed).length})
                 </h3>

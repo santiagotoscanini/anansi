@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Camera, Download, Loader2, Upload, X } from "lucide-react";
+import { Camera, Download, Loader2, Sun, Moon, Monitor, Upload, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "~/trpc/react";
 import Avatar from "./Avatar";
+import { useTheme, type ThemePref } from "~/lib/theme";
 
 interface ProfileModalProps {
   onClose: () => void;
@@ -12,10 +13,10 @@ interface ProfileModalProps {
   onImportBackup: () => void;
 }
 
-const fieldLabel = "mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-white/40";
+const fieldLabel = "mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]";
 const inputClass =
-  "w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white outline-none transition-all placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.05]";
-const sectionClass = "border-t border-white/5 px-6 py-5";
+  "w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]";
+const sectionClass = "border-t border-[var(--hairline)] px-6 py-5";
 
 export default function ProfileModal({ onClose, onImportBackup }: ProfileModalProps) {
   const utils = api.useUtils();
@@ -27,6 +28,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
 
   const me = meQuery.data;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { pref: themePref, setPref: setThemePref } = useTheme();
 
   // Working copies — initialized once when the user record arrives so unsaved
   // edits aren't clobbered by background refetches.
@@ -144,18 +146,18 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-4 backdrop-blur"
+      className="bg-[var(--ink)]/70 fixed inset-0 z-40 flex items-center justify-center p-4 backdrop-blur"
       onClick={onClose}
     >
       <div
-        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950/95 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-[var(--hairline)] bg-[var(--canvas)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-5">
           <h2 className="text-lg font-light">Profile</h2>
           <button
             onClick={onClose}
-            className="rounded p-1 text-white/50 transition-all hover:bg-white/10 hover:text-white"
+            className="rounded p-1 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -171,7 +173,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
                 type="button"
                 onClick={handleAvatarPick}
                 disabled={uploadAvatar.isPending}
-                className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 transition-all hover:bg-white/10 hover:text-white disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-1.5 text-xs text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:opacity-50"
               >
                 <Camera className="h-3.5 w-3.5" /> Change picture
               </button>
@@ -180,12 +182,12 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
                   type="button"
                   onClick={() => void handleRemoveAvatar()}
                   disabled={removeAvatar.isPending}
-                  className="ml-2 rounded-md px-3 py-1.5 text-xs text-white/50 transition-all hover:bg-white/5 hover:text-white disabled:opacity-50"
+                  className="ml-2 rounded-md px-3 py-1.5 text-xs text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:opacity-50"
                 >
                   Remove
                 </button>
               )}
-              <p className="mt-1.5 text-[11px] text-white/40">PNG, JPG, GIF, or WebP. Up to 5MB.</p>
+              <p className="mt-1.5 text-[11px] text-[var(--ink-3)]">PNG, JPG, GIF, or WebP. Up to 5MB.</p>
             </div>
             <input
               ref={fileInputRef}
@@ -224,7 +226,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
               type="button"
               onClick={() => void handleSaveProfile()}
               disabled={!dirty || updateProfile.isPending}
-              className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-all hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg bg-[var(--paper)] px-4 py-2 text-sm font-medium text-black transition-all hover:bg-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {updateProfile.isPending ? "Saving…" : "Save changes"}
             </button>
@@ -263,17 +265,61 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
               type="button"
               onClick={() => void handleChangePassword()}
               disabled={!currentPassword || !newPassword || changePassword.isPending}
-              className="rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/80 transition-all hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {changePassword.isPending ? "Updating…" : "Change password"}
             </button>
           </div>
         </div>
 
+        {/* Theme — Light / Dark / Auto. Persisted on the user profile;
+            "Auto" follows the OS prefers-color-scheme query in real time. */}
+        <div className={sectionClass}>
+          <label className={fieldLabel}>Theme</label>
+          <p className="mb-3 text-xs text-[var(--ink-3)]">
+            Light is warm cream. Dark is deep coffee — same warmth, lower lumens. Auto follows your operating system.
+          </p>
+          <div
+            className="inline-flex gap-1 rounded-full p-1"
+            role="radiogroup"
+            aria-label="Theme"
+            style={{ background: "var(--paper-deep)", border: "1px solid var(--hairline)" }}
+          >
+            {(
+              [
+                { value: "light", label: "Light", icon: Sun },
+                { value: "dark", label: "Dark", icon: Moon },
+                { value: "system", label: "Auto", icon: Monitor },
+              ] as { value: ThemePref; label: string; icon: typeof Sun }[]
+            ).map(({ value, label, icon: Icon }) => {
+              const active = themePref === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setThemePref(value)}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs transition-all"
+                  style={{
+                    background: active ? "var(--canvas)" : "transparent",
+                    color: active ? "var(--ink)" : "var(--ink-2)",
+                    fontWeight: active ? 500 : 400,
+                    boxShadow: active ? "var(--shadow-sm)" : "none",
+                  }}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Backups */}
         <div className={sectionClass}>
           <label className={fieldLabel}>Backups</label>
-          <p className="mb-3 text-xs text-white/50">
+          <p className="mb-3 text-xs text-[var(--ink-3)]">
             Export everything as a single JSON file (people, goals, syncs, attachments, …). Import replaces the current
             account state — keep an export first.
           </p>
@@ -282,7 +328,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
               type="button"
               onClick={() => void handleExport()}
               disabled={isExporting}
-              className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 transition-all hover:bg-white/10 hover:text-white disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-md border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-1.5 text-xs text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:opacity-50"
             >
               {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
               Export backup
@@ -293,7 +339,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
                 onImportBackup();
                 onClose();
               }}
-              className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 transition-all hover:bg-white/10 hover:text-white"
+              className="inline-flex items-center gap-1.5 rounded-md border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-1.5 text-xs text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
             >
               <Upload className="h-3.5 w-3.5" /> Import backup
             </button>

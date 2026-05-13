@@ -128,12 +128,12 @@ export default function EditableEdge({
               onChange={handleInputChange}
               onKeyDown={handleInputKeyDown}
               onBlur={handleInputBlur}
-              className="h-6 w-12 rounded border border-white/40 bg-black/80 text-center text-xs text-white focus:border-white/80 focus:outline-none"
+              className="h-6 w-12 rounded border border-[var(--hairline-2)] bg-[var(--canvas)] text-center text-xs text-[var(--ink)] focus:border-[var(--hairline-2)] focus:outline-none"
             />
           ) : (
             <div
               onClick={handleClick}
-              className="flex h-6 min-w-[20px] cursor-pointer items-center justify-center rounded border border-white/20 bg-black/80 px-2 text-xs font-medium text-white transition-colors hover:border-white/40"
+              className="flex h-6 min-w-[20px] cursor-pointer items-center justify-center rounded border border-[var(--hairline-2)] bg-[var(--canvas)] px-2 text-xs font-medium text-[var(--ink)] transition-colors hover:border-[var(--hairline-2)]"
               title="Click to edit"
             >
               {connection?.weight ?? DEFAULT_WEIGHT}%

@@ -64,16 +64,20 @@ export default function SyncDefaultEditor({ onClose }: SyncDefaultEditorProps) {
   }, [templatesQuery.isLoading, templates.length, createMutation]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="flex h-[80vh] max-h-[720px] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 text-white shadow-2xl">
-        <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+    <div className="bg-[var(--ink)]/70 fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="flex h-[80vh] max-h-[720px] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--hairline)] bg-[var(--canvas)] text-[var(--ink)] shadow-2xl">
+        <header className="flex items-center justify-between border-b border-[var(--hairline)] px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold">Default sync items</h2>
-            <p className="text-xs text-white/50">
+            <p className="text-xs text-[var(--ink-3)]">
               These auto-fill every new weekly sync. Edit anytime — changes only affect future syncs.
             </p>
           </div>
-          <button onClick={onClose} className="rounded-md p-1.5 text-white/70 hover:bg-white/10" aria-label="Close">
+          <button
+            onClick={onClose}
+            className="rounded-md p-1.5 text-[var(--ink-2)] hover:bg-[var(--vellum)]"
+            aria-label="Close"
+          >
             <X className="h-5 w-5" />
           </button>
         </header>
@@ -92,7 +96,7 @@ export default function SyncDefaultEditor({ onClose }: SyncDefaultEditorProps) {
             }}
           />
         ) : (
-          <div className="flex flex-1 items-center justify-center text-sm text-white/50">
+          <div className="flex flex-1 items-center justify-center text-sm text-[var(--ink-3)]">
             {templatesQuery.isLoading || createMutation.isPending ? "Loading…" : "Setting up…"}
           </div>
         )}
@@ -155,10 +159,10 @@ function DefaultEditor({ template, allItems, onSetItems }: DefaultEditorProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center justify-between px-6 pt-4">
-        <p className="text-sm font-medium text-white/80">Items</p>
+        <p className="text-sm font-medium text-[var(--ink)]">Items</p>
         <button
           onClick={() => setPicking((p) => !p)}
-          className="flex items-center gap-1 rounded-md bg-white/10 px-2 py-1 text-xs hover:bg-white/15"
+          className="flex items-center gap-1 rounded-md bg-[var(--vellum)] px-2 py-1 text-xs hover:bg-[var(--vellum)]"
         >
           <Plus className="h-3.5 w-3.5" />
           Add item
@@ -166,9 +170,9 @@ function DefaultEditor({ template, allItems, onSetItems }: DefaultEditorProps) {
       </div>
 
       {picking && (
-        <div className="mx-6 mt-3 max-h-48 overflow-y-auto rounded-md border border-white/10 bg-white/5 p-2">
+        <div className="mx-6 mt-3 max-h-48 overflow-y-auto rounded-md border border-[var(--hairline)] bg-[var(--vellum)] p-2">
           {availableToAdd.length === 0 ? (
-            <p className="px-2 py-3 text-center text-xs text-white/50">
+            <p className="px-2 py-3 text-center text-xs text-[var(--ink-3)]">
               All your tracking items are already in the default.
             </p>
           ) : (
@@ -177,10 +181,10 @@ function DefaultEditor({ template, allItems, onSetItems }: DefaultEditorProps) {
                 <li key={it.id}>
                   <button
                     onClick={() => add(it.id)}
-                    className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm text-white/80 hover:bg-white/10"
+                    className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm text-[var(--ink)] hover:bg-[var(--vellum)]"
                   >
                     <span className="truncate">{it.title}</span>
-                    <Check className="h-3.5 w-3.5 text-emerald-300 opacity-0 group-hover:opacity-100" />
+                    <Check className="h-3.5 w-3.5 text-[var(--moss)] opacity-0 group-hover:opacity-100" />
                   </button>
                 </li>
               ))}
@@ -191,9 +195,9 @@ function DefaultEditor({ template, allItems, onSetItems }: DefaultEditorProps) {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         {orderedItemIds.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/15 p-8 text-center text-white/60">
-            No items yet. Click <span className="font-medium text-white">Add item</span> to start — these will auto-fill
-            every new weekly sync.
+          <div className="rounded-xl border border-dashed border-[var(--hairline)] p-8 text-center text-[var(--ink-2)]">
+            No items yet. Click <span className="font-medium text-[var(--ink)]">Add item</span> to start — these will
+            auto-fill every new weekly sync.
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -225,12 +229,12 @@ function SortableRow({ id, title, onRemove }: { id: string; title: string; onRem
     <li
       ref={setNodeRef}
       style={style}
-      className="group flex items-center gap-2 rounded-md border border-white/10 bg-white/5 p-2"
+      className="group flex items-center gap-2 rounded-md border border-[var(--hairline)] bg-[var(--vellum)] p-2"
     >
       <button
         {...attributes}
         {...listeners}
-        className="cursor-grab rounded p-1 text-white/40 hover:bg-white/10 hover:text-white/70 active:cursor-grabbing"
+        className="cursor-grab rounded p-1 text-[var(--ink-3)] hover:bg-[var(--vellum)] hover:text-[var(--ink-2)] active:cursor-grabbing"
         aria-label="Drag handle"
       >
         <GripVertical className="h-4 w-4" />
@@ -238,7 +242,7 @@ function SortableRow({ id, title, onRemove }: { id: string; title: string; onRem
       <span className="min-w-0 flex-1 truncate text-sm">{title}</span>
       <button
         onClick={onRemove}
-        className="rounded p-1 text-white/40 opacity-100 hover:bg-rose-500/20 hover:text-rose-200 md:opacity-0 md:group-hover:opacity-100"
+        className="rounded p-1 text-[var(--ink-3)] opacity-100 hover:bg-[var(--rust-soft)] hover:text-[var(--rust)] md:opacity-0 md:group-hover:opacity-100"
         aria-label="Remove from default"
       >
         <Trash2 className="h-3.5 w-3.5" />

@@ -129,11 +129,11 @@ export default function DatePicker({
   //   md — full-input look. Used in form fields ("Decide by", new-row inputs).
   //   sm — compact pill. Used inline in list rows (bids, important dates).
   const triggerClass = isSm
-    ? `inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-all hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50 ${
-        value ? "text-white/80" : "text-white/40"
+    ? `inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-all hover:bg-[var(--vellum)] disabled:cursor-not-allowed disabled:opacity-50 ${
+        value ? "text-[var(--ink)]" : "text-[var(--ink-3)]"
       }`
-    : `flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-left text-sm transition-all hover:bg-white/[0.05] focus:border-white/30 disabled:cursor-not-allowed disabled:opacity-50 ${
-        value ? "text-white" : "text-white/40"
+    : `flex w-full items-center gap-2 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 text-left text-sm transition-all hover:bg-[var(--vellum)] focus:border-[var(--hairline-2)] disabled:cursor-not-allowed disabled:opacity-50 ${
+        value ? "text-[var(--ink)]" : "text-[var(--ink-3)]"
       }`;
 
   return (
@@ -148,7 +148,7 @@ export default function DatePicker({
         }}
         className={triggerClass}
       >
-        <CalendarIcon className={`shrink-0 text-white/40 ${isSm ? "h-3 w-3" : "h-4 w-4"}`} />
+        <CalendarIcon className={`shrink-0 text-[var(--ink-3)] ${isSm ? "h-3 w-3" : "h-4 w-4"}`} />
         <span className={isSm ? "" : "flex-1 truncate"}>{formatted || placeholder}</span>
         {!isSm && clearable && value && !disabled && (
           <span
@@ -165,7 +165,7 @@ export default function DatePicker({
                 onChange(null);
               }
             }}
-            className="rounded p-0.5 text-white/40 transition-all hover:bg-white/10 hover:text-white"
+            className="rounded p-0.5 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
             aria-label="Clear date"
           >
             <X className="h-3.5 w-3.5" />
@@ -178,7 +178,7 @@ export default function DatePicker({
           <div
             ref={popoverRef}
             style={{ position: "fixed", top: position.top, left: position.left, right: position.right }}
-            className="z-50 w-[18rem] rounded-lg border border-white/15 bg-neutral-900 p-3 shadow-2xl"
+            className="z-50 w-[18rem] rounded-lg border border-[var(--hairline)] bg-[var(--ink-3)] p-3 shadow-2xl"
           >
             <div className="mb-2 flex items-center justify-between gap-1">
               <div className="flex items-center">
@@ -189,7 +189,7 @@ export default function DatePicker({
                       ? setView((v) => new Date(v.getFullYear() - 1, v.getMonth(), 1))
                       : setView((v) => new Date(v.getFullYear() - 12, v.getMonth(), 1))
                   }
-                  className="rounded p-1 text-white/50 transition-all hover:bg-white/10 hover:text-white"
+                  className="rounded p-1 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
                   aria-label={mode === "day" ? "Previous year" : "Previous 12 years"}
                   title={mode === "day" ? "Previous year" : "Previous 12 years"}
                 >
@@ -199,7 +199,7 @@ export default function DatePicker({
                   <button
                     type="button"
                     onClick={() => setView((v) => new Date(v.getFullYear(), v.getMonth() - 1, 1))}
-                    className="rounded p-1 text-white/50 transition-all hover:bg-white/10 hover:text-white"
+                    className="rounded p-1 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
                     aria-label="Previous month"
                     title="Previous month"
                   >
@@ -210,7 +210,7 @@ export default function DatePicker({
               <button
                 type="button"
                 onClick={() => setMode((m) => (m === "day" ? "year" : "day"))}
-                className="rounded px-2 py-1 text-sm font-medium text-white transition-all hover:bg-white/10"
+                className="rounded px-2 py-1 text-sm font-medium text-[var(--ink)] transition-all hover:bg-[var(--vellum)]"
                 title={mode === "day" ? "Pick a year" : "Back to days"}
               >
                 {mode === "day"
@@ -222,7 +222,7 @@ export default function DatePicker({
                   <button
                     type="button"
                     onClick={() => setView((v) => new Date(v.getFullYear(), v.getMonth() + 1, 1))}
-                    className="rounded p-1 text-white/50 transition-all hover:bg-white/10 hover:text-white"
+                    className="rounded p-1 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
                     aria-label="Next month"
                     title="Next month"
                   >
@@ -236,7 +236,7 @@ export default function DatePicker({
                       ? setView((v) => new Date(v.getFullYear() + 1, v.getMonth(), 1))
                       : setView((v) => new Date(v.getFullYear() + 12, v.getMonth(), 1))
                   }
-                  className="rounded p-1 text-white/50 transition-all hover:bg-white/10 hover:text-white"
+                  className="rounded p-1 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
                   aria-label={mode === "day" ? "Next year" : "Next 12 years"}
                   title={mode === "day" ? "Next year" : "Next 12 years"}
                 >
@@ -246,7 +246,7 @@ export default function DatePicker({
             </div>
             {mode === "day" ? (
               <>
-                <div className="mb-1 grid grid-cols-7 gap-0.5 text-center text-[10px] uppercase tracking-wider text-white/40">
+                <div className="mb-1 grid grid-cols-7 gap-0.5 text-center text-[10px] uppercase tracking-wider text-[var(--ink-3)]">
                   {WEEKDAYS.map((w) => (
                     <span key={w}>{w}</span>
                   ))}
@@ -265,12 +265,12 @@ export default function DatePicker({
                         }}
                         className={`flex h-8 items-center justify-center rounded text-xs transition-all ${
                           isSelected
-                            ? "bg-white font-medium text-black"
+                            ? "bg-[var(--paper)] font-medium text-black"
                             : isToday
-                              ? "bg-white/10 text-white ring-1 ring-white/30"
+                              ? "bg-[var(--vellum)] text-[var(--ink)] ring-1 ring-white/30"
                               : inMonth
-                                ? "text-white/80 hover:bg-white/10"
-                                : "text-white/20 hover:bg-white/5"
+                                ? "text-[var(--ink)] hover:bg-[var(--vellum)]"
+                                : "text-[var(--ink-4)] hover:bg-[var(--vellum)]"
                         }`}
                       >
                         {date.getDate()}
@@ -294,10 +294,10 @@ export default function DatePicker({
                       }}
                       className={`flex h-10 items-center justify-center rounded text-sm transition-all ${
                         isSelected
-                          ? "bg-white font-medium text-black"
+                          ? "bg-[var(--paper)] font-medium text-black"
                           : isCurrent
-                            ? "bg-white/10 text-white ring-1 ring-white/30"
-                            : "text-white/80 hover:bg-white/10"
+                            ? "bg-[var(--vellum)] text-[var(--ink)] ring-1 ring-white/30"
+                            : "text-[var(--ink)] hover:bg-[var(--vellum)]"
                       }`}
                     >
                       {year}
@@ -306,14 +306,14 @@ export default function DatePicker({
                 })}
               </div>
             )}
-            <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-2">
+            <div className="mt-2 flex items-center justify-between border-t border-[var(--hairline)] pt-2">
               <button
                 type="button"
                 onClick={() => {
                   onChange(new Date());
                   setOpen(false);
                 }}
-                className="rounded px-2 py-1 text-xs text-white/60 transition-all hover:bg-white/10 hover:text-white"
+                className="rounded px-2 py-1 text-xs text-[var(--ink-2)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
               >
                 Today
               </button>
@@ -324,7 +324,7 @@ export default function DatePicker({
                     onChange(null);
                     setOpen(false);
                   }}
-                  className="rounded px-2 py-1 text-xs text-white/40 transition-all hover:bg-white/10 hover:text-white"
+                  className="rounded px-2 py-1 text-xs text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
                 >
                   Clear
                 </button>

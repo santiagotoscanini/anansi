@@ -66,13 +66,13 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
     const getDifficultyColor = () => {
       switch (difficulty.level) {
         case "easy":
-          return "bg-green-500";
+          return "bg-[var(--moss)]";
         case "medium":
-          return "bg-yellow-500";
+          return "bg-[var(--amber)]";
         case "hard":
-          return "bg-red-500";
+          return "bg-[var(--rust)]";
         default:
-          return "bg-gray-500";
+          return "bg-[var(--ink-3)]";
       }
     };
 
@@ -81,11 +81,11 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
 
     return (
       <div className="mt-1 flex items-center gap-2">
-        <span className="w-8 text-[9px] text-white/40">Diff</span>
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+        <span className="w-8 text-[9px] text-[var(--ink-3)]">Diff</span>
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--vellum)]">
           <div className={`h-full ${getDifficultyColor()} transition-all`} style={{ width: `${barWidth}%` }} />
         </div>
-        <span className="w-8 text-right text-[9px] text-white/60">{difficulty.average.toFixed(1)}</span>
+        <span className="w-8 text-right text-[9px] text-[var(--ink-2)]">{difficulty.average.toFixed(1)}</span>
       </div>
     );
   };
@@ -97,39 +97,72 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
     }
   };
 
-  // Get importance-based colors
-  const getImportanceColor = () => {
+  // Importance now lives on a thin top-stripe color, not the whole
+  // border. Matches the design's slim GoalNode chrome (top-pill + warm
+  // canvas + hairline border) — keeps the canvas reading as paper, not
+  // a heat-map.
+  const importanceColor = (() => {
     switch (importance) {
       case "High":
-        return "border-red-500 bg-red-500/10";
+        return "var(--rust)";
       case "Medium":
-        return "border-yellow-500 bg-yellow-500/10";
+        return "var(--amber)";
       case "Low":
-        return "border-gray-500 bg-gray-500/10";
       default:
-        return "border-gray-500 bg-gray-500/10";
+        return "var(--ink-4)";
     }
-  };
+  })();
 
   const getProgressBarColor = (percent: number) => {
-    if (percent < 33) return "bg-red-500";
-    if (percent < 67) return "bg-yellow-500";
-    return "bg-green-500";
+    if (percent < 33) return "bg-[var(--rust)]";
+    if (percent < 67) return "bg-[var(--amber)]";
+    return "bg-[var(--moss)]";
   };
 
   return (
     <div
-      className={`relative min-w-[200px] max-w-[300px] rounded-lg border-2 p-4 transition-all hover:shadow-lg ${getImportanceColor()} ${
-        selected ? "ring-2 ring-white ring-offset-2 ring-offset-black" : ""
-      }`}
+      className="relative min-w-[220px] max-w-[300px] rounded-[14px] p-4 transition-all"
+      style={{
+        background: "var(--canvas)",
+        border: "1px solid var(--hairline)",
+        boxShadow: selected ? "var(--shadow-pop)" : "var(--shadow-md)",
+        outline: selected ? "2px solid var(--clay)" : "none",
+        outlineOffset: 2,
+      }}
     >
-      <Handle type="target" position={Position.Left} id="left" className="!bg-white/50" style={{ top: "50%" }} />
-      <Handle type="source" position={Position.Right} id="right" className="!bg-white/50" style={{ top: "50%" }} />
+      {/* Top stripe — the only importance signal on the card */}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 14,
+          right: 14,
+          height: 3,
+          background: importanceColor,
+          borderRadius: "0 0 999px 999px",
+        }}
+      />
+      <Handle type="target" position={Position.Left} id="left" className="!bg-[var(--vellum)]" style={{ top: "50%" }} />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="right"
+        className="!bg-[var(--vellum)]"
+        style={{ top: "50%" }}
+      />
 
       {/* Value Dots at the top - Expand on hover */}
       {associatedValues.length > 0 && (
         <div className="group absolute -top-3 left-4 right-4 flex justify-center">
-          <div className="relative flex gap-1.5 rounded-full bg-black/80 px-2 py-1">
+          <div
+            className="relative flex gap-1.5 rounded-full px-2 py-1"
+            style={{
+              background: "var(--canvas)",
+              border: "1px solid var(--hairline)",
+              boxShadow: "var(--shadow-sm)",
+            }}
+          >
             {/* Color dots */}
             {associatedValues.map((value) => (
               <div
@@ -141,12 +174,22 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
 
             {/* Expanded names tooltip on hover */}
             <div className="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 opacity-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100">
-              <div className="flex flex-wrap gap-1 rounded-lg bg-black/90 p-2 shadow-lg">
+              <div
+                className="flex flex-wrap gap-1 rounded-lg p-2"
+                style={{
+                  background: "var(--canvas)",
+                  border: "1px solid var(--hairline)",
+                  boxShadow: "var(--shadow-md)",
+                }}
+              >
                 {associatedValues.map((value) => (
                   <span
                     key={value.id}
-                    className="whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
-                    style={{ backgroundColor: value.color }}
+                    className="whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium"
+                    style={{
+                      backgroundColor: value.color,
+                      color: "var(--paper)",
+                    }}
                   >
                     {value.name}
                   </span>
@@ -175,15 +218,15 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
               <span className="text-xl leading-none">{data.emoji}</span>
             )
           ) : completion === 100 ? (
-            <CheckCircle className="h-5 w-5 text-green-500" />
+            <CheckCircle className="h-5 w-5 text-[var(--moss)]" />
           ) : (
-            <Target className="h-5 w-5 text-white/60" />
+            <Target className="h-5 w-5 text-[var(--ink-2)]" />
           )}
-          <span className="text-xs text-white/60">Importance: {importance}</span>
+          <span className="text-xs text-[var(--ink-2)]">Importance: {importance}</span>
         </div>
         <button
           onClick={handleEditClick}
-          className="rounded p-1 opacity-60 transition-opacity hover:bg-white/10 hover:opacity-100"
+          className="rounded p-1 opacity-60 transition-opacity hover:bg-[var(--vellum)] hover:opacity-100"
           title="Edit goal"
         >
           <Pencil className="h-3.5 w-3.5" />
@@ -191,14 +234,14 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
       </div>
 
       {/* Title */}
-      <h3 className="mb-2 font-semibold text-white">{data.title}</h3>
+      <h3 className="mb-2 font-semibold text-[var(--ink)]">{data.title}</h3>
 
       {/* Description */}
-      {data.description && <p className="mb-3 line-clamp-2 text-xs text-white/70">{data.description}</p>}
+      {data.description && <p className="mb-3 line-clamp-2 text-xs text-[var(--ink-2)]">{data.description}</p>}
 
       {/* Tasks Summary — total count + per-bucket pills computed from
           each task's scheduledAt date. Pills hide when nothing is scheduled. */}
-      <div className="mb-2 flex items-center justify-between gap-2 text-xs text-white/60">
+      <div className="mb-2 flex items-center justify-between gap-2 text-xs text-[var(--ink-2)]">
         <span>
           Tasks: {data.tasks.filter((t) => t.completed).length}/{data.tasks.length}
         </span>
@@ -221,17 +264,17 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
               title={`Open by bucket — This month: ${m}, This quarter: ${q}, This year: ${y}`}
             >
               {m > 0 && (
-                <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-emerald-300">
+                <span className="rounded-full border border-[var(--moss)] bg-[var(--moss-soft)] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-[var(--moss)]">
                   {m}M
                 </span>
               )}
               {q > 0 && (
-                <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-sky-300">
+                <span className="rounded-full border border-[var(--indigo)] bg-[var(--indigo-soft)] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-[var(--indigo)]">
                   {q}Q
                 </span>
               )}
               {y > 0 && (
-                <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-violet-300">
+                <span className="rounded-full border border-[var(--plum)] bg-[var(--plum-soft)] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-[var(--plum)]">
                   {y}Y
                 </span>
               )}
@@ -247,25 +290,25 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
           <div className="space-y-1">
             {/* Own progress */}
             <div className="flex items-center gap-2">
-              <span className="w-8 text-[9px] text-white/40">Own</span>
-              <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+              <span className="w-8 text-[9px] text-[var(--ink-3)]">Own</span>
+              <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--vellum)]">
                 <div
                   className={`h-full transition-all ${getProgressBarColor(ownCompletion)}`}
                   style={{ width: `${ownCompletion}%` }}
                 />
               </div>
-              <span className="w-8 text-right text-[9px] text-white/60">{Math.round(ownCompletion)}%</span>
+              <span className="w-8 text-right text-[9px] text-[var(--ink-2)]">{Math.round(ownCompletion)}%</span>
             </div>
             {/* Dependencies progress */}
             <div className="flex items-center gap-2">
-              <span className="w-8 text-[9px] text-white/40">Deps</span>
-              <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+              <span className="w-8 text-[9px] text-[var(--ink-3)]">Deps</span>
+              <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--vellum)]">
                 <div
                   className={`h-full opacity-70 transition-all ${getProgressBarColor(predecessorAverage)}`}
                   style={{ width: `${Math.min(100, Math.max(0, predecessorAverage))}%` }}
                 />
               </div>
-              <span className="w-8 text-right text-[9px] text-white/60">{Math.round(predecessorAverage)}%</span>
+              <span className="w-8 text-right text-[9px] text-[var(--ink-2)]">{Math.round(predecessorAverage)}%</span>
             </div>
             <DifficultyInfo />
           </div>
@@ -273,7 +316,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
       ) : (
         <div className="space-y-1">
           {/* Simple progress bar for goals without predecessors */}
-          <div className="relative h-2 overflow-hidden rounded-full bg-white/10">
+          <div className="relative h-2 overflow-hidden rounded-full bg-[var(--vellum)]">
             <div
               className={`h-full transition-all ${getProgressBarColor(completion)}`}
               style={{ width: `${completion}%` }}
@@ -294,11 +337,17 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
                 className="relative"
                 style={{ marginLeft: i === 0 ? 0 : -6, zIndex: referentPeople.length - i }}
               >
-                <Avatar name={p.name} emoji={p.emoji} size="xs" shape="circle" className="ring-2 ring-black" />
+                <Avatar
+                  name={p.name}
+                  emoji={p.emoji}
+                  size="xs"
+                  shape="circle"
+                  className="ring-2 ring-[var(--canvas)]"
+                />
               </div>
             ))}
             {referentPeople.length > 5 && (
-              <span className="-ml-1.5 rounded-full border border-white/10 bg-white/10 px-1 text-[9px] text-white/70 ring-2 ring-black">
+              <span className="-ml-1.5 rounded-full border border-[var(--hairline)] bg-[var(--vellum)] px-1 text-[9px] text-[var(--ink-2)] ring-2 ring-[var(--canvas)]">
                 +{referentPeople.length - 5}
               </span>
             )}
@@ -306,11 +355,18 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
 
           {/* Expanded names tooltip on hover */}
           <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 -translate-x-1/2 opacity-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100">
-            <div className="flex flex-wrap justify-center gap-1 rounded-lg bg-black/95 p-2 shadow-lg ring-1 ring-white/10">
+            <div
+              className="flex flex-wrap justify-center gap-1 rounded-lg p-2"
+              style={{
+                background: "var(--canvas)",
+                border: "1px solid var(--hairline)",
+                boxShadow: "var(--shadow-md)",
+              }}
+            >
               {referentPeople.map((p) => (
                 <span
                   key={p.id}
-                  className="flex items-center gap-1 whitespace-nowrap rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-white/90"
+                  className="flex items-center gap-1 whitespace-nowrap rounded-full border border-[var(--hairline)] bg-[var(--vellum)] px-2 py-0.5 text-[10px] text-[var(--ink)]"
                 >
                   <Avatar name={p.name} emoji={p.emoji} size="xs" shape="circle" />
                   {p.name}
@@ -322,7 +378,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
       )}
 
       {/* Completion Percentage */}
-      <div className="mt-2 text-center text-xs font-semibold text-white">{Math.round(completion)}% Complete</div>
+      <div className="mt-2 text-center text-xs font-semibold text-[var(--ink)]">{Math.round(completion)}% Complete</div>
     </div>
   );
 });

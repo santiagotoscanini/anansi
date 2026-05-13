@@ -2,12 +2,188 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   ANANSI — Design tokens
+   A warm, contemplative design system for a personal operating
+   system. Built around the Adinkra spider web — wisdom and the
+   complexity of life. Not a productivity tool. A thinking surface.
+   ============================================================ */
+
+:root {
+  /* -------- Color: paper / surface ladder -------- */
+  /* Warm off-whites — never pure white. Saturation ~0.012 */
+  --paper: oklch(0.965 0.012 75); /* main app bg — warm cream */
+  --paper-deep: oklch(0.945 0.014 75); /* recessed panels, sidebar */
+  --canvas: oklch(0.985 0.008 75); /* cards, modals — lifted */
+  --vellum: oklch(0.92 0.018 70); /* subtle wash, hover bgs */
+  --ash: oklch(0.88 0.014 70); /* dividers/chips at rest */
+
+  /* -------- Color: ink ladder -------- */
+  /* Warm near-blacks. Same hue, varying lightness — no greys. */
+  --ink: oklch(0.2 0.012 50); /* primary text */
+  --ink-2: oklch(0.38 0.01 55); /* secondary text */
+  --ink-3: oklch(0.55 0.012 60); /* tertiary, metadata */
+  --ink-4: oklch(0.72 0.012 65); /* placeholders, icons-rest */
+  --hairline: color-mix(in oklch, var(--ink) 8%, transparent);
+  --hairline-2: color-mix(in oklch, var(--ink) 14%, transparent);
+
+  /* -------- Color: brand & accent -------- */
+  --clay: oklch(0.62 0.135 38); /* terracotta — primary accent */
+  --clay-deep: oklch(0.52 0.14 38); /* hover/pressed */
+  --clay-soft: oklch(0.92 0.045 50); /* tinted bg */
+  --clay-wash: oklch(0.96 0.02 55); /* faintest wash */
+
+  /* Supporting hues — all share chroma 0.085–0.10 for harmony */
+  --moss: oklch(0.55 0.09 135); /* growth, completed */
+  --moss-soft: oklch(0.93 0.04 130);
+  --indigo: oklch(0.5 0.095 265); /* relationships, deep */
+  --indigo-soft: oklch(0.93 0.035 265);
+  --amber: oklch(0.72 0.13 75); /* attention, upcoming */
+  --amber-soft: oklch(0.94 0.06 80);
+  --rust: oklch(0.55 0.14 28); /* overdue, urgent */
+  --rust-soft: oklch(0.93 0.05 30);
+  --plum: oklch(0.5 0.095 340); /* values, identity */
+  --plum-soft: oklch(0.93 0.035 340);
+
+  /* -------- Semantic aliases -------- */
+  --bg: var(--paper);
+  --surface: var(--canvas);
+  --surface-2: var(--paper-deep);
+  --text: var(--ink);
+  --text-muted: var(--ink-2);
+  --text-faint: var(--ink-3);
+  --accent: var(--clay);
+
+  /* Inverted card surface — the "dark slab on cream" treatment used by
+     the closing coda, dark Whisper cards, /register testimonial panel,
+     and the Self "note to future self" card. In light mode this is a
+     high-contrast accent. In dark mode the page is already dark, so a
+     full invert would read as a giant cream block — instead we collapse
+     to a subtle recess (paper-deep) with cream text. Same rhythm, half
+     the visual weight. */
+  --surface-inverse: var(--ink);
+  --on-inverse: var(--paper);
+
+  /* -------- Type stack — references next/font CSS vars from layout.tsx -------- */
+  --font-brand: var(--font-cormorant), "Cormorant Garamond", Georgia, serif;
+  --font-display: var(--font-instrument-serif), "Instrument Serif", Georgia, serif;
+  --font-text: var(--font-newsreader), "Newsreader", Georgia, serif;
+  --font-ui: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), "JetBrains Mono", ui-monospace, monospace;
+
+  /* -------- Type scale -------- */
+  --t-xs: 11px;
+  --t-sm: 13px;
+  --t-base: 15px;
+  --t-md: 17px;
+  --t-lg: 20px;
+  --t-xl: 24px;
+  --t-2xl: 32px;
+  --t-3xl: 44px;
+  --t-4xl: 60px;
+  --t-5xl: 84px;
+
+  /* -------- Radii -------- */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-2xl: 28px;
+  --r-pill: 999px;
+
+  /* -------- Shadows — diffuse, warm-tinted -------- */
+  --shadow-flat: 0 1px 0 var(--hairline);
+  --shadow-sm: 0 1px 2px rgba(50, 38, 28, 0.04), 0 1px 1px rgba(50, 38, 28, 0.03);
+  --shadow-md: 0 2px 8px rgba(50, 38, 28, 0.06), 0 1px 2px rgba(50, 38, 28, 0.04);
+  --shadow-lg: 0 10px 30px rgba(50, 38, 28, 0.08), 0 2px 6px rgba(50, 38, 28, 0.04);
+  --shadow-pop: 0 24px 60px rgba(50, 38, 28, 0.16), 0 4px 12px rgba(50, 38, 28, 0.06);
+
+  /* -------- Motion -------- */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+}
+
+/* ============================================================
+   DARK MODE — warm dark, deep coffee. Same warm hues, inverted.
+   ============================================================ */
+[data-theme="dark"] {
+  --paper: oklch(0.16 0.01 50);
+  --paper-deep: oklch(0.13 0.01 50);
+  --canvas: oklch(0.2 0.011 52);
+  --vellum: oklch(0.24 0.012 55);
+  --ash: oklch(0.3 0.012 55);
+
+  --ink: oklch(0.95 0.012 75);
+  --ink-2: oklch(0.78 0.012 70);
+  --ink-3: oklch(0.6 0.012 65);
+  --ink-4: oklch(0.42 0.012 60);
+  --hairline: color-mix(in oklch, var(--ink) 10%, transparent);
+  --hairline-2: color-mix(in oklch, var(--ink) 18%, transparent);
+
+  --clay: oklch(0.7 0.115 40);
+  --clay-deep: oklch(0.78 0.115 40);
+  --clay-soft: oklch(0.3 0.055 40);
+  --clay-wash: oklch(0.22 0.03 45);
+
+  --moss: oklch(0.72 0.075 135);
+  --moss-soft: oklch(0.28 0.04 135);
+  --indigo: oklch(0.72 0.085 265);
+  --indigo-soft: oklch(0.28 0.045 265);
+  --amber: oklch(0.8 0.105 75);
+  --amber-soft: oklch(0.3 0.055 75);
+  --rust: oklch(0.72 0.11 28);
+  --rust-soft: oklch(0.28 0.06 28);
+  --plum: oklch(0.72 0.075 340);
+  --plum-soft: oklch(0.28 0.045 340);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2), 0 1px 1px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.2);
+  --shadow-pop: 0 24px 60px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.25);
+
+  /* Inverted surface collapses to a subtle recess in dark mode so we
+     don't render a giant cream slab against the coffee page. */
+  --surface-inverse: var(--paper-deep);
+  --on-inverse: var(--ink);
+}
+
+/* ============================================================
+   Base — body uses warm paper + ink, font stack from --font-ui.
+   ============================================================ */
 @layer base {
+  html,
   body {
-    background: black;
-    color: white;
-    font-family: var(--font-space-grotesk), sans-serif;
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: var(--t-base);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "ss01", "ss02", "cv11";
+    text-rendering: optimizeLegibility;
+    transition: background var(--dur-3) var(--ease), color var(--dur-3) var(--ease);
     overflow-x: hidden;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    margin: 0;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
   }
 }
 
@@ -19,4 +195,118 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* ============================================================
+   BRAND — wordmark (italic Cormorant + clay drop) + mark.
+   ============================================================ */
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  /* Inherits from the wrapper — lets the dark register panel pass cream
+     through without manually overriding every nested element. */
+  color: inherit;
+  position: relative;
+}
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: currentColor;
+}
+.brand-mark svg {
+  display: block;
+}
+
+.wordmark {
+  font-family: var(--font-brand);
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1;
+  position: relative;
+  white-space: nowrap;
+  font-feature-settings: "kern", "liga", "calt", "swsh";
+  /* Inherits parent color so the same lockup works on warm-paper light
+     panels AND on the inverted ink-background register card. */
+  color: inherit;
+}
+.wordmark .wm-text {
+  white-space: nowrap;
+  display: inline-block;
+}
+.wordmark .wm-i {
+  position: relative;
+  display: inline-block;
+}
+.wordmark .wm-drop {
+  position: absolute;
+  width: 0.18em;
+  height: 0.18em;
+  border-radius: 50%;
+  background: var(--clay);
+  top: 0.04em;
+  left: 50%;
+  transform: translateX(-30%);
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--clay) 30%, transparent);
+}
+.wordmark.wm-sm .wm-drop {
+  display: none;
+}
+
+.anansi-mark {
+  display: inline-block;
+  vertical-align: middle;
+  color: currentColor;
+}
+.anansi-mark .am-web path,
+.anansi-mark .am-web line,
+.anansi-mark .am-web polygon {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.anansi-mark .am-drop {
+  fill: var(--clay);
+}
+
+/* ============================================================
+   Inline italic brand accent — used on display headlines as a
+   warm "."/"name." flourish that picks up the clay drop hue.
+   ============================================================ */
+.brand-em {
+  font-family: var(--font-brand);
+  font-style: italic;
+  font-weight: 500;
+  color: var(--clay-deep);
+  font-size: 0.86em;
+  letter-spacing: -0.01em;
+  display: inline-block;
+  line-height: 0.95;
+  vertical-align: baseline;
+}
+[data-theme="dark"] .brand-em {
+  color: var(--clay);
+}
+
+/* ============================================================
+   Light-mode tag color boosts — bigger contrast on muted hues.
+   ============================================================ */
+:root .tag-moss {
+  color: oklch(0.4 0.08 135);
+}
+:root .tag-amber {
+  color: oklch(0.48 0.11 65);
+}
+:root .tag-rust {
+  color: oklch(0.45 0.12 28);
+}
+:root .tag-indigo {
+  color: oklch(0.42 0.085 265);
+}
+:root .tag-plum {
+  color: oklch(0.42 0.085 340);
 }

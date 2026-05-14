@@ -809,8 +809,10 @@ function LandingPageInner() {
         <ColophonCol heading={t("landing.footer.headingTeam")}>
           <a href="#">{t("landing.footer.teamAbout")}</a>
           <a href="#">{t("landing.footer.teamContact")}</a>
-          <a href="#">{t("landing.footer.teamChangelog")}</a>
-          <a href="#">{t("landing.footer.teamPress")}</a>
+          {/* eslint-disable-next-line i18next/no-literal-string -- legal page links, EN-only until reviewed */}
+          <Link href="/privacy">Privacy</Link>
+          {/* eslint-disable-next-line i18next/no-literal-string -- legal page links, EN-only until reviewed */}
+          <Link href="/terms">Terms</Link>
         </ColophonCol>
         {/* Font family names are proper nouns — left untranslated by design. */}
         <ColophonCol heading={t("landing.footer.headingSetIn")}>

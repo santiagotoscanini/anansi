@@ -29,9 +29,30 @@ import {
 import { decodeImageUpload, decodeUpload, UploadValidationError } from "../../../image-upload";
 import { checkRateLimit } from "../../../rate-limit";
 import { computeImportance } from "../../../computation/importance";
-import path from "path";
 import { createId } from "@paralleldrive/cuid2";
-import { safeExtension, writeAttachmentToDisk, unlinkAttachmentFromDisk, maybeSweepOrphanAttachments } from "./_shared";
+import { ATTACHMENTS_BUCKET, SIGNED_URL_TTL_SECONDS, safeExtension } from "./_shared";
+import { createServiceRoleClient } from "../../../supabase/service";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+// Mint signed URLs for a batch of attachment storage paths. Returns a map of
+// path -> signed URL. Paths that fail to sign (e.g. object deleted out of
+// band) are omitted from the map; the caller renders without a URL in that
+// case rather than failing the whole request.
+async function signAttachmentUrls(supabase: SupabaseClient, storagePaths: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (storagePaths.length === 0) return out;
+  const { data, error } = await supabase.storage
+    .from(ATTACHMENTS_BUCKET)
+    .createSignedUrls(storagePaths, SIGNED_URL_TTL_SECONDS);
+  if (error || !data) {
+    console.warn(`[sync] failed to mint signed URLs:`, error?.message);
+    return out;
+  }
+  for (const entry of data) {
+    if (entry.signedUrl && !entry.error) out.set(entry.path ?? "", entry.signedUrl);
+  }
+  return out;
+}
 
 export const syncRouter = createTRPCRouter({
   trackingItems: createTRPCRouter({
@@ -341,6 +362,14 @@ export const syncRouter = createTRPCRouter({
             )
             .orderBy(asc(attachments.createdAt));
         }
+        // Mint signed URLs for every attachment in one batched call (the
+        // bucket is private, so the URL is the only way the client can fetch
+        // the bytes). One Storage round-trip regardless of attachment count.
+        const supabase = createServiceRoleClient();
+        const signedUrlByPath = await signAttachmentUrls(
+          supabase,
+          attachmentsData.map((a) => a.storagePath),
+        );
         const goalById = new Map(goalsData.map((g) => [g.id, g] as const));
         const itemById = new Map(allItems.map((i) => [i.id, i] as const));
 
@@ -354,7 +383,7 @@ export const syncRouter = createTRPCRouter({
                 id: a.id,
                 fileName: a.fileName,
                 fileType: a.fileType,
-                url: `/uploads/${a.storagePath}`,
+                url: signedUrlByPath.get(a.storagePath) ?? "",
                 sizeBytes: a.sizeBytes,
                 createdAt: a.createdAt,
               }));
@@ -510,7 +539,7 @@ export const syncRouter = createTRPCRouter({
 
     // Remove a single item from a sync. Does NOT touch the underlying
     // tracking item (it remains in the user's library). Cascades the item's
-    // attachments via FK; we hand-unlink the files from disk after.
+    // attachments via FK; we hand-remove the storage objects after.
     removeItem: protectedProcedure.input(removeSyncItemSchema).mutation(async ({ input, ctx }) => {
       const [row] = await db
         .select({ syncItemId: weeklySyncItems.id })
@@ -526,7 +555,7 @@ export const syncRouter = createTRPCRouter({
         .where(and(eq(attachments.parentType, "weekly_sync_item"), eq(attachments.parentId, input.weeklySyncItemId)));
 
       // Delete the attachments rows first, then the sync item row. (FK cascade
-      // would do this for us, but we want to know which storage paths to unlink.)
+      // would do this for us, but we want to know which storage paths to remove.)
       if (linkedAttachments.length > 0) {
         await db.delete(attachments).where(
           inArray(
@@ -537,8 +566,14 @@ export const syncRouter = createTRPCRouter({
       }
       await db.delete(weeklySyncItems).where(eq(weeklySyncItems.id, input.weeklySyncItemId));
 
-      for (const a of linkedAttachments) {
-        await unlinkAttachmentFromDisk(a.storagePath);
+      if (linkedAttachments.length > 0) {
+        const supabase = createServiceRoleClient();
+        const { error: removeError } = await supabase.storage
+          .from(ATTACHMENTS_BUCKET)
+          .remove(linkedAttachments.map((a) => a.storagePath));
+        if (removeError) {
+          console.warn(`[sync.removeItem] failed to remove storage objects:`, removeError.message);
+        }
       }
       return { success: true };
     }),
@@ -595,16 +630,11 @@ export const syncRouter = createTRPCRouter({
   attachments: createTRPCRouter({
     upload: protectedProcedure.input(uploadAttachmentSchema).mutation(async ({ input, ctx }) => {
       // 30 attachments per minute per user — generous for batch uploads,
-      // tight enough that a runaway loop bails before filling disk.
+      // tight enough that a runaway loop bails before quota.
       const rl = checkRateLimit("attachments.upload", `user:${ctx.user.userId}`, { limit: 30, windowMs: 60_000 });
       if (!rl.allowed) {
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many uploads, slow down" });
       }
-      // Lazy orphan sweep on first upload after process boot — cleans any FS
-      // file whose DB row was lost to a transaction rollback after the write.
-      // Awaited but small (single readdir + DB read) and only fires once.
-      // Don't let a sweep failure block the user's upload.
-      void maybeSweepOrphanAttachments(ctx.user.userId);
       // Validate ownership of the parent. Only weekly_sync_item is supported today;
       // adding more parent types means extending this switch.
       if (input.parentType === "weekly_sync_item") {
@@ -630,12 +660,25 @@ export const syncRouter = createTRPCRouter({
       }
       const ext = safeExtension(input.fileName, decoded.mime);
 
-      // DB row first; FS write inside the same tx. If FS fails the row rolls back.
+      // Upload to Storage first, then insert the DB row. If the DB insert
+      // fails we roll the storage object back with a best-effort remove —
+      // worst case is a stray orphan blob (no row references it), which
+      // costs storage but doesn't surface to users.
       const attachmentId = createId();
-      const provisionalStoragePath = path.join(ctx.user.userId, "attachments", `${attachmentId}${ext}`);
+      const storagePath = `${ctx.user.userId}/${attachmentId}${ext}`;
+      const supabase = createServiceRoleClient();
+      const contentType = decoded.mime ?? "application/octet-stream";
+      const { error: uploadError } = await supabase.storage
+        .from(ATTACHMENTS_BUCKET)
+        .upload(storagePath, decoded.buffer, { contentType });
+      if (uploadError) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: uploadError.message });
+      }
+      const sizeBytes = decoded.buffer.length;
 
-      return await db.transaction(async (tx) => {
-        const [row] = await tx
+      let row: typeof attachments.$inferSelect | undefined;
+      try {
+        [row] = await db
           .insert(attachments)
           .values({
             id: attachmentId,
@@ -644,30 +687,34 @@ export const syncRouter = createTRPCRouter({
             parentId: input.parentId,
             fileName: input.fileName,
             fileType: input.fileType,
-            storagePath: provisionalStoragePath,
-            sizeBytes: 0,
+            storagePath,
+            sizeBytes,
           })
           .returning();
-        if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create attachment row" });
+      } catch (err) {
+        await supabase.storage
+          .from(ATTACHMENTS_BUCKET)
+          .remove([storagePath])
+          .catch(() => undefined);
+        throw err;
+      }
+      if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create attachment row" });
 
-        const { storagePath, sizeBytes } = await writeAttachmentToDisk({
-          buffer: decoded.buffer,
-          userId: ctx.user.userId,
-          attachmentId: row.id,
-          ext,
-        });
+      const { data: signed, error: signError } = await supabase.storage
+        .from(ATTACHMENTS_BUCKET)
+        .createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS);
+      if (signError || !signed) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: signError?.message ?? "Failed to sign URL" });
+      }
 
-        await tx.update(attachments).set({ storagePath, sizeBytes }).where(eq(attachments.id, row.id));
-
-        return {
-          id: row.id,
-          fileName: row.fileName,
-          fileType: row.fileType,
-          url: `/uploads/${storagePath}`,
-          sizeBytes,
-          createdAt: row.createdAt,
-        };
-      });
+      return {
+        id: row.id,
+        fileName: row.fileName,
+        fileType: row.fileType,
+        url: signed.signedUrl,
+        sizeBytes,
+        createdAt: row.createdAt,
+      };
     }),
 
     delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ input, ctx }) => {
@@ -678,7 +725,11 @@ export const syncRouter = createTRPCRouter({
         .limit(1);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Attachment not found or access denied" });
       await db.delete(attachments).where(eq(attachments.id, input.id));
-      await unlinkAttachmentFromDisk(existing.storagePath);
+      const supabase = createServiceRoleClient();
+      const { error: removeError } = await supabase.storage.from(ATTACHMENTS_BUCKET).remove([existing.storagePath]);
+      if (removeError) {
+        console.warn(`[attachments.delete] failed to remove ${existing.storagePath}:`, removeError.message);
+      }
       return { success: true };
     }),
   }),

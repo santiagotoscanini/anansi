@@ -1,4 +1,20 @@
 import { z } from "zod";
+import { isEmojiGlyph, isOurStorageImageUrl } from "../emoji-utils";
+
+// `emoji` columns accept ONE of two shapes:
+//   1. A short Unicode glyph (✨, 👨‍👩‍👧‍👦, …)
+//   2. A Supabase Storage public URL we issued ourselves (people uploads)
+// External URLs are rejected — pasting a third-party image lets an
+// attacker exfiltrate the viewer's IP/Referer via a tracking pixel
+// hidden in any directory the viewer renders. Public-URL trust is
+// limited to our own bucket prefix; see isOurStorageImageUrl.
+const emojiGlyphOnlySchema = z
+  .string()
+  .refine(isEmojiGlyph, "Must be a short emoji glyph (no URLs, no slashes, no whitespace)");
+
+const emojiOrOurImageSchema = z
+  .string()
+  .refine((v) => isEmojiGlyph(v) || isOurStorageImageUrl(v), "Must be an emoji or an uploaded image URL");
 
 // Shared types based on the database schema
 export const valueSchema = z.object({
@@ -33,7 +49,8 @@ export const taskSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string().nullable().optional(),
-  emoji: z.string().nullable().optional(), // Native emoji or URL — separate from the parent goal's emoji
+  // Tasks accept emoji glyphs only — no upload affordance and no paste-URL UI.
+  emoji: emojiGlyphOnlySchema.nullable().optional(),
   difficulty: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   completed: z.boolean(),
   // Single deadline date. Null = unscheduled (Backlog). The Horizons board
@@ -48,7 +65,8 @@ export const goalSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string(),
-  emoji: z.string().optional(), // Native emoji or URL to custom emoji image
+  // Goals accept emoji glyphs only — no upload affordance and no paste-URL UI.
+  emoji: emojiGlyphOnlySchema.optional(),
   valueIds: z.array(z.string()),
   tasks: z.array(taskSchema),
   parentId: z.string().optional(),
@@ -123,7 +141,9 @@ export const personCategoryValues = ["to_process", "exploring", "long_term", "co
 export const personSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
-  emoji: z.string().nullable().optional(),
+  // People accept either an emoji glyph or a people-photos URL we issued
+  // ourselves (via people.uploadImage). Pasted external URLs are rejected.
+  emoji: emojiOrOurImageSchema.nullable().optional(),
   category: z.enum(personCategoryValues),
   boardOrder: z.number().int().default(0),
   appreciation: z.string().nullable().optional(),

@@ -59,12 +59,11 @@ export default function Avatar({ name, emoji, size = "md", shape = "square", cla
           className={`flex ${s.box} ${radius} shrink-0 items-center justify-center overflow-hidden border border-[var(--hairline)] bg-[var(--vellum)] ${className}`}
         >
           {/*
-           * unoptimized: the /uploads/[...path] route is auth-gated by the
-           * caller's HttpOnly cookie. Next/Image's optimizer makes its own
-           * server-side fetch without that cookie, so it always 401s and
-           * logs "received null". Optimization adds nothing for tiny
-           * per-user avatars anyway — the serving route already sets a
-           * private,max-age cache header. Skip the optimizer entirely.
+           * unoptimized: avatars / people photos come from Supabase Storage
+           * (public bucket → direct CDN URL) and attachment images come
+           * from short-lived signed URLs. Skipping the optimizer keeps
+           * signed URLs single-use'd at the right host and avoids the
+           * remotePatterns config dance for a few tiny per-user images.
            */}
           <Image src={emoji} alt="" width={s.img} height={s.img} unoptimized className="h-full w-full object-cover" />
         </div>

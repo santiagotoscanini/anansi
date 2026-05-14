@@ -100,7 +100,6 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
 
   const [name, setName] = useState(person?.name ?? "");
   const [emoji, setEmoji] = useState<string | null>(person?.emoji ?? null);
-  const [customUrl, setCustomUrl] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [category, setCategory] = useState<PersonCategory>(person?.category ?? defaultCategory ?? "exploring");
@@ -334,39 +333,6 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                           e.target.value = ""; // Allow re-selecting the same file
                         }}
                       />
-                      <label className="block pt-1 text-[10px] uppercase tracking-wider text-[var(--ink-3)]">
-                        {t("personModal.orPasteUrl")}
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="url"
-                          value={customUrl}
-                          onChange={(e) => setCustomUrl(e.target.value)}
-                          onKeyDown={(e) => {
-                            e.stopPropagation();
-                            if (e.key === "Enter" && customUrl.trim()) {
-                              setEmoji(customUrl.trim());
-                              setCustomUrl("");
-                              setShowEmojiPicker(false);
-                            }
-                          }}
-                          placeholder={t("personModal.imageUrlPlaceholder")}
-                          className="flex-1 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-1.5 text-xs text-[var(--ink)] outline-none placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (customUrl.trim()) {
-                              setEmoji(customUrl.trim());
-                              setCustomUrl("");
-                              setShowEmojiPicker(false);
-                            }
-                          }}
-                          className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-1.5 text-xs text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
-                        >
-                          {t("personModal.set")}
-                        </button>
-                      </div>
                       {emoji && (
                         <button
                           type="button"

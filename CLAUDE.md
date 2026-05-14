@@ -34,7 +34,7 @@ Local dev DB only — do not reuse credentials in production.
 src/
   app/
     api/trpc/[trpc]/         # tRPC API endpoints
-    uploads/[...path]/       # File serving route (protected)
+    privacy/, terms/         # Public legal pages (EN-only starter content; Spanish translation TBD)
     layout.tsx, page.tsx     # Root layout + main page
   components/goals/          # All feature components
     GoalsDashboard.tsx       # Top-level shell with sidebar nav
@@ -120,7 +120,7 @@ Image, document, and other binary uploads on weekly-sync items; built-in inline 
 - `title`, `description`, `parentId` (nullable, self-FK), `positionX`, `positionY` (real, canvas position), `userId`
 
 ### tasks
-- `goalId`, `title`, `description` (nullable — surfaces in Tasks tab + TaskModal; row only shows title), `emoji` (nullable, native unicode or `/uploads/...` URL — distinct from goal's emoji), `difficulty` (1–3), `completed` (boolean), `scheduledAt` (timestamp, nullable — single deadline; null = Backlog; bucket computed at render, not stored).
+- `goalId`, `title`, `description` (nullable — surfaces in Tasks tab + TaskModal; row only shows title), `emoji` (nullable, **Unicode glyph only** — `tasks.emoji` rejects URLs at the zod layer; tasks have no upload affordance), `difficulty` (1–3), `completed` (boolean), `scheduledAt` (timestamp, nullable — single deadline; null = Backlog; bucket computed at render, not stored).
 - **Linked surfaces:** referent people via `task_referents`, group tags via `tasks_to_groups`. Both cascade-delete with the task.
 
 ### connections
@@ -200,7 +200,7 @@ One table for every list-shaped Self section. Server enforces `patternCategory` 
 Signup/sign-in/sign-out/password-reset are Supabase-handled client-side (see `signInWithPassword`/`signUp`/`signInWithGoogle`/`sendPasswordReset` exported from `src/contexts/GoalsContext.tsx`). The tRPC router only covers authenticated profile reads/writes against the local mirror:
 - `me` — returns `{ id, name, email, avatarUrl }` from `public.users`
 - `updateProfile` (rejects email collisions; email change routes through `supabase.auth.updateUser({ email })` so Supabase sends a confirmation)
-- `uploadAvatar` (base64 → `uploads/{userId}/avatar`; cleans stale extensions), `removeAvatar`
+- `uploadAvatar` (base64 → Supabase Storage bucket `avatars` at `{userId}/avatar`; upsert overwrites previous), `removeAvatar` (storage object delete + clear `users.avatarUrl`)
 
 Password change while logged in: client-side, via `supabase.auth.signInWithPassword` (re-auth) then `supabase.auth.updateUser({ password })`. No tRPC procedure.
 
@@ -232,8 +232,8 @@ Password change while logged in: client-side, via `supabase.auth.signInWithPassw
 - `addItem` (idempotent), `removeItem` (drops from this sync only; library row stays; hand-deletes attachments to unlink files), `setItemText`, `reorderItems`
 
 ### goals.attachments
-- `upload({ parentType: 'weekly_sync_item', parentId, fileName, fileType, data })` — base64; DB row first, FS write inside same tx so failure rolls back
-- `delete({ id })` — DB delete + unlink
+- `upload({ parentType: 'weekly_sync_item', parentId, fileName, fileType, data })` — base64; Storage upload first, then DB insert. DB insert failure rolls the storage object back via best-effort remove. Returns a freshly-minted signed URL.
+- `delete({ id })` — DB delete + storage object remove
 
 ### goals.images
 - `upload`, `uploadMultiple` — single-image / multi-image upload (used outside the weekly-sync flow)
@@ -267,29 +267,36 @@ Password change while logged in: client-side, via `supabase.auth.signInWithPassw
 - `goals.data.getAll` — all user data (values, goals, connections)
 - `goals.backup.export` / `goals.backup.import` — full user backup including people + userSelf
 
-### File serving
-- `/uploads/[...path]` — protected static file serving
-
 ## File storage
 
-Files live under `uploads/{userId}/...`. Sync-item text notes are inline in `weekly_sync_items.text_content` (DB-only); only binary attachments touch disk.
+All binary uploads live in **Supabase Storage** — nothing touches the local filesystem (Vercel and similar runtimes have a read-only FS). Sync-item text notes are inline in `weekly_sync_items.text_content` (DB-only).
+
+Server-side storage ops go through a **service-role** Supabase client (`src/lib/supabase/service.ts`, env: `SUPABASE_SERVICE_ROLE_KEY`). The session-scoped `@supabase/ssr` client *would* be the more principled choice, but with the new `sb_publishable_…` / ES256 JWT scheme Storage does not propagate JWT claims into Postgres RLS evaluation — `auth.uid()` resolves as NULL inside `storage.objects` policies and every owner-folder check fails. Same security model as the rest of the app: paths are constructed from the server-verified `ctx.user.userId`, RLS becomes inert defense-in-depth.
+
+Three buckets, each created with matching RLS in migrations 0021 / 0022:
 
 ```
-uploads/{userId}/
-  avatar.{ext}                  # current user avatar (also serves People photos)
-  attachments/{attachmentId}.{ext}   # weekly-sync attachments, keyed only on owner
-  people/{personId}.{ext}       # person photos (uploaded via people.uploadImage)
+avatars/        public, RLS write-only-owner
+  {userId}/avatar                   # current user avatar; public URL with ?v= cache bust
+
+people-photos/  public, RLS write-only-owner
+  {userId}/{photoId}.{ext}          # person photos (uploaded via people.uploadImage)
+
+attachments/    private, RLS owner-only-all-ops
+  {userId}/{attachmentId}.{ext}     # weekly-sync attachments, served via signed URLs
 ```
 
-The attachments path is keyed only on user — the DB resolves "which sync item" via `(parentType, parentId)`, so unscoped items still work.
+`attachments.storagePath` in the DB holds the bucket-relative key (`{userId}/{id}.{ext}`); the router mints short-lived signed URLs (1h TTL) when hydrating sync items. The attachments path is keyed only on user — the DB resolves "which sync item" via `(parentType, parentId)`, so unscoped items still work.
 
 **Supported types:** images (PNG/JPG/JPEG/GIF/WebP), documents (TXT/PDF/...), video, audio, other.
 
 **Security:**
+- Avatars and people-photos: public-read (URLs are unguessable without the user UUID — and an attacker who has your UUID has bigger problems). INSERT/UPDATE/DELETE on `storage.objects` restricted to the owning user via RLS that matches `auth.uid()` against the first path segment.
+- Attachments: private bucket; SELECT/INSERT/UPDATE/DELETE all RLS-gated on owner-folder. Reads go through `createSignedUrl` minted by the session-scoped client — a leaked URL expires within an hour.
 - Every attachment row carries `userId`; uploads validate parent-row owner; deletes match by id AND userId.
 - Paths are constructed server-side from validated ids — no user-supplied path segments.
-- Base64 envelope validated before touching disk.
-- DB row first, FS write inside the same tx — failed write rolls back the row, no orphans.
+- Base64 envelope validated before reaching Storage.
+- Attachments: Storage write first, then DB insert. A DB-insert failure rolls the storage object back via a best-effort `remove`; the worst case is a stray orphan blob (costs storage, doesn't surface to users).
 
 ## Maintenance
 

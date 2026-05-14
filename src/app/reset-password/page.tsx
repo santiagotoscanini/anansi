@@ -10,6 +10,7 @@ import { createClient } from "~/lib/supabase/client";
 import { AnansiMark, BrandLockup } from "~/components/goals/Brand";
 import { Toaster } from "react-hot-toast";
 import toast from "react-hot-toast";
+import LegalFooter from "~/components/LegalFooter";
 
 function HomeLockup({ size = 22 }: { size?: number }) {
   const { t } = useTranslation();
@@ -261,6 +262,7 @@ export default function ResetPasswordPage() {
     <GoalsProvider>
       <Toaster position="top-right" />
       <ResetPasswordInner />
+      <LegalFooter />
     </GoalsProvider>
   );
 }

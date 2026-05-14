@@ -4,22 +4,18 @@ import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { db } from "../../data";
 import { users } from "../../data/schema";
 import { createClient } from "../../supabase/server";
+import { createServiceRoleClient } from "../../supabase/service";
 import { and, eq, ne } from "drizzle-orm";
-import { writeFile, mkdir, unlink } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
 import { decodeImageUpload, UploadValidationError } from "../../image-upload";
 import { checkRateLimit } from "../../rate-limit";
 
-const UPLOADS_ROOT = path.join(process.cwd(), "uploads");
-
-// Avatars always live at one fixed path per user — `uploads/{userId}/avatar`,
-// no extension. Each upload overwrites the same file so we never need to
-// clean up alternate-format leftovers, and there's no orphaning surface when
-// a delete-loop swallows an error. The serving route in
-// `src/app/uploads/[...path]/route.ts` falls back to magic-byte mime sniffing
-// when an extensionless file is requested.
-const AVATAR_FILENAME = "avatar";
+// Avatars live in the public Supabase Storage bucket `avatars`, at the path
+// `{userId}/avatar` — stable filename per user, overwritten on re-upload so
+// no orphan extensions accumulate. The bucket is created (and write-RLS'd to
+// the owning user) in migration 0021. Reads are unauthenticated by virtue of
+// the public bucket; writes are gated by RLS using the user's session.
+const AVATAR_BUCKET = "avatars";
+const AVATAR_OBJECT_NAME = "avatar";
 
 // Auth state changes (signup, signin, signout, password reset) are handled
 // client-side via `supabase.auth.*` from `src/contexts/GoalsContext.tsx`.
@@ -91,8 +87,9 @@ export const authRouter = createTRPCRouter({
       return updated;
     }),
 
-  // Avatar upload — base64 image payload, written to uploads/{userId}/avatar.{ext}.
-  // Replaces any existing avatar file (best-effort unlink first). Returns the
+  // Avatar upload — base64 image payload, written to the `avatars` Supabase
+  // Storage bucket at `{userId}/avatar`. Each upload overwrites the previous
+  // object (upsert) so old format leftovers don't accumulate. Returns the
   // updated user row including the new avatarUrl, ready for cache priming.
   uploadAvatar: protectedProcedure
     .input(
@@ -118,14 +115,26 @@ export const authRouter = createTRPCRouter({
         }
         throw err;
       }
-      const userDir = path.join(UPLOADS_ROOT, ctx.user.userId);
-      if (!existsSync(userDir)) await mkdir(userDir, { recursive: true });
-      const fullPath = path.join(userDir, AVATAR_FILENAME);
-      await writeFile(fullPath, decoded.buffer);
-      // Cache-bust on every upload — the file path is stable so without a
-      // version query the browser would serve the previous bytes for up to
-      // 24h (private,max-age=86400 in the upload-serving route).
-      const avatarUrl = `/uploads/${ctx.user.userId}/${AVATAR_FILENAME}?v=${Date.now()}`;
+      // Service-role storage client. RLS bypassed at the DB; the path
+      // we construct uses `ctx.user.userId` which was verified by
+      // `supabase.auth.getUser()` in the tRPC context, so a forged
+      // userId can't reach another user's folder. See supabase/service.ts
+      // for the full rationale.
+      const supabase = createServiceRoleClient();
+      const objectPath = `${ctx.user.userId}/${AVATAR_OBJECT_NAME}`;
+      // decoded.mime is one of the four image MIME types validated by
+      // decodeImageUpload (PNG/JPEG/GIF/WebP) — never null here.
+      const contentType = decoded.mime ?? "application/octet-stream";
+      const { error: uploadError } = await supabase.storage
+        .from(AVATAR_BUCKET)
+        .upload(objectPath, decoded.buffer, { contentType, upsert: true });
+      if (uploadError) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: uploadError.message });
+      }
+      const { data: publicUrl } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(objectPath);
+      // Cache-bust on every upload — the object path is stable so without a
+      // version query the CDN/browser would serve the previous bytes.
+      const avatarUrl = `${publicUrl.publicUrl}?v=${Date.now()}`;
       const [updated] = await db
         .update(users)
         .set({ avatarUrl, updatedAt: new Date() })
@@ -161,17 +170,14 @@ export const authRouter = createTRPCRouter({
   }),
 
   removeAvatar: protectedProcedure.mutation(async ({ ctx }) => {
-    const userDir = path.join(UPLOADS_ROOT, ctx.user.userId);
-    const avatarPath = path.join(userDir, AVATAR_FILENAME);
-    if (existsSync(avatarPath)) {
-      try {
-        await unlink(avatarPath);
-      } catch (err) {
-        // Don't swallow silently — if delete fails we want to know in logs;
-        // the user-facing flow still succeeds (avatarUrl is cleared in DB
-        // either way) so we don't propagate the error.
-        console.warn(`[auth.removeAvatar] failed to unlink ${avatarPath}:`, err);
-      }
+    const supabase = createServiceRoleClient();
+    const objectPath = `${ctx.user.userId}/${AVATAR_OBJECT_NAME}`;
+    const { error: removeError } = await supabase.storage.from(AVATAR_BUCKET).remove([objectPath]);
+    if (removeError) {
+      // Don't swallow silently — if delete fails we want to know in logs;
+      // the user-facing flow still succeeds (avatarUrl is cleared in DB
+      // either way) so we don't propagate the error.
+      console.warn(`[auth.removeAvatar] failed to remove ${objectPath}:`, removeError.message);
     }
     const [updated] = await db
       .update(users)

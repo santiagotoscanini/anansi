@@ -148,6 +148,20 @@
       "when": 1778728777199,
       "tag": "0020_supabase_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1779120000000,
+      "tag": "0021_avatars_storage",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1779120100000,
+      "tag": "0022_people_attachments_storage",
+      "breakpoints": true
     }
   ]
 }

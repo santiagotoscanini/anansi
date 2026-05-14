@@ -28,9 +28,21 @@ import {
   weeklySyncItems,
 } from "../../../data/schema";
 import { backupSchema } from "../../types";
-import { writeFile, readFile, mkdir } from "fs/promises";
 import path from "path";
-import { UPLOADS_ROOT } from "./_shared";
+import { ATTACHMENTS_BUCKET } from "./_shared";
+import { createServiceRoleClient } from "../../../supabase/service";
+import { isEmojiGlyph, isOurStorageImageUrl } from "../../../emoji-utils";
+
+// On import, a backup is user-supplied JSON — never trust its emoji
+// columns. We accept an emoji glyph or a URL we issued ourselves; anything
+// else (an external URL pasted under the old loose schema, an attacker's
+// edited backup) is dropped to null. Same predicate as the live zod
+// validator so import policy matches mutation policy.
+function safeEmoji(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  if (isEmojiGlyph(value) || isOurStorageImageUrl(value)) return value;
+  return null;
+}
 
 export const backupRouter = createTRPCRouter({
   backup: createTRPCRouter({
@@ -153,17 +165,20 @@ export const backupRouter = createTRPCRouter({
             .where(inArray(tasks.goalId, goalIds))
         : [];
 
-      // Read each attachment file off disk and base64-encode. Skip missing
-      // files (deliver a partial backup rather than failing entirely).
+      // Download each attachment from Supabase Storage and base64-encode.
+      // Skip missing files (deliver a partial backup rather than failing
+      // entirely). Service-role client; ownership is enforced by the
+      // userId-scoped query that produced `attachmentRows` above.
+      const supabase = createServiceRoleClient();
       const files: { attachmentId: string; data: string }[] = [];
       for (const a of attachmentRows) {
-        const abs = path.join(UPLOADS_ROOT, a.storagePath);
-        try {
-          const buf = await readFile(abs);
-          files.push({ attachmentId: a.id, data: buf.toString("base64") });
-        } catch {
-          console.warn(`[backup.export] missing file skipped: ${a.storagePath}`);
+        const { data, error } = await supabase.storage.from(ATTACHMENTS_BUCKET).download(a.storagePath);
+        if (error || !data) {
+          console.warn(`[backup.export] missing file skipped: ${a.storagePath} (${error?.message})`);
+          continue;
         }
+        const buf = Buffer.from(await data.arrayBuffer());
+        files.push({ attachmentId: a.id, data: buf.toString("base64") });
       }
 
       // Strip user-discriminator columns from rows that include them; the
@@ -244,7 +259,7 @@ export const backupRouter = createTRPCRouter({
                 id: g.id,
                 title: g.title,
                 description: g.description,
-                emoji: g.emoji,
+                emoji: safeEmoji(g.emoji),
                 parentId: null,
                 positionX: g.positionX,
                 positionY: g.positionY,
@@ -261,7 +276,9 @@ export const backupRouter = createTRPCRouter({
             }
           }
 
-          if (b.tasks.length) await tx.insert(tasks).values(b.tasks);
+          if (b.tasks.length) {
+            await tx.insert(tasks).values(b.tasks.map((t) => ({ ...t, emoji: safeEmoji(t.emoji) })));
+          }
           if (b.goalValues.length) await tx.insert(goalValues).values(b.goalValues);
           if (b.connections.length) await tx.insert(connections).values(b.connections);
 
@@ -287,8 +304,9 @@ export const backupRouter = createTRPCRouter({
           if (b.weeklySyncItems.length) await tx.insert(weeklySyncItems).values(b.weeklySyncItems);
 
           // Attachments: keep ids, rewrite storage_path to land under the new
-          // user. The on-disk write happens after the DB commit below; the
-          // path stored here is the post-rewrite path.
+          // user's folder in the `attachments` bucket. The Storage upload
+          // happens after the DB commit below; the path stored here is the
+          // post-rewrite path.
           if (b.attachments.length) {
             await tx.insert(attachments).values(
               b.attachments.map((a) => {
@@ -300,7 +318,7 @@ export const backupRouter = createTRPCRouter({
                   parentId: a.parentId,
                   fileName: a.fileName,
                   fileType: a.fileType,
-                  storagePath: path.join(userId, "attachments", `${a.id}${ext}`),
+                  storagePath: `${userId}/${a.id}${ext}`,
                   sizeBytes: a.sizeBytes,
                   createdAt: a.createdAt,
                 };
@@ -309,7 +327,7 @@ export const backupRouter = createTRPCRouter({
           }
 
           if (b.people.length) {
-            await tx.insert(people).values(b.people.map((p) => ({ ...p, userId })));
+            await tx.insert(people).values(b.people.map((p) => ({ ...p, emoji: safeEmoji(p.emoji), userId })));
           }
           if (b.userSelf) {
             await tx.insert(userSelf).values({ ...b.userSelf, userId });
@@ -340,24 +358,29 @@ export const backupRouter = createTRPCRouter({
           }
         });
 
-        // Files land on disk after the DB commit. The new storage_path is
-        // uploads/{userId}/attachments/{id}.{ext} — keyed only on user, no
-        // goal/date in the tree.
+        // Files land in Supabase Storage after the DB commit. The new
+        // storage_path is `{userId}/{id}.{ext}` inside the `attachments`
+        // bucket — keyed only on user, RLS-scoped.
+        const supabase = createServiceRoleClient();
         const fileFailures: string[] = [];
         for (const f of b.files) {
           const attachment = b.attachments.find((a) => a.id === f.attachmentId);
           if (!attachment) continue;
           const ext = path.extname(attachment.fileName);
-          const relPath = path.join(userId, "attachments", `${attachment.id}${ext}`);
-          const fullPath = path.join(UPLOADS_ROOT, relPath);
+          const storagePath = `${userId}/${attachment.id}${ext}`;
           try {
             const cleanBase64 = f.data.replace(/^data:[^;]+;base64,/, "");
             const buf = Buffer.from(cleanBase64, "base64");
-            await mkdir(path.dirname(fullPath), { recursive: true });
-            await writeFile(fullPath, buf);
+            const { error } = await supabase.storage
+              .from(ATTACHMENTS_BUCKET)
+              .upload(storagePath, buf, { upsert: true });
+            if (error) {
+              console.error(`[backup.import] failed to upload ${storagePath}:`, error.message);
+              fileFailures.push(storagePath);
+            }
           } catch (err) {
-            console.error(`[backup.import] failed to write ${relPath}:`, err);
-            fileFailures.push(relPath);
+            console.error(`[backup.import] failed to upload ${storagePath}:`, err);
+            fileFailures.push(storagePath);
           }
         }
 

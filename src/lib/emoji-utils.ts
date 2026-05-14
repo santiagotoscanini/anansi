@@ -45,28 +45,48 @@ export function getRandomEmoji(): string {
 }
 
 /**
- * Check if a string is an image reference (absolute http(s) URL or our own
- * `/uploads/...` server-relative path). Treats anything that looks path-like
- * rather than emoji-glyph-like as a URL — emoji codepoints don't start with `/`.
+ * Check if a string is an image reference (absolute http(s) URL — every
+ * uploaded image now resolves to a Supabase Storage URL, public or signed).
+ * Emoji codepoints never start with `http`, so this cleanly disambiguates.
  */
 export function isEmojiUrl(emoji: string | undefined): boolean {
   if (!emoji) return false;
-  return emoji.startsWith("http://") || emoji.startsWith("https://") || emoji.startsWith("/uploads/");
+  return emoji.startsWith("http://") || emoji.startsWith("https://");
 }
 
-/**
- * Validate if a URL is a valid image URL format
- */
-export function isValidImageUrl(url: string): boolean {
-  try {
-    new URL(url);
-    // Check if it has a common image extension or is from a CDN
-    const validExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"];
-    const lowerUrl = url.toLowerCase();
-    return validExtensions.some((ext) => lowerUrl.includes(ext)) || lowerUrl.includes("cdn");
-  } catch {
-    return false;
-  }
+// Soft cap on an emoji glyph's length. A single emoji can be one codepoint
+// (✨ → 1 char) up to a ZWJ family sequence (👨‍👩‍👧‍👦 → 11 chars including the
+// joiners + variation selectors). 32 leaves headroom for the longest
+// real-world glyphs without giving anyone room to smuggle a payload.
+const EMOJI_GLYPH_MAX_LEN = 32;
+
+// True when the string is a plausible emoji glyph: no URL-ish chars, no
+// whitespace, no slashes, no protocol. Empty string is rejected — callers
+// should pass null/undefined to mean "no emoji" instead.
+export function isEmojiGlyph(value: string): boolean {
+  if (value.length === 0 || value.length > EMOJI_GLYPH_MAX_LEN) return false;
+  if (/[\s/\\]/.test(value)) return false;
+  if (/^https?:/i.test(value)) return false;
+  return true;
+}
+
+// True when the string is a URL we issued ourselves — a Supabase Storage
+// public URL for an image we host. This is the ONLY URL shape the app
+// accepts in user-facing emoji fields; pasted external URLs are rejected
+// so users can't smuggle tracking pixels through someone else's directory.
+// Falls back to false (fail-closed) if the supabase URL env isn't set —
+// we'd rather break the validator than accept arbitrary URLs by default.
+export function isOurStorageImageUrl(value: string): boolean {
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!base) return false;
+  const prefix = `${base.replace(/\/$/, "")}/storage/v1/object/public/`;
+  if (!value.startsWith(prefix)) return false;
+  // Optional cache-bust query (?v=...) is fine; protocol-tricks like
+  // a second `://` in the path are not — split off any query before this
+  // check so a legitimate ?v=... isn't penalized.
+  const noQuery = value.split("?")[0] ?? value;
+  if (noQuery.includes("://", prefix.length)) return false;
+  return true;
 }
 
 /**

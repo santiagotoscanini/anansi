@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { GoalsProvider, useGoals } from "~/contexts/GoalsContext";
 import { LoginScreen } from "~/components/auth/AuthScreens";
 import { Toaster } from "react-hot-toast";
+import LegalFooter from "~/components/LegalFooter";
 
 function LoginPageInner() {
   const router = useRouter();
@@ -21,6 +22,7 @@ function LoginPageInner() {
     <>
       <Toaster position="top-right" />
       <LoginScreen onSwitchToRegister={() => router.push("/register")} onSuccess={() => router.push("/app")} />
+      <LegalFooter />
     </>
   );
 }

@@ -8,6 +8,7 @@ import { GoalsProvider, useGoals } from "~/contexts/GoalsContext";
 import { AnansiMark, BrandLockup } from "~/components/goals/Brand";
 import { Toaster } from "react-hot-toast";
 import toast from "react-hot-toast";
+import LegalFooter from "~/components/LegalFooter";
 
 function HomeLockup({ size = 22 }: { size?: number }) {
   const { t } = useTranslation();
@@ -231,6 +232,7 @@ export default function ForgotPasswordPage() {
     <GoalsProvider>
       <Toaster position="top-right" />
       <ForgotPasswordInner />
+      <LegalFooter />
     </GoalsProvider>
   );
 }

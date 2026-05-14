@@ -6,34 +6,25 @@ Feature surface: visual goal hierarchies with weighted connections, weekly progr
 
 ## Local dev credentials
 
-Local dev runs against an external Postgres (Supabase Session Pooler URL in `.env` → `DATABASE_URL`). There is no seed script — the conventional test user for automated flows (Playwright, manual smoke testing) is:
+Local dev runs against an external Postgres (Supabase Session Pooler URL in `.env` → `DATABASE_URL`). Auth is handled by **Supabase Auth** (`@supabase/ssr`) — the local `users` table is a thin profile mirror keyed on `auth.users(id)`, auto-populated by the `on_auth_user_created` trigger.
+
+The conventional test user for automated flows (Playwright, manual smoke testing) is:
 
 - **Email:** `santi@test.local`
-- **Password:** `devpassword`
+- **Password:** `devpassword12345` (Supabase's minimum is 6, but AuthScreens enforces 12)
 
-Create it after `npm run db:migrate`:
+Create it via the UI: open `http://localhost:3000/register`, fill in name + email + password, then click the confirmation link from the email. The `on_auth_user_created` trigger materializes the `public.users` row automatically.
 
-```bash
-HASH=$(node -e "console.log(require('bcryptjs').hashSync('devpassword', 10))")
-ID=$(node -e "console.log(require('@paralleldrive/cuid2').createId())")
-psql "$DATABASE_URL" \
-  -c "INSERT INTO users (id, name, email, password) VALUES ('$ID', 'Santi', 'santi@test.local', '$HASH');"
-```
+If you want to skip email confirmation during local dev, toggle **Authentication → Providers → Email → "Confirm email"** OFF in the Supabase dashboard (leave ON in any non-dev environment). Re-enabling sends a fresh confirmation link on the next sign-up.
 
-Reset the password if it drifts:
+If you lock yourself out, request a reset at `/forgot-password` (the email link drops you on `/reset-password` already signed in to set a new password). Or wipe `auth.users` for the email via the Supabase dashboard and re-register.
 
-```bash
-HASH=$(node -e "console.log(require('bcryptjs').hashSync('devpassword', 10))")
-psql "$DATABASE_URL" \
-  -c "UPDATE users SET password = '$HASH', updated_at = now() WHERE email = 'santi@test.local';"
-```
-
-Local dev DB only — do not reuse credentials in production. To log in: open `http://localhost:3000`, enter the email + password above, click "Sign In".
+Local dev DB only — do not reuse credentials in production.
 
 ## Stack
 
 - **Frontend:** Next.js 16 (app dir), React 19, TypeScript, Tailwind, React Flow (`@xyflow/react`), Framer Motion, Lucide, dnd-kit
-- **Backend:** tRPC v11, Next.js API routes, Jose (JWT), Zod, bcryptjs
+- **Backend:** tRPC v11, Next.js API routes, Supabase Auth (`@supabase/ssr`), Zod
 - **Database:** PostgreSQL + Drizzle ORM + Drizzle Kit
 - **State:** React Context + TanStack Query (via tRPC) + IDB Keyval
 
@@ -101,17 +92,26 @@ User-owned tracking-items library (goal optional → "Unscoped"), reusable sync 
 - **Self page** — "living portrait": prose fields on `user_self` + list buckets in `self_list_items` (energizers, drainers, just-for-me, proud, patterns by category, triggers, released, year-ahead). Empty fields = clean page, not unfinished form.
 
 ### Auth & multi-user
-Password-based with bcrypt + JWT (Jose). Full per-user data isolation. Profile page allows name/email/password edit and avatar upload (deterministic-initial fallback when no avatar).
+**Supabase Auth** (`@supabase/ssr`) handles signup, sign-in (email/password + Google OAuth), email confirmation, password reset, and session cookies. Apple OAuth is wired at the SDK level but disabled until the dashboard side is configured.
+
+Identity flow:
+- Sessions live in HttpOnly cookies set by `src/lib/supabase/{server,client,middleware}.ts`; the project-root `middleware.ts` refreshes tokens on every request.
+- `/auth/callback` exchanges the OAuth `code` for a session; `/auth/confirm` runs `verifyOtp` for email-confirm + recovery + email-change flows. `/forgot-password` and `/reset-password` drive the recovery UX.
+- `public.users.id` is `uuid REFERENCES auth.users(id) ON DELETE CASCADE`. The `on_auth_user_created` trigger (migration 0019) mirrors every Supabase signup into `public.users` so the local profile row exists by the time the first request lands. No password column lives on `public.users` — credentials belong to Supabase.
+- The tRPC context (`src/lib/api/trpc.ts`) resolves the current user via `supabase.auth.getUser()` and exposes the same `{ userId, userName }` shape the rest of the routers already read.
+
+Full per-user data isolation via the 11 cascade FKs. Profile page (`ProfileModal`) handles name/email edit, avatar upload, and password change (re-auths with the current password first via `signInWithPassword`, then calls `updateUser({ password })`).
 
 ### File management
 Image, document, and other binary uploads on weekly-sync items; built-in inline text editor for sync notes (DB-only, no filesystem).
 
 ## Database Structure
 
-**Conventions for every table:** `id` (text, primary key, cuid2), `createdAt` and `updatedAt` (timestamp, audit). Listed only when notable. All user-scoped tables cascade-delete on `users.id`.
+**Conventions for every table:** `id` (text, primary key, cuid2), `createdAt` and `updatedAt` (timestamp, audit). Listed only when notable. All user-scoped tables cascade-delete on `users.id`. **Exception:** `users.id` itself is a `uuid` matching `auth.users(id)` (Supabase Auth's primary key) and every `user_id` FK column is also `uuid` — no cuid2 on the user identity boundary.
 
 ### users
-- `name`, `email` (UNIQUE), `password` (bcrypt hash), `avatarUrl` (text, nullable — path under `/uploads/{userId}/avatar.{ext}`; null = `Avatar.tsx` initial fallback)
+- `id` (uuid, PK, FK to `auth.users(id)` ON DELETE CASCADE — populated by the `on_auth_user_created` trigger; do NOT generate locally)
+- `name`, `email` (UNIQUE — mirrored from `auth.users.email` on signup; email changes flow through `supabase.auth.updateUser({ email })` and re-mirror on next sign-in), `avatarUrl` (text, nullable — path under `/uploads/{userId}/avatar`; null = `Avatar.tsx` initial fallback)
 
 ### values
 - `name`, `color`, `userId`
@@ -197,9 +197,12 @@ One table for every list-shaped Self section. Server enforces `patternCategory` 
 ## Backend endpoints (tRPC)
 
 ### auth
-- `authenticate`, `register`, `me`
-- `updateProfile` (rejects email collisions), `changePassword` (verifies current first)
-- `uploadAvatar` (base64 → `uploads/{userId}/avatar.{ext}`; cleans stale extensions), `removeAvatar`
+Signup/sign-in/sign-out/password-reset are Supabase-handled client-side (see `signInWithPassword`/`signUp`/`signInWithGoogle`/`sendPasswordReset` exported from `src/contexts/GoalsContext.tsx`). The tRPC router only covers authenticated profile reads/writes against the local mirror:
+- `me` — returns `{ id, name, email, avatarUrl }` from `public.users`
+- `updateProfile` (rejects email collisions; email change routes through `supabase.auth.updateUser({ email })` so Supabase sends a confirmation)
+- `uploadAvatar` (base64 → `uploads/{userId}/avatar`; cleans stale extensions), `removeAvatar`
+
+Password change while logged in: client-side, via `supabase.auth.signInWithPassword` (re-auth) then `supabase.auth.updateUser({ password })`. No tRPC procedure.
 
 ### goals.goals
 - `getAll`, `create`, `update`, `delete` — full CRUD with tasks + value associations + cascading
@@ -318,6 +321,8 @@ Drizzle migrations live in `src/lib/data/db/migrations/`.
    - Edit `schema.ts`, then `npm run db:generate` to produce a single fresh migration.
    - `npm run db:migrate` to apply.
    - **Do not** use `npm run db:push` during this workflow — it's interactive and touches unrelated foreign keys.
+
+3. **Drizzle does not introspect the `on_auth_user_created` trigger** that mirrors `auth.users` → `public.users` (defined in `0019_supabase_auth.sql`). Treat the trigger as load-bearing — `npm run db:pull` will not see it and a regenerated schema could silently drop it. If you ever need to regenerate, copy the trigger DDL back into the new migration by hand.
 
 ---
 

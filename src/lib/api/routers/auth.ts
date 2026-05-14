@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { validatePassword, hashPassword } from "../../auth-server";
 import { db } from "../../data";
 import { users } from "../../data/schema";
+import { createClient } from "../../supabase/server";
 import { and, eq, ne } from "drizzle-orm";
 import { writeFile, mkdir, unlink } from "fs/promises";
 import { existsSync } from "fs";
@@ -21,11 +21,15 @@ const UPLOADS_ROOT = path.join(process.cwd(), "uploads");
 // when an extensionless file is requested.
 const AVATAR_FILENAME = "avatar";
 
-// Auth state changes (login, register, logout) live in dedicated Next route
-// handlers under src/app/api/auth/* so they can set HttpOnly cookies on the
-// response. tRPC procedures here only handle authenticated profile reads/writes.
+// Auth state changes (signup, signin, signout, password reset) are handled
+// client-side via `supabase.auth.*` from `src/contexts/GoalsContext.tsx`.
+// Cookie writes happen in middleware + the /auth/callback and /auth/confirm
+// route handlers. tRPC procedures here only handle authenticated profile
+// reads/writes that operate on our local `public.users` mirror.
 export const authRouter = createTRPCRouter({
-  // Authenticated profile read for the current user.
+  // Authenticated profile read for the current user. The row is materialized
+  // by the on_auth_user_created trigger on signup; if it doesn't exist yet
+  // we still return 404 so the client treats it as a transient unauth.
   me: protectedProcedure.query(async ({ ctx }) => {
     const [row] = await db
       .select({
@@ -59,39 +63,32 @@ export const authRouter = createTRPCRouter({
           .limit(1);
         if (existing) throw new TRPCError({ code: "CONFLICT", message: "Email already in use" });
       }
+
+      // Email is owned by auth.users. We push the change through Supabase
+      // first — it sends a confirmation email and only swaps the canonical
+      // address once the user clicks it. We mirror the local row eagerly
+      // so the UI is responsive; if the user never confirms, auth.users
+      // stays on the old value and the next sign-in will resync via the
+      // me query reading public.users.email. Accept that staleness in v1.
+      if (input.email) {
+        const supabase = await createClient();
+        const { error } = await supabase.auth.updateUser({ email: input.email });
+        if (error) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+        }
+      }
+
       const patch: { name?: string; email?: string; updatedAt: Date } = { updatedAt: new Date() };
       if (input.name !== undefined) patch.name = input.name;
       if (input.email !== undefined) patch.email = input.email;
-      const [updated] = await db
-        .update(users)
-        .set(patch)
-        .where(eq(users.id, ctx.user.userId))
-        .returning({
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          avatarUrl: users.avatarUrl,
-          locale: users.locale,
-        });
+      const [updated] = await db.update(users).set(patch).where(eq(users.id, ctx.user.userId)).returning({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        avatarUrl: users.avatarUrl,
+        locale: users.locale,
+      });
       return updated;
-    }),
-
-  changePassword: protectedProcedure
-    .input(
-      z.object({
-        currentPassword: z.string().min(1),
-        // See register/route.ts — 12 char baseline.
-        newPassword: z.string().min(12, "New password must be at least 12 characters"),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      const [row] = await db.select().from(users).where(eq(users.id, ctx.user.userId)).limit(1);
-      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
-      const ok = await validatePassword(input.currentPassword, row.password);
-      if (!ok) throw new TRPCError({ code: "FORBIDDEN", message: "Current password is incorrect" });
-      const hashed = await hashPassword(input.newPassword);
-      await db.update(users).set({ password: hashed, updatedAt: new Date() }).where(eq(users.id, ctx.user.userId));
-      return { success: true };
     }),
 
   // Avatar upload — base64 image payload, written to uploads/{userId}/avatar.{ext}.

@@ -877,8 +877,11 @@
       "orWithEmail": "or with email",
       "continueGoogle": "Continue with Google",
       "continueApple": "Continue with Apple",
-      "googleSoon": "Google sign-in coming later.",
-      "appleSoon": "Apple sign-in coming later.",
+      "googleSoon": "Google sign-in is not configured yet",
+      "googleSoonBadge": "(soon)",
+      "googleFailed": "Google sign-in failed.",
+      "appleSoon": "Apple sign-in is not configured yet",
+      "appleSoonBadge": "(soon)",
       "emailLabel": "Email",
       "emailPlaceholder": "you@somewhere.com",
       "passwordLabel": "Password",
@@ -930,6 +933,42 @@
       "testimonialWho": "Engineer, 41",
       "testimonialDuration": "1 year in",
       "credit": "Ananse Ntontan · Adinkra · Ghana"
+    },
+    "checkEmail": {
+      "kicker": "One more thing",
+      "title": "Check your email",
+      "body": "We sent you a confirmation link. Click it and you'll be signed in. The link works for an hour or so — if it expires, sign in here and we'll send a fresh one.",
+      "back": "Back to sign in",
+      "testimonial": "A small wait at the beginning — the rest of this is yours alone."
+    },
+    "forgot": {
+      "kicker": "Forgot your password",
+      "title": "Let's get you back in",
+      "titleSent": "Check your email",
+      "body": "Tell us the email you signed up with. We'll send you a one-time link to set a new password.",
+      "bodySent": "If an account exists for that email, we sent a reset link. Click it and you'll be taken to a page to set a new password.",
+      "submit": "Send reset link",
+      "sending": "Sending…",
+      "remembered": "Remembered it?",
+      "signIn": "Sign in →",
+      "back": "Back to sign in",
+      "needEmail": "Email, please.",
+      "sendFailed": "Couldn't send the reset link. Try again."
+    },
+    "reset": {
+      "kicker": "Set a new password",
+      "title": "New password",
+      "body": "12 characters or more. Once you save, you'll be signed in.",
+      "passwordPlaceholder": "New password",
+      "confirmPlaceholder": "Confirm new password",
+      "submit": "Save password",
+      "saving": "Saving…",
+      "passwordsDontMatch": "Passwords don't match.",
+      "passwordShort": "12 characters or more, please.",
+      "success": "Password updated. Welcome back.",
+      "expiredTitle": "This link has expired",
+      "expiredBody": "The reset link is single-use and time-bound. Request a fresh one and we'll get you back in.",
+      "sendNew": "Send a new link"
     }
   },
   "landing": {

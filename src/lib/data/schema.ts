@@ -1,6 +1,7 @@
 import {
   pgTable,
   text,
+  uuid,
   integer,
   real,
   boolean,
@@ -40,14 +41,17 @@ export const selfPatternCategoryEnum = pgEnum("self_pattern_category", [
   "body_state",
   "choice",
 ]);
-// Users table
+// Users table.
+//
+// `id` is a Supabase `auth.users(id)` UUID — the row is populated by the
+// `on_auth_user_created` trigger in migration 0019_supabase_auth.sql. The
+// FK to `auth.users` cascades on delete so removing a Supabase Auth user
+// nukes the entire owned subtree via the existing cascades on every child
+// table. No password column lives here — Supabase Auth owns credentials.
 export const users = pgTable("users", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => createId()),
+  id: uuid("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
-  password: text("password").notNull(),
   avatarUrl: text("avatar_url"),
   // BCP-47 locale code (e.g. "en", "es"). Nullable: null means the user has
   // never picked a language and the client should fall back to its browser
@@ -66,7 +70,7 @@ export const values = pgTable("values", {
     .$defaultFn(() => createId()),
   name: text("name").notNull(),
   color: text("color").notNull(),
-  userId: text("user_id")
+  userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -108,7 +112,7 @@ export const goals = pgTable(
     positionX: real("position_x").notNull(),
     positionY: real("position_y").notNull(),
     status: goalStatusEnum("status").notNull().default("active"),
-    userId: text("user_id")
+    userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -183,7 +187,7 @@ export const trackingItems = pgTable(
     id: text("id")
       .primaryKey()
       .$defaultFn(() => createId()),
-    userId: text("user_id")
+    userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     goalId: text("goal_id").references(() => goals.id, { onDelete: "set null" }),
@@ -210,7 +214,7 @@ export const weeklySync = pgTable(
     id: text("id")
       .primaryKey()
       .$defaultFn(() => createId()),
-    userId: text("user_id")
+    userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     weekDate: timestamp("week_date").notNull(), // Monday of the retrospective week
@@ -259,7 +263,7 @@ export const syncTemplates = pgTable(
     id: text("id")
       .primaryKey()
       .$defaultFn(() => createId()),
-    userId: text("user_id")
+    userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
@@ -304,7 +308,7 @@ export const attachments = pgTable(
     id: text("id")
       .primaryKey()
       .$defaultFn(() => createId()),
-    userId: text("user_id")
+    userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     parentType: text("parent_type").notNull(),
@@ -325,7 +329,7 @@ export const people = pgTable(
     id: text("id")
       .primaryKey()
       .$defaultFn(() => createId()),
-    userId: text("user_id")
+    userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
@@ -351,7 +355,7 @@ export const bucketListItems = pgTable("bucket_list_items", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => createId()),
-  userId: text("user_id")
+  userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
@@ -455,7 +459,7 @@ export const personGroups = pgTable("person_groups", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => createId()),
-  userId: text("user_id")
+  userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
@@ -504,7 +508,7 @@ export const userSelf = pgTable("user_self", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => createId()),
-  userId: text("user_id")
+  userId: uuid("user_id")
     .notNull()
     .unique()
     .references(() => users.id, { onDelete: "cascade" }),
@@ -535,7 +539,7 @@ export const selfListItems = pgTable(
     id: text("id")
       .primaryKey()
       .$defaultFn(() => createId()),
-    userId: text("user_id")
+    userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     kind: selfListKindEnum("kind").notNull(),

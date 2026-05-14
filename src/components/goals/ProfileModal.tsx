@@ -5,9 +5,12 @@ import { Camera, Download, Loader2, Sun, Moon, Monitor, Upload, X, Languages } f
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { api } from "~/trpc/react";
+import { createClient } from "~/lib/supabase/client";
 import Avatar from "./Avatar";
 import { useTheme, type ThemePref } from "~/lib/theme";
 import { useLocale } from "~/i18n/useLocale";
+
+const supabase = createClient();
 
 interface ProfileModalProps {
   onClose: () => void;
@@ -25,9 +28,9 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
   const utils = api.useUtils();
   const meQuery = api.auth.me.useQuery();
   const updateProfile = api.auth.updateProfile.useMutation();
-  const changePassword = api.auth.changePassword.useMutation();
   const uploadAvatar = api.auth.uploadAvatar.useMutation();
   const removeAvatar = api.auth.removeAvatar.useMutation();
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const me = meQuery.data;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -72,19 +75,38 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
   };
 
   const handleChangePassword = async () => {
-    if (!currentPassword || !newPassword) return;
+    if (!me || !currentPassword || !newPassword) return;
     if (newPassword !== confirmPassword) {
       toast.error(t("profile.passwordsDontMatch"));
       return;
     }
+    if (newPassword.length < 12) {
+      toast.error("New password must be at least 12 characters");
+      return;
+    }
+    setChangingPassword(true);
     try {
-      await changePassword.mutateAsync({ currentPassword, newPassword });
+      // Supabase doesn't ask for the current password on updateUser — to
+      // preserve the previous "verify current first" UX we re-authenticate
+      // with the supplied old password. If that fails the change is rejected.
+      const reauth = await supabase.auth.signInWithPassword({ email: me.email, password: currentPassword });
+      if (reauth.error) {
+        toast.error("Current password is incorrect");
+        return;
+      }
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       toast.success(t("profile.passwordUpdated"));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("profile.passwordChangeFailed"));
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -268,10 +290,10 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
             <button
               type="button"
               onClick={() => void handleChangePassword()}
-              disabled={!currentPassword || !newPassword || changePassword.isPending}
+              disabled={!currentPassword || !newPassword || changingPassword}
               className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {changePassword.isPending ? t("profile.changingPassword") : t("profile.changePassword")}
+              {changingPassword ? t("profile.changingPassword") : t("profile.changePassword")}
             </button>
           </div>
         </div>

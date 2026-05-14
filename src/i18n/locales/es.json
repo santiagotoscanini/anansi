@@ -877,8 +877,11 @@
       "orWithEmail": "o con tu correo",
       "continueGoogle": "Continuar con Google",
       "continueApple": "Continuar con Apple",
-      "googleSoon": "El inicio con Google llega más adelante.",
-      "appleSoon": "El inicio con Apple llega más adelante.",
+      "googleSoon": "El inicio con Google aún no está configurado",
+      "googleSoonBadge": "(pronto)",
+      "googleFailed": "El inicio con Google falló.",
+      "appleSoon": "El inicio con Apple aún no está configurado",
+      "appleSoonBadge": "(pronto)",
       "emailLabel": "Correo",
       "emailPlaceholder": "vos@enalgunlado.com",
       "passwordLabel": "Contraseña",
@@ -930,6 +933,42 @@
       "testimonialWho": "Ingeniero, 41",
       "testimonialDuration": "1 año adentro",
       "credit": "Ananse Ntontan · Adinkra · Ghana"
+    },
+    "checkEmail": {
+      "kicker": "Una cosa más",
+      "title": "Revisá tu correo",
+      "body": "Te enviamos un enlace de confirmación. Hacé clic y vas a estar adentro. El enlace vale una hora más o menos — si expira, iniciá sesión acá y te mandamos uno nuevo.",
+      "back": "Volver a iniciar sesión",
+      "testimonial": "Una pequeña espera al principio — el resto es solo tuyo."
+    },
+    "forgot": {
+      "kicker": "Olvidaste tu contraseña",
+      "title": "Vamos a devolverte la entrada",
+      "titleSent": "Revisá tu correo",
+      "body": "Contános el correo con el que te registraste. Te mandamos un enlace de un solo uso para poner una contraseña nueva.",
+      "bodySent": "Si hay una cuenta con ese correo, te mandamos un enlace para restablecer. Hacé clic y llegás a una página para poner una contraseña nueva.",
+      "submit": "Enviar enlace de restablecimiento",
+      "sending": "Enviando…",
+      "remembered": "¿La recordaste?",
+      "signIn": "Iniciar sesión →",
+      "back": "Volver a iniciar sesión",
+      "needEmail": "Correo, por favor.",
+      "sendFailed": "No pudimos enviar el enlace. Probá de nuevo."
+    },
+    "reset": {
+      "kicker": "Pon una contraseña nueva",
+      "title": "Contraseña nueva",
+      "body": "12 caracteres o más. Cuando la guardes, vas a estar dentro.",
+      "passwordPlaceholder": "Contraseña nueva",
+      "confirmPlaceholder": "Confirmar contraseña nueva",
+      "submit": "Guardar contraseña",
+      "saving": "Guardando…",
+      "passwordsDontMatch": "Las contraseñas no coinciden.",
+      "passwordShort": "12 caracteres o más, por favor.",
+      "success": "Contraseña actualizada. Bienvenido de nuevo.",
+      "expiredTitle": "Este enlace expiró",
+      "expiredBody": "El enlace es de un solo uso y tiene tiempo limitado. Pedí uno nuevo y te devolvemos la entrada.",
+      "sendNew": "Enviar un enlace nuevo"
     }
   },
   "landing": {

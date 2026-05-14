@@ -1,36 +1,39 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
-import { verifyAuthToken } from "../auth-server";
+import { eq } from "drizzle-orm";
+import { createClient } from "../supabase/server";
+import { db } from "../data";
+import { users } from "../data/schema";
 
 /**
  * 1. Context
  *
+ * Auth identity is owned by Supabase Auth. We read the verified user from
+ * the session cookies via `@supabase/ssr`'s server client and stamp the
+ * downstream-friendly `{ userId, userName }` shape onto context — every
+ * router still reads `ctx.user.userId` exactly as before.
+ *
+ * `userName` is looked up from `public.users` (mirrored from auth.users by
+ * the on_auth_user_created trigger). If the row hasn't materialized yet
+ * (race window on a brand-new signup), we fall back to the email so the
+ * context is never partially populated.
+ *
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  // Extract auth token from cookies
-  const cookies = opts.headers.get("cookie");
+  const supabase = await createClient();
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+
   let user: { userId?: string; userName?: string } = {};
-
-  if (cookies) {
-    const authCookie = cookies.split(";").find((cookie) => cookie.trim().startsWith("goals-auth="));
-
-    if (authCookie) {
-      const token = authCookie.split("=")[1];
-      if (token) {
-        const authResult = await verifyAuthToken(token);
-        if (authResult.isValid) {
-          user = { userId: authResult.userId, userName: authResult.userName };
-        }
-      }
-    }
+  if (authUser) {
+    const [row] = await db.select({ name: users.name }).from(users).where(eq(users.id, authUser.id)).limit(1);
+    user = { userId: authUser.id, userName: row?.name ?? authUser.email ?? "" };
   }
 
-  return {
-    ...opts,
-    user,
-  };
+  return { ...opts, user };
 };
 
 /**

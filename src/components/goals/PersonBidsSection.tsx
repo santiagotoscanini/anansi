@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckSquare, HelpCircle, Square, X } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { api } from "~/trpc/react";
 import DatePicker from "./DatePicker";
 
@@ -18,6 +19,7 @@ const inputClass =
 // Extracted from PersonModal as part of H2. The section gates everything on
 // `personId`: until the parent row is saved, children can't FK back to it.
 export default function PersonBidsSection({ personId }: { personId: string | null | undefined }) {
+  const { t } = useTranslation();
   const enabled = !!personId;
   const utils = api.useUtils();
   const invalidate = () => void utils.goals.nextBids.list.invalidate({ personId: personId ?? "" });
@@ -39,18 +41,16 @@ export default function PersonBidsSection({ personId }: { personId: string | nul
       setDraft("");
       setDraftDue(null);
     } catch {
-      toast.error("Couldn't add bid");
+      toast.error(t("personBids.addFailed"));
     }
   };
 
   return (
     <div>
-      <SectionLabel hint="Capture what you can do to strengthen this relationship — a gift, a gesture, a conversation, a repair. Add a deadline if it's time-sensitive. Mark done; the trail stays.">
-        Next bids
-      </SectionLabel>
+      <SectionLabel hint={t("personBids.sectionHint")}>{t("personBids.sectionTitle")}</SectionLabel>
 
       {!enabled ? (
-        <p className={fieldHelper}>Save the person first — bids attach to a saved row.</p>
+        <p className={fieldHelper}>{t("personBids.saveFirst")}</p>
       ) : (
         <>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -64,17 +64,22 @@ export default function PersonBidsSection({ personId }: { personId: string | nul
                   void handleAdd();
                 }
               }}
-              placeholder="A specific bid — book, gesture, conversation, repair…"
+              placeholder={t("personBids.addPlaceholder")}
               className={`${inputClass} flex-1`}
             />
-            <DatePicker value={draftDue} onChange={setDraftDue} placeholder="Deadline (optional)" className="sm:w-48" />
+            <DatePicker
+              value={draftDue}
+              onChange={setDraftDue}
+              placeholder={t("personBids.deadlinePlaceholder")}
+              className="sm:w-48"
+            />
             <button
               type="button"
               onClick={() => void handleAdd()}
               disabled={!draft.trim() || create.isPending}
               className="shrink-0 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Add
+              {t("common.add")}
             </button>
           </div>
 
@@ -88,7 +93,7 @@ export default function PersonBidsSection({ personId }: { personId: string | nul
                     try {
                       await setCompleted.mutateAsync({ id: bid.id, completed: done });
                     } catch {
-                      toast.error("Couldn't update bid");
+                      toast.error(t("personBids.updateFailed"));
                     }
                   }}
                   onEditContent={async (content) => {
@@ -97,21 +102,21 @@ export default function PersonBidsSection({ personId }: { personId: string | nul
                     try {
                       await update.mutateAsync({ id: bid.id, content: trimmed });
                     } catch {
-                      toast.error("Couldn't update bid");
+                      toast.error(t("personBids.updateFailed"));
                     }
                   }}
                   onEditDue={async (dueAt) => {
                     try {
                       await update.mutateAsync({ id: bid.id, dueAt });
                     } catch {
-                      toast.error("Couldn't update deadline");
+                      toast.error(t("personBids.updateDeadlineFailed"));
                     }
                   }}
                   onDelete={async () => {
                     try {
                       await remove.mutateAsync({ id: bid.id });
                     } catch {
-                      toast.error("Couldn't remove bid");
+                      toast.error(t("personBids.removeFailed"));
                     }
                   }}
                   deleteDisabled={remove.isPending}
@@ -163,6 +168,7 @@ function BidRow({
   onDelete: () => void;
   deleteDisabled: boolean;
 }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(bid.content);
   const done = !!bid.completedAt;
@@ -182,7 +188,7 @@ function BidRow({
         type="button"
         onClick={() => onToggleDone(!done)}
         className="shrink-0 text-[var(--ink-3)] transition-colors hover:text-[var(--ink)]"
-        aria-label={done ? "Mark as not done" : "Mark as done"}
+        aria-label={done ? t("personBids.markNotDone") : t("personBids.markDone")}
       >
         {done ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
       </button>
@@ -216,7 +222,7 @@ function BidRow({
             className={`block w-full truncate text-left text-sm transition-colors ${
               done ? "text-[var(--ink-3)] line-through" : "text-[var(--ink)] hover:text-[var(--ink)]"
             }`}
-            title="Click to edit"
+            title={t("personBids.clickToEdit")}
           >
             {bid.content}
           </button>
@@ -225,7 +231,7 @@ function BidRow({
       <DatePicker
         value={bid.dueAt}
         onChange={onEditDue}
-        placeholder="Add deadline"
+        placeholder={t("personBids.addDeadline")}
         size="sm"
         align="right"
         className={overdue ? "[&_button]:!text-[var(--amber)]" : ""}
@@ -235,7 +241,7 @@ function BidRow({
         onClick={onDelete}
         disabled={deleteDisabled}
         className="shrink-0 rounded p-1 text-[var(--ink-4)] opacity-100 transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:cursor-not-allowed md:opacity-0 md:group-hover:opacity-100"
-        aria-label="Remove bid"
+        aria-label={t("personBids.removeBid")}
       >
         <X className="h-3.5 w-3.5" />
       </button>

@@ -14,15 +14,28 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { api } from "~/trpc/react";
 import type { PersonCategory } from "~/lib/api/types";
 import PersonModal, { type PersonRow } from "./PersonModal";
 import Avatar from "./Avatar";
 
+type ColumnLabelKey =
+  | "relationships.columnExploring"
+  | "relationships.columnContextBound"
+  | "relationships.columnLongTerm"
+  | "relationships.columnToProcess";
+
+type ColumnHintKey =
+  | "relationships.columnExploringHint"
+  | "relationships.columnContextBoundHint"
+  | "relationships.columnLongTermHint"
+  | "relationships.columnToProcessHint";
+
 type Column = {
   id: PersonCategory;
-  label: string;
-  hint: string;
+  labelKey: ColumnLabelKey;
+  hintKey: ColumnHintKey;
 };
 
 // Ordered to match the natural arc of a relationship: new people enter via
@@ -30,10 +43,14 @@ type Column = {
 // or Long-term (the deepest connections), and only fall into To Process
 // when something specifically needs repair, release, or ending.
 const COLUMNS: Column[] = [
-  { id: "exploring", label: "Exploring", hint: "New, undecided. Each has a decide-by date." },
-  { id: "context_bound", label: "Context-bound", hint: "Handle well, but not deepening." },
-  { id: "long_term", label: "Long-term", hint: "Family, closest friends. Erode through neglect, not drama." },
-  { id: "to_process", label: "To Process", hint: "Something to fix — repair, release, or end." },
+  { id: "exploring", labelKey: "relationships.columnExploring", hintKey: "relationships.columnExploringHint" },
+  {
+    id: "context_bound",
+    labelKey: "relationships.columnContextBound",
+    hintKey: "relationships.columnContextBoundHint",
+  },
+  { id: "long_term", labelKey: "relationships.columnLongTerm", hintKey: "relationships.columnLongTermHint" },
+  { id: "to_process", labelKey: "relationships.columnToProcess", hintKey: "relationships.columnToProcessHint" },
 ];
 
 function isOverdue(d: Date | null | undefined): boolean {
@@ -50,6 +67,7 @@ function PersonCard({
   onClick?: () => void;
   isDragging?: boolean;
 }) {
+  const { t } = useTranslation();
   const overdue = person.category === "exploring" && isOverdue(person.decideBy);
   return (
     <div
@@ -66,7 +84,7 @@ function PersonCard({
           <span className="truncate text-sm font-medium text-[var(--ink)]">{person.name}</span>
           {overdue && (
             <span className="shrink-0 rounded-full border border-[var(--amber)] bg-[var(--amber-soft)] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[var(--amber)]">
-              overdue
+              {t("relationships.overdueTag")}
             </span>
           )}
         </div>
@@ -103,6 +121,7 @@ function DroppableColumn({
   people: PersonRow[];
   onCardClick: (p: PersonRow) => void;
 }) {
+  const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
   return (
     <section
@@ -113,17 +132,17 @@ function DroppableColumn({
     >
       <div className="flex h-20 flex-col justify-start border-b border-[var(--hairline)] px-4 py-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-[var(--ink)]">{column.label}</h3>
+          <h3 className="text-sm font-medium text-[var(--ink)]">{t(column.labelKey)}</h3>
           <span className="rounded-full bg-[var(--vellum)] px-2 py-0.5 text-xs text-[var(--ink-2)]">
             {people.length}
           </span>
         </div>
-        <p className="mt-1 line-clamp-2 text-xs text-[var(--ink-3)]">{column.hint}</p>
+        <p className="mt-1 line-clamp-2 text-xs text-[var(--ink-3)]">{t(column.hintKey)}</p>
       </div>
       <div className="flex flex-1 flex-col gap-2 p-3">
         {people.length === 0 ? (
           <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-[var(--hairline)] text-xs text-[var(--ink-4)]">
-            Drop here
+            {t("relationships.dropHere")}
           </div>
         ) : (
           people.map((p) => <DraggableCard key={p.id} person={p} onClick={() => onCardClick(p)} />)
@@ -134,6 +153,7 @@ function DroppableColumn({
 }
 
 export default function RelationshipsBoard() {
+  const { t } = useTranslation();
   const utils = api.useUtils();
   const getAllInput = { includeArchived: false };
   const peopleQuery = api.goals.people.getAll.useQuery(getAllInput);
@@ -153,7 +173,7 @@ export default function RelationshipsBoard() {
     },
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) utils.goals.people.getAll.setData(getAllInput, ctx.prev);
-      toast.error("Failed to move");
+      toast.error(t("relationships.moveFailed"));
     },
     onSettled: () => {
       void utils.goals.people.getAll.invalidate();
@@ -222,7 +242,7 @@ export default function RelationshipsBoard() {
             marginBottom: 10,
           }}
         >
-          Connections · relationships
+          {t("relationships.eyebrow")}
         </div>
         <h1
           style={{
@@ -233,7 +253,9 @@ export default function RelationshipsBoard() {
             color: "var(--ink)",
           }}
         >
-          Who&apos;s <span className="brand-em">close,</span> who&apos;s drifting.
+          {t("relationships.titlePre")}
+          <span className="brand-em">{t("relationships.titleEm")}</span>
+          {t("relationships.titlePost")}
         </h1>
         <p
           className="mt-3 max-w-2xl"
@@ -245,14 +267,13 @@ export default function RelationshipsBoard() {
             lineHeight: 1.4,
           }}
         >
-          Four columns. Move people between them as your reality shifts. Exploring people have a decide-by date — a
-          quiet reminder, not a clock.
+          {t("relationships.subtitle")}
         </p>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="grid grid-cols-1 gap-4 px-6 pb-8 sm:grid-cols-2 md:px-8 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 px-6 pb-8 pt-6 sm:grid-cols-2 md:px-8 xl:grid-cols-4">
             {COLUMNS.map((col) => (
               <DroppableColumn key={col.id} column={col} people={byColumn[col.id]} onCardClick={setEditingPerson} />
             ))}

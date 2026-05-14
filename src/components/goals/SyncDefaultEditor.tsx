@@ -19,6 +19,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useTranslation } from "react-i18next";
 import { api, type RouterOutputs } from "~/trpc/react";
 import toast from "react-hot-toast";
 
@@ -34,6 +35,7 @@ interface SyncDefaultEditorProps {
 // todo.md; the underlying sync_templates table can carry it later without a
 // schema migration. For now this UI manages a single row.
 export default function SyncDefaultEditor({ onClose }: SyncDefaultEditorProps) {
+  const { t } = useTranslation();
   const utils = api.useUtils();
   const templatesQuery = api.goals.syncTemplates.list.useQuery();
   const itemsQuery = api.goals.trackingItems.list.useQuery({});
@@ -56,27 +58,26 @@ export default function SyncDefaultEditor({ onClose }: SyncDefaultEditorProps) {
   // fan out into a flood of inserts on retries — the flip from "no templates"
   // to "one template" happens on the network round-trip, not synchronously.
   const autoCreatedRef = useRef(false);
+  const defaultName = t("syncDefault.defaultName");
   useEffect(() => {
     if (!templatesQuery.isLoading && templates.length === 0 && !autoCreatedRef.current && !createMutation.isPending) {
       autoCreatedRef.current = true;
-      createMutation.mutate({ name: "Default", isDefault: true });
+      createMutation.mutate({ name: defaultName, isDefault: true });
     }
-  }, [templatesQuery.isLoading, templates.length, createMutation]);
+  }, [templatesQuery.isLoading, templates.length, createMutation, defaultName]);
 
   return (
     <div className="bg-[var(--ink)]/70 fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="flex h-[80vh] max-h-[720px] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--hairline)] bg-[var(--canvas)] text-[var(--ink)] shadow-2xl">
         <header className="flex items-center justify-between border-b border-[var(--hairline)] px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold">Default sync items</h2>
-            <p className="text-xs text-[var(--ink-3)]">
-              These auto-fill every new weekly sync. Edit anytime — changes only affect future syncs.
-            </p>
+            <h2 className="text-lg font-semibold">{t("syncDefault.modalTitle")}</h2>
+            <p className="text-xs text-[var(--ink-3)]">{t("syncDefault.modalHint")}</p>
           </div>
           <button
             onClick={onClose}
             className="rounded-md p-1.5 text-[var(--ink-2)] hover:bg-[var(--vellum)]"
-            aria-label="Close"
+            aria-label={t("syncDefault.close")}
           >
             <X className="h-5 w-5" />
           </button>
@@ -91,13 +92,15 @@ export default function SyncDefaultEditor({ onClose }: SyncDefaultEditorProps) {
               try {
                 await setItemsMutation.mutateAsync({ templateId: defaultTemplate.id, items });
               } catch (err) {
-                toast.error(err instanceof Error ? err.message : "Failed to save");
+                toast.error(err instanceof Error ? err.message : t("syncDefault.saveFailed"));
               }
             }}
           />
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-[var(--ink-3)]">
-            {templatesQuery.isLoading || createMutation.isPending ? "Loading…" : "Setting up…"}
+            {templatesQuery.isLoading || createMutation.isPending
+              ? t("syncDefault.loading")
+              : t("syncDefault.settingUp")}
           </div>
         )}
       </div>
@@ -112,6 +115,7 @@ interface DefaultEditorProps {
 }
 
 function DefaultEditor({ template, allItems, onSetItems }: DefaultEditorProps) {
+  const { t } = useTranslation();
   // Local working copy of the item order. Persists on every change via
   // onSetItems (replace-set). The parent passes key={template.id} so this
   // component remounts cleanly when the underlying default changes.
@@ -159,22 +163,20 @@ function DefaultEditor({ template, allItems, onSetItems }: DefaultEditorProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center justify-between px-6 pt-4">
-        <p className="text-sm font-medium text-[var(--ink)]">Items</p>
+        <p className="text-sm font-medium text-[var(--ink)]">{t("syncDefault.items")}</p>
         <button
           onClick={() => setPicking((p) => !p)}
           className="flex items-center gap-1 rounded-md bg-[var(--vellum)] px-2 py-1 text-xs hover:bg-[var(--vellum)]"
         >
           <Plus className="h-3.5 w-3.5" />
-          Add item
+          {t("syncDefault.addItem")}
         </button>
       </div>
 
       {picking && (
         <div className="mx-6 mt-3 max-h-48 overflow-y-auto rounded-md border border-[var(--hairline)] bg-[var(--vellum)] p-2">
           {availableToAdd.length === 0 ? (
-            <p className="px-2 py-3 text-center text-xs text-[var(--ink-3)]">
-              All your tracking items are already in the default.
-            </p>
+            <p className="px-2 py-3 text-center text-xs text-[var(--ink-3)]">{t("syncDefault.allAdded")}</p>
           ) : (
             <ul className="space-y-1">
               {availableToAdd.map((it) => (
@@ -196,8 +198,9 @@ function DefaultEditor({ template, allItems, onSetItems }: DefaultEditorProps) {
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         {orderedItemIds.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[var(--hairline)] p-8 text-center text-[var(--ink-2)]">
-            No items yet. Click <span className="font-medium text-[var(--ink)]">Add item</span> to start — these will
-            auto-fill every new weekly sync.
+            {t("syncDefault.emptyPre")}
+            <span className="font-medium text-[var(--ink)]">{t("syncDefault.emptyEm")}</span>
+            {t("syncDefault.emptyPost")}
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -218,6 +221,7 @@ function DefaultEditor({ template, allItems, onSetItems }: DefaultEditorProps) {
 }
 
 function SortableRow({ id, title, onRemove }: { id: string; title: string; onRemove: () => void }) {
+  const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -235,7 +239,7 @@ function SortableRow({ id, title, onRemove }: { id: string; title: string; onRem
         {...attributes}
         {...listeners}
         className="cursor-grab rounded p-1 text-[var(--ink-3)] hover:bg-[var(--vellum)] hover:text-[var(--ink-2)] active:cursor-grabbing"
-        aria-label="Drag handle"
+        aria-label={t("syncDefault.dragHandle")}
       >
         <GripVertical className="h-4 w-4" />
       </button>
@@ -243,7 +247,7 @@ function SortableRow({ id, title, onRemove }: { id: string; title: string; onRem
       <button
         onClick={onRemove}
         className="rounded p-1 text-[var(--ink-3)] opacity-100 hover:bg-[var(--rust-soft)] hover:text-[var(--rust)] md:opacity-0 md:group-hover:opacity-100"
-        aria-label="Remove from default"
+        aria-label={t("syncDefault.removeFromDefault")}
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>

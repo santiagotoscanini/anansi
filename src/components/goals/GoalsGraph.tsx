@@ -6,6 +6,7 @@ import type { Connection, Edge, Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { HelpCircle, Plus, Target } from "lucide-react";
 import { createId } from "@paralleldrive/cuid2";
+import { useTranslation } from "react-i18next";
 import { useGoals } from "~/contexts/GoalsContext";
 import type { Goal } from "~/lib/api/types";
 import GoalNodeComponent from "./GoalNode";
@@ -27,6 +28,7 @@ const edgeTypes = {
 };
 
 export default function GoalsGraph() {
+  const { t } = useTranslation();
   const { goals, connections, updateGoal, addGoal, addConnection, deleteConnection, deleteGoal, getGoalProgress } =
     useGoals();
 
@@ -160,10 +162,10 @@ export default function GoalsGraph() {
           target: params.target,
           weight: 1,
         });
-        toast.success("Goals connected");
+        toast.success(t("goalsGraph.goalsConnected"));
       }
     },
-    [addConnection],
+    [addConnection, t],
   );
 
   const onNodeDragStop = useCallback(
@@ -217,12 +219,12 @@ export default function GoalsGraph() {
       for (const goal of goalsToDelete) {
         await deleteGoal(goal.id);
       }
-      toast.success(`Deleted ${goalsToDelete.length} goal${goalsToDelete.length > 1 ? "s" : ""}`);
+      toast.success(t("goalsGraph.deletedGoals", { count: goalsToDelete.length }));
       setSelectedNodes([]);
       setGoalsToDelete([]);
       setIsDeleteModalOpen(false);
     } catch (error) {
-      toast.error("Failed to delete goals");
+      toast.error(t("goalsGraph.deleteGoalsFailed"));
       console.error(error);
     }
   };
@@ -248,7 +250,7 @@ export default function GoalsGraph() {
           const goalToCopy = goals.find((g) => g.id === selectedNodes[0]);
           if (goalToCopy) {
             setCopiedGoal(goalToCopy);
-            toast.success("Goal copied");
+            toast.success(t("goalsGraph.goalCopied"));
           }
         }
       }
@@ -271,7 +273,7 @@ export default function GoalsGraph() {
         }));
 
         const goalData = {
-          title: `${copiedGoal.title} (Copy)`,
+          title: `${copiedGoal.title} ${t("goalsGraph.copySuffix")}`,
           description: copiedGoal.description,
           emoji: copiedGoal.emoji,
           valueIds: copiedGoal.valueIds,
@@ -283,7 +285,7 @@ export default function GoalsGraph() {
           },
         };
         void addGoal(goalData);
-        toast.success("Goal pasted");
+        toast.success(t("goalsGraph.goalPasted"));
       }
 
       // Delete or Backspace to delete selected nodes or edges
@@ -304,7 +306,7 @@ export default function GoalsGraph() {
               void deleteConnection(connection.id);
             }
           });
-          toast.success(`Deleted ${selectedEdges.length} connection${selectedEdges.length > 1 ? "s" : ""}`);
+          toast.success(t("goalsGraph.deletedConnections", { count: selectedEdges.length }));
           setSelectedEdges([]);
         }
       }
@@ -322,6 +324,7 @@ export default function GoalsGraph() {
     connections,
     addGoal,
     deleteConnection,
+    t,
   ]);
 
   return (
@@ -342,7 +345,7 @@ export default function GoalsGraph() {
                 marginBottom: 10,
               }}
             >
-              Goals · objectives
+              {t("goalsGraph.eyebrow")}
             </div>
             <h1
               style={{
@@ -353,7 +356,8 @@ export default function GoalsGraph() {
                 color: "var(--ink)",
               }}
             >
-              A graph of what <span className="brand-em">I want.</span>
+              {t("goalsGraph.titlePre")}
+              <span className="brand-em">{t("goalsGraph.titleEm")}</span>
             </h1>
             <p
               className="mt-3 max-w-2xl"
@@ -365,8 +369,7 @@ export default function GoalsGraph() {
                 lineHeight: 1.4,
               }}
             >
-              Cards on a free-positioned canvas. Edges carry weight. Look at the canvas and the heaviness shows you
-              where to look.
+              {t("goalsGraph.subtitle")}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -379,10 +382,10 @@ export default function GoalsGraph() {
                 border: "1px solid var(--hairline-2)",
                 boxShadow: "var(--shadow-sm)",
               }}
-              title="How are progress and importance calculated?"
+              title={t("goalsGraph.howItWorksTitle")}
             >
               <HelpCircle className="h-4 w-4" />
-              <span className="hidden sm:inline">How it works</span>
+              <span className="hidden sm:inline">{t("goalsGraph.howItWorks")}</span>
             </button>
             <button
               onClick={handleAddGoal}
@@ -392,10 +395,10 @@ export default function GoalsGraph() {
                 color: "var(--paper)",
                 boxShadow: "var(--shadow-sm)",
               }}
-              title="Add new goal (Ctrl+G)"
+              title={t("goalsGraph.newGoalTitle")}
             >
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">New goal</span>
+              <span className="hidden sm:inline">{t("goalsGraph.newGoal")}</span>
             </button>
           </div>
         </div>
@@ -443,8 +446,8 @@ export default function GoalsGraph() {
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
               <Target className="mx-auto h-16 w-16 opacity-30" />
-              <h3 className="mt-4 text-xl font-light">No goals yet</h3>
-              <p className="mt-2 text-sm opacity-60">Click &quot;Add Goal&quot; to create your first goal</p>
+              <h3 className="mt-4 text-xl font-light">{t("goalsGraph.emptyTitle")}</h3>
+              <p className="mt-2 text-sm opacity-60">{t("goalsGraph.emptyHint")}</p>
             </div>
           </div>
         )}

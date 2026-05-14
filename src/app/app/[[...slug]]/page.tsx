@@ -2,12 +2,14 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import { GoalsProvider, useGoals } from "~/contexts/GoalsContext";
 import GoalsDashboard from "~/components/goals/GoalsDashboard";
 import { AnansiMark } from "~/components/goals/Brand";
 
 function AppPageInner() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { isAuthenticated, isLoading } = useGoals();
 
   // Auth guard — bounce unauthenticated visitors to the login screen.
@@ -29,7 +31,7 @@ function AppPageInner() {
             className="mt-6"
             style={{ fontFamily: "var(--font-text)", fontStyle: "italic", fontSize: 14, color: "var(--ink-3)" }}
           >
-            Looking for your threads…
+            {t("appShell.lookingForThreads")}
           </p>
         </div>
       </main>

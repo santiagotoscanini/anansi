@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Check, Plus } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { api } from "~/trpc/react";
 import type { BucketListItem } from "~/lib/api/types";
 import Avatar from "./Avatar";
@@ -27,6 +28,7 @@ function ItemRow({
   onOpen: () => void;
   busy: boolean;
 }) {
+  const { t } = useTranslation();
   const completed = !!item.completedAt;
   const linkedPeople = item.personIds.map((id) => peopleById.get(id)).filter((p): p is PersonLite => !!p);
 
@@ -47,7 +49,7 @@ function ItemRow({
         type="button"
         onClick={onToggle}
         disabled={busy}
-        aria-label={completed ? "Mark as not done" : "Mark as done"}
+        aria-label={completed ? t("bucketList.markNotDone") : t("bucketList.markDone")}
         className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all disabled:cursor-not-allowed"
         style={{
           border: `1.5px solid ${completed ? "var(--moss)" : "var(--ink-4)"}`,
@@ -90,7 +92,7 @@ function ItemRow({
                 textTransform: "uppercase",
               }}
             >
-              <Check className="h-2.5 w-2.5" /> done
+              <Check className="h-2.5 w-2.5" /> {t("bucketList.doneTag")}
             </span>
           )}
         </div>
@@ -109,12 +111,12 @@ function ItemRow({
         >
           {completed && item.completedAt && (
             <span className="inline-flex items-center gap-1.5" style={{ color: "var(--moss)" }}>
-              done · {formatCompletedDate(new Date(item.completedAt))}
+              {t("bucketList.doneOn", { date: formatCompletedDate(new Date(item.completedAt)) })}
             </span>
           )}
           {linkedPeople.length > 0 && (
             <span className="inline-flex items-center gap-1.5">
-              with
+              {t("bucketList.withLabel")}
               <span className="flex -space-x-1.5">
                 {linkedPeople.slice(0, 5).map((p) => (
                   <span key={p.id} className="rounded-full ring-2 ring-[var(--canvas)]" title={p.name}>
@@ -147,6 +149,7 @@ function ItemRow({
 }
 
 export default function BucketList() {
+  const { t } = useTranslation();
   const utils = api.useUtils();
   const listQuery = api.goals.bucketList.list.useQuery();
   const peopleQuery = api.goals.people.getAll.useQuery({ includeArchived: false });
@@ -171,7 +174,7 @@ export default function BucketList() {
       await createMutation.mutateAsync({ content });
       setNewContent("");
     } catch {
-      toast.error("Couldn't add");
+      toast.error(t("bucketList.addFailed"));
     }
   };
 
@@ -179,7 +182,7 @@ export default function BucketList() {
     try {
       await toggleMutation.mutateAsync({ id: item.id, completed: !item.completedAt });
     } catch {
-      toast.error("Couldn't update");
+      toast.error(t("bucketList.updateFailed"));
     }
   };
 
@@ -209,7 +212,7 @@ export default function BucketList() {
               marginBottom: 10,
             }}
           >
-            Compass · bucket list · {items.length}
+            {t("bucketList.eyebrow", { count: items.length })}
           </div>
           <h1
             style={{
@@ -220,7 +223,8 @@ export default function BucketList() {
               color: "var(--ink)",
             }}
           >
-            Things to do <span className="brand-em">before dying.</span>
+            {t("bucketList.titlePre")}
+            <span className="brand-em">{t("bucketList.titleEm")}</span>
           </h1>
           <p
             className="mt-3 max-w-2xl"
@@ -232,8 +236,7 @@ export default function BucketList() {
               lineHeight: 1.4,
             }}
           >
-            Not a list of trophies. A list of moments you&apos;d grieve not having tried. Tag the people you want to be
-            with when it happens.
+            {t("bucketList.subtitle")}
           </p>
         </div>
       </header>
@@ -250,7 +253,7 @@ export default function BucketList() {
                 void handleQuickAdd();
               }
             }}
-            placeholder="Something to do before you die…"
+            placeholder={t("bucketList.addPlaceholder")}
             maxLength={500}
             className="flex-1 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2.5 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"
           />
@@ -258,16 +261,17 @@ export default function BucketList() {
             type="button"
             onClick={() => void handleQuickAdd()}
             disabled={!newContent.trim() || createMutation.isPending}
-            className="flex items-center gap-1.5 rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] px-4 text-sm text-black transition-all hover:bg-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-lg px-4 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-40"
+            style={{ background: "var(--clay)", color: "var(--paper)", boxShadow: "var(--shadow-sm)" }}
           >
             <Plus className="h-4 w-4" />
-            Add
+            {t("common.add")}
           </button>
           <button
             type="button"
             onClick={() => setModalState({ kind: "create" })}
             className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 text-sm text-[var(--ink-2)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
-            title="Add with details"
+            title={t("bucketList.addDetails")}
           >
             …
           </button>
@@ -277,14 +281,14 @@ export default function BucketList() {
         <section>
           <div className="mb-2 flex items-baseline justify-between">
             <h3 className="text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
-              To do <span className="text-[var(--ink-4)]">({pending.length})</span>
+              {t("bucketList.toDoLabel")} <span className="text-[var(--ink-4)]">({pending.length})</span>
             </h3>
           </div>
           {listQuery.isLoading ? (
-            <p className="text-xs text-[var(--ink-3)]">Loading…</p>
+            <p className="text-xs text-[var(--ink-3)]">{t("common.loading")}</p>
           ) : pending.length === 0 ? (
             <div className="rounded-lg border border-dashed border-[var(--hairline)] bg-[var(--vellum)] p-6 text-center text-sm text-[var(--ink-3)]">
-              Nothing here yet. Add the first thing.
+              {t("bucketList.nothingYet")}
             </div>
           ) : (
             <ul className="space-y-1.5">
@@ -307,7 +311,7 @@ export default function BucketList() {
           <section>
             <div className="mb-2 flex items-baseline justify-between">
               <h3 className="text-[11px] font-medium uppercase tracking-wider text-[var(--moss)]">
-                Done <span className="text-[var(--moss)]">({done.length})</span>
+                {t("bucketList.doneLabel")} <span className="text-[var(--moss)]">({done.length})</span>
               </h3>
             </div>
             <ul className="space-y-1.5">

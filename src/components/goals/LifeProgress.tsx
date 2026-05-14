@@ -2,10 +2,12 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { Trophy, Target, TrendingUp } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useGoals } from "~/contexts/GoalsContext";
 import GoalModal from "./GoalModal";
 
 export default function LifeProgress() {
+  const { t } = useTranslation();
   const { goals, connections, values, getGoalProgress } = useGoals();
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -70,7 +72,7 @@ export default function LifeProgress() {
               marginBottom: 10,
             }}
           >
-            Goals · progress
+            {t("lifeProgress.eyebrow")}
           </div>
           <h1
             style={{
@@ -85,7 +87,8 @@ export default function LifeProgress() {
             }}
           >
             <Trophy className="h-7 w-7" style={{ color: "var(--clay)" }} />
-            The year, <span className="brand-em">so far.</span>
+            {t("lifeProgress.titlePre")}
+            <span className="brand-em">{t("lifeProgress.titleEm")}</span>
           </h1>
           <p
             className="mt-3 max-w-2xl"
@@ -97,7 +100,7 @@ export default function LifeProgress() {
               lineHeight: 1.4,
             }}
           >
-            Where you&apos;ve shown up. Not a leaderboard, not a streak. A quiet record of evidence.
+            {t("lifeProgress.subtitle")}
           </p>
         </div>
       </header>
@@ -105,8 +108,8 @@ export default function LifeProgress() {
         {terminalGoals.length === 0 ? (
           <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-12 text-center">
             <Target className="mx-auto h-12 w-12 opacity-30" />
-            <p className="mt-4 text-lg font-light">No terminal goals found</p>
-            <p className="mt-2 text-sm opacity-60">Create goals and connect them to build your goal hierarchy</p>
+            <p className="mt-4 text-lg font-light">{t("lifeProgress.noTerminalGoals")}</p>
+            <p className="mt-2 text-sm opacity-60">{t("lifeProgress.noTerminalGoalsHelp")}</p>
           </div>
         ) : (
           <div className="space-y-8">
@@ -115,10 +118,10 @@ export default function LifeProgress() {
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="flex items-center gap-2 text-lg font-light">
                   <TrendingUp className="h-5 w-5" />
-                  Overall Life Progress
+                  {t("lifeProgress.overallTitle")}
                 </h3>
                 <span className="text-2xl font-light">
-                  {terminalGoals.length} Ultimate Goal{terminalGoals.length !== 1 ? "s" : ""}
+                  {t("lifeProgress.ultimateGoal", { count: terminalGoals.length })}
                 </span>
               </div>
 
@@ -130,7 +133,7 @@ export default function LifeProgress() {
                 return (
                   <div>
                     <div className="mb-2 flex justify-between text-sm">
-                      <span className="opacity-60">Combined Progress</span>
+                      <span className="opacity-60">{t("lifeProgress.combinedProgress")}</span>
                       <span className={`font-semibold ${getProgressTextColor(totalProgress)}`}>
                         {Math.round(totalProgress)}%
                       </span>
@@ -148,7 +151,7 @@ export default function LifeProgress() {
 
             {/* Terminal Goals Progress Bars */}
             <div className="space-y-4">
-              <h3 className="text-lg font-light">Ultimate Life Goals</h3>
+              <h3 className="text-lg font-light">{t("lifeProgress.ultimateLifeGoals")}</h3>
 
               <div className="space-y-3">
                 {sortedTerminalGoals.map((goal) => {
@@ -207,8 +210,10 @@ export default function LifeProgress() {
                           </div>
                           {/* Legend */}
                           <div className="flex justify-between text-[10px] text-[var(--ink-3)]">
-                            <span>Own: {Math.round(ownCompletion)}%</span>
-                            <span>Dependencies: {Math.round(predecessorProgress)}%</span>
+                            <span>{t("lifeProgress.ownLabel", { percent: Math.round(ownCompletion) })}</span>
+                            <span>
+                              {t("lifeProgress.dependenciesLabel", { percent: Math.round(predecessorProgress) })}
+                            </span>
                           </div>
                         </div>
                       ) : (

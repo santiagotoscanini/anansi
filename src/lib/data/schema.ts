@@ -49,6 +49,12 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   avatarUrl: text("avatar_url"),
+  // BCP-47 locale code (e.g. "en", "es"). Nullable: null means the user has
+  // never picked a language and the client should fall back to its browser
+  // detector (navigator.language → fallback "en"). Adding a new supported
+  // language is a JSON drop + a tuple entry in src/i18n/config.ts — no DB
+  // migration. Free-form text (vs enum) keeps that promise.
+  locale: text("locale"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

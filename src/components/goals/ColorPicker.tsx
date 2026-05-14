@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { COLOR_PALETTE } from "~/lib/color-palette";
 
 interface ColorPickerProps {
@@ -17,13 +18,8 @@ const TRIGGER_SIZE: Record<NonNullable<ColorPickerProps["size"]>, string> = {
   lg: "h-6 w-6",
 };
 
-export default function ColorPicker({
-  value,
-  onChange,
-  size = "md",
-  align = "left",
-  ariaLabel = "Pick color",
-}: ColorPickerProps) {
+export default function ColorPicker({ value, onChange, size = "md", align = "left", ariaLabel }: ColorPickerProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -57,7 +53,7 @@ export default function ColorPicker({
         onClick={() => setOpen((o) => !o)}
         className={`${TRIGGER_SIZE[size]} cursor-pointer rounded-full border border-[var(--hairline-2)] transition-all hover:scale-110`}
         style={{ backgroundColor: value }}
-        aria-label={ariaLabel}
+        aria-label={ariaLabel ?? t("colorPicker.pickColor")}
       />
       {open && (
         <div
@@ -101,7 +97,7 @@ export default function ColorPicker({
                 onClick={() => setShowCustom(true)}
                 className="w-full rounded px-1.5 py-1 text-left text-[11px] text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
               >
-                Custom…
+                {t("colorPicker.custom")}
               </button>
             )}
           </div>

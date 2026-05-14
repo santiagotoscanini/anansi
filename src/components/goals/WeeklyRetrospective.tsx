@@ -12,6 +12,7 @@ import {
   Trash2,
   Settings,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useGoals } from "~/contexts/GoalsContext";
 import { api, type RouterOutputs } from "~/trpc/react";
 import toast from "react-hot-toast";
@@ -21,6 +22,14 @@ import WeeklySyncItemRow from "./WeeklySyncItemRow";
 type WeeklyRetrospectiveData = RouterOutputs["goals"]["weeklySync"]["getWeeklyRetrospectiveData"];
 type SyncItem = WeeklyRetrospectiveData["unscopedItems"][number];
 type GoalGroup = WeeklyRetrospectiveData["goals"][number];
+
+type ImportanceKey = "weeklySync.importanceLow" | "weeklySync.importanceMedium" | "weeklySync.importanceHigh";
+const importanceKey = (importance: "Low" | "Medium" | "High"): ImportanceKey =>
+  importance === "High"
+    ? "weeklySync.importanceHigh"
+    : importance === "Medium"
+      ? "weeklySync.importanceMedium"
+      : "weeklySync.importanceLow";
 
 // Each rendered group — either a real goal (from data.goals) or the synthesized
 // "Unscoped" bucket for items whose underlying tracking item has goalId IS NULL.
@@ -57,6 +66,7 @@ const getFileType = (fileName: string): "image" | "document" | "video" | "audio"
 };
 
 export default function WeeklyRetrospective() {
+  const { t } = useTranslation();
   const {
     createWeeklySync,
     getWeekStartDate,
@@ -99,8 +109,8 @@ export default function WeeklyRetrospective() {
           ...goalGroups,
           {
             id: "__unscoped__",
-            title: "Unscoped",
-            description: "Items not linked to any goal",
+            title: t("weeklySync.unscopedTitle"),
+            description: t("weeklySync.unscopedDescription"),
             importance: "Low",
             items: unscopedItems,
           },
@@ -117,7 +127,7 @@ export default function WeeklyRetrospective() {
   const getWeekDateRange = useCallback((weekStart: Date) => {
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
-    const formatDate = (date: Date) => date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const formatDate = (date: Date) => date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
     return `${formatDate(weekStart)} - ${formatDate(weekEnd)}, ${weekStart.getFullYear()}`;
   }, []);
 
@@ -142,16 +152,16 @@ export default function WeeklyRetrospective() {
 
   const handleStartWeeklySync = async () => {
     if (hasError) {
-      toast.error("Cannot create weekly sync while there are backend errors");
+      toast.error(t("weeklySync.errorCreateBlocked"));
       return;
     }
 
     try {
       await createWeeklySync(selectedWeek);
       await refreshWeeklyRetrospectiveData();
-      toast.success("Weekly sync started!");
+      toast.success(t("weeklySync.syncStarted"));
     } catch (error) {
-      toast.error("Failed to start weekly sync");
+      toast.error(t("weeklySync.startFailed"));
       console.error("Failed to create weekly sync:", error);
     }
   };
@@ -172,11 +182,11 @@ export default function WeeklyRetrospective() {
         await refreshWeeklyRetrospectiveData();
       } catch (error) {
         console.error("Failed to auto-save text:", error);
-        toast.error("Failed to save text");
+        toast.error(t("weeklySync.saveTextFailed"));
         throw error;
       }
     },
-    [setItemTextMutation, refreshWeeklyRetrospectiveData],
+    [setItemTextMutation, refreshWeeklyRetrospectiveData, t],
   );
 
   const clearItemText = useCallback(
@@ -184,23 +194,23 @@ export default function WeeklyRetrospective() {
       try {
         await setItemTextMutation.mutateAsync({ weeklySyncItemId: item.id, textContent: "" });
         await refreshWeeklyRetrospectiveData();
-        toast.success("Notes cleared");
+        toast.success(t("weeklySync.notesCleared"));
       } catch (error) {
         console.error("Failed to clear text:", error);
-        toast.error("Failed to clear notes");
+        toast.error(t("weeklySync.clearNotesFailed"));
       }
     },
-    [setItemTextMutation, refreshWeeklyRetrospectiveData],
+    [setItemTextMutation, refreshWeeklyRetrospectiveData, t],
   );
 
   const uploadItemFiles = async (item: SyncItem, files: FileList) => {
     if (files.length === 0) return;
     if (!weeklySync?.id) {
-      toast.error("No weekly sync available");
+      toast.error(t("weeklySync.noWeeklySync"));
       return;
     }
     try {
-      toast.loading("Uploading images...", { id: "image-upload" });
+      toast.loading(t("weeklySync.uploadingImages"), { id: "image-upload" });
       const uploads = Array.from(files).map(
         (file) =>
           new Promise<void>((resolve, reject) => {
@@ -208,7 +218,7 @@ export default function WeeklyRetrospective() {
             reader.onloadend = () => {
               void (async () => {
                 try {
-                  if (!reader.result) throw new Error("No file data");
+                  if (!reader.result) throw new Error(t("weeklySync.noFileData"));
                   await uploadWeeklySyncFile(
                     reader.result as string,
                     weeklySync.id,
@@ -223,16 +233,16 @@ export default function WeeklyRetrospective() {
                 }
               })();
             };
-            reader.onerror = () => reject(new Error("Failed to read file"));
+            reader.onerror = () => reject(new Error(t("weeklySync.readFileFailed")));
             reader.readAsDataURL(file);
           }),
       );
       await Promise.all(uploads);
       await refreshWeeklyRetrospectiveData();
-      toast.success(`${files.length} image(s) uploaded successfully`, { id: "image-upload" });
+      toast.success(t("weeklySync.imagesUploaded", { count: files.length }), { id: "image-upload" });
     } catch (error) {
       console.error("Failed to upload images:", error);
-      toast.error("Failed to upload images", { id: "image-upload" });
+      toast.error(t("weeklySync.uploadFailed"), { id: "image-upload" });
     }
   };
 
@@ -252,11 +262,11 @@ export default function WeeklyRetrospective() {
 
     try {
       await deleteWeeklySyncFile(fileId);
-      toast.success(`${fileName} deleted successfully`);
+      toast.success(t("weeklySync.fileDeleted", { name: fileName }));
       await refreshWeeklyRetrospectiveData();
     } catch (error) {
       console.error("Failed to delete file:", error);
-      toast.error(`Failed to delete ${fileName}`);
+      toast.error(t("weeklySync.fileDeleteFailed", { name: fileName }));
     } finally {
       setDeletingFiles((prev) => {
         const newSet = new Set(prev);
@@ -293,20 +303,20 @@ export default function WeeklyRetrospective() {
     try {
       await createWeeklySyncItem(weeklySync.id, trackingItemId);
       await refreshWeeklyRetrospectiveData();
-      toast.success("Added to this sync");
+      toast.success(t("weeklySync.addedToSync"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to add");
+      toast.error(err instanceof Error ? err.message : t("weeklySync.addToSyncFailed"));
     }
   };
 
   const handleRemoveFromSync = async (weeklySyncItemId: string, title: string) => {
-    if (!confirm(`Remove "${title}" from this sync? It stays in your library.`)) return;
+    if (!confirm(t("weeklySync.confirmRemove", { title }))) return;
     try {
       await removeSyncItemMutation.mutateAsync({ weeklySyncItemId });
       await refreshWeeklyRetrospectiveData();
-      toast.success("Removed from sync");
+      toast.success(t("weeklySync.removedFromSync"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to remove");
+      toast.error(err instanceof Error ? err.message : t("weeklySync.removeFromSyncFailed"));
     }
   };
 
@@ -332,7 +342,7 @@ export default function WeeklyRetrospective() {
                 marginBottom: 10,
               }}
             >
-              Sync · weekly retrospective
+              {t("weeklySync.eyebrow")}
             </div>
             <h1
               style={{
@@ -343,7 +353,9 @@ export default function WeeklyRetrospective() {
                 color: "var(--ink)",
               }}
             >
-              The weekly <span className="brand-em">sync.</span>
+              {t("weeklySync.titlePre")}
+              <span className="brand-em">{t("weeklySync.titleEm")}</span>
+              {t("weeklySync.titlePost")}
             </h1>
             <p
               className="mt-3 max-w-2xl"
@@ -355,8 +367,7 @@ export default function WeeklyRetrospective() {
                 lineHeight: 1.4,
               }}
             >
-              Your weekly sync, grouped by goal. Use it on Friday afternoon or Sunday morning. There&apos;s no right
-              answer.
+              {t("weeklySync.subtitle")}
             </p>
           </div>
           <button
@@ -368,10 +379,10 @@ export default function WeeklyRetrospective() {
               color: "var(--ink)",
               boxShadow: "var(--shadow-sm)",
             }}
-            title="Edit the default items every new sync starts with"
+            title={t("weeklySync.defaultItemsTitle")}
           >
             <Settings className="h-4 w-4" />
-            Default items
+            {t("weeklySync.defaultItems")}
           </button>
         </div>
       </header>
@@ -389,10 +400,14 @@ export default function WeeklyRetrospective() {
             <div className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
               <span className="text-lg font-semibold">
-                Week of {selectedWeek.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                {t("weeklySync.weekOf", {
+                  date: selectedWeek.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+                })}
               </span>
               {isCurrentWeek(selectedWeek) && (
-                <span className="rounded-full bg-[var(--moss-soft)] px-2 py-1 text-xs text-[var(--moss)]">Current</span>
+                <span className="rounded-full bg-[var(--moss-soft)] px-2 py-1 text-xs text-[var(--moss)]">
+                  {t("weeklySync.currentTag")}
+                </span>
               )}
             </div>
             <span className="text-sm opacity-60">{getWeekDateRange(selectedWeek)}</span>
@@ -411,12 +426,10 @@ export default function WeeklyRetrospective() {
           <div className="mb-6 rounded-lg border border-[var(--rust)] bg-[var(--rust-soft)] p-4">
             <div className="flex items-center gap-2">
               <div className="h-4 w-4 rounded-full bg-[var(--rust)]"></div>
-              <span className="font-medium text-[var(--rust)]">Backend Error</span>
+              <span className="font-medium text-[var(--rust)]">{t("weeklySync.errorBackend")}</span>
             </div>
-            <p className="mt-2 text-sm text-[var(--rust)]">
-              {hasError.message || "An error occurred while loading weekly retrospective data"}
-            </p>
-            <p className="mt-1 text-xs opacity-60">Weekly sync creation is disabled until this error is resolved</p>
+            <p className="mt-2 text-sm text-[var(--rust)]">{hasError.message || t("weeklySync.errorDefault")}</p>
+            <p className="mt-1 text-xs opacity-60">{t("weeklySync.errorDisabled")}</p>
           </div>
         )}
 
@@ -425,25 +438,25 @@ export default function WeeklyRetrospective() {
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[var(--hairline-2)] border-t-white"></div>
-              <p className="mt-2 text-sm opacity-60">Loading...</p>
+              <p className="mt-2 text-sm opacity-60">{t("weeklySync.loading")}</p>
             </div>
           </div>
         ) : !weeklySync ? (
           <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-12 text-center">
             <Calendar className="mx-auto h-12 w-12 opacity-30" />
-            <p className="mt-4 text-lg font-light">No sync for this week</p>
-            <p className="mt-2 text-sm opacity-60">Start a weekly sync to track your goal progress for this week</p>
+            <p className="mt-4 text-lg font-light">{t("weeklySync.noSync")}</p>
+            <p className="mt-2 text-sm opacity-60">{t("weeklySync.noSyncHelp")}</p>
             <button
               onClick={handleStartWeeklySync}
               disabled={!!hasError}
               className={`mt-6 rounded-lg border px-4 py-2 transition-all ${
                 hasError
                   ? "cursor-not-allowed border-[var(--rust)] bg-[var(--rust-soft)] text-[var(--rust)] opacity-50"
-                  : "border-[var(--hairline-2)] bg-[var(--vellum)] hover:bg-[var(--paper)] hover:text-black"
+                  : "border-transparent bg-[var(--clay)] text-[var(--paper)] shadow-[var(--shadow-sm)]"
               }`}
             >
               <Plus className="mr-2 inline h-4 w-4" />
-              Start Weekly Sync
+              {t("weeklySync.startWeeklySync")}
             </button>
           </div>
         ) : (
@@ -453,10 +466,8 @@ export default function WeeklyRetrospective() {
             <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium">Add item to this sync</p>
-                  <p className="mt-1 text-xs opacity-60">
-                    Pulls from your tracking-items library. Items added here only affect this week.
-                  </p>
+                  <p className="text-sm font-medium">{t("weeklySync.addItemTitle")}</p>
+                  <p className="mt-1 text-xs opacity-60">{t("weeklySync.addItemHelp")}</p>
                 </div>
                 <button
                   onClick={() => setPickerOpen((p) => !p)}
@@ -464,7 +475,11 @@ export default function WeeklyRetrospective() {
                   className="flex items-center gap-2 rounded-md border border-[var(--hairline-2)] px-3 py-1.5 text-sm hover:bg-[var(--vellum)] disabled:opacity-50"
                 >
                   <Plus className="h-4 w-4" />
-                  {pickerOpen ? "Close picker" : addableItems.length === 0 ? "Nothing to add" : "Pick item"}
+                  {pickerOpen
+                    ? t("weeklySync.closePicker")
+                    : addableItems.length === 0
+                      ? t("weeklySync.nothingToAdd")
+                      : t("weeklySync.pickItem")}
                 </button>
               </div>
               {pickerOpen && addableItems.length > 0 && (
@@ -477,7 +492,7 @@ export default function WeeklyRetrospective() {
                       >
                         <span className="truncate">{item.title}</span>
                         <span className="ml-2 shrink-0 rounded-full bg-[var(--vellum)] px-2 py-0.5 text-[10px] uppercase tracking-wide opacity-70">
-                          {item.goalTitle ?? "Unscoped"}
+                          {item.goalTitle ?? t("weeklySync.unscopedTag")}
                         </span>
                       </button>
                     </li>
@@ -520,7 +535,7 @@ export default function WeeklyRetrospective() {
                                 ? "bg-[var(--amber)]"
                                 : "bg-[var(--rust)]"
                           }`}
-                          title={`Goal status: ${groupStatus}`}
+                          title={t("weeklySync.goalStatus", { status: groupStatus })}
                         />
                       )}
 
@@ -533,7 +548,7 @@ export default function WeeklyRetrospective() {
                               : "bg-[var(--ink-3-soft)] text-[var(--ink-3)]"
                         }`}
                       >
-                        {group.importance}
+                        {t(importanceKey(group.importance))}
                       </span>
                     </div>
                   </div>
@@ -556,7 +571,7 @@ export default function WeeklyRetrospective() {
                         ))
                       ) : (
                         <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-4 text-center">
-                          <p className="text-sm opacity-60">No tracking items for this goal</p>
+                          <p className="text-sm opacity-60">{t("weeklySync.noItemsForGoal")}</p>
                         </div>
                       )}
                     </div>
@@ -568,10 +583,8 @@ export default function WeeklyRetrospective() {
             {allGroups.length === 0 && (
               <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-12 text-center">
                 <Target className="mx-auto h-12 w-12 opacity-30" />
-                <p className="mt-4 text-lg font-light">No items on this sync yet</p>
-                <p className="mt-2 text-sm opacity-60">
-                  Add tracking items via the picker below, or set a default template under Manage templates.
-                </p>
+                <p className="mt-4 text-lg font-light">{t("weeklySync.noItemsHere")}</p>
+                <p className="mt-2 text-sm opacity-60">{t("weeklySync.noItemsHereHelp")}</p>
               </div>
             )}
           </div>
@@ -586,10 +599,9 @@ export default function WeeklyRetrospective() {
                   <Trash2 className="h-5 w-5 text-[var(--rust)]" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-[var(--ink)]">Delete File</h3>
+                  <h3 className="text-lg font-semibold text-[var(--ink)]">{t("weeklySync.deleteFileTitle")}</h3>
                   <p className="mt-1 text-sm text-[var(--ink-3)]">
-                    Are you sure you want to delete &quot;{deleteConfirmation.fileName}&quot;? This action cannot be
-                    undone.
+                    {t("weeklySync.deleteFilePrompt", { name: deleteConfirmation.fileName })}
                   </p>
                 </div>
               </div>
@@ -599,13 +611,13 @@ export default function WeeklyRetrospective() {
                   onClick={handleDeleteCancel}
                   className="flex-1 rounded-lg border border-[var(--hairline-2)] px-4 py-2 text-sm transition-all hover:bg-[var(--vellum)]"
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
                 <button
                   onClick={handleDeleteConfirm}
                   className="flex-1 rounded-lg bg-[var(--rust)] px-4 py-2 text-sm text-[var(--ink)] transition-all hover:bg-[var(--rust)]"
                 >
-                  Delete
+                  {t("common.delete")}
                 </button>
               </div>
             </div>

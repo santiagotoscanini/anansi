@@ -10,6 +10,7 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useGoals } from "~/contexts/GoalsContext";
 import { AnansiMark, BrandLockup, Wordmark } from "~/components/goals/Brand";
 import toast from "react-hot-toast";
@@ -17,8 +18,9 @@ import toast from "react-hot-toast";
 // Brand lockup that doubles as a back-to-landing link. Used in the
 // corner of every auth screen so the brand is also the escape hatch.
 function HomeLockup({ size = 22 }: { size?: number }) {
+  const { t } = useTranslation();
   return (
-    <Link href="/" aria-label="Back to the landing page" style={{ display: "inline-block", textDecoration: "none" }}>
+    <Link href="/" aria-label={t("auth.homeAria")} style={{ display: "inline-block", textDecoration: "none" }}>
       <BrandLockup size={size} />
     </Link>
   );
@@ -77,6 +79,7 @@ export function LoginScreen({
   onSuccess?: () => void;
 }) {
   const { authenticate } = useGoals();
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
@@ -85,19 +88,19 @@ export function LoginScreen({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      toast.error("Email and password, please.");
+      toast.error(t("auth.login.needCredentials"));
       return;
     }
     setSubmitting(true);
     const ok = await authenticate(email, password);
     setSubmitting(false);
     if (ok) {
-      toast.success("Welcome back.");
+      toast.success(t("auth.login.welcomeBack"));
       setError(false);
       onSuccess?.();
     } else {
       setError(true);
-      toast.error("Those credentials didn't open the door.");
+      toast.error(t("auth.login.credentialsRejected"));
       setPassword("");
     }
   };
@@ -133,10 +136,12 @@ export function LoginScreen({
               gap: 14,
             }}
           >
-            <span style={{ width: 28, height: 1, background: "currentColor" }} />a place to talk about your life
+            <span style={{ width: 28, height: 1, background: "currentColor" }} />
+            {t("auth.common.kicker")}
           </div>
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: 60, lineHeight: 1.1, letterSpacing: "-0.025em" }}>
-            Welcome back<span className="brand-em">.</span>
+            {t("auth.login.heroTitle")}
+            <span className="brand-em">.</span>
           </h1>
           <p
             style={{
@@ -148,7 +153,7 @@ export function LoginScreen({
               lineHeight: 1.45,
             }}
           >
-            The threads you left here are still here. Pick one up where you left it.
+            {t("auth.login.heroBody")}
           </p>
         </div>
         <div
@@ -164,9 +169,9 @@ export function LoginScreen({
             color: "var(--ink-3)",
           }}
         >
-          <span>private by default</span>
-          <span>encrypted</span>
-          <span>no notifications</span>
+          <span>{t("auth.common.footerPrivate")}</span>
+          <span>{t("auth.common.footerEncrypted")}</span>
+          <span>{t("auth.common.footerNoNotifications")}</span>
         </div>
       </div>
 
@@ -186,7 +191,7 @@ export function LoginScreen({
               marginBottom: 12,
             }}
           >
-            Log in
+            {t("auth.login.kicker")}
           </div>
           <h2
             style={{
@@ -197,40 +202,40 @@ export function LoginScreen({
               color: "var(--ink)",
             }}
           >
-            Sign in to <Wordmark size={36} />
+            {t("auth.login.signInTo")} <Wordmark size={36} />
             <span className="brand-em">.</span>
           </h2>
 
           <button
             type="button"
-            onClick={() => toast("Google sign-in coming later.", { icon: "🤝" })}
+            onClick={() => toast(t("auth.common.googleSoon"), { icon: "🤝" })}
             style={socialBtnStyle}
           >
-            <GoogleGlyph /> Continue with Google
+            <GoogleGlyph /> {t("auth.common.continueGoogle")}
           </button>
           <button
             type="button"
-            onClick={() => toast("Apple sign-in coming later.", { icon: "🤝" })}
+            onClick={() => toast(t("auth.common.appleSoon"), { icon: "🤝" })}
             style={{ ...socialBtnStyle, marginBottom: 24 }}
           >
-            <AppleGlyph /> Continue with Apple
+            <AppleGlyph /> {t("auth.common.continueApple")}
           </button>
 
           <div className="mb-5 flex items-center gap-3">
             <span style={{ flex: 1, height: 1, background: "var(--hairline)" }} />
             <span style={{ fontFamily: "var(--font-text)", fontStyle: "italic", fontSize: 12, color: "var(--ink-3)" }}>
-              or with email
+              {t("auth.common.orWithEmail")}
             </span>
             <span style={{ flex: 1, height: 1, background: "var(--hairline)" }} />
           </div>
 
           <label style={{ display: "block", marginBottom: 14 }}>
-            <span style={fieldLabel}>Email</span>
+            <span style={fieldLabel}>{t("auth.common.emailLabel")}</span>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@somewhere.com"
+              placeholder={t("auth.common.emailPlaceholder")}
               required
               style={{ ...fieldInput, borderColor: error ? "var(--rust)" : "var(--hairline-2)" }}
             />
@@ -238,10 +243,10 @@ export function LoginScreen({
 
           <label style={{ display: "block", marginBottom: 8 }}>
             <span style={{ ...fieldLabel, display: "flex", justifyContent: "space-between" }}>
-              <span>Password</span>
+              <span>{t("auth.common.passwordLabel")}</span>
               <button
                 type="button"
-                onClick={() => toast("Password reset coming soon.")}
+                onClick={() => toast(t("auth.login.forgotSoon"))}
                 style={{
                   color: "var(--clay-deep)",
                   background: "transparent",
@@ -250,21 +255,19 @@ export function LoginScreen({
                   cursor: "pointer",
                 }}
               >
-                Forgot?
+                {t("auth.login.forgot")}
               </button>
             </span>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder={t("auth.common.passwordPlaceholderShort")}
               required
               style={{ ...fieldInput, borderColor: error ? "var(--rust)" : "var(--hairline-2)" }}
             />
             {error && (
-              <p style={{ marginTop: 6, fontSize: 12, color: "var(--rust)" }}>
-                Try that combination again, or reset your password.
-              </p>
+              <p style={{ marginTop: 6, fontSize: 12, color: "var(--rust)" }}>{t("auth.login.credentialsError")}</p>
             )}
           </label>
 
@@ -292,11 +295,11 @@ export function LoginScreen({
           >
             {submitting ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Opening…
+                <Loader2 className="h-4 w-4 animate-spin" /> {t("auth.login.opening")}
               </>
             ) : (
               <>
-                Sign in <ArrowRight size={14} />
+                {t("auth.login.submit")} <ArrowRight size={14} />
               </>
             )}
           </button>
@@ -310,7 +313,7 @@ export function LoginScreen({
               textAlign: "center",
             }}
           >
-            New here?{" "}
+            {t("auth.login.newHere")}{" "}
             <button
               type="button"
               onClick={onSwitchToRegister}
@@ -323,7 +326,7 @@ export function LoginScreen({
                 cursor: "pointer",
               }}
             >
-              Begin a year →
+              {t("auth.login.beginAYear")}
             </button>
           </p>
         </form>
@@ -340,6 +343,7 @@ export function RegisterScreen({
   onSuccess?: () => void;
 }) {
   const { register } = useGoals();
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -349,11 +353,11 @@ export function RegisterScreen({
 
   const validate = () => {
     const next: typeof errors = {};
-    if (!name.trim()) next.name = "What should we call you?";
-    if (!email.trim()) next.email = "Email, please.";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) next.email = "That email doesn't look right.";
-    if (!password) next.password = "Password, please.";
-    else if (password.length < 12) next.password = "12 characters or more.";
+    if (!name.trim()) next.name = t("auth.register.errorName");
+    if (!email.trim()) next.email = t("auth.register.errorEmailMissing");
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) next.email = t("auth.register.errorEmailFormat");
+    if (!password) next.password = t("auth.register.errorPasswordMissing");
+    else if (password.length < 12) next.password = t("auth.register.errorPasswordShort");
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -362,20 +366,20 @@ export function RegisterScreen({
     e.preventDefault();
     if (!validate()) return;
     if (!agreed) {
-      toast.error("Please tick the agreement first.");
+      toast.error(t("auth.register.agreementNudge"));
       return;
     }
     setSubmitting(true);
     try {
       const ok = await register(name.trim(), email.trim().toLowerCase(), password);
       if (ok) {
-        toast.success(`Welcome, ${name.split(" ")[0]}. Your year begins.`);
+        toast.success(t("auth.register.welcomeNamed", { name: name.split(" ")[0] }));
         onSuccess?.();
       } else {
-        toast.error("That email may already be in use.");
+        toast.error(t("auth.register.emailTaken"));
       }
     } catch {
-      toast.error("Something went wrong. Try again in a moment.");
+      toast.error(t("auth.register.genericError"));
     } finally {
       setSubmitting(false);
     }
@@ -383,9 +387,9 @@ export function RegisterScreen({
 
   const passwordStrength = (() => {
     if (!password) return null;
-    if (password.length < 12) return { label: "Short", color: "var(--rust)" };
-    if (password.length < 16) return { label: "Good", color: "var(--amber)" };
-    return { label: "Strong", color: "var(--moss)" };
+    if (password.length < 12) return { label: t("auth.register.strengthShort"), color: "var(--rust)" };
+    if (password.length < 16) return { label: t("auth.register.strengthGood"), color: "var(--amber)" };
+    return { label: t("auth.register.strengthStrong"), color: "var(--moss)" };
   })();
 
   return (
@@ -405,7 +409,7 @@ export function RegisterScreen({
               marginBottom: 12,
             }}
           >
-            Begin a year
+            {t("auth.register.kicker")}
           </div>
           <h2
             style={{
@@ -416,7 +420,7 @@ export function RegisterScreen({
               color: "var(--ink)",
             }}
           >
-            Make a <span className="brand-em">thinking surface.</span>
+            {t("auth.register.heroPre")} <span className="brand-em">{t("auth.register.heroEm")}</span>
           </h2>
           <p
             style={{
@@ -428,27 +432,27 @@ export function RegisterScreen({
               lineHeight: 1.5,
             }}
           >
-            A few quiet details and you&apos;re in.
+            {t("auth.register.heroBody")}
           </p>
 
           <label style={{ display: "block", marginBottom: 14 }}>
-            <span style={fieldLabel}>What should we call you?</span>
+            <span style={fieldLabel}>{t("auth.register.nameLabel")}</span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Your first name is enough"
+              placeholder={t("auth.register.namePlaceholder")}
               style={{ ...fieldInput, borderColor: errors.name ? "var(--rust)" : "var(--hairline-2)" }}
             />
             {errors.name && <p style={fieldError}>{errors.name}</p>}
           </label>
 
           <label style={{ display: "block", marginBottom: 14 }}>
-            <span style={fieldLabel}>Email</span>
+            <span style={fieldLabel}>{t("auth.common.emailLabel")}</span>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@somewhere.com"
+              placeholder={t("auth.common.emailPlaceholder")}
               style={{ ...fieldInput, borderColor: errors.email ? "var(--rust)" : "var(--hairline-2)" }}
             />
             {errors.email && <p style={fieldError}>{errors.email}</p>}
@@ -456,7 +460,7 @@ export function RegisterScreen({
 
           <label style={{ display: "block", marginBottom: 24 }}>
             <span style={{ ...fieldLabel, display: "flex", justifyContent: "space-between" }}>
-              <span>A password (12+ characters)</span>
+              <span>{t("auth.register.passwordLabel")}</span>
               {passwordStrength && (
                 <span style={{ color: passwordStrength.color, fontSize: 11 }}>{passwordStrength.label}</span>
               )}
@@ -465,7 +469,7 @@ export function RegisterScreen({
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••••••"
+              placeholder={t("auth.common.passwordPlaceholderLong")}
               style={{ ...fieldInput, borderColor: errors.password ? "var(--rust)" : "var(--hairline-2)" }}
             />
             {errors.password && <p style={fieldError}>{errors.password}</p>}
@@ -502,9 +506,7 @@ export function RegisterScreen({
             >
               {agreed && <Check size={12} color="var(--paper)" />}
             </button>
-            <span>
-              I understand that anansi is a private space — not a backup of my mind, just a thinking surface I tend to.
-            </span>
+            <span>{t("auth.register.agreement")}</span>
           </label>
 
           <button
@@ -529,11 +531,11 @@ export function RegisterScreen({
           >
             {submitting ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Beginning…
+                <Loader2 className="h-4 w-4 animate-spin" /> {t("auth.register.beginning")}
               </>
             ) : (
               <>
-                Begin your year <ArrowRight size={14} />
+                {t("auth.register.submit")} <ArrowRight size={14} />
               </>
             )}
           </button>
@@ -547,7 +549,7 @@ export function RegisterScreen({
               textAlign: "center",
             }}
           >
-            Already started?{" "}
+            {t("auth.register.alreadyStarted")}{" "}
             <button
               type="button"
               onClick={onSwitchToLogin}
@@ -560,7 +562,7 @@ export function RegisterScreen({
                 cursor: "pointer",
               }}
             >
-              Log in →
+              {t("auth.register.logIn")}
             </button>
           </p>
         </form>
@@ -602,8 +604,7 @@ export function RegisterScreen({
               color: "var(--on-inverse)",
             }}
           >
-            I used the People section to write down what I needed from my brother for ten years. We had the conversation
-            a month later. He cried. I didn&apos;t know I knew it that clearly until it was on the page.
+            {t("auth.register.testimonialBody")}
           </p>
           <div
             style={{
@@ -619,8 +620,8 @@ export function RegisterScreen({
               borderTop: "1px solid var(--hairline-2)",
             }}
           >
-            <span>Engineer, 41</span>
-            <span>1 year in</span>
+            <span>{t("auth.register.testimonialWho")}</span>
+            <span>{t("auth.register.testimonialDuration")}</span>
           </div>
         </div>
         <div
@@ -634,7 +635,7 @@ export function RegisterScreen({
             color: "var(--ink-3)",
           }}
         >
-          Ananse Ntontan · Adinkra · Ghana
+          {t("auth.register.credit")}
         </div>
       </div>
     </div>

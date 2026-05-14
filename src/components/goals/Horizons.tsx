@@ -16,6 +16,7 @@ import {
 import Image from "next/image";
 import { Check, Clock, Inbox, Square } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { useGoals } from "~/contexts/GoalsContext";
 import { api } from "~/trpc/react";
 import { isEmojiUrl } from "~/lib/emoji-utils";
@@ -63,6 +64,7 @@ function TaskCard({
   onClick?: () => void;
   isDragging?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       onClick={onClick}
@@ -79,7 +81,7 @@ function TaskCard({
         }}
         onPointerDown={(e) => e.stopPropagation()}
         className="mt-0.5 shrink-0 text-[var(--ink-2)] hover:text-[var(--ink)]"
-        aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
+        aria-label={task.completed ? t("horizons.markIncomplete") : t("horizons.markComplete")}
       >
         {task.completed ? <Check className="h-4 w-4 text-[var(--moss)]" /> : <Square className="h-4 w-4" />}
       </button>
@@ -115,7 +117,7 @@ function TaskCard({
           )}
           <span
             className={`h-1.5 w-1.5 shrink-0 rounded-full ${difficultyDot(task.difficulty)}`}
-            title={`Difficulty ${task.difficulty}`}
+            title={t("horizons.difficultyTooltip", { level: task.difficulty })}
           />
         </div>
       </div>
@@ -172,6 +174,7 @@ function DroppableColumn({
   onCardClick: (t: FlatTask) => void;
   onToggleComplete: (t: FlatTask) => void;
 }) {
+  const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: columnId });
   const Icon = columnId === "backlog" ? Inbox : Clock;
   return (
@@ -194,15 +197,15 @@ function DroppableColumn({
       <div className="flex flex-1 flex-col gap-2 p-3">
         {tasks.length === 0 ? (
           <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-[var(--hairline)] text-xs text-[var(--ink-4)]">
-            Drop here
+            {t("horizons.dropHere")}
           </div>
         ) : (
-          tasks.map((t) => (
+          tasks.map((task) => (
             <DraggableCard
-              key={t.id}
-              task={t}
-              onClick={() => onCardClick(t)}
-              onToggleComplete={() => onToggleComplete(t)}
+              key={task.id}
+              task={task}
+              onClick={() => onCardClick(task)}
+              onToggleComplete={() => onToggleComplete(task)}
             />
           ))
         )}
@@ -212,6 +215,7 @@ function DroppableColumn({
 }
 
 export default function Horizons() {
+  const { t } = useTranslation();
   const { goals, updateTask } = useGoals();
   const utils = api.useUtils();
 
@@ -227,7 +231,7 @@ export default function Horizons() {
           ...old,
           goals: old.goals.map((g) => ({
             ...g,
-            tasks: g.tasks.map((t) => (t.id === vars.id ? { ...t, scheduledAt: vars.scheduledAt } : t)),
+            tasks: g.tasks.map((task) => (task.id === vars.id ? { ...task, scheduledAt: vars.scheduledAt } : task)),
           })),
         };
       });
@@ -235,7 +239,7 @@ export default function Horizons() {
     },
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) utils.goals.data.getAll.setData(undefined, ctx.prev);
-      toast.error("Failed to move task");
+      toast.error(t("horizons.moveFailed"));
     },
     onSettled: () => {
       void utils.goals.data.getAll.invalidate();
@@ -265,18 +269,18 @@ export default function Horizons() {
     };
     const flatById: Record<string, FlatTask> = {};
     for (const g of goals) {
-      for (const t of g.tasks) {
+      for (const task of g.tasks) {
         const flat: FlatTask = {
-          id: t.id,
-          title: t.title,
-          difficulty: t.difficulty,
-          completed: t.completed,
-          scheduledAt: t.scheduledAt ? new Date(t.scheduledAt) : null,
+          id: task.id,
+          title: task.title,
+          difficulty: task.difficulty,
+          completed: task.completed,
+          scheduledAt: task.scheduledAt ? new Date(task.scheduledAt) : null,
           goalId: g.id,
           goalTitle: g.title,
           goalEmoji: g.emoji,
         };
-        flatById[t.id] = flat;
+        flatById[task.id] = flat;
         byColumn[bucketColumnId(flat, now)].push(flat);
       }
     }
@@ -327,13 +331,13 @@ export default function Horizons() {
     setScheduledMutation.mutate({ id: taskId, scheduledAt: nextScheduled });
   };
 
-  const handleToggleComplete = (t: FlatTask) => {
-    void updateTask(t.goalId, t.id, { completed: !t.completed });
+  const handleToggleComplete = (task: FlatTask) => {
+    void updateTask(task.goalId, task.id, { completed: !task.completed });
   };
 
   // Header counts — total open + scheduled across all buckets.
-  const openCount = goals.reduce((sum, g) => sum + g.tasks.filter((t) => !t.completed).length, 0);
-  const scheduledCount = goals.reduce((sum, g) => sum + g.tasks.filter((t) => t.scheduledAt).length, 0);
+  const openCount = goals.reduce((sum, g) => sum + g.tasks.filter((task) => !task.completed).length, 0);
+  const scheduledCount = goals.reduce((sum, g) => sum + g.tasks.filter((task) => task.scheduledAt).length, 0);
 
   // Column rendering — we always show the four primary columns. "Past" and
   // "Later" appear only when populated, as small flagged sections at the top
@@ -355,7 +359,7 @@ export default function Horizons() {
             marginBottom: 10,
           }}
         >
-          Goals · horizons
+          {t("horizons.eyebrow")}
         </div>
         <h1
           style={{
@@ -366,7 +370,8 @@ export default function Horizons() {
             color: "var(--ink)",
           }}
         >
-          Where things <span className="brand-em">live in time.</span>
+          {t("horizons.titlePre")}
+          <span className="brand-em">{t("horizons.titleEm")}</span>
         </h1>
         <p
           className="mt-3 max-w-2xl"
@@ -378,8 +383,7 @@ export default function Horizons() {
             lineHeight: 1.4,
           }}
         >
-          Tasks bucket themselves by how close their deadline is. As the deadline approaches, they walk toward you —
-          Year → Quarter → Month → Now.
+          {t("horizons.subtitle")}
         </p>
         {goals.length > 0 && (
           <div
@@ -387,11 +391,11 @@ export default function Horizons() {
             style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink-3)" }}
           >
             <span>
-              <span style={{ color: "var(--ink)" }}>{openCount}</span> open
+              <span style={{ color: "var(--ink)" }}>{openCount}</span> {t("horizons.openCount")}
             </span>
             <span>·</span>
             <span>
-              <span style={{ color: "var(--ink)" }}>{scheduledCount}</span> scheduled
+              <span style={{ color: "var(--ink)" }}>{scheduledCount}</span> {t("horizons.scheduledCount")}
             </span>
           </div>
         )}
@@ -402,19 +406,19 @@ export default function Horizons() {
           {/* Past — overdue, only when populated. Read-only placement; the
               user must reschedule via the card or open the goal to fix it. */}
           {byColumn.past.length > 0 && (
-            <div className="px-6 pb-4 md:px-8">
+            <div className="px-6 pb-4 pt-6 md:px-8">
               <div className="rounded-xl border border-[var(--amber)] bg-[var(--amber-soft)] p-3">
                 <h3 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-[var(--amber)]">
                   <Clock className="h-3 w-3" />
-                  Past due ({byColumn.past.filter((t) => !t.completed).length})
+                  {t("horizons.pastDue", { count: byColumn.past.filter((task) => !task.completed).length })}
                 </h3>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {byColumn.past.map((t) => (
+                  {byColumn.past.map((task) => (
                     <DraggableCard
-                      key={t.id}
-                      task={t}
-                      onClick={() => setOpenGoalId(t.goalId)}
-                      onToggleComplete={() => handleToggleComplete(t)}
+                      key={task.id}
+                      task={task}
+                      onClick={() => setOpenGoalId(task.goalId)}
+                      onToggleComplete={() => handleToggleComplete(task)}
                     />
                   ))}
                 </div>
@@ -422,41 +426,41 @@ export default function Horizons() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 px-6 pb-8 sm:grid-cols-2 md:px-8 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 px-6 pb-8 pt-6 sm:grid-cols-2 md:px-8 xl:grid-cols-4">
             <DroppableColumn
               columnId="backlog"
-              title="Backlog"
-              hint="No date yet. Drag right to commit."
-              count={byColumn.backlog.filter((t) => !t.completed).length}
+              title={t("horizons.backlog")}
+              hint={t("horizons.backlogHint")}
+              count={byColumn.backlog.filter((task) => !task.completed).length}
               tasks={byColumn.backlog}
-              onCardClick={(t) => setOpenGoalId(t.goalId)}
+              onCardClick={(task) => setOpenGoalId(task.goalId)}
               onToggleComplete={handleToggleComplete}
             />
             <DroppableColumn
               columnId="month"
               title={monthLabel}
-              hint="Doing this month."
-              count={byColumn.month.filter((t) => !t.completed).length}
+              hint={t("horizons.monthHint")}
+              count={byColumn.month.filter((task) => !task.completed).length}
               tasks={byColumn.month}
-              onCardClick={(t) => setOpenGoalId(t.goalId)}
+              onCardClick={(task) => setOpenGoalId(task.goalId)}
               onToggleComplete={handleToggleComplete}
             />
             <DroppableColumn
               columnId="quarter"
               title={quarterLabel}
-              hint="Lined up this quarter."
-              count={byColumn.quarter.filter((t) => !t.completed).length}
+              hint={t("horizons.quarterHint")}
+              count={byColumn.quarter.filter((task) => !task.completed).length}
               tasks={byColumn.quarter}
-              onCardClick={(t) => setOpenGoalId(t.goalId)}
+              onCardClick={(task) => setOpenGoalId(task.goalId)}
               onToggleComplete={handleToggleComplete}
             />
             <DroppableColumn
               columnId="year"
               title={yearLabel}
-              hint="Sometime this year."
-              count={byColumn.year.filter((t) => !t.completed).length}
+              hint={t("horizons.yearHint")}
+              count={byColumn.year.filter((task) => !task.completed).length}
               tasks={byColumn.year}
-              onCardClick={(t) => setOpenGoalId(t.goalId)}
+              onCardClick={(task) => setOpenGoalId(task.goalId)}
               onToggleComplete={handleToggleComplete}
             />
           </div>
@@ -468,15 +472,15 @@ export default function Horizons() {
               <div className="rounded-xl border border-[var(--hairline)] bg-[var(--vellum)] p-3">
                 <h3 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-[var(--ink-3)]">
                   <Clock className="h-3 w-3" />
-                  Later ({byColumn.later.filter((t) => !t.completed).length})
+                  {t("horizons.later", { count: byColumn.later.filter((task) => !task.completed).length })}
                 </h3>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {byColumn.later.map((t) => (
+                  {byColumn.later.map((task) => (
                     <DraggableCard
-                      key={t.id}
-                      task={t}
-                      onClick={() => setOpenGoalId(t.goalId)}
-                      onToggleComplete={() => handleToggleComplete(t)}
+                      key={task.id}
+                      task={task}
+                      onClick={() => setOpenGoalId(task.goalId)}
+                      onToggleComplete={() => handleToggleComplete(task)}
                     />
                   ))}
                 </div>

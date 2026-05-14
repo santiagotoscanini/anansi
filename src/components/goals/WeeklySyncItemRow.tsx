@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import NextImage from "next/image";
 import { FileText, Image as ImageIcon, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { RouterOutputs } from "~/trpc/react";
 
 type SyncItem = RouterOutputs["goals"]["weeklySync"]["getWeeklyRetrospectiveData"]["unscopedItems"][number];
@@ -37,6 +38,7 @@ export default function WeeklySyncItemRow({
   onDeleteFileClick,
   onRemoveFromSync,
 }: Props) {
+  const { t } = useTranslation();
   const imageFiles = item.attachments.filter((a) => a.fileType === "image");
   const hasStoredText = !!item.textContent && item.textContent.trim().length > 0;
   const hasStoredImages = imageFiles.length > 0;
@@ -96,10 +98,10 @@ export default function WeeklySyncItemRow({
             {saveStatus === "saving" && (
               <>
                 <div className="h-2 w-2 animate-spin rounded-full border border-[var(--hairline-2)] border-t-white" />
-                <span className="opacity-60">Saving...</span>
+                <span className="opacity-60">{t("weeklySyncRow.savingStatus")}</span>
               </>
             )}
-            {saveStatus === "saved" && <span className="text-[var(--moss)]">✓ Saved</span>}
+            {saveStatus === "saved" && <span className="text-[var(--moss)]">{t("weeklySyncRow.savedStatus")}</span>}
           </div>
         )}
       </div>
@@ -111,7 +113,7 @@ export default function WeeklySyncItemRow({
             className="flex items-center gap-2 rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm transition-all hover:bg-[var(--vellum)]"
           >
             <FileText className="h-4 w-4" />
-            Add Text
+            {t("weeklySyncRow.addText")}
           </button>
         )}
 
@@ -120,7 +122,7 @@ export default function WeeklySyncItemRow({
           className="flex items-center gap-2 rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm transition-all hover:bg-[var(--vellum)]"
         >
           <ImageIcon className="h-4 w-4" />
-          Add Images
+          {t("weeklySyncRow.addImages")}
         </button>
 
         <input
@@ -139,10 +141,10 @@ export default function WeeklySyncItemRow({
         <button
           onClick={() => void onRemoveFromSync()}
           className="flex items-center gap-2 rounded-lg border border-[var(--hairline)] px-3 py-2 text-sm text-[var(--ink-2)] transition-all hover:border-[var(--rust)] hover:bg-[var(--rust-soft)] hover:text-[var(--rust)]"
-          title="Remove from this sync — keeps the item in your library"
+          title={t("weeklySyncRow.removeFromSyncTitle")}
         >
           <Trash2 className="h-4 w-4" />
-          Remove from sync
+          {t("weeklySyncRow.removeFromSync")}
         </button>
       </div>
 
@@ -152,7 +154,7 @@ export default function WeeklySyncItemRow({
           <textarea
             value={draft}
             onChange={(e) => handleTextChange(e.target.value)}
-            placeholder="Add your notes for this tracking item..."
+            placeholder={t("weeklySyncRow.notesPlaceholder")}
             rows={4}
             className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition-all focus:border-[var(--hairline-2)]"
           />
@@ -161,7 +163,7 @@ export default function WeeklySyncItemRow({
               onClick={stopEditing}
               className="rounded-lg border border-[var(--hairline-2)] px-3 py-1 text-sm transition-all hover:bg-[var(--vellum)]"
             >
-              Done
+              {t("weeklySyncRow.done")}
             </button>
           </div>
         </div>
@@ -169,19 +171,19 @@ export default function WeeklySyncItemRow({
 
       {(hasStoredText || hasStoredImages) && (
         <div className="mt-3 space-y-3">
-          <h5 className="text-sm font-medium opacity-70">Content</h5>
+          <h5 className="text-sm font-medium opacity-70">{t("weeklySyncRow.content")}</h5>
 
           {hasStoredText && (
             <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-3">
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4 opacity-60" />
-                  <span className="text-sm opacity-70">Saved Notes</span>
+                  <span className="text-sm opacity-70">{t("weeklySyncRow.savedNotes")}</span>
                 </div>
                 <button
                   onClick={() => void onClearText()}
                   className="rounded p-1 text-[var(--rust)] opacity-60 transition-all hover:bg-[var(--rust-soft)] hover:opacity-100"
-                  title="Clear notes"
+                  title={t("weeklySyncRow.clearNotes")}
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
@@ -191,7 +193,7 @@ export default function WeeklySyncItemRow({
                   <textarea
                     value={draft}
                     onChange={(e) => handleTextChange(e.target.value)}
-                    placeholder="Add your notes for this tracking item..."
+                    placeholder={t("weeklySyncRow.notesPlaceholder")}
                     rows={4}
                     className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition-all focus:border-[var(--hairline-2)]"
                     autoFocus
@@ -201,7 +203,7 @@ export default function WeeklySyncItemRow({
                       onClick={stopEditing}
                       className="rounded-lg border border-[var(--hairline-2)] px-3 py-1 text-sm transition-all hover:bg-[var(--vellum)]"
                     >
-                      Done
+                      {t("weeklySyncRow.done")}
                     </button>
                   </div>
                 </div>
@@ -209,7 +211,7 @@ export default function WeeklySyncItemRow({
                 <div
                   onClick={() => startEditing(item.textContent ?? "")}
                   className="cursor-pointer rounded p-2 text-sm opacity-80 transition-all hover:bg-[var(--vellum)] hover:opacity-100"
-                  title="Click to edit"
+                  title={t("weeklySyncRow.clickToEdit")}
                 >
                   {item.textContent}
                 </div>
@@ -221,7 +223,9 @@ export default function WeeklySyncItemRow({
             <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-3">
               <div className="mb-2 flex items-center gap-2">
                 <ImageIcon className="h-4 w-4 opacity-60" />
-                <span className="text-sm opacity-70">Saved Images ({imageFiles.length})</span>
+                <span className="text-sm opacity-70">
+                  {t("weeklySyncRow.savedImages", { count: imageFiles.length })}
+                </span>
               </div>
               <div className="grid grid-cols-4 gap-2">
                 {imageFiles.slice(0, 4).map((file, index) => {
@@ -230,7 +234,7 @@ export default function WeeklySyncItemRow({
                     <div key={file.id} className="group relative h-16 w-full">
                       <NextImage
                         src={file.url}
-                        alt={`Saved ${index + 1}`}
+                        alt={t("weeklySyncRow.savedAlt", { index: index + 1 })}
                         fill
                         sizes="(max-width: 768px) 25vw, 128px"
                         unoptimized
@@ -241,7 +245,7 @@ export default function WeeklySyncItemRow({
                         <button
                           onClick={() => onDeleteFileClick(file.id, file.fileName)}
                           className="absolute right-1 top-1 block rounded-full bg-[var(--rust)] p-1 text-[var(--ink)] opacity-100 transition-all hover:bg-[var(--rust)] md:hidden md:opacity-0 md:group-hover:block md:group-hover:opacity-100"
-                          title={`Delete ${file.fileName}`}
+                          title={t("weeklySyncRow.deleteTitle", { name: file.fileName })}
                         >
                           <Trash2 className="h-3 w-3" />
                         </button>

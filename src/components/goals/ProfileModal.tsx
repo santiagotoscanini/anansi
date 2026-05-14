@@ -1,11 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Camera, Download, Loader2, Sun, Moon, Monitor, Upload, X } from "lucide-react";
+import { Camera, Download, Loader2, Sun, Moon, Monitor, Upload, X, Languages } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { api } from "~/trpc/react";
 import Avatar from "./Avatar";
 import { useTheme, type ThemePref } from "~/lib/theme";
+import { useLocale } from "~/i18n/useLocale";
 
 interface ProfileModalProps {
   onClose: () => void;
@@ -19,6 +21,7 @@ const inputClass =
 const sectionClass = "border-t border-[var(--hairline)] px-6 py-5";
 
 export default function ProfileModal({ onClose, onImportBackup }: ProfileModalProps) {
+  const { t } = useTranslation();
   const utils = api.useUtils();
   const meQuery = api.auth.me.useQuery();
   const updateProfile = api.auth.updateProfile.useMutation();
@@ -29,6 +32,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
   const me = meQuery.data;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { pref: themePref, setPref: setThemePref } = useTheme();
+  const { locale, setLocale, supported: supportedLocales } = useLocale();
 
   // Working copies — initialized once when the user record arrives so unsaved
   // edits aren't clobbered by background refetches.
@@ -61,16 +65,16 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
     try {
       await updateProfile.mutateAsync(patch);
       refreshMe();
-      toast.success("Profile updated");
+      toast.success(t("profile.profileUpdated"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to update profile");
+      toast.error(e instanceof Error ? e.message : t("profile.profileUpdateFailed"));
     }
   };
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword) return;
     if (newPassword !== confirmPassword) {
-      toast.error("New passwords don't match");
+      toast.error(t("profile.passwordsDontMatch"));
       return;
     }
     try {
@@ -78,9 +82,9 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      toast.success("Password updated");
+      toast.success(t("profile.passwordUpdated"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to change password");
+      toast.error(e instanceof Error ? e.message : t("profile.passwordChangeFailed"));
     }
   };
 
@@ -88,11 +92,11 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
 
   const handleAvatarFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
-      toast.error("Please pick an image");
+      toast.error(t("profile.avatarPickImage"));
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image too large (max 5MB)");
+      toast.error(t("profile.avatarTooLarge"));
       return;
     }
     try {
@@ -104,9 +108,9 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
       });
       await uploadAvatar.mutateAsync({ fileName: file.name, data });
       refreshMe();
-      toast.success("Avatar updated");
+      toast.success(t("profile.avatarUpdated"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Avatar upload failed");
+      toast.error(e instanceof Error ? e.message : t("profile.avatarUploadFailed"));
     }
   };
 
@@ -115,16 +119,16 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
     try {
       await removeAvatar.mutateAsync();
       refreshMe();
-      toast.success("Avatar removed");
+      toast.success(t("profile.avatarRemoved"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to remove avatar");
+      toast.error(e instanceof Error ? e.message : t("profile.avatarRemoveFailed"));
     }
   };
 
   const handleExport = async () => {
     if (isExporting) return;
     setIsExporting(true);
-    toast.loading("Preparing backup…", { id: "backup-export" });
+    toast.loading(t("profile.preparingBackup"), { id: "backup-export" });
     try {
       const backup = await utils.goals.backup.export.fetch();
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
@@ -136,9 +140,9 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success(`Backup downloaded (${backup.files.length} files)`, { id: "backup-export" });
+      toast.success(t("profile.backupDownloaded", { count: backup.files.length }), { id: "backup-export" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Export failed", { id: "backup-export" });
+      toast.error(err instanceof Error ? err.message : t("profile.exportFailed"), { id: "backup-export" });
     } finally {
       setIsExporting(false);
     }
@@ -154,11 +158,11 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-5">
-          <h2 className="text-lg font-light">Profile</h2>
+          <h2 className="text-lg font-light">{t("profile.title")}</h2>
           <button
             onClick={onClose}
             className="rounded p-1 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             <X className="h-5 w-5" />
           </button>
@@ -175,7 +179,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
                 disabled={uploadAvatar.isPending}
                 className="inline-flex items-center gap-1.5 rounded-md border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-1.5 text-xs text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:opacity-50"
               >
-                <Camera className="h-3.5 w-3.5" /> Change picture
+                <Camera className="h-3.5 w-3.5" /> {t("profile.changePicture")}
               </button>
               {me?.avatarUrl && (
                 <button
@@ -184,10 +188,10 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
                   disabled={removeAvatar.isPending}
                   className="ml-2 rounded-md px-3 py-1.5 text-xs text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:opacity-50"
                 >
-                  Remove
+                  {t("profile.removePicture")}
                 </button>
               )}
-              <p className="mt-1.5 text-[11px] text-[var(--ink-3)]">PNG, JPG, GIF, or WebP. Up to 5MB.</p>
+              <p className="mt-1.5 text-[11px] text-[var(--ink-3)]">{t("profile.pictureHelp")}</p>
             </div>
             <input
               ref={fileInputRef}
@@ -205,37 +209,37 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
 
         {/* Display name + email */}
         <div className={sectionClass}>
-          <label className={fieldLabel}>Display name</label>
+          <label className={fieldLabel}>{t("profile.displayName")}</label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             className={inputClass}
-            placeholder="Your name"
+            placeholder={t("profile.displayNamePlaceholder")}
           />
-          <label className={`${fieldLabel} mt-4`}>Email</label>
+          <label className={`${fieldLabel} mt-4`}>{t("profile.email")}</label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={inputClass}
-            placeholder="you@example.com"
+            placeholder={t("profile.emailPlaceholder")}
           />
           <div className="mt-4 flex justify-end">
             <button
               type="button"
               onClick={() => void handleSaveProfile()}
               disabled={!dirty || updateProfile.isPending}
-              className="rounded-lg bg-[var(--paper)] px-4 py-2 text-sm font-medium text-black transition-all hover:bg-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg bg-[var(--surface-inverse)] px-4 py-2 text-sm font-medium text-[var(--on-inverse)] transition-all hover:bg-[var(--surface-inverse)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {updateProfile.isPending ? "Saving…" : "Save changes"}
+              {updateProfile.isPending ? t("common.saving") : t("common.saveChanges")}
             </button>
           </div>
         </div>
 
         {/* Password */}
         <div className={sectionClass}>
-          <label className={fieldLabel}>Current password</label>
+          <label className={fieldLabel}>{t("profile.currentPassword")}</label>
           <input
             type="password"
             value={currentPassword}
@@ -243,16 +247,16 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
             className={inputClass}
             autoComplete="current-password"
           />
-          <label className={`${fieldLabel} mt-4`}>New password</label>
+          <label className={`${fieldLabel} mt-4`}>{t("profile.newPassword")}</label>
           <input
             type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             className={inputClass}
             autoComplete="new-password"
-            placeholder="At least 12 characters"
+            placeholder={t("profile.newPasswordPlaceholder")}
           />
-          <label className={`${fieldLabel} mt-4`}>Confirm new password</label>
+          <label className={`${fieldLabel} mt-4`}>{t("profile.confirmNewPassword")}</label>
           <input
             type="password"
             value={confirmPassword}
@@ -267,31 +271,32 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
               disabled={!currentPassword || !newPassword || changePassword.isPending}
               className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {changePassword.isPending ? "Updating…" : "Change password"}
+              {changePassword.isPending ? t("profile.changingPassword") : t("profile.changePassword")}
             </button>
           </div>
         </div>
 
-        {/* Theme — Light / Dark / Auto. Persisted on the user profile;
-            "Auto" follows the OS prefers-color-scheme query in real time. */}
+        {/* Theme — Light / Dark / Auto. */}
         <div className={sectionClass}>
-          <label className={fieldLabel}>Theme</label>
-          <p className="mb-3 text-xs text-[var(--ink-3)]">
-            Light is warm cream. Dark is deep coffee — same warmth, lower lumens. Auto follows your operating system.
-          </p>
+          <label className={fieldLabel}>{t("profile.theme")}</label>
+          <p className="mb-3 text-xs text-[var(--ink-3)]">{t("profile.themeHelp")}</p>
           <div
             className="inline-flex gap-1 rounded-full p-1"
             role="radiogroup"
-            aria-label="Theme"
+            aria-label={t("profile.theme")}
             style={{ background: "var(--paper-deep)", border: "1px solid var(--hairline)" }}
           >
             {(
               [
-                { value: "light", label: "Light", icon: Sun },
-                { value: "dark", label: "Dark", icon: Moon },
-                { value: "system", label: "Auto", icon: Monitor },
-              ] as { value: ThemePref; label: string; icon: typeof Sun }[]
-            ).map(({ value, label, icon: Icon }) => {
+                { value: "light", labelKey: "profile.themeLight" as const, icon: Sun },
+                { value: "dark", labelKey: "profile.themeDark" as const, icon: Moon },
+                { value: "system", labelKey: "profile.themeAuto" as const, icon: Monitor },
+              ] as {
+                value: ThemePref;
+                labelKey: "profile.themeLight" | "profile.themeDark" | "profile.themeAuto";
+                icon: typeof Sun;
+              }[]
+            ).map(({ value, labelKey, icon: Icon }) => {
               const active = themePref === value;
               return (
                 <button
@@ -309,6 +314,44 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
                   }}
                 >
                   <Icon className="h-3.5 w-3.5" />
+                  {t(labelKey)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Language — English / Español. Browser-stored per device under
+            `anansi:locale`; setLocale triggers i18next.changeLanguage and the
+            detector persists. Adding a new language = add a JSON file in
+            src/i18n/locales/ and a code to SUPPORTED_LOCALES in config.ts. */}
+        <div className={sectionClass}>
+          <label className={fieldLabel}>{t("profile.language")}</label>
+          <p className="mb-3 text-xs text-[var(--ink-3)]">{t("profile.languageHelp")}</p>
+          <div
+            className="inline-flex gap-1 rounded-full p-1"
+            role="radiogroup"
+            aria-label={t("profile.language")}
+            style={{ background: "var(--paper-deep)", border: "1px solid var(--hairline)" }}
+          >
+            {supportedLocales.map(({ code, label }) => {
+              const active = locale === code;
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setLocale(code)}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs transition-all"
+                  style={{
+                    background: active ? "var(--canvas)" : "transparent",
+                    color: active ? "var(--ink)" : "var(--ink-2)",
+                    fontWeight: active ? 500 : 400,
+                    boxShadow: active ? "var(--shadow-sm)" : "none",
+                  }}
+                >
+                  <Languages className="h-3.5 w-3.5" />
                   {label}
                 </button>
               );
@@ -318,11 +361,8 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
 
         {/* Backups */}
         <div className={sectionClass}>
-          <label className={fieldLabel}>Backups</label>
-          <p className="mb-3 text-xs text-[var(--ink-3)]">
-            Export everything as a single JSON file (people, goals, syncs, attachments, …). Import replaces the current
-            account state — keep an export first.
-          </p>
+          <label className={fieldLabel}>{t("profile.backups")}</label>
+          <p className="mb-3 text-xs text-[var(--ink-3)]">{t("profile.backupsHelp")}</p>
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -331,7 +371,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
               className="inline-flex items-center gap-1.5 rounded-md border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-1.5 text-xs text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:opacity-50"
             >
               {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              Export backup
+              {t("profile.exportBackup")}
             </button>
             <button
               type="button"
@@ -341,7 +381,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
               }}
               className="inline-flex items-center gap-1.5 rounded-md border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-1.5 text-xs text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
             >
-              <Upload className="h-3.5 w-3.5" /> Import backup
+              <Upload className="h-3.5 w-3.5" /> {t("profile.importBackup")}
             </button>
           </div>
         </div>

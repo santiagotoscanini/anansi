@@ -28,7 +28,13 @@ export const authRouter = createTRPCRouter({
   // Authenticated profile read for the current user.
   me: protectedProcedure.query(async ({ ctx }) => {
     const [row] = await db
-      .select({ id: users.id, name: users.name, email: users.email, avatarUrl: users.avatarUrl })
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        avatarUrl: users.avatarUrl,
+        locale: users.locale,
+      })
       .from(users)
       .where(eq(users.id, ctx.user.userId))
       .limit(1);
@@ -60,7 +66,13 @@ export const authRouter = createTRPCRouter({
         .update(users)
         .set(patch)
         .where(eq(users.id, ctx.user.userId))
-        .returning({ id: users.id, name: users.name, email: users.email, avatarUrl: users.avatarUrl });
+        .returning({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          avatarUrl: users.avatarUrl,
+          locale: users.locale,
+        });
       return updated;
     }),
 
@@ -121,9 +133,35 @@ export const authRouter = createTRPCRouter({
         .update(users)
         .set({ avatarUrl, updatedAt: new Date() })
         .where(eq(users.id, ctx.user.userId))
-        .returning({ id: users.id, name: users.name, email: users.email, avatarUrl: users.avatarUrl });
+        .returning({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          avatarUrl: users.avatarUrl,
+          locale: users.locale,
+        });
       return updated;
     }),
+
+  // Persist the user's UI language. The list of supported codes is enforced
+  // here; the source of truth is src/i18n/config.ts → SUPPORTED_LOCALES. Keep
+  // the two in sync when adding a new language. Storing a free-form string
+  // (vs an enum) lets a new language ship without a DB migration — adding
+  // "fr" later is one tuple entry + one JSON file.
+  setLocale: protectedProcedure.input(z.object({ locale: z.enum(["en", "es"]) })).mutation(async ({ input, ctx }) => {
+    const [updated] = await db
+      .update(users)
+      .set({ locale: input.locale, updatedAt: new Date() })
+      .where(eq(users.id, ctx.user.userId))
+      .returning({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        avatarUrl: users.avatarUrl,
+        locale: users.locale,
+      });
+    return updated;
+  }),
 
   removeAvatar: protectedProcedure.mutation(async ({ ctx }) => {
     const userDir = path.join(UPLOADS_ROOT, ctx.user.userId);
@@ -142,7 +180,13 @@ export const authRouter = createTRPCRouter({
       .update(users)
       .set({ avatarUrl: null, updatedAt: new Date() })
       .where(eq(users.id, ctx.user.userId))
-      .returning({ id: users.id, name: users.name, email: users.email, avatarUrl: users.avatarUrl });
+      .returning({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        avatarUrl: users.avatarUrl,
+        locale: users.locale,
+      });
     return updated;
   }),
 });

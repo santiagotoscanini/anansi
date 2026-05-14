@@ -4,6 +4,7 @@ import { memo, useMemo } from "react";
 import Image from "next/image";
 import { Handle, Position } from "@xyflow/react";
 import { Target, CheckCircle, Pencil } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useGoals } from "~/contexts/GoalsContext";
 import type { Goal } from "~/lib/api/types";
 import { isEmojiUrl } from "~/lib/emoji-utils";
@@ -16,7 +17,17 @@ interface GoalNodeProps {
   selected?: boolean;
 }
 
+// Importance enum from API → translation key for the importance label shown
+// on the node header. Typed as a union so t() stays happy under module aug.
+type ImportanceLabelKey = "goalNode.importanceHigh" | "goalNode.importanceMedium" | "goalNode.importanceLow";
+const IMPORTANCE_LABEL_KEY: Record<"High" | "Medium" | "Low", ImportanceLabelKey> = {
+  High: "goalNode.importanceHigh",
+  Medium: "goalNode.importanceMedium",
+  Low: "goalNode.importanceLow",
+};
+
 const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
+  const { t } = useTranslation();
   const { values, getGoalProgress, connections } = useGoals();
   const associatedValues = values.filter((v) => data.valueIds?.includes(v.id));
 
@@ -81,7 +92,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
 
     return (
       <div className="mt-1 flex items-center gap-2">
-        <span className="w-8 text-[9px] text-[var(--ink-3)]">Diff</span>
+        <span className="w-8 text-[9px] text-[var(--ink-3)]">{t("goalNode.difficulty")}</span>
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--vellum)]">
           <div className={`h-full ${getDifficultyColor()} transition-all`} style={{ width: `${barWidth}%` }} />
         </div>
@@ -208,7 +219,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
             isEmojiUrl(data.emoji) ? (
               <Image
                 src={data.emoji}
-                alt="emoji"
+                alt={t("goalNode.emojiAlt")}
                 width={20}
                 height={20}
                 unoptimized
@@ -222,12 +233,14 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
           ) : (
             <Target className="h-5 w-5 text-[var(--ink-2)]" />
           )}
-          <span className="text-xs text-[var(--ink-2)]">Importance: {importance}</span>
+          <span className="text-xs text-[var(--ink-2)]">
+            {t("goalNode.importance", { level: t(IMPORTANCE_LABEL_KEY[importance]) })}
+          </span>
         </div>
         <button
           onClick={handleEditClick}
           className="rounded p-1 opacity-60 transition-opacity hover:bg-[var(--vellum)] hover:opacity-100"
-          title="Edit goal"
+          title={t("goalNode.editGoal")}
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
@@ -243,16 +256,19 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
           each task's scheduledAt date. Pills hide when nothing is scheduled. */}
       <div className="mb-2 flex items-center justify-between gap-2 text-xs text-[var(--ink-2)]">
         <span>
-          Tasks: {data.tasks.filter((t) => t.completed).length}/{data.tasks.length}
+          {t("goalNode.tasksCount", {
+            done: data.tasks.filter((task) => task.completed).length,
+            total: data.tasks.length,
+          })}
         </span>
         {(() => {
           const now = new Date();
           let m = 0;
           let q = 0;
           let y = 0;
-          for (const t of data.tasks) {
-            if (t.completed || !t.scheduledAt) continue;
-            const b = bucketForDate(new Date(t.scheduledAt), now);
+          for (const task of data.tasks) {
+            if (task.completed || !task.scheduledAt) continue;
+            const b = bucketForDate(new Date(task.scheduledAt), now);
             if (b === "month") m += 1;
             else if (b === "quarter") q += 1;
             else if (b === "year") y += 1;
@@ -261,7 +277,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
           return (
             <span
               className="flex shrink-0 items-center gap-1"
-              title={`Open by bucket — This month: ${m}, This quarter: ${q}, This year: ${y}`}
+              title={t("goalNode.bucketTooltip", { month: m, quarter: q, year: y })}
             >
               {m > 0 && (
                 <span className="rounded-full border border-[var(--moss)] bg-[var(--moss-soft)] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-[var(--moss)]">
@@ -290,7 +306,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
           <div className="space-y-1">
             {/* Own progress */}
             <div className="flex items-center gap-2">
-              <span className="w-8 text-[9px] text-[var(--ink-3)]">Own</span>
+              <span className="w-8 text-[9px] text-[var(--ink-3)]">{t("goalNode.own")}</span>
               <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--vellum)]">
                 <div
                   className={`h-full transition-all ${getProgressBarColor(ownCompletion)}`}
@@ -301,7 +317,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
             </div>
             {/* Dependencies progress */}
             <div className="flex items-center gap-2">
-              <span className="w-8 text-[9px] text-[var(--ink-3)]">Deps</span>
+              <span className="w-8 text-[9px] text-[var(--ink-3)]">{t("goalNode.deps")}</span>
               <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--vellum)]">
                 <div
                   className={`h-full opacity-70 transition-all ${getProgressBarColor(predecessorAverage)}`}
@@ -378,7 +394,9 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
       )}
 
       {/* Completion Percentage */}
-      <div className="mt-2 text-center text-xs font-semibold text-[var(--ink)]">{Math.round(completion)}% Complete</div>
+      <div className="mt-2 text-center text-xs font-semibold text-[var(--ink)]">
+        {t("goalNode.percentComplete", { percent: Math.round(completion) })}
+      </div>
     </div>
   );
 });

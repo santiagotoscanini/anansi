@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { X, AlertTriangle, Upload } from "lucide-react";
 import toast from "react-hot-toast";
+import { Trans, useTranslation } from "react-i18next";
 import { useGoals } from "~/contexts/GoalsContext";
 import { api } from "~/trpc/react";
 import { backupSchema, type Backup } from "~/lib/api/types";
@@ -17,6 +18,7 @@ interface ParsedBackup {
 }
 
 export default function BackupImportModal({ onClose }: BackupImportModalProps) {
+  const { t } = useTranslation();
   const { refreshData } = useGoals();
   const importMutation = api.goals.backup.import.useMutation();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -36,25 +38,30 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
       if (!result.success) {
         const first = result.error.issues[0];
         setParseError(
-          `Not a valid backup file${first ? ` (${first.path.join(".") || "root"}: ${first.message})` : ""}`,
+          first
+            ? t("backupImport.notValidWithDetail", {
+                path: first.path.join(".") || "root",
+                message: first.message,
+              })
+            : t("backupImport.notValid"),
         );
         return;
       }
       setParsed({ backup: result.data, fileName: file.name });
     } catch (err) {
-      setParseError(err instanceof Error ? err.message : "Failed to read file");
+      setParseError(err instanceof Error ? err.message : t("backupImport.readFailed"));
     }
   };
 
   const handleConfirm = async () => {
     if (!parsed) return;
-    toast.loading("Restoring backup…", { id: "backup-import" });
+    toast.loading(t("backupImport.restoringToast"), { id: "backup-import" });
     try {
       const res = await importMutation.mutateAsync({ backup: parsed.backup, confirmReplace: true });
       await refreshData();
       const msg = res.fileFailures.length
-        ? `Backup restored — ${res.fileFailures.length} file(s) failed to write`
-        : "Backup restored";
+        ? t("backupImport.restoredWithFailures", { count: res.fileFailures.length })
+        : t("backupImport.restoredOk");
       if (res.fileFailures.length) {
         toast.error(msg, { id: "backup-import", duration: 6000 });
       } else {
@@ -62,7 +69,7 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
       }
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Import failed", { id: "backup-import" });
+      toast.error(err instanceof Error ? err.message : t("backupImport.importFailed"), { id: "backup-import" });
     }
   };
 
@@ -78,9 +85,13 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
-            <h3 className="text-lg font-light">Import backup</h3>
+            <h3 className="text-lg font-light">{t("backupImport.title")}</h3>
           </div>
-          <button onClick={onClose} className="rounded-lg p-2 transition-all hover:bg-[var(--vellum)]">
+          <button
+            onClick={onClose}
+            className="rounded-lg p-2 transition-all hover:bg-[var(--vellum)]"
+            aria-label={t("common.close")}
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -102,7 +113,7 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
               onClick={() => fileInputRef.current?.click()}
               className="w-full rounded-lg border border-dashed border-[var(--hairline-2)] px-4 py-8 text-sm text-[var(--ink-2)] transition-all hover:border-[var(--hairline-2)] hover:bg-[var(--vellum)]"
             >
-              Choose backup file (.json)
+              {t("backupImport.chooseFile")}
             </button>
             {parseError && (
               <p className="mt-2 flex items-start gap-1.5 text-sm text-[var(--rust)]">
@@ -119,23 +130,23 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
             <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-3 text-sm">
               <div className="mb-2 truncate text-[var(--ink-3)]">{parsed.fileName}</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                <div className="text-[var(--ink-2)]">Exported</div>
+                <div className="text-[var(--ink-2)]">{t("backupImport.summaryExported")}</div>
                 <div className="text-right">{b.exportedAt.toISOString().slice(0, 10)}</div>
-                <div className="text-[var(--ink-2)]">Account</div>
+                <div className="text-[var(--ink-2)]">{t("backupImport.summaryAccount")}</div>
                 <div className="truncate text-right" title={b.user.email}>
                   {b.user.email}
                 </div>
-                <div className="text-[var(--ink-2)]">Goals</div>
+                <div className="text-[var(--ink-2)]">{t("backupImport.summaryGoals")}</div>
                 <div className="text-right">{b.goals.length}</div>
-                <div className="text-[var(--ink-2)]">Values</div>
+                <div className="text-[var(--ink-2)]">{t("backupImport.summaryValues")}</div>
                 <div className="text-right">{b.values.length}</div>
-                <div className="text-[var(--ink-2)]">Connections</div>
+                <div className="text-[var(--ink-2)]">{t("backupImport.summaryConnections")}</div>
                 <div className="text-right">{b.connections.length}</div>
-                <div className="text-[var(--ink-2)]">Tracking items</div>
+                <div className="text-[var(--ink-2)]">{t("backupImport.summaryTrackingItems")}</div>
                 <div className="text-right">{b.trackingItems.length}</div>
-                <div className="text-[var(--ink-2)]">Weekly syncs</div>
+                <div className="text-[var(--ink-2)]">{t("backupImport.summaryWeeklySyncs")}</div>
                 <div className="text-right">{b.weeklySync.length}</div>
-                <div className="text-[var(--ink-2)]">Files</div>
+                <div className="text-[var(--ink-2)]">{t("backupImport.summaryFiles")}</div>
                 <div className="text-right">{b.files.length}</div>
               </div>
             </div>
@@ -143,9 +154,13 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
             <div className="flex items-start gap-2 rounded-lg border border-[var(--rust)] bg-[var(--rust-soft)] p-3 text-sm text-[var(--rust)]">
               <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--rust)]" />
               <span>
-                This will <strong>permanently delete</strong> everything currently in your account and replace it with
-                the contents of this backup. Type <code className="rounded bg-[var(--paper-deep)] px-1">REPLACE</code>{" "}
-                to confirm.
+                <Trans
+                  i18nKey="backupImport.warningBody"
+                  components={{
+                    strong: <strong />,
+                    code: <code className="rounded bg-[var(--paper-deep)] px-1" />,
+                  }}
+                />
               </span>
             </div>
 
@@ -153,7 +168,7 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
               type="text"
               value={confirmToken}
               onChange={(e) => setConfirmToken(e.target.value)}
-              placeholder="Type REPLACE"
+              placeholder={t("backupImport.typeReplace")}
               className="w-full rounded-lg border border-[var(--hairline-2)] bg-transparent px-4 py-2 text-[var(--ink)] placeholder-[var(--ink-4)] outline-none transition-all focus:border-[var(--hairline-2)]"
               autoFocus
             />
@@ -164,14 +179,14 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
                 disabled={importMutation.isPending}
                 className="flex-1 rounded-lg border border-[var(--hairline-2)] px-4 py-2 transition-all hover:bg-[var(--vellum)] disabled:opacity-50"
               >
-                Cancel
+                {t("common.cancel")}
               </button>
               <button
                 onClick={handleConfirm}
                 disabled={!canConfirm}
                 className="flex-1 rounded-lg border border-[var(--rust)] bg-[var(--rust-soft)] px-4 py-2 text-[var(--rust)] transition-all hover:bg-[var(--rust-soft)] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {importMutation.isPending ? "Restoring…" : "Replace everything"}
+                {importMutation.isPending ? t("backupImport.restoring") : t("backupImport.replaceEverything")}
               </button>
             </div>
           </div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { X, Tag, Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { Value } from "~/lib/api/types";
 
 interface ValueSelectionModalProps {
@@ -17,6 +18,7 @@ export default function ValueSelectionModal({
   onConfirm,
   onClose,
 }: ValueSelectionModalProps) {
+  const { t } = useTranslation();
   const [tempSelectedIds, setTempSelectedIds] = useState<string[]>(selectedValueIds);
 
   const handleToggleValue = (valueId: string) => {
@@ -40,8 +42,12 @@ export default function ValueSelectionModal({
       >
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-light">Add Values</h3>
-          <button onClick={onClose} className="rounded-lg p-2 transition-all hover:bg-[var(--vellum)]">
+          <h3 className="text-lg font-light">{t("valueSelection.title")}</h3>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-2 transition-all hover:bg-[var(--vellum)]"
+            aria-label={t("common.close")}
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -49,7 +55,7 @@ export default function ValueSelectionModal({
         {/* Values List */}
         <div className="mb-6 max-h-[400px] space-y-1 overflow-y-auto">
           {availableValues.length === 0 ? (
-            <p className="py-4 text-center text-sm text-[var(--ink-3)]">No values available</p>
+            <p className="py-4 text-center text-sm text-[var(--ink-3)]">{t("valueSelection.noValues")}</p>
           ) : (
             availableValues.map((value) => {
               const isSelected = tempSelectedIds.includes(value.id);
@@ -80,13 +86,13 @@ export default function ValueSelectionModal({
             onClick={onClose}
             className="flex-1 rounded-lg border border-[var(--hairline-2)] px-4 py-2 transition-all hover:bg-[var(--vellum)]"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             onClick={handleConfirm}
-            className="flex-1 rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] px-4 py-2 text-black transition-all hover:bg-[var(--paper)]"
+            className="flex-1 rounded-lg border border-[var(--hairline-2)] bg-[var(--surface-inverse)] px-4 py-2 text-[var(--on-inverse)] transition-all hover:bg-[var(--surface-inverse)]"
           >
-            OK
+            {t("valueSelection.ok")}
           </button>
         </div>
       </div>

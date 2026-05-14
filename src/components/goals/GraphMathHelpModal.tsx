@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface GraphMathHelpModalProps {
   onClose: () => void;
@@ -13,6 +14,7 @@ const muted = "text-xs leading-relaxed text-[var(--ink-3)]";
 const exampleHeader = "text-[10px] uppercase tracking-wider text-[var(--ink-3)]";
 
 export default function GraphMathHelpModal({ onClose }: GraphMathHelpModalProps) {
+  const { t } = useTranslation();
   return (
     <div
       className="bg-[var(--ink)]/80 fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
@@ -25,15 +27,13 @@ export default function GraphMathHelpModal({ onClose }: GraphMathHelpModalProps)
         {/* Sticky header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--hairline)] bg-[var(--canvas)] px-6 py-4 backdrop-blur">
           <div>
-            <h2 className="text-lg font-medium tracking-tight">How the graph thinks</h2>
-            <p className="mt-0.5 text-xs text-[var(--ink-3)]">
-              Every number on a node comes from a formula. Here&apos;s each one.
-            </p>
+            <h2 className="text-lg font-medium tracking-tight">{t("graphMathHelp.title")}</h2>
+            <p className="mt-0.5 text-xs text-[var(--ink-3)]">{t("graphMathHelp.subtitle")}</p>
           </div>
           <button
             onClick={onClose}
             className="rounded-lg p-1.5 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -42,106 +42,84 @@ export default function GraphMathHelpModal({ onClose }: GraphMathHelpModalProps)
         <div className="space-y-7 px-6 py-6">
           {/* Own progress */}
           <section className="space-y-2">
-            <h3 className={sectionTitle}>1 · Own progress (from tasks)</h3>
-            <div className={equation}>own = Σ(completed.difficulty) / Σ(all.difficulty) × 100</div>
+            <h3 className={sectionTitle}>{t("graphMathHelp.ownTitle")}</h3>
+            <div className={equation}>{t("graphMathHelp.ownFormula")}</div>
             <p className={muted}>
-              Tasks have a difficulty of <strong>1, 2, or 3</strong>. A finished hard task contributes more to a
-              goal&apos;s percentage than a finished easy one. If a goal has no tasks, its <em>own</em> progress is 0 by
-              definition — completion has to come from somewhere upstream.
+              {t("graphMathHelp.ownExplanation1")} <strong>{t("graphMathHelp.ownExplanation2")}</strong>
+              {t("graphMathHelp.ownExplanation3")} <em>{t("graphMathHelp.ownExplanation4")}</em>{" "}
+              {t("graphMathHelp.ownExplanation5")}
             </p>
             <div className="rounded-md border border-[var(--hairline)] bg-[var(--vellum)] p-3 text-xs">
-              <div className={exampleHeader}>Example</div>
+              <div className={exampleHeader}>{t("graphMathHelp.exampleHeader")}</div>
               <p className="mt-1 text-[var(--ink-2)]">
-                Three tasks: difficulty 1 (done), 2 (done), 3 (not done). Total weight = 6, completed weight = 3.
+                {t("graphMathHelp.ownExample")}
                 <br />
-                <span className="font-mono text-[var(--ink)]">own = 3 / 6 × 100 = 50%</span>
+                <span className="font-mono text-[var(--ink)]">{t("graphMathHelp.ownExampleResult")}</span>
               </p>
             </div>
           </section>
 
           {/* Dependencies progress */}
           <section className="space-y-2">
-            <h3 className={sectionTitle}>2 · Dependency progress (from upstream goals)</h3>
-            <div className={equation}>deps = Σ(predTotal × edgeWeight) / Σ(edgeWeight)</div>
+            <h3 className={sectionTitle}>{t("graphMathHelp.depsTitle")}</h3>
+            <div className={equation}>{t("graphMathHelp.depsFormula")}</div>
             <p className={muted}>
-              An incoming connection means &ldquo;this goal&apos;s success depends on that one&apos;s.&rdquo; Edge
-              weights say <em>how much</em>. Dependency progress is the weighted average of every predecessor&apos;s{" "}
-              <strong>total progress</strong> (so the calculation cascades all the way back through the graph).
+              {t("graphMathHelp.depsExplanation1")} <em>{t("graphMathHelp.depsExplanation2")}</em>
+              {t("graphMathHelp.depsExplanation3")} <strong>{t("graphMathHelp.depsExplanation4")}</strong>{" "}
+              {t("graphMathHelp.depsExplanation5")}
             </p>
             <div className="rounded-md border border-[var(--hairline)] bg-[var(--vellum)] p-3 text-xs">
-              <div className={exampleHeader}>Example</div>
+              <div className={exampleHeader}>{t("graphMathHelp.exampleHeader")}</div>
               <p className="mt-1 text-[var(--ink-2)]">
-                Goal A depends on B (weight 70, 80% complete) and C (weight 30, 50% complete).
+                {t("graphMathHelp.depsExample")}
                 <br />
-                <span className="font-mono text-[var(--ink)]">
-                  deps = (80×70 + 50×30) / (70+30) = (5600 + 1500) / 100 = 71%
-                </span>
+                <span className="font-mono text-[var(--ink)]">{t("graphMathHelp.depsExampleResult")}</span>
               </p>
             </div>
           </section>
 
           {/* Total progress blend */}
           <section className="space-y-2">
-            <h3 className={sectionTitle}>3 · Total progress (the blend)</h3>
-            <div className={equation}>
-              {`with own tasks:    total = own × 0.40 + deps × 0.60
-without own tasks: total = own × 0.10 + deps × 0.90`}
-            </div>
+            <h3 className={sectionTitle}>{t("graphMathHelp.totalTitle")}</h3>
+            <div className={equation}>{t("graphMathHelp.totalFormula")}</div>
             <p className={muted}>
-              When a goal has its own tasks, both numbers count — but dependencies still get the heavier vote (60%)
-              because work doesn&apos;t happen in isolation. When a goal has <strong>no tasks of its own</strong> (a
-              pure orchestration node, e.g., &ldquo;Stay healthy&rdquo;), it leans almost entirely on its dependencies.
-              The clamp at the end keeps the result inside [0, 100].
+              {t("graphMathHelp.totalExplanation1")} <strong>{t("graphMathHelp.totalExplanation2")}</strong>{" "}
+              {t("graphMathHelp.totalExplanation3")}
             </p>
           </section>
 
           {/* Importance */}
           <section className="space-y-2">
-            <h3 className={sectionTitle}>4 · Importance (from outgoing edge weights)</h3>
-            <div className={equation}>
-              {`avg = Σ(outgoingEdge.weight) / count(outgoingEdges)
-
-Low      if no outgoing edges, OR avg ≤ 33.3
-Medium   if 33.3 < avg < 66.6
-High     if avg ≥ 66.6`}
-            </div>
+            <h3 className={sectionTitle}>{t("graphMathHelp.importanceTitle")}</h3>
+            <div className={equation}>{t("graphMathHelp.importanceFormula")}</div>
             <p className={muted}>
-              A goal&apos;s importance isn&apos;t self-declared — it&apos;s read from how heavily{" "}
-              <em>other goals depend on it</em>. A goal with strong outgoing edges (averaging high weight) is a
-              load-bearing column in your structure. A goal nothing depends on is just a leaf.
+              {t("graphMathHelp.importanceExplanation1")} <em>{t("graphMathHelp.importanceExplanation2")}</em>
+              {t("graphMathHelp.importanceExplanation3")}
             </p>
           </section>
 
           {/* MiniMap colors */}
           <section className="space-y-2">
-            <h3 className={sectionTitle}>5 · MiniMap colors</h3>
-            <div className={equation}>
-              {`red    if total < 33%
-yellow if 33% ≤ total < 67%
-green  if total ≥ 67%`}
-            </div>
+            <h3 className={sectionTitle}>{t("graphMathHelp.miniMapTitle")}</h3>
+            <div className={equation}>{t("graphMathHelp.miniMapFormula")}</div>
             <p className={muted}>
-              The minimap in the bottom-right shades each node by its <strong>total progress</strong> so you can scan
-              the whole graph at once and see where the cold spots are.
+              {t("graphMathHelp.miniMapExplanation1")} <strong>{t("graphMathHelp.miniMapExplanation2")}</strong>{" "}
+              {t("graphMathHelp.miniMapExplanation3")}
             </p>
           </section>
 
           {/* Rationale */}
           <section className="space-y-2 border-t border-[var(--hairline)] pt-5">
-            <h3 className={sectionTitle}>Why model goals this way?</h3>
-            <p className={muted}>
-              The graph treats goals as a network, not a list. Two ideas drive every formula above:
-            </p>
+            <h3 className={sectionTitle}>{t("graphMathHelp.rationaleTitle")}</h3>
+            <p className={muted}>{t("graphMathHelp.rationaleIntro")}</p>
             <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--ink-3)]">
               <li>
-                <strong className="text-[var(--ink-2)]">Connections carry meaning.</strong> An edge isn&apos;t
-                decoration — it says &ldquo;this feeds that.&rdquo; Importance and dependency progress both fall out of
-                the same edges; you only have to maintain one piece of structure.
+                <strong className="text-[var(--ink-2)]">{t("graphMathHelp.rationaleConnectionsHeader")}</strong>{" "}
+                {t("graphMathHelp.rationaleConnectionsBody")}
               </li>
               <li>
-                <strong className="text-[var(--ink-2)]">Difficulty matters.</strong> Counting completed tasks alone
-                treats a 10-minute errand the same as a multi-week project. Weighting by difficulty makes percentages
-                mean something closer to actual effort.
+                <strong className="text-[var(--ink-2)]">{t("graphMathHelp.rationaleDifficultyHeader")}</strong>{" "}
+                {t("graphMathHelp.rationaleDifficultyBody")}
               </li>
             </ul>
           </section>
@@ -154,7 +132,7 @@ green  if total ≥ 67%`}
             onClick={onClose}
             className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-1.5 text-sm text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
           >
-            Got it
+            {t("graphMathHelp.gotIt")}
           </button>
         </div>
       </div>

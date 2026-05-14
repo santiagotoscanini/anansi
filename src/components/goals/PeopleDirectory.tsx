@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Check, CheckSquare, Pencil, Plus, Search, Square, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { api } from "~/trpc/react";
 import type { PersonCategory } from "~/lib/api/types";
 import PersonModal, { type PersonRow } from "./PersonModal";
@@ -14,17 +15,24 @@ import { formatScheduledShort } from "~/lib/horizon-period";
 
 export type PeopleFilter = { kind: "all" } | { kind: "uncategorized" } | { kind: "group"; groupId: string };
 
-const CATEGORY_LABELS: Record<PersonCategory, string> = {
-  to_process: "To Process",
-  exploring: "Exploring",
-  long_term: "Long-term",
-  context_bound: "Context-bound",
+type CategoryLabelKey =
+  | "peopleDirectory.categoryToProcess"
+  | "peopleDirectory.categoryExploring"
+  | "peopleDirectory.categoryLongTerm"
+  | "peopleDirectory.categoryContextBound";
+
+const CATEGORY_LABEL_KEYS: Record<PersonCategory, CategoryLabelKey> = {
+  to_process: "peopleDirectory.categoryToProcess",
+  exploring: "peopleDirectory.categoryExploring",
+  long_term: "peopleDirectory.categoryLongTerm",
+  context_bound: "peopleDirectory.categoryContextBound",
 };
 
 function CategoryPill({ category }: { category: PersonCategory }) {
+  const { t } = useTranslation();
   return (
     <span className="rounded-full border border-[var(--hairline)] bg-[var(--vellum)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--ink-2)]">
-      {CATEGORY_LABELS[category]}
+      {t(CATEGORY_LABEL_KEYS[category])}
     </span>
   );
 }
@@ -35,6 +43,7 @@ interface PeopleDirectoryProps {
 }
 
 export default function PeopleDirectory({ filter = { kind: "all" }, onFilterChange }: PeopleDirectoryProps) {
+  const { t } = useTranslation();
   const peopleQuery = api.goals.people.getAll.useQuery({ includeArchived: false });
   const groupsQuery = api.goals.groups.getAll.useQuery();
   const groupTasksQuery = api.goals.groups.getTasks.useQuery(
@@ -79,17 +88,17 @@ export default function PeopleDirectory({ filter = { kind: "all" }, onFilterChan
 
   const headerTitle =
     filter.kind === "all"
-      ? "People"
+      ? t("peopleDirectory.headerAll")
       : filter.kind === "uncategorized"
-        ? "Uncategorized"
-        : (groupsById.get(filter.groupId)?.name ?? "People");
+        ? t("peopleDirectory.headerUncategorized")
+        : (groupsById.get(filter.groupId)?.name ?? t("peopleDirectory.headerAll"));
 
   const headerHint =
     filter.kind === "all"
-      ? "Your directory. Add everyone you want to be intentional about. Tag them into groups for filtering."
+      ? t("peopleDirectory.hintAll")
       : filter.kind === "uncategorized"
-        ? "People not yet tagged to any group."
-        : "People in this group.";
+        ? t("peopleDirectory.hintUncategorized")
+        : t("peopleDirectory.hintGroup");
 
   const activeGroup = filter.kind === "group" ? groupsById.get(filter.groupId) : undefined;
   const editingGroup = activeGroup ? editingGroupId === activeGroup.id : false;
@@ -113,24 +122,23 @@ export default function PeopleDirectory({ filter = { kind: "all" }, onFilterChan
       });
       await utils.goals.groups.getAll.invalidate();
       setEditingGroupId(null);
-      toast.success("Group updated");
+      toast.success(t("peopleDirectory.groupUpdated"));
     } catch {
-      toast.error("Failed to update group");
+      toast.error(t("peopleDirectory.groupUpdateFailed"));
     }
   };
 
   const handleDeleteGroup = async () => {
     if (!activeGroup) return;
-    if (!confirm(`Delete group "${activeGroup.name}"? People stay, but their membership in this group is removed.`))
-      return;
+    if (!confirm(t("peopleDirectory.confirmDeleteGroup", { name: activeGroup.name }))) return;
     const id = activeGroup.id;
     try {
       await deleteGroupMutation.mutateAsync({ id });
       await Promise.all([utils.goals.groups.getAll.invalidate(), utils.goals.people.getAll.invalidate()]);
       onFilterChange?.({ kind: "all" });
-      toast.success("Group deleted");
+      toast.success(t("peopleDirectory.groupDeleted"));
     } catch {
-      toast.error("Failed to delete group");
+      toast.error(t("peopleDirectory.groupDeleteFailed"));
     }
   };
 
@@ -179,14 +187,14 @@ export default function PeopleDirectory({ filter = { kind: "all" }, onFilterChan
                     <>
                       <button
                         onClick={() => void submitEditGroup()}
-                        title="Save"
+                        title={t("common.save")}
                         className="rounded p-1 text-[var(--moss)] transition-all hover:bg-[var(--moss-soft)]"
                       >
                         <Check className="h-3.5 w-3.5" />
                       </button>
                       <button
                         onClick={cancelEditGroup}
-                        title="Cancel"
+                        title={t("common.cancel")}
                         className="rounded p-1 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
                       >
                         <X className="h-3.5 w-3.5" />
@@ -196,14 +204,14 @@ export default function PeopleDirectory({ filter = { kind: "all" }, onFilterChan
                     <>
                       <button
                         onClick={startEditGroup}
-                        title="Rename group"
+                        title={t("peopleDirectory.renameGroup")}
                         className="rounded p-1 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button
                         onClick={() => void handleDeleteGroup()}
-                        title="Delete group"
+                        title={t("peopleDirectory.deleteGroup")}
                         className="rounded p-1 text-[var(--ink-3)] transition-all hover:bg-[var(--rust-soft)] hover:text-[var(--rust)]"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -218,10 +226,11 @@ export default function PeopleDirectory({ filter = { kind: "all" }, onFilterChan
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setCreating(true)}
-              className="flex items-center gap-2 rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] px-4 py-2 text-sm text-black transition-all hover:bg-[var(--paper)]"
+              className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all"
+              style={{ background: "var(--clay)", color: "var(--paper)", boxShadow: "var(--shadow-sm)" }}
             >
               <Plus className="h-4 w-4" />
-              Add Person
+              {t("peopleDirectory.addPerson")}
             </button>
           </div>
         </div>
@@ -233,7 +242,7 @@ export default function PeopleDirectory({ filter = { kind: "all" }, onFilterChan
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name…"
+            placeholder={t("peopleDirectory.searchPlaceholder")}
             className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] py-2 pl-10 pr-4 text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
           />
         </div>
@@ -243,15 +252,15 @@ export default function PeopleDirectory({ filter = { kind: "all" }, onFilterChan
             "what I'd write about them" note, and a per-row category pill
             + group tags at the bottom for filtering context. */}
         {peopleQuery.isLoading ? (
-          <p className="text-sm text-[var(--ink-3)]">Loading…</p>
+          <p className="text-sm text-[var(--ink-3)]">{t("peopleDirectory.loading")}</p>
         ) : filtered.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[var(--hairline)] bg-[var(--vellum)] p-10 text-center">
             <p className="text-[var(--ink-3)]">
               {search
-                ? "No matches."
+                ? t("peopleDirectory.noMatches")
                 : filter.kind === "all"
-                  ? "No people yet. Add the first person to start your directory."
-                  : "No people in this view yet."}
+                  ? t("peopleDirectory.noPeopleAll")
+                  : t("peopleDirectory.noPeopleFilter")}
             </p>
           </div>
         ) : (
@@ -308,7 +317,7 @@ export default function PeopleDirectory({ filter = { kind: "all" }, onFilterChan
                       minHeight: 42,
                     }}
                   >
-                    {note ?? "Add a note about who they are to you…"}
+                    {note ?? t("peopleDirectory.addNote")}
                   </p>
 
                   {(p.groupIds?.length ?? 0) > 0 && (
@@ -348,17 +357,15 @@ export default function PeopleDirectory({ filter = { kind: "all" }, onFilterChan
         {filter.kind === "group" && (
           <div className="space-y-2 pt-2">
             <div className="flex items-baseline justify-between px-1">
-              <h3 className="text-sm font-medium text-[var(--ink)]">Tasks</h3>
+              <h3 className="text-sm font-medium text-[var(--ink)]">{t("peopleDirectory.tasksTitle")}</h3>
               <span className="text-xs text-[var(--ink-3)]">{groupTasksQuery.data?.length ?? 0}</span>
             </div>
             {groupTasksQuery.isLoading ? (
-              <p className="px-1 text-sm text-[var(--ink-3)]">Loading…</p>
+              <p className="px-1 text-sm text-[var(--ink-3)]">{t("peopleDirectory.loading")}</p>
             ) : (groupTasksQuery.data?.length ?? 0) === 0 ? (
               <div className="rounded-xl border border-dashed border-[var(--hairline)] bg-[var(--vellum)] p-6 text-center">
-                <p className="text-sm text-[var(--ink-3)]">No tasks tagged with this group yet.</p>
-                <p className="mt-1 text-xs text-[var(--ink-4)]">
-                  Tag a task: open a goal → click the tag icon on a task row.
-                </p>
+                <p className="text-sm text-[var(--ink-3)]">{t("peopleDirectory.noTasksForGroup")}</p>
+                <p className="mt-1 text-xs text-[var(--ink-4)]">{t("peopleDirectory.noTasksHint")}</p>
               </div>
             ) : (
               <ul className="divide-y divide-[var(--hairline)] overflow-hidden rounded-xl border border-[var(--hairline)] bg-[var(--vellum)]">

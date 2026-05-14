@@ -1,5 +1,6 @@
 import next from "eslint-config-next/core-web-vitals";
 import tseslint from "typescript-eslint";
+import i18next from "eslint-plugin-i18next";
 
 const config = [
   ...next,
@@ -39,6 +40,27 @@ const config = [
       // line justification is the escape hatch.
       "react-hooks/preserve-manual-memoization": "error",
       "react-hooks/set-state-in-effect": "error",
+    },
+  },
+  // i18n enforcement — every user-facing string in UI code must route through
+  // `t(...)` or `<Trans>`. Plugin defaults already exclude <Trans>, ALL_CAPS,
+  // punctuation/symbol-only strings, emoji, and common DOM attrs (className,
+  // type, id, …). Files mid-migration carry `/* eslint-disable
+  // i18next/no-literal-string */` at the top; each migration commit removes
+  // its file's disable as the strings get extracted.
+  {
+    files: ["src/components/**/*.tsx", "src/app/**/*.tsx"],
+    plugins: { i18next },
+    rules: {
+      "i18next/no-literal-string": [
+        "error",
+        {
+          mode: "jsx-text-only",
+          "jsx-attributes": {
+            include: ["alt", "aria-label", "placeholder", "title"],
+          },
+        },
+      ],
     },
   },
 ];

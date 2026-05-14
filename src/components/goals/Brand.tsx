@@ -1,3 +1,4 @@
+/* eslint-disable i18next/no-literal-string -- the "anans" + "ı" wordmark glyphs ARE the brand identity (visual asset, not user copy); never translated */
 // Brand assets — the mark + wordmark + their lockup. Inline so the SVG
 // inherits currentColor and stays crisp at any pixel size.
 

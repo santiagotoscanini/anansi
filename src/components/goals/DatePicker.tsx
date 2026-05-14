@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface DatePickerProps {
   value: Date | null;
@@ -15,22 +16,6 @@ interface DatePickerProps {
   size?: "sm" | "md";
 }
 
-const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
 function startOfMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
@@ -41,13 +26,14 @@ function isSameDay(a: Date, b: Date) {
 export default function DatePicker({
   value,
   onChange,
-  placeholder = "Pick a date",
+  placeholder,
   className,
   align = "left",
   clearable = true,
   disabled,
   size = "md",
 }: DatePickerProps) {
+  const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<Date>(() => (value ? startOfMonth(value) : startOfMonth(new Date())));
   const [mode, setMode] = useState<"day" | "year">("day");
@@ -64,6 +50,19 @@ export default function DatePicker({
     setLastSyncedTs(valueTs);
     if (value) setView(startOfMonth(value));
   }
+
+  // Localized month + weekday labels via Intl, keyed off the active i18next
+  // language so they flip when the user switches locale.
+  const locale = i18n.language;
+  const monthNames = useMemo(() => {
+    const fmt = new Intl.DateTimeFormat(locale, { month: "long" });
+    return Array.from({ length: 12 }, (_, i) => fmt.format(new Date(2000, i, 1)));
+  }, [locale]);
+  const weekdayShortNames = useMemo(() => {
+    const fmt = new Intl.DateTimeFormat(locale, { weekday: "short" });
+    // 2024-01-01 is a Monday; produce 7 short labels Mon..Sun.
+    return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2024, 0, 1 + i)));
+  }, [locale]);
 
   // Compute portaled-popover viewport position from the trigger's bounding rect.
   // Re-runs on resize and (capture-phase) scroll so nested scrollables move it.
@@ -122,7 +121,8 @@ export default function DatePicker({
   }, [view]);
 
   const today = new Date();
-  const formatted = value ? value.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+  const formatted = value ? value.toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" }) : "";
+  const placeholderText = placeholder ?? t("datePicker.pickDate");
   const isSm = size === "sm";
 
   // Two visual variants:
@@ -149,7 +149,7 @@ export default function DatePicker({
         className={triggerClass}
       >
         <CalendarIcon className={`shrink-0 text-[var(--ink-3)] ${isSm ? "h-3 w-3" : "h-4 w-4"}`} />
-        <span className={isSm ? "" : "flex-1 truncate"}>{formatted || placeholder}</span>
+        <span className={isSm ? "" : "flex-1 truncate"}>{formatted || placeholderText}</span>
         {!isSm && clearable && value && !disabled && (
           <span
             role="button"
@@ -166,7 +166,7 @@ export default function DatePicker({
               }
             }}
             className="rounded p-0.5 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
-            aria-label="Clear date"
+            aria-label={t("datePicker.clearDate")}
           >
             <X className="h-3.5 w-3.5" />
           </span>
@@ -190,8 +190,8 @@ export default function DatePicker({
                       : setView((v) => new Date(v.getFullYear() - 12, v.getMonth(), 1))
                   }
                   className="rounded p-1 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
-                  aria-label={mode === "day" ? "Previous year" : "Previous 12 years"}
-                  title={mode === "day" ? "Previous year" : "Previous 12 years"}
+                  aria-label={mode === "day" ? t("datePicker.previousYear") : t("datePicker.previous12Years")}
+                  title={mode === "day" ? t("datePicker.previousYear") : t("datePicker.previous12Years")}
                 >
                   <ChevronsLeft className="h-4 w-4" />
                 </button>
@@ -200,8 +200,8 @@ export default function DatePicker({
                     type="button"
                     onClick={() => setView((v) => new Date(v.getFullYear(), v.getMonth() - 1, 1))}
                     className="rounded p-1 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
-                    aria-label="Previous month"
-                    title="Previous month"
+                    aria-label={t("datePicker.previousMonth")}
+                    title={t("datePicker.previousMonth")}
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
@@ -211,10 +211,10 @@ export default function DatePicker({
                 type="button"
                 onClick={() => setMode((m) => (m === "day" ? "year" : "day"))}
                 className="rounded px-2 py-1 text-sm font-medium text-[var(--ink)] transition-all hover:bg-[var(--vellum)]"
-                title={mode === "day" ? "Pick a year" : "Back to days"}
+                title={mode === "day" ? t("datePicker.pickAYear") : t("datePicker.backToDays")}
               >
                 {mode === "day"
-                  ? `${MONTH_NAMES[view.getMonth()]} ${view.getFullYear()}`
+                  ? `${monthNames[view.getMonth()]} ${view.getFullYear()}`
                   : `${view.getFullYear() - 6} – ${view.getFullYear() + 5}`}
               </button>
               <div className="flex items-center">
@@ -223,8 +223,8 @@ export default function DatePicker({
                     type="button"
                     onClick={() => setView((v) => new Date(v.getFullYear(), v.getMonth() + 1, 1))}
                     className="rounded p-1 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
-                    aria-label="Next month"
-                    title="Next month"
+                    aria-label={t("datePicker.nextMonth")}
+                    title={t("datePicker.nextMonth")}
                   >
                     <ChevronRight className="h-4 w-4" />
                   </button>
@@ -237,8 +237,8 @@ export default function DatePicker({
                       : setView((v) => new Date(v.getFullYear() + 12, v.getMonth(), 1))
                   }
                   className="rounded p-1 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
-                  aria-label={mode === "day" ? "Next year" : "Next 12 years"}
-                  title={mode === "day" ? "Next year" : "Next 12 years"}
+                  aria-label={mode === "day" ? t("datePicker.nextYear") : t("datePicker.next12Years")}
+                  title={mode === "day" ? t("datePicker.nextYear") : t("datePicker.next12Years")}
                 >
                   <ChevronsRight className="h-4 w-4" />
                 </button>
@@ -247,7 +247,7 @@ export default function DatePicker({
             {mode === "day" ? (
               <>
                 <div className="mb-1 grid grid-cols-7 gap-0.5 text-center text-[10px] uppercase tracking-wider text-[var(--ink-3)]">
-                  {WEEKDAYS.map((w) => (
+                  {weekdayShortNames.map((w) => (
                     <span key={w}>{w}</span>
                   ))}
                 </div>
@@ -265,7 +265,7 @@ export default function DatePicker({
                         }}
                         className={`flex h-8 items-center justify-center rounded text-xs transition-all ${
                           isSelected
-                            ? "bg-[var(--paper)] font-medium text-black"
+                            ? "bg-[var(--surface-inverse)] font-medium text-[var(--on-inverse)]"
                             : isToday
                               ? "bg-[var(--vellum)] text-[var(--ink)] ring-1 ring-white/30"
                               : inMonth
@@ -294,7 +294,7 @@ export default function DatePicker({
                       }}
                       className={`flex h-10 items-center justify-center rounded text-sm transition-all ${
                         isSelected
-                          ? "bg-[var(--paper)] font-medium text-black"
+                          ? "bg-[var(--surface-inverse)] font-medium text-[var(--on-inverse)]"
                           : isCurrent
                             ? "bg-[var(--vellum)] text-[var(--ink)] ring-1 ring-white/30"
                             : "text-[var(--ink)] hover:bg-[var(--vellum)]"
@@ -315,7 +315,7 @@ export default function DatePicker({
                 }}
                 className="rounded px-2 py-1 text-xs text-[var(--ink-2)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
               >
-                Today
+                {t("datePicker.today")}
               </button>
               {clearable && value && (
                 <button
@@ -326,7 +326,7 @@ export default function DatePicker({
                   }}
                   className="rounded px-2 py-1 text-xs text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
                 >
-                  Clear
+                  {t("datePicker.clear")}
                 </button>
               )}
             </div>

@@ -15,6 +15,7 @@ import {
   Check,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { useGoals } from "~/contexts/GoalsContext";
 import { api, type RouterOutputs } from "~/trpc/react";
 import { bucketForDate, formatScheduledShort } from "~/lib/horizon-period";
@@ -28,6 +29,7 @@ type WeeklyRetroData = RouterOutputs["goals"]["weeklySync"]["getWeeklyRetrospect
 // a flat list of this week's prompts. Heavy management still lives on
 // the Sync tab.
 export default function Pulse() {
+  const { t } = useTranslation();
   const {
     goals,
     getWeekStartDate,
@@ -80,13 +82,13 @@ export default function Pulse() {
     const quarter: FlatTask[] = [];
     const year: FlatTask[] = [];
     for (const g of goals) {
-      for (const t of g.tasks) {
-        if (t.completed || !t.scheduledAt) continue;
-        const at = new Date(t.scheduledAt);
+      for (const task of g.tasks) {
+        if (task.completed || !task.scheduledAt) continue;
+        const at = new Date(task.scheduledAt);
         const b = bucketForDate(at, now);
         const flat: FlatTask = {
-          id: t.id,
-          title: t.title,
+          id: task.id,
+          title: task.title,
           goalId: g.id,
           goalTitle: g.title,
           goalEmoji: g.emoji,
@@ -216,29 +218,36 @@ export default function Pulse() {
     try {
       await createWeeklySync(weekStart);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to start this week");
+      toast.error(err instanceof Error ? err.message : t("pulse.startFailed"));
     }
   };
 
   const formatRange = (start: Date) => {
     const end = new Date(start);
     end.setDate(end.getDate() + 6);
-    const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
     return `${fmt(start)} – ${fmt(end)}, ${start.getFullYear()}`;
   };
 
   const greeting = (() => {
     const h = new Date().getHours();
-    if (h < 5) return "Up late";
-    if (h < 12) return "Good morning";
-    if (h < 18) return "Good afternoon";
-    return "Good evening";
+    if (h < 5) return t("pulse.greetingLate");
+    if (h < 12) return t("pulse.greetingMorning");
+    if (h < 18) return t("pulse.greetingAfternoon");
+    return t("pulse.greetingEvening");
   })();
+
+  const formatDaysUntil = (daysUntil: number): string => {
+    if (daysUntil === 0) return t("pulse.today");
+    if (daysUntil < 0) return t("pulse.daysOverdue", { count: -daysUntil });
+    if (daysUntil === 1) return t("pulse.tomorrow");
+    return t("pulse.inDays", { count: daysUntil });
+  };
 
   if (query.isLoading) {
     return (
       <div className="flex h-full items-center justify-center" style={{ color: "var(--ink-3)" }}>
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading…
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("pulse.loading")}
       </div>
     );
   }
@@ -253,7 +262,7 @@ export default function Pulse() {
         <div className="mx-auto flex max-w-5xl flex-wrap items-baseline justify-between gap-6">
           <div className="min-w-0 flex-1">
             <Eyebrow>
-              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} ·{" "}
+              {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })} ·{" "}
               {formatRange(weekStart)}
             </Eyebrow>
             <h1
@@ -266,7 +275,7 @@ export default function Pulse() {
                 paddingBottom: 8,
               }}
             >
-              {greeting}, <span className="brand-em">this week.</span>
+              {greeting}, <span className="brand-em">{t("pulse.greetingSuffix")}</span>
             </h1>
             <p
               style={{
@@ -279,7 +288,7 @@ export default function Pulse() {
                 maxWidth: 580,
               }}
             >
-              This week, in one place. Fill what&apos;s true.
+              {t("pulse.subtitle")}
             </p>
           </div>
           {weeklySync && items.length > 0 && (
@@ -289,7 +298,8 @@ export default function Pulse() {
                 style={{ color: "var(--ink-3)", fontSize: 11, fontFamily: "var(--font-mono)" }}
               >
                 <span>
-                  <span style={{ color: "var(--ink)" }}>{filled.length}</span>/{items.length} filled
+                  <span style={{ color: "var(--ink)" }}>{filled.length}</span>/{items.length}{" "}
+                  {t("pulse.filledProgress")}
                 </span>
                 <span
                   style={{
@@ -324,25 +334,22 @@ export default function Pulse() {
         {/* LEFT — the week so far */}
         <section className="px-6 py-7 md:px-10" style={{ borderRight: "1px solid var(--hairline)" }}>
           <div className="mb-4 flex items-baseline justify-between">
-            <SecLabel>The week so far</SecLabel>
+            <SecLabel>{t("pulse.weekSoFar")}</SecLabel>
             {weeklySync && (
               <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink-3)" }}>
-                auto-saved · just now
+                {t("pulse.autoSaved")}
               </span>
             )}
           </div>
 
           {!weeklySync ? (
             <EmptyState
-              title="No sync for this week yet"
-              body="Start the week to load your default items, or set them up in the Sync tab first."
-              cta={{ label: "Start this week", onClick: () => void handleStart() }}
+              title={t("pulse.emptyNoSyncTitle")}
+              body={t("pulse.emptyNoSyncBody")}
+              cta={{ label: t("pulse.startThisWeek"), onClick: () => void handleStart() }}
             />
           ) : items.length === 0 ? (
-            <EmptyState
-              title="Sync started, no items yet"
-              body="Add items via the Sync tab — set up your default items so future weeks auto-fill."
-            />
+            <EmptyState title={t("pulse.emptyNoItemsTitle")} body={t("pulse.emptyNoItemsBody")} />
           ) : (
             <ul className="space-y-3">
               {items.map((it) => (
@@ -384,7 +391,7 @@ export default function Pulse() {
             <>
               <div className="mb-2 flex items-center gap-2">
                 <CalendarDays className="h-3.5 w-3.5" style={{ color: "var(--ink-3)" }} />
-                <SecLabel>Upcoming</SecLabel>
+                <SecLabel>{t("pulse.upcoming")}</SecLabel>
               </div>
               <p
                 className="mb-4"
@@ -395,7 +402,7 @@ export default function Pulse() {
                   color: "var(--ink-3)",
                 }}
               >
-                Next bids and important dates, in time order.
+                {t("pulse.upcomingHelp")}
               </p>
               <ul>
                 {upcomingFeed.map((row, i) => (
@@ -408,7 +415,7 @@ export default function Pulse() {
                       <span
                         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
                         style={{ background: "var(--amber-soft)", color: "var(--amber)" }}
-                        title="Important date"
+                        title={t("pulse.importantDateTitle")}
                       >
                         <CalendarDays className="h-3 w-3" />
                       </span>
@@ -416,7 +423,7 @@ export default function Pulse() {
                       <span
                         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
                         style={{ background: "var(--plum-soft)", color: "var(--plum)" }}
-                        title="Bid"
+                        title={t("pulse.bidTitle")}
                       >
                         <Gift className="h-3 w-3" />
                       </span>
@@ -426,7 +433,7 @@ export default function Pulse() {
                         {row.kind === "date" ? row.label : row.content}
                         {row.kind === "date" && row.turning !== null && row.turning > 0 && (
                           <span className="ml-1.5" style={{ fontSize: 11, color: "var(--ink-3)", fontWeight: 400 }}>
-                            · turning {row.turning}
+                            · {t("pulse.turning", { n: row.turning })}
                           </span>
                         )}
                       </div>
@@ -438,13 +445,7 @@ export default function Pulse() {
                               row.daysUntil <= 0 ? "var(--rust)" : row.daysUntil <= 3 ? "var(--clay)" : "var(--ink-3)",
                           }}
                         >
-                          {row.daysUntil <= 0
-                            ? row.daysUntil === 0
-                              ? "today"
-                              : `${-row.daysUntil}d overdue`
-                            : row.daysUntil === 1
-                              ? "tomorrow"
-                              : `in ${row.daysUntil} days`}
+                          {formatDaysUntil(row.daysUntil)}
                         </span>
                       </div>
                     </div>
@@ -459,7 +460,7 @@ export default function Pulse() {
             <div className={upcomingFeed.length > 0 ? "mt-8" : ""}>
               <div className="mb-3 flex items-center gap-2">
                 <Hourglass className="h-3.5 w-3.5" style={{ color: "var(--ink-3)" }} />
-                <SecLabel>On the horizon</SecLabel>
+                <SecLabel>{t("pulse.onTheHorizon")}</SecLabel>
               </div>
 
               {horizonBuckets.month.length > 0 && (
@@ -476,27 +477,27 @@ export default function Pulse() {
                       }}
                     >
                       <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--clay)" }} />
-                      This month
+                      {t("pulse.thisMonth")}
                     </span>
                     <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink-2)" }}>
                       {horizonBuckets.month.length}
                     </span>
                   </div>
-                  {horizonBuckets.month.slice(0, 5).map((t) => (
+                  {horizonBuckets.month.slice(0, 5).map((task) => (
                     <div
-                      key={t.id}
+                      key={task.id}
                       className="flex items-center gap-2 py-1 text-[13px]"
                       style={{ color: "var(--ink)" }}
                     >
-                      {t.goalEmoji && !t.goalEmoji.startsWith("http") && (
-                        <span className="leading-none">{t.goalEmoji}</span>
+                      {task.goalEmoji && !task.goalEmoji.startsWith("http") && (
+                        <span className="leading-none">{task.goalEmoji}</span>
                       )}
-                      <span className="min-w-0 flex-1 truncate">{t.title}</span>
+                      <span className="min-w-0 flex-1 truncate">{task.title}</span>
                       <span
                         className="shrink-0 tabular-nums"
                         style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink-3)" }}
                       >
-                        {formatScheduledShort(t.scheduledAt)}
+                        {formatScheduledShort(task.scheduledAt)}
                       </span>
                     </div>
                   ))}
@@ -513,8 +514,8 @@ export default function Pulse() {
                     background: "transparent",
                   }}
                 >
-                  <ChevronRight className="h-3 w-3" /> This quarter · {horizonBuckets.quarter.length} task
-                  {horizonBuckets.quarter.length === 1 ? "" : "s"}
+                  <ChevronRight className="h-3 w-3" />{" "}
+                  {t("pulse.thisQuarter", { count: horizonBuckets.quarter.length })}
                 </button>
               )}
 
@@ -528,28 +529,28 @@ export default function Pulse() {
                     background: "transparent",
                   }}
                 >
-                  {showYearlySection ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} This
-                  year · {horizonBuckets.year.length} task{horizonBuckets.year.length === 1 ? "" : "s"}
+                  {showYearlySection ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}{" "}
+                  {t("pulse.thisYear", { count: horizonBuckets.year.length })}
                 </button>
               )}
 
               {showYearlySection && horizonBuckets.year.length > 0 && (
                 <Card pad={14} style={{ marginTop: 8 }}>
-                  {horizonBuckets.year.slice(0, 10).map((t) => (
+                  {horizonBuckets.year.slice(0, 10).map((task) => (
                     <div
-                      key={t.id}
+                      key={task.id}
                       className="flex items-center gap-2 py-1 text-[13px]"
                       style={{ color: "var(--ink)" }}
                     >
-                      {t.goalEmoji && !t.goalEmoji.startsWith("http") && (
-                        <span className="leading-none">{t.goalEmoji}</span>
+                      {task.goalEmoji && !task.goalEmoji.startsWith("http") && (
+                        <span className="leading-none">{task.goalEmoji}</span>
                       )}
-                      <span className="min-w-0 flex-1 truncate">{t.title}</span>
+                      <span className="min-w-0 flex-1 truncate">{task.title}</span>
                       <span
                         className="shrink-0 tabular-nums"
                         style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink-3)" }}
                       >
-                        {formatScheduledShort(t.scheduledAt)}
+                        {formatScheduledShort(task.scheduledAt)}
                       </span>
                     </div>
                   ))}
@@ -569,7 +570,7 @@ export default function Pulse() {
             <div className="mb-4 flex items-baseline justify-between">
               <div className="flex items-center gap-2">
                 <Users className="h-3.5 w-3.5" style={{ color: "var(--ink-3)" }} />
-                <SecLabel>People needing attention</SecLabel>
+                <SecLabel>{t("pulse.peopleAttention")}</SecLabel>
               </div>
             </div>
             <ul className="space-y-2">
@@ -582,12 +583,16 @@ export default function Pulse() {
                       : { borderColor: "var(--hairline-2)", background: "var(--canvas)", textColor: "var(--ink-2)" };
                 const reasonLabel =
                   reason.kind === "overdue"
-                    ? `Decision overdue · ${reason.daysOverdue}d`
+                    ? t("pulse.decisionOverdue", { count: reason.daysOverdue })
                     : reason.kind === "due-soon"
-                      ? `Decision due ${reason.daysUntil === 0 ? "today" : reason.daysUntil === 1 ? "tomorrow" : `in ${reason.daysUntil}d`}`
+                      ? reason.daysUntil === 0
+                        ? t("pulse.decisionDueToday")
+                        : reason.daysUntil === 1
+                          ? t("pulse.decisionDueTomorrow")
+                          : t("pulse.decisionDueIn", { count: reason.daysUntil })
                       : reason.kind === "exploring-no-date"
-                        ? "Exploring · no decide-by yet"
-                        : "In your inbox to process";
+                        ? t("pulse.exploringNoDate")
+                        : t("pulse.inboxToProcess");
                 return (
                   <li
                     key={person.id}
@@ -631,6 +636,7 @@ interface PulseItemProps {
 }
 
 function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: PulseItemProps) {
+  const { t } = useTranslation();
   const [text, setText] = useState(item.textContent ?? "");
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
   const timer = useRef<NodeJS.Timeout | null>(null);
@@ -644,7 +650,7 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
       void Promise.resolve(onSaveText(next))
         .then(() => setStatus("saved"))
         .catch((err: unknown) => {
-          toast.error(err instanceof Error ? err.message : "Save failed");
+          toast.error(err instanceof Error ? err.message : t("pulse.saveFailed"));
           setStatus("idle");
         });
     }, 700);
@@ -704,16 +710,16 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
                   fontWeight: 500,
                 }}
               >
-                Unscoped
+                {t("pulse.unscoped")}
               </span>
             )}
             <div className="ml-auto shrink-0 text-xs" style={{ color: "var(--ink-3)" }}>
               {status === "saving" && (
                 <span className="flex items-center gap-1">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Saving
+                  <Loader2 className="h-3 w-3 animate-spin" /> {t("pulse.saving")}
                 </span>
               )}
-              {status === "saved" && <span style={{ color: "var(--moss)" }}>Saved</span>}
+              {status === "saved" && <span style={{ color: "var(--moss)" }}>{t("pulse.saved")}</span>}
             </div>
           </div>
           {item.description && (
@@ -734,7 +740,7 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
             value={text}
             onChange={(e) => handleChange(e.target.value)}
             rows={3}
-            placeholder="What happened with this, this week?"
+            placeholder={t("pulse.itemPlaceholder")}
             className="mt-3 w-full resize-y rounded-md p-3 text-sm outline-none"
             style={{
               background: "var(--paper-deep)",
@@ -765,7 +771,7 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
                   onClick={() => void onDeleteAttachment(a.id)}
                   className="absolute right-0.5 top-0.5 rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
                   style={{ background: "rgba(28, 20, 8, 0.75)", color: "var(--paper)" }}
-                  aria-label="Remove attachment"
+                  aria-label={t("pulse.removeAttachment")}
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
@@ -779,8 +785,8 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
                 color: "var(--ink-3)",
                 background: "transparent",
               }}
-              aria-label="Add image"
-              title="Add image"
+              aria-label={t("pulse.addImage")}
+              title={t("pulse.addImage")}
             >
               <ImagePlus className="h-4 w-4" />
             </button>

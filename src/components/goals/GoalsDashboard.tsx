@@ -25,6 +25,7 @@ import {
   UserCircle2,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import { useGoals } from "~/contexts/GoalsContext";
 import { api } from "~/trpc/react";
 import toast, { Toaster } from "react-hot-toast";
@@ -84,37 +85,59 @@ function tabFromPathname(pathname: string): TabType {
   return slug && TAB_SLUGS.has(slug as TabType) ? (slug as TabType) : DEFAULT_TAB;
 }
 
-type NavItem = { id: TabType; name: string; icon: typeof Target };
+// NavItem.nameKey points to a `dashboard.nav.*` key in en.json/es.json so the
+// label translates at render time. The id is the URL slug and stays English —
+// part of the public route contract. Keys are typed as the union of all
+// possible nav-label keys to keep t() happy under the type-augmented module.
+type NavNameKey =
+  | "dashboard.nav.pulse"
+  | "dashboard.nav.self"
+  | "dashboard.nav.values"
+  | "dashboard.nav.bucket"
+  | "dashboard.nav.objectives"
+  | "dashboard.nav.horizons"
+  | "dashboard.nav.tasks"
+  | "dashboard.nav.progress"
+  | "dashboard.nav.sync"
+  | "dashboard.nav.trackingItems"
+  | "dashboard.nav.people"
+  | "dashboard.nav.relationships";
+type NavItem = { id: TabType; nameKey: NavNameKey; icon: typeof Target };
 
 // Pulse — the at-a-glance summary of Anansi. Lives at the top of the
 // sidebar, above all other sections, no header. The other sections are:
 //   Compass — the "why" / aspirational surfaces (Values, Bucket List)
 //   Goals   — the "what" / active objective work (Objectives, Progress)
 //   Sync    — the "when/how" weekly cadence (Sync, Tracking Items)
-const pulseNavItem: NavItem = { id: "pulse", name: "Pulse", icon: Activity };
+const pulseNavItem: NavItem = { id: "pulse", nameKey: "dashboard.nav.pulse", icon: Activity };
 
 const compassSection: NavItem[] = [
-  { id: "self", name: "Self", icon: UserCircle2 },
-  { id: "values", name: "Values", icon: Palette },
-  { id: "bucket", name: "Bucket List", icon: Mountain },
+  { id: "self", nameKey: "dashboard.nav.self", icon: UserCircle2 },
+  { id: "values", nameKey: "dashboard.nav.values", icon: Palette },
+  { id: "bucket", nameKey: "dashboard.nav.bucket", icon: Mountain },
 ];
 
 const goalsSection: NavItem[] = [
-  { id: "objectives", name: "Objectives", icon: Target },
-  { id: "horizons", name: "Horizons", icon: Hourglass },
-  { id: "tasks", name: "Tasks", icon: ListTodo },
-  { id: "progress", name: "Progress", icon: Trophy },
+  { id: "objectives", nameKey: "dashboard.nav.objectives", icon: Target },
+  { id: "horizons", nameKey: "dashboard.nav.horizons", icon: Hourglass },
+  { id: "tasks", nameKey: "dashboard.nav.tasks", icon: ListTodo },
+  { id: "progress", nameKey: "dashboard.nav.progress", icon: Trophy },
 ];
 
 const syncSection: NavItem[] = [
-  { id: "sync", name: "Sync", icon: Calendar },
-  { id: "tracking-items", name: "Tracking Items", icon: ListChecks },
+  { id: "sync", nameKey: "dashboard.nav.sync", icon: Calendar },
+  { id: "tracking-items", nameKey: "dashboard.nav.trackingItems", icon: ListChecks },
 ];
 
-const peopleNavItem: NavItem = { id: "people", name: "People", icon: Users };
-const relationshipsNavItem: NavItem = { id: "relationships", name: "Relationships", icon: Network };
+const peopleNavItem: NavItem = { id: "people", nameKey: "dashboard.nav.people", icon: Users };
+const relationshipsNavItem: NavItem = {
+  id: "relationships",
+  nameKey: "dashboard.nav.relationships",
+  icon: Network,
+};
 
 export default function GoalsDashboard() {
+  const { t } = useTranslation();
   const { logout, isDataLoading, goals: allGoals } = useGoals();
   const router = useRouter();
   const pathname = usePathname();
@@ -217,7 +240,7 @@ export default function GoalsDashboard() {
 
   const handleLogout = () => {
     logout();
-    toast.success("Logged out");
+    toast.success(t("dashboard.loggedOut"));
     // Route-based app now — push to /login so the auth screen is the
     // explicit landing surface for a returning user. (The /app route
     // also auto-redirects on isAuthenticated=false, but a `router.push`
@@ -259,19 +282,20 @@ export default function GoalsDashboard() {
       setNewGroupName("");
       setNewGroupColor("#60a5fa");
       setShowNewGroupForm(false);
-      toast.success("Group created");
+      toast.success(t("dashboard.groupCreated"));
     } catch {
-      toast.error("Failed to create group");
+      toast.error(t("dashboard.groupCreateFailed"));
     }
   };
 
   const renderNavItem = (item: NavItem, isCollapsed: boolean, active: boolean, onClick: () => void) => {
     const Icon = item.icon;
+    const label = t(item.nameKey);
     return (
       <button
         key={item.id}
         onClick={onClick}
-        title={isCollapsed ? item.name : undefined}
+        title={isCollapsed ? label : undefined}
         className={`group flex items-center rounded-lg text-[13px] transition-all ${
           isCollapsed ? "justify-center px-0 py-2" : "gap-3 px-3 py-2"
         }`}
@@ -288,7 +312,7 @@ export default function GoalsDashboard() {
         }}
       >
         <Icon className="h-[15px] w-[15px] shrink-0" />
-        {!isCollapsed && <span>{item.name}</span>}
+        {!isCollapsed && <span>{label}</span>}
       </button>
     );
   };
@@ -314,7 +338,7 @@ export default function GoalsDashboard() {
             onClick={() => setMobileNavOpen(false)}
             className="rounded p-1 transition-all md:hidden"
             style={{ color: "var(--ink-3)" }}
-            aria-label="Close navigation"
+            aria-label={t("dashboard.closeNavigation")}
           >
             <X className="h-5 w-5" />
           </button>
@@ -322,8 +346,8 @@ export default function GoalsDashboard() {
             onClick={() => setCollapsed((c) => !c)}
             className="hidden rounded p-1 transition-all md:inline-flex"
             style={{ color: "var(--ink-3)" }}
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={isCollapsed ? t("dashboard.expandSidebar") : t("dashboard.collapseSidebar")}
+            title={isCollapsed ? t("dashboard.expandSidebar") : t("dashboard.collapseSidebar")}
           >
             {isCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
           </button>
@@ -343,7 +367,7 @@ export default function GoalsDashboard() {
               className="mb-1 mt-4 px-2 text-[10px] font-medium uppercase tracking-[0.12em]"
               style={{ color: "var(--ink-3)" }}
             >
-              Compass
+              {t("dashboard.sections.compass")}
             </div>
           ) : (
             <div className="my-2 h-px" style={{ background: "var(--hairline)" }} />
@@ -361,7 +385,7 @@ export default function GoalsDashboard() {
               className="mb-1 mt-4 px-2 text-[10px] font-medium uppercase tracking-[0.12em]"
               style={{ color: "var(--ink-3)" }}
             >
-              Goals
+              {t("dashboard.sections.goals")}
             </div>
           ) : (
             <div className="my-2 h-px" style={{ background: "var(--hairline)" }} />
@@ -379,7 +403,7 @@ export default function GoalsDashboard() {
               className="mb-1 mt-4 px-2 text-[10px] font-medium uppercase tracking-[0.12em]"
               style={{ color: "var(--ink-3)" }}
             >
-              Sync
+              {t("dashboard.sections.sync")}
             </div>
           ) : (
             <div className="my-2 h-px" style={{ background: "var(--hairline)" }} />
@@ -397,7 +421,7 @@ export default function GoalsDashboard() {
               className="mb-1 mt-4 px-2 text-[10px] font-medium uppercase tracking-[0.12em]"
               style={{ color: "var(--ink-3)" }}
             >
-              Connections
+              {t("dashboard.sections.connections")}
             </div>
           ) : (
             <div className="my-2 h-px" style={{ background: "var(--hairline)" }} />
@@ -407,10 +431,11 @@ export default function GoalsDashboard() {
           {(() => {
             const active = activeTab === "people" && peopleFilter.kind === "all";
             const Icon = peopleNavItem.icon;
+            const peopleLabel = t(peopleNavItem.nameKey);
             return (
               <button
                 onClick={() => goToPeople({ kind: "all" })}
-                title={isCollapsed ? peopleNavItem.name : undefined}
+                title={isCollapsed ? peopleLabel : undefined}
                 className={`flex items-center rounded-lg text-[13px] transition-all ${
                   isCollapsed ? "justify-center px-0 py-2" : "gap-3 px-3 py-2"
                 }`}
@@ -429,7 +454,7 @@ export default function GoalsDashboard() {
                 <Icon className="h-[15px] w-[15px] shrink-0" />
                 {!isCollapsed && (
                   <span className="flex flex-1 items-center justify-between">
-                    <span>{peopleNavItem.name}</span>
+                    <span>{peopleLabel}</span>
                     <span
                       style={{
                         fontFamily: "var(--font-mono)",
@@ -456,11 +481,11 @@ export default function GoalsDashboard() {
             <>
               <div className="mb-1 mt-4 flex items-center justify-between px-2">
                 <span className="text-[10px] font-medium uppercase tracking-[0.12em]" style={{ color: "var(--ink-3)" }}>
-                  Groups
+                  {t("dashboard.sections.groups")}
                 </span>
                 <button
                   onClick={() => setShowNewGroupForm(true)}
-                  title="New group"
+                  title={t("dashboard.newGroup")}
                   className="rounded p-0.5 transition-all"
                   style={{ color: "var(--ink-3)" }}
                 >
@@ -489,7 +514,7 @@ export default function GoalsDashboard() {
                   >
                     <span className="flex items-center gap-3">
                       <span className="h-2 w-2 rounded-full" style={{ border: "1px solid var(--ink-4)" }} />
-                      <span>Uncategorized</span>
+                      <span>{t("dashboard.uncategorized")}</span>
                     </span>
                     <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink-3)" }}>
                       {uncategorizedCount}
@@ -543,7 +568,7 @@ export default function GoalsDashboard() {
                         setNewGroupName("");
                       }
                     }}
-                    placeholder="Group name"
+                    placeholder={t("dashboard.groupNamePlaceholder")}
                     className="flex-1 bg-transparent text-sm outline-none"
                     style={{ color: "var(--ink)" }}
                     autoFocus
@@ -573,7 +598,7 @@ export default function GoalsDashboard() {
           <div
             onMouseDown={handleResizeMouseDown}
             className="group absolute right-0 top-0 z-10 -mr-0.5 flex h-full w-1.5 cursor-col-resize items-center justify-center"
-            aria-label="Resize sidebar"
+            aria-label={t("dashboard.resizeSidebar")}
             role="separator"
           >
             <span
@@ -617,24 +642,27 @@ export default function GoalsDashboard() {
     }
   };
 
-  const activeTitle = () => {
-    if (activeTab === "objectives") return "Objectives";
-    if (activeTab === "horizons") return "Horizons";
-    if (activeTab === "tasks") return "Tasks";
-    if (activeTab === "pulse") return "Pulse";
-    if (activeTab === "sync") return "Sync";
-    if (activeTab === "tracking-items") return "Tracking Items";
-    if (activeTab === "self") return "Self";
-    if (activeTab === "values") return "Values";
-    if (activeTab === "progress") return "Progress";
-    if (activeTab === "bucket") return "Bucket List";
-    if (activeTab === "relationships") return "Relationships";
+  // The mobile top-bar title — derived from the active tab. For grouped
+  // people views, the user-supplied group name takes precedence; only the
+  // "all people" / "uncategorized" labels are translated.
+  const activeTitle = (): string => {
+    if (activeTab === "objectives") return t("dashboard.nav.objectives");
+    if (activeTab === "horizons") return t("dashboard.nav.horizons");
+    if (activeTab === "tasks") return t("dashboard.nav.tasks");
+    if (activeTab === "pulse") return t("dashboard.nav.pulse");
+    if (activeTab === "sync") return t("dashboard.nav.sync");
+    if (activeTab === "tracking-items") return t("dashboard.nav.trackingItems");
+    if (activeTab === "self") return t("dashboard.nav.self");
+    if (activeTab === "values") return t("dashboard.nav.values");
+    if (activeTab === "progress") return t("dashboard.nav.progress");
+    if (activeTab === "bucket") return t("dashboard.nav.bucket");
+    if (activeTab === "relationships") return t("dashboard.nav.relationships");
     if (activeTab === "people") {
-      if (peopleFilter.kind === "uncategorized") return "Uncategorized";
+      if (peopleFilter.kind === "uncategorized") return t("dashboard.uncategorized");
       if (peopleFilter.kind === "group") {
-        return groups.find((g) => g.id === peopleFilter.groupId)?.name ?? "People";
+        return groups.find((g) => g.id === peopleFilter.groupId)?.name ?? t("dashboard.nav.people");
       }
-      return "People";
+      return t("dashboard.nav.people");
     }
     return "";
   };
@@ -675,7 +703,7 @@ export default function GoalsDashboard() {
             onClick={() => setMobileNavOpen(true)}
             className="rounded-lg p-2 transition-all"
             style={{ color: "var(--ink-2)" }}
-            aria-label="Open navigation"
+            aria-label={t("dashboard.openNavigation")}
           >
             <Menu className="h-5 w-5" />
           </button>
@@ -688,7 +716,7 @@ export default function GoalsDashboard() {
             <div className="flex h-64 items-center justify-center" style={{ color: "var(--ink-3)" }}>
               <RefreshCw className="h-5 w-5 animate-spin" style={{ color: "var(--clay)" }} />
               <span className="ml-3 text-sm italic" style={{ fontFamily: "var(--font-text)" }}>
-                Looking for your threads…
+                {t("dashboard.lookingForThreads")}
               </span>
             </div>
           ) : (
@@ -736,7 +764,8 @@ function UserMenu({
     };
   }, [open]);
 
-  const displayName = user?.name ?? "Account";
+  const { t } = useTranslation();
+  const displayName = user?.name ?? t("dashboard.account");
   const displayEmail = user?.email ?? "";
 
   return (
@@ -793,7 +822,7 @@ function UserMenu({
             onMouseEnter={(e) => (e.currentTarget.style.background = "var(--vellum)")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
           >
-            <Settings className="h-4 w-4" style={{ color: "var(--ink-3)" }} /> Profile
+            <Settings className="h-4 w-4" style={{ color: "var(--ink-3)" }} /> {t("dashboard.profileMenuItem")}
           </button>
           <button
             onClick={() => {
@@ -805,7 +834,7 @@ function UserMenu({
             onMouseEnter={(e) => (e.currentTarget.style.background = "var(--vellum)")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
           >
-            <LogOut className="h-4 w-4" style={{ color: "var(--ink-3)" }} /> Log out
+            <LogOut className="h-4 w-4" style={{ color: "var(--ink-3)" }} /> {t("dashboard.logOutMenuItem")}
           </button>
         </div>
       )}

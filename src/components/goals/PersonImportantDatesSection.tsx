@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CalendarDays, HelpCircle, X } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { api } from "~/trpc/react";
 import DatePicker from "./DatePicker";
 
@@ -16,6 +17,7 @@ const inputClass =
 //
 // Extracted from PersonModal as part of H2.
 export default function PersonImportantDatesSection({ personId }: { personId: string | null | undefined }) {
+  const { t } = useTranslation();
   const enabled = !!personId;
   const utils = api.useUtils();
   const invalidate = () => void utils.goals.importantDates.list.invalidate({ personId: personId ?? "" });
@@ -43,18 +45,16 @@ export default function PersonImportantDatesSection({ personId }: { personId: st
       setLabelDraft("");
       setDateDraft(null);
     } catch {
-      toast.error("Couldn't add date");
+      toast.error(t("personDates.addFailed"));
     }
   };
 
   return (
     <div>
-      <SectionLabel hint="Yearly recurring dates — birthdays, anniversaries, anything that comes around again. Pulse surfaces them when the next occurrence is within the next 30 days. Year is optional (used for 'turning N' math).">
-        Important dates
-      </SectionLabel>
+      <SectionLabel hint={t("personDates.sectionHint")}>{t("personDates.sectionTitle")}</SectionLabel>
 
       {!enabled ? (
-        <p className={fieldHelper}>Save the person first — dates attach to a saved row.</p>
+        <p className={fieldHelper}>{t("personDates.saveFirst")}</p>
       ) : (
         <>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -68,17 +68,22 @@ export default function PersonImportantDatesSection({ personId }: { personId: st
                   void handleAdd();
                 }
               }}
-              placeholder="Birthday, anniversary, …"
+              placeholder={t("personDates.labelPlaceholder")}
               className={`${inputClass} flex-1`}
             />
-            <DatePicker value={dateDraft} onChange={setDateDraft} placeholder="Pick a date" className="sm:w-48" />
+            <DatePicker
+              value={dateDraft}
+              onChange={setDateDraft}
+              placeholder={t("personDates.pickDate")}
+              className="sm:w-48"
+            />
             <button
               type="button"
               onClick={() => void handleAdd()}
               disabled={!labelDraft.trim() || !dateDraft || create.isPending}
               className="shrink-0 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Add
+              {t("common.add")}
             </button>
           </div>
 
@@ -94,7 +99,7 @@ export default function PersonImportantDatesSection({ personId }: { personId: st
                     try {
                       await update.mutateAsync({ id: date.id, label: trimmed });
                     } catch {
-                      toast.error("Couldn't update date");
+                      toast.error(t("personDates.updateFailed"));
                     }
                   }}
                   onEditDate={async (next) => {
@@ -107,14 +112,14 @@ export default function PersonImportantDatesSection({ personId }: { personId: st
                         year: next.getFullYear(),
                       });
                     } catch {
-                      toast.error("Couldn't update date");
+                      toast.error(t("personDates.updateFailed"));
                     }
                   }}
                   onDelete={async () => {
                     try {
                       await remove.mutateAsync({ id: date.id });
                     } catch {
-                      toast.error("Couldn't remove date");
+                      toast.error(t("personDates.removeFailed"));
                     }
                   }}
                   deleteDisabled={remove.isPending}
@@ -162,6 +167,7 @@ function ImportantDateRow({
   onDelete: () => void;
   deleteDisabled: boolean;
 }) {
+  const { t } = useTranslation();
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelDraft, setLabelDraft] = useState(date.label);
   const dateAsObject = new Date(date.year ?? new Date().getFullYear(), date.month - 1, date.day);
@@ -204,7 +210,7 @@ function ImportantDateRow({
               setEditingLabel(true);
             }}
             className="block w-full truncate text-left text-sm text-[var(--ink)] transition-colors hover:text-[var(--ink)]"
-            title="Click to rename"
+            title={t("personDates.clickToRename")}
           >
             {date.label}
           </button>
@@ -216,7 +222,7 @@ function ImportantDateRow({
         onClick={onDelete}
         disabled={deleteDisabled}
         className="shrink-0 rounded p-1 text-[var(--ink-4)] opacity-100 transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:cursor-not-allowed md:opacity-0 md:group-hover:opacity-100"
-        aria-label="Remove date"
+        aria-label={t("personDates.removeDate")}
       >
         <X className="h-3.5 w-3.5" />
       </button>

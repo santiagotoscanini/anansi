@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Plus, Trash2, Edit2, Check, X, ChevronDown, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useGoals } from "~/contexts/GoalsContext";
 import type { Value } from "~/lib/api/types";
 import { api, type RouterOutputs } from "~/trpc/react";
@@ -15,6 +16,7 @@ type Behavior = RouterOutputs["goals"]["valueBehaviors"]["listAll"][number];
 // the value (name + color) plus its list of confirming behaviors. Behaviors
 // are stored in their own table (value_behaviors) — atomic add/delete/reorder.
 export default function ValuesManager() {
+  const { t } = useTranslation();
   const { values, addValue, updateValue, deleteValue } = useGoals();
 
   const utils = api.useUtils();
@@ -47,7 +49,7 @@ export default function ValuesManager() {
 
   const handleAdd = () => {
     if (!newValueName.trim()) {
-      toast.error("Value name is required");
+      toast.error(t("valuesManager.nameRequired"));
       return;
     }
     void addValue({ name: newValueName.trim(), color: getRandomColor() });
@@ -67,7 +69,7 @@ export default function ValuesManager() {
 
   const handleUpdate = () => {
     if (!editValue.name.trim()) {
-      toast.error("Value name is required");
+      toast.error(t("valuesManager.nameRequired"));
       return;
     }
     if (editingId) {
@@ -77,7 +79,7 @@ export default function ValuesManager() {
   };
 
   const handleDelete = (id: string, name: string) => {
-    if (!confirm(`Delete "${name}" and all its behaviors?`)) return;
+    if (!confirm(t("valuesManager.confirmDelete", { name }))) return;
     void deleteValue(id);
   };
 
@@ -93,7 +95,7 @@ export default function ValuesManager() {
       await createBehavior.mutateAsync({ valueId, content });
       setDraftBehaviorContent("");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to add behavior");
+      toast.error(err instanceof Error ? err.message : t("valuesManager.addBehaviorFailed"));
     }
   };
 
@@ -101,7 +103,7 @@ export default function ValuesManager() {
     try {
       await deleteBehavior.mutateAsync({ id });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete");
+      toast.error(err instanceof Error ? err.message : t("valuesManager.deleteBehaviorFailed"));
     }
   };
 
@@ -119,7 +121,7 @@ export default function ValuesManager() {
               marginBottom: 10,
             }}
           >
-            Compass · values
+            {t("valuesManager.eyebrow")}
           </div>
           <h1
             style={{
@@ -130,7 +132,9 @@ export default function ValuesManager() {
               color: "var(--ink)",
             }}
           >
-            The <span className="brand-em">why</span> beneath the what.
+            {t("valuesManager.titlePre")}
+            <span className="brand-em">{t("valuesManager.titleEm")}</span>
+            {t("valuesManager.titlePost")}
           </h1>
           <p
             className="mt-3 max-w-2xl"
@@ -142,7 +146,7 @@ export default function ValuesManager() {
               lineHeight: 1.4,
             }}
           >
-            Core values plus the concrete behaviors that confirm you&apos;re living them.
+            {t("valuesManager.subtitle")}
           </p>
         </div>
       </header>
@@ -154,15 +158,16 @@ export default function ValuesManager() {
             value={newValueName}
             onChange={(e) => setNewValueName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-            placeholder="Add a value…"
+            placeholder={t("valuesManager.addPlaceholder")}
             className="flex-1 rounded-md border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 text-sm outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"
           />
           <button
             onClick={handleAdd}
-            className="flex items-center gap-1 rounded-md border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
+            className="flex items-center gap-1 rounded-md px-3 py-2 text-sm transition-all"
+            style={{ background: "var(--clay)", color: "var(--paper)", boxShadow: "var(--shadow-sm)" }}
           >
             <Plus className="h-3.5 w-3.5" />
-            Add
+            {t("common.add")}
           </button>
         </div>
 
@@ -199,14 +204,14 @@ export default function ValuesManager() {
                     <button
                       onClick={() => beginEdit(value)}
                       className="rounded p-1.5 text-[var(--ink-3)] hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
-                      aria-label="Edit value"
+                      aria-label={t("valuesManager.editValue")}
                     >
                       <Edit2 className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => handleDelete(value.id, value.name)}
                       className="rounded p-1.5 text-[var(--ink-3)] hover:bg-[var(--rust-soft)] hover:text-[var(--rust)]"
-                      aria-label="Delete value"
+                      aria-label={t("valuesManager.deleteValue")}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -223,7 +228,7 @@ export default function ValuesManager() {
                             onClick={() => setShowColorPicker((s) => !s)}
                             className="h-7 w-7 shrink-0 rounded-md border border-[var(--hairline)]"
                             style={{ backgroundColor: editValue.color }}
-                            aria-label="Pick color"
+                            aria-label={t("valuesManager.pickColor")}
                           />
                           <input
                             type="text"
@@ -239,14 +244,14 @@ export default function ValuesManager() {
                           <button
                             onClick={handleUpdate}
                             className="rounded p-1.5 text-[var(--moss)] hover:bg-[var(--moss-soft)]"
-                            aria-label="Save"
+                            aria-label={t("common.save")}
                           >
                             <Check className="h-4 w-4" />
                           </button>
                           <button
                             onClick={cancelEdit}
                             className="rounded p-1.5 text-[var(--ink-3)] hover:bg-[var(--vellum)]"
-                            aria-label="Cancel"
+                            aria-label={t("common.cancel")}
                           >
                             <X className="h-4 w-4" />
                           </button>
@@ -262,7 +267,7 @@ export default function ValuesManager() {
                                 }}
                                 className="h-5 w-5 rounded transition-transform hover:scale-110"
                                 style={{ backgroundColor: color }}
-                                aria-label={`Color ${color}`}
+                                aria-label={t("valuesManager.colorAria", { color })}
                               />
                             ))}
                           </div>
@@ -284,7 +289,7 @@ export default function ValuesManager() {
                               <button
                                 onClick={() => void handleDeleteBehavior(b.id)}
                                 className="shrink-0 rounded p-1 text-[var(--ink-4)] opacity-100 hover:bg-[var(--rust-soft)] hover:text-[var(--rust)] md:opacity-0 md:group-hover/b:opacity-100"
-                                aria-label="Remove behavior"
+                                aria-label={t("valuesManager.removeBehavior")}
                               >
                                 <X className="h-3 w-3" />
                               </button>
@@ -292,9 +297,7 @@ export default function ValuesManager() {
                           ))}
                         </ul>
                       ) : (
-                        <p className="px-2 py-1 text-xs italic text-[var(--ink-3)]">
-                          No behaviors yet — add concrete examples that confirm this value.
-                        </p>
+                        <p className="px-2 py-1 text-xs italic text-[var(--ink-3)]">{t("valuesManager.noBehaviors")}</p>
                       )}
 
                       {/* Add behavior */}
@@ -306,7 +309,7 @@ export default function ValuesManager() {
                           onKeyDown={(e) => {
                             if (e.key === "Enter") void handleAddBehavior(value.id);
                           }}
-                          placeholder={`A behavior that confirms "${value.name}"…`}
+                          placeholder={t("valuesManager.behaviorPlaceholder", { name: value.name })}
                           className="flex-1 rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-2 py-1.5 text-sm outline-none placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
                         />
                         <button
@@ -315,7 +318,7 @@ export default function ValuesManager() {
                           className="flex items-center gap-1 rounded-md border border-[var(--hairline)] px-2 py-1.5 text-xs text-[var(--ink-2)] hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:opacity-40"
                         >
                           <Plus className="h-3 w-3" />
-                          Add
+                          {t("common.add")}
                         </button>
                       </div>
                     </div>
@@ -328,7 +331,7 @@ export default function ValuesManager() {
 
         {values.length === 0 && (
           <div className="rounded-md border border-dashed border-[var(--hairline)] px-4 py-12 text-center text-sm text-[var(--ink-3)]">
-            No values yet. Add your first one above.
+            {t("valuesManager.noValuesYet")}
           </div>
         )}
       </div>

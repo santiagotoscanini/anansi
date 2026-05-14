@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { api, type RouterOutputs } from "~/trpc/react";
 import toast from "react-hot-toast";
 
@@ -14,6 +15,7 @@ type GoalRow = RouterOutputs["goals"]["data"]["getAll"]["goals"][number];
 // which is the whole point: you can track things (sleep, journaling cadence,
 // a relationship intention) that aren't anchored to an active objective.
 export default function TrackingItemsLibrary() {
+  const { t } = useTranslation();
   const utils = api.useUtils();
   const itemsQuery = api.goals.trackingItems.list.useQuery({});
   const goalsQuery = api.goals.data.getAll.useQuery();
@@ -68,7 +70,7 @@ export default function TrackingItemsLibrary() {
   const handleCreate = async () => {
     const title = draftTitle.trim();
     if (!title) {
-      toast.error("Title is required");
+      toast.error(t("trackingItems.titleRequired"));
       return;
     }
     try {
@@ -77,10 +79,10 @@ export default function TrackingItemsLibrary() {
         description: draftDescription.trim() || undefined,
         goalId: draftGoalId || undefined,
       });
-      toast.success("Tracking item created");
+      toast.success(t("trackingItems.created"));
       cancelCreate();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create");
+      toast.error(err instanceof Error ? err.message : t("trackingItems.createFailed"));
     }
   };
 
@@ -88,7 +90,7 @@ export default function TrackingItemsLibrary() {
     if (!editingId) return;
     const title = editTitle.trim();
     if (!title) {
-      toast.error("Title is required");
+      toast.error(t("trackingItems.titleRequired"));
       return;
     }
     try {
@@ -98,20 +100,20 @@ export default function TrackingItemsLibrary() {
         description: editDescription.trim() || null,
         goalId: editGoalId === "" ? null : editGoalId,
       });
-      toast.success("Saved");
+      toast.success(t("trackingItems.saved"));
       cancelEdit();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save");
+      toast.error(err instanceof Error ? err.message : t("trackingItems.saveFailed"));
     }
   };
 
   const handleDelete = async (item: TrackingItemRow) => {
-    if (!confirm(`Delete "${item.title}"?`)) return;
+    if (!confirm(t("trackingItems.confirmDelete", { title: item.title }))) return;
     try {
       const result = await deleteMutation.mutateAsync({ id: item.id });
-      toast.success(result.type === "soft_delete" ? "Archived (referenced by past syncs)" : "Deleted");
+      toast.success(result.type === "soft_delete" ? t("trackingItems.archivedSoft") : t("trackingItems.deleted"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete");
+      toast.error(err instanceof Error ? err.message : t("trackingItems.deleteFailed"));
     }
   };
 
@@ -132,7 +134,7 @@ export default function TrackingItemsLibrary() {
               marginBottom: 10,
             }}
           >
-            Sync · tracking items · library
+            {t("trackingItems.eyebrow")}
           </div>
           <h1
             style={{
@@ -143,7 +145,9 @@ export default function TrackingItemsLibrary() {
               color: "var(--ink)",
             }}
           >
-            The <span className="brand-em">questions</span> you ask yourself.
+            {t("trackingItems.titlePre")}
+            <span className="brand-em">{t("trackingItems.titleEm")}</span>
+            {t("trackingItems.titlePost")}
           </h1>
           <p
             className="mt-3 max-w-2xl"
@@ -155,8 +159,7 @@ export default function TrackingItemsLibrary() {
               lineHeight: 1.4,
             }}
           >
-            Your library of prompts. Each new weekly sync auto-fills from these. Add, edit, retire — the prompts evolve
-            as you do.
+            {t("trackingItems.subtitle")}
           </p>
         </div>
         {!creatingOpen && (
@@ -170,7 +173,7 @@ export default function TrackingItemsLibrary() {
             }}
           >
             <Plus className="h-4 w-4" />
-            New item
+            {t("trackingItems.newItem")}
           </button>
         )}
       </header>
@@ -182,13 +185,13 @@ export default function TrackingItemsLibrary() {
               autoFocus
               value={draftTitle}
               onChange={(e) => setDraftTitle(e.target.value)}
-              placeholder="Title (e.g., Sleep, Journaling, Time with mom)"
+              placeholder={t("trackingItems.titlePlaceholder")}
               className="w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
             />
             <textarea
               value={draftDescription}
               onChange={(e) => setDraftDescription(e.target.value)}
-              placeholder="Optional description"
+              placeholder={t("trackingItems.descriptionPlaceholder")}
               rows={2}
               className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
             />
@@ -197,7 +200,7 @@ export default function TrackingItemsLibrary() {
               onChange={(e) => setDraftGoalId(e.target.value)}
               className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
             >
-              <option value="">— Unscoped (no goal) —</option>
+              <option value="">{t("trackingItems.unscopedLong")}</option>
               {[...goalsById.values()].map((g) => (
                 <option key={g.id} value={g.id}>
                   {g.title}
@@ -209,24 +212,26 @@ export default function TrackingItemsLibrary() {
                 onClick={cancelCreate}
                 className="rounded-md px-3 py-1.5 text-sm text-[var(--ink-2)] hover:bg-[var(--vellum)]"
               >
-                Cancel
+                {t("common.cancel")}
               </button>
               <button
                 onClick={handleCreate}
                 disabled={createMutation.isPending}
                 className="rounded-md bg-[var(--moss)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--moss)] disabled:opacity-60"
               >
-                {createMutation.isPending ? "Creating…" : "Create"}
+                {createMutation.isPending ? t("trackingItems.creating") : t("trackingItems.create")}
               </button>
             </div>
           </div>
         )}
 
         {itemsQuery.isLoading ? (
-          <div className="text-sm text-[var(--ink-2)]">Loading…</div>
+          <div className="text-sm text-[var(--ink-2)]">{t("trackingItems.loading")}</div>
         ) : items.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[var(--hairline)] p-8 text-center text-[var(--ink-2)]">
-            No tracking items yet. Click <span className="font-medium text-[var(--ink)]">New item</span> to add one.
+            {t("trackingItems.emptyPre")}
+            <span className="font-medium text-[var(--ink)]">{t("trackingItems.emptyEm")}</span>
+            {t("trackingItems.emptyPost")}
           </div>
         ) : (
           <ul className="space-y-2">
@@ -253,7 +258,7 @@ export default function TrackingItemsLibrary() {
                         onChange={(e) => setEditGoalId(e.target.value)}
                         className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
                       >
-                        <option value="">— Unscoped —</option>
+                        <option value="">{t("trackingItems.unscopedShort")}</option>
                         {[...goalsById.values()].map((g) => (
                           <option key={g.id} value={g.id}>
                             {g.title}
@@ -265,14 +270,14 @@ export default function TrackingItemsLibrary() {
                           onClick={cancelEdit}
                           className="flex items-center gap-1 rounded-md px-3 py-1.5 text-sm text-[var(--ink-2)] hover:bg-[var(--vellum)]"
                         >
-                          <X className="h-4 w-4" /> Cancel
+                          <X className="h-4 w-4" /> {t("common.cancel")}
                         </button>
                         <button
                           onClick={handleSaveEdit}
                           disabled={updateMutation.isPending}
                           className="flex items-center gap-1 rounded-md bg-[var(--moss)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--moss)] disabled:opacity-60"
                         >
-                          <Check className="h-4 w-4" /> Save
+                          <Check className="h-4 w-4" /> {t("common.save")}
                         </button>
                       </div>
                     </div>
@@ -287,7 +292,7 @@ export default function TrackingItemsLibrary() {
                             </span>
                           ) : (
                             <span className="rounded-full bg-[var(--vellum)] px-2 py-0.5 text-xs text-[var(--ink-2)]">
-                              Unscoped
+                              {t("trackingItems.unscopedTag")}
                             </span>
                           )}
                         </div>
@@ -297,14 +302,14 @@ export default function TrackingItemsLibrary() {
                         <button
                           onClick={() => beginEdit(item)}
                           className="rounded-md p-1.5 text-[var(--ink-2)] hover:bg-[var(--vellum)]"
-                          title="Edit"
+                          title={t("common.edit")}
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(item)}
                           className="rounded-md p-1.5 text-[var(--ink-2)] hover:bg-[var(--rust-soft)] hover:text-[var(--rust)]"
-                          title="Delete"
+                          title={t("common.delete")}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

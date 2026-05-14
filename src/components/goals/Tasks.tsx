@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import { CheckSquare, Search, Square } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useGoals } from "~/contexts/GoalsContext";
 import { isEmojiUrl } from "~/lib/emoji-utils";
 import { formatScheduledShort } from "~/lib/horizon-period";
@@ -12,6 +13,13 @@ import Avatar from "./Avatar";
 
 type FilterMode = "open" | "all" | "completed";
 
+type FilterLabelKey = "tasks.filterOpen" | "tasks.filterAll" | "tasks.filterCompleted";
+const FILTER_LABEL_KEYS: Record<FilterMode, FilterLabelKey> = {
+  open: "tasks.filterOpen",
+  all: "tasks.filterAll",
+  completed: "tasks.filterCompleted",
+};
+
 // Tasks tab — the cross-goal task editor. Tasks are normally created/edited
 // inside their parent goal's modal, but the graph view makes that fiddly when
 // a user just wants to scan and tweak tasks across many goals. This tab gives
@@ -20,6 +28,7 @@ type FilterMode = "open" | "all" | "completed";
 // groups). Read-side data flows through the existing GoalsContext (no new
 // router); the modal handles the mutation.
 export default function Tasks() {
+  const { t } = useTranslation();
   const { goals } = useGoals();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterMode>("open");
@@ -43,11 +52,11 @@ export default function Tasks() {
   const grouped = useMemo(() => {
     const out: { goal: (typeof goals)[number]; tasks: (typeof goals)[number]["tasks"] }[] = [];
     for (const g of goals) {
-      const filtered = g.tasks.filter((t) => {
-        if (filter === "open" && t.completed) return false;
-        if (filter === "completed" && !t.completed) return false;
+      const filtered = g.tasks.filter((task) => {
+        if (filter === "open" && task.completed) return false;
+        if (filter === "completed" && !task.completed) return false;
         if (!q) return true;
-        const hay = `${t.title} ${t.description ?? ""}`.toLowerCase();
+        const hay = `${task.title} ${task.description ?? ""}`.toLowerCase();
         return hay.includes(q);
       });
       if (filtered.length > 0) out.push({ goal: g, tasks: filtered });
@@ -66,8 +75,8 @@ export default function Tasks() {
         className="px-6 pb-6 pt-10 md:px-12 md:pb-7 md:pt-12"
         style={{ borderBottom: "1px solid var(--hairline)" }}
       >
-        <div className="mx-auto flex max-w-5xl flex-wrap items-end justify-between gap-6">
-          <div className="min-w-0 flex-1">
+        <div className="mx-auto max-w-5xl">
+          <div className="min-w-0">
             <div
               style={{
                 fontFamily: "var(--font-mono)",
@@ -78,7 +87,7 @@ export default function Tasks() {
                 marginBottom: 10,
               }}
             >
-              Goals · tasks · {totalCount} {filter}
+              {t("tasks.eyebrowPrefix", { count: totalCount, filter: t(FILTER_LABEL_KEYS[filter]) })}
             </div>
             <h1
               style={{
@@ -89,7 +98,8 @@ export default function Tasks() {
                 color: "var(--ink)",
               }}
             >
-              The <span className="brand-em">doing.</span>
+              {t("tasks.titlePre")}
+              <span className="brand-em">{t("tasks.titleEm")}</span>
             </h1>
             <p
               className="mt-3 max-w-xl"
@@ -101,19 +111,16 @@ export default function Tasks() {
                 lineHeight: 1.4,
               }}
             >
-              Every task across your goals. Click a row to open the editor — full description, emoji, deadline, the
-              people you&apos;re relying on.
+              {t("tasks.subtitle")}
             </p>
           </div>
-          {/* Right rail — inline search + segmented filter pill, matching
-              the design's action-row treatment. */}
-          <div className="flex shrink-0 flex-wrap items-center gap-3">
+          {/* Toolbar row — search expands on the left, filter pill anchors right. */}
+          <div className="mt-7 flex flex-wrap items-center justify-between gap-3">
             <div
-              className="flex h-9 items-center gap-2 rounded-lg px-3"
+              className="flex h-9 max-w-md flex-1 items-center gap-2 rounded-lg px-3"
               style={{
                 background: "var(--canvas)",
                 border: "1px solid var(--hairline-2)",
-                width: 280,
                 boxShadow: "var(--shadow-sm)",
               }}
             >
@@ -122,7 +129,7 @@ export default function Tasks() {
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search tasks…"
+                placeholder={t("tasks.searchPlaceholder")}
                 className="flex-1 bg-transparent text-sm outline-none"
                 style={{ color: "var(--ink)" }}
               />
@@ -143,7 +150,7 @@ export default function Tasks() {
                     boxShadow: filter === mode ? "var(--shadow-sm)" : "none",
                   }}
                 >
-                  {mode}
+                  {t(FILTER_LABEL_KEYS[mode])}
                 </button>
               ))}
             </div>
@@ -157,12 +164,12 @@ export default function Tasks() {
           <div className="rounded-xl border border-dashed border-[var(--hairline)] bg-[var(--vellum)] p-10 text-center">
             <p className="text-[var(--ink-3)]">
               {q
-                ? "No tasks match your search."
+                ? t("tasks.emptyNoMatches")
                 : filter === "completed"
-                  ? "No completed tasks yet."
+                  ? t("tasks.emptyCompleted")
                   : filter === "open"
-                    ? "No open tasks. Add one inside any goal."
-                    : "No tasks yet."}
+                    ? t("tasks.emptyOpen")
+                    : t("tasks.emptyAll")}
             </p>
           </div>
         ) : (
@@ -188,30 +195,30 @@ export default function Tasks() {
                   <span className="text-xs text-[var(--ink-3)]">{tasks.length}</span>
                 </div>
                 <ul className="divide-y divide-[var(--hairline)] overflow-hidden rounded-xl border border-[var(--hairline)] bg-[var(--vellum)]">
-                  {tasks.map((t) => {
-                    const referents = (t.referentIds ?? [])
+                  {tasks.map((task) => {
+                    const referents = (task.referentIds ?? [])
                       .map((id) => peopleById.get(id))
                       .filter((p): p is NonNullable<typeof p> => !!p);
-                    const taskGroups = (t.groupIds ?? [])
+                    const taskGroups = (task.groupIds ?? [])
                       .map((id) => groupsById.get(id))
                       .filter((g): g is NonNullable<typeof g> => !!g);
                     return (
-                      <li key={t.id}>
+                      <li key={task.id}>
                         <button
-                          onClick={() => setOpen({ goalId: goal.id, taskId: t.id })}
+                          onClick={() => setOpen({ goalId: goal.id, taskId: task.id })}
                           className="flex w-full items-center gap-3 px-4 py-3 text-left transition-all hover:bg-[var(--vellum)]"
                         >
-                          {t.completed ? (
+                          {task.completed ? (
                             <CheckSquare className="h-4 w-4 shrink-0 text-[var(--moss)]" />
                           ) : (
                             <Square className="h-4 w-4 shrink-0 text-[var(--ink-4)]" />
                           )}
 
                           {/* Task emoji — distinct from the goal's */}
-                          {t.emoji ? (
-                            isEmojiUrl(t.emoji) ? (
+                          {task.emoji ? (
+                            isEmojiUrl(task.emoji) ? (
                               <Image
-                                src={t.emoji}
+                                src={task.emoji}
                                 alt=""
                                 width={16}
                                 height={16}
@@ -219,20 +226,20 @@ export default function Tasks() {
                                 className="h-4 w-4 shrink-0 object-contain"
                               />
                             ) : (
-                              <span className="shrink-0 text-base leading-none">{t.emoji}</span>
+                              <span className="shrink-0 text-base leading-none">{task.emoji}</span>
                             )
                           ) : null}
 
                           <div className="min-w-0 flex-1">
                             <div
                               className={`truncate text-sm ${
-                                t.completed ? "text-[var(--ink-3)] line-through" : "text-[var(--ink)]"
+                                task.completed ? "text-[var(--ink-3)] line-through" : "text-[var(--ink)]"
                               }`}
                             >
-                              {t.title}
+                              {task.title}
                             </div>
-                            {t.description && (
-                              <div className="mt-0.5 truncate text-xs text-[var(--ink-3)]">{t.description}</div>
+                            {task.description && (
+                              <div className="mt-0.5 truncate text-xs text-[var(--ink-3)]">{task.description}</div>
                             )}
                           </div>
 
@@ -280,9 +287,9 @@ export default function Tasks() {
                           )}
 
                           {/* Deadline */}
-                          {t.scheduledAt ? (
+                          {task.scheduledAt ? (
                             <span className="shrink-0 text-[11px] text-[var(--ink-3)]">
-                              {formatScheduledShort(new Date(t.scheduledAt))}
+                              {formatScheduledShort(new Date(task.scheduledAt))}
                             </span>
                           ) : null}
                         </button>

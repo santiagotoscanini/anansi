@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { api } from "~/trpc/react";
 import type { BucketListItem } from "~/lib/api/types";
 import Avatar from "./Avatar";
@@ -21,6 +22,7 @@ interface BucketListItemModalProps {
 }
 
 export default function BucketListItemModal({ mode, onClose, onSaved }: BucketListItemModalProps) {
+  const { t } = useTranslation();
   const isEdit = mode.kind === "edit";
   const item = isEdit ? mode.item : null;
 
@@ -42,7 +44,7 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
   const handleSave = async () => {
     const trimmed = content.trim();
     if (!trimmed) {
-      toast.error("Add a name");
+      toast.error(t("bucketItem.addName"));
       return;
     }
     try {
@@ -53,32 +55,32 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
           description: description.trim() || null,
           personIds,
         });
-        toast.success("Updated");
+        toast.success(t("bucketItem.saved"));
       } else {
         await createMutation.mutateAsync({
           content: trimmed,
           description: description.trim() || null,
           personIds,
         });
-        toast.success("Added");
+        toast.success(t("bucketItem.added"));
       }
       onSaved();
       onClose();
     } catch {
-      toast.error("Couldn't save");
+      toast.error(t("bucketItem.saveFailed"));
     }
   };
 
   const handleDelete = async () => {
     if (!item) return;
-    if (!confirm("Delete this item? Can't be undone.")) return;
+    if (!confirm(t("bucketItem.confirmDelete"))) return;
     try {
       await deleteMutation.mutateAsync({ id: item.id });
-      toast.success("Deleted");
+      toast.success(t("bucketItem.deleted"));
       onSaved();
       onClose();
     } catch {
-      toast.error("Couldn't delete");
+      toast.error(t("bucketItem.deleteFailed"));
     }
   };
 
@@ -96,11 +98,13 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
       >
         {/* Sticky header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--hairline)] bg-[var(--canvas)] px-6 py-4 backdrop-blur">
-          <h2 className="text-lg font-medium tracking-tight">{isEdit ? "Edit Bucket Item" : "Add Bucket Item"}</h2>
+          <h2 className="text-lg font-medium tracking-tight">
+            {isEdit ? t("bucketItem.editTitle") : t("bucketItem.addTitle")}
+          </h2>
           <button
             onClick={onClose}
             className="rounded-lg p-1.5 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -109,7 +113,7 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
         <div className="space-y-5 px-6 pb-6 pt-5">
           {/* Content */}
           <div>
-            <label className={fieldLabel}>Thing to do</label>
+            <label className={fieldLabel}>{t("bucketItem.thingToDo")}</label>
             <input
               type="text"
               value={content}
@@ -120,7 +124,7 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
                   void handleSave();
                 }
               }}
-              placeholder="Something to do before you die…"
+              placeholder={t("bucketItem.thingPlaceholder")}
               maxLength={500}
               autoFocus
               className={inputClass}
@@ -129,11 +133,11 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
 
           {/* Description */}
           <div>
-            <label className={fieldLabel}>Description</label>
+            <label className={fieldLabel}>{t("bucketItem.descriptionLabel")}</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="The shape of it. Why it matters. Where, when, how."
+              placeholder={t("bucketItem.descriptionPlaceholder")}
               rows={4}
               maxLength={2000}
               className={textareaClass}
@@ -142,11 +146,9 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
 
           {/* People to do it with */}
           <div>
-            <label className={fieldLabel}>People I want to do this with</label>
+            <label className={fieldLabel}>{t("bucketItem.peopleLabel")}</label>
             {sortedPeople.length === 0 ? (
-              <p className="text-xs text-[var(--ink-3)]">
-                No people in your directory yet. Add some in the People tab.
-              </p>
+              <p className="text-xs text-[var(--ink-3)]">{t("bucketItem.noPeopleYet")}</p>
             ) : (
               <div className="flex flex-wrap items-center gap-1.5">
                 {sortedPeople.map((p) => {
@@ -182,7 +184,7 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--rust)] bg-[var(--rust-soft)] px-3 py-1.5 text-xs text-[var(--rust)] transition-all hover:bg-[var(--rust-soft)] hover:text-[var(--rust)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Delete
+              {t("common.delete")}
             </button>
           ) : (
             <span />
@@ -193,15 +195,15 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
               onClick={onClose}
               className="rounded-lg border border-[var(--hairline)] bg-transparent px-4 py-1.5 text-sm text-[var(--ink-2)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
               onClick={() => void handleSave()}
               disabled={isSaving || !content.trim()}
-              className="rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] px-4 py-1.5 text-sm text-black transition-all hover:bg-[var(--paper)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg border border-[var(--hairline-2)] bg-[var(--surface-inverse)] px-4 py-1.5 text-sm text-[var(--on-inverse)] transition-all hover:bg-[var(--surface-inverse)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {isEdit ? "Save" : "Add"}
+              {isEdit ? t("common.save") : t("common.add")}
             </button>
           </div>
         </div>

@@ -26,6 +26,11 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# This project has no `public/` directory — Next's icon conventions colocate
+# apple-icon.png / icon.png / icon.svg under src/app/. Ensure the path exists
+# so the runtime stage's COPY succeeds whether or not a public/ dir is later
+# added (cheaper than making the COPY conditional with BuildKit tricks).
+RUN mkdir -p public
 
 # Public Supabase config — inlined into the client bundle at build time.
 # Pass via --build-arg from the GHA workflow (sourced from repo Variables).

@@ -1,0 +1,92 @@
+# Builds + publishes a multi-arch (linux/amd64) Docker image to the GitHub
+# Container Registry on every push to main and on manual dispatch.
+#
+# Tags applied:
+#   - latest          (only on main)
+#   - main            (branch ref)
+#   - sha-<7chars>    (immutable, pin deployments to this)
+#
+# Layer cache lives in GitHub Actions cache (type=gha,mode=max), which keeps
+# rebuilds well under a minute when only TS/TSX changes (the npm ci layer
+# stays warm because package*.json hasn't changed).
+#
+# Public Supabase config is injected at build time as ARGs sourced from
+# repository VARIABLES (vars.*, NOT secrets.*) — these are publishable per
+# the project's CLAUDE.md and are inlined into the client bundle anyway.
+# Server-only secrets (DATABASE_URL, SUPABASE_SERVICE_ROLE_KEY, etc.) are
+# passed at `docker run` time, never baked into the image.
+
+name: Release Docker image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write # required to push to ghcr.io
+
+env:
+  REGISTRY: ghcr.io
+  # docker/metadata-action lowercases this automatically; the env is here
+  # so the value is auditable in one place.
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags + labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=anansi
+            org.opencontainers.image.description=Personal operating system for goals, relationships, and values.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # GHA cache hits keep incremental rebuilds ~30s when only app code
+          # changes. mode=max writes every intermediate layer, not just the
+          # final one — costs cache storage but pays off on rebuilds.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Public Supabase config — Variables (not Secrets) by design.
+          # If a var is unset, the build still succeeds but the runtime
+          # client will be misconfigured; set both in Repo Settings →
+          # Secrets and variables → Actions → Variables.
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: Image summary
+        run: |
+          echo "### Published image" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

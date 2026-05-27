@@ -552,6 +552,147 @@ export const selfListItems = pgTable(
   (t) => [index("self_list_items_user_kind_idx").on(t.userId, t.kind)],
 );
 
+// MCP OAuth tables — Anansi acts as its own OAuth 2.1 Authorization Server for
+// the MCP server at /api/mcp. Five tables: dynamically-registered clients, the
+// short-lived authorization codes minted on consent, access and refresh tokens
+// issued to MCP clients, and an audit log for security-relevant OAuth events.
+//
+// Bearer tokens themselves are NEVER persisted — only their SHA-256 hash lives
+// in the DB (`token_hash`). A DB compromise yields nothing replayable.
+
+export const mcpOauthClients = pgTable(
+  "mcp_oauth_clients",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()), // serves as the public OAuth `client_id`
+    clientName: text("client_name").notNull(),
+    redirectUris: text("redirect_uris").array().notNull(),
+    grantTypes: text("grant_types")
+      .array()
+      .notNull()
+      .default(sql`ARRAY['authorization_code','refresh_token']`),
+    // PKCE public-client flow only — no client secret. MCP clients are public.
+    tokenEndpointAuthMethod: text("token_endpoint_auth_method").notNull().default("none"),
+    scope: text("scope").notNull().default("anansi:read anansi:write"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("mcp_oauth_clients_created_idx").on(t.createdAt)],
+);
+
+// Single-use, 60-second-TTL auth codes bound to PKCE challenge + redirect_uri.
+// `consumed_at` flips on first redemption so a stolen code can't be reused.
+export const mcpAuthorizationCodes = pgTable(
+  "mcp_authorization_codes",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()), // serves as the code value
+    clientId: text("client_id")
+      .notNull()
+      .references(() => mcpOauthClients.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    redirectUri: text("redirect_uri").notNull(),
+    codeChallenge: text("code_challenge").notNull(),
+    // Only S256 accepted; column exists for spec completeness + future-proofing.
+    codeChallengeMethod: text("code_challenge_method").notNull(),
+    scope: text("scope").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("mcp_auth_codes_user_client_idx").on(t.userId, t.clientId)],
+);
+
+export const mcpAccessTokens = pgTable(
+  "mcp_access_tokens",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    tokenHash: text("token_hash").notNull().unique(), // SHA-256 hex of the raw token
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => mcpOauthClients.id, { onDelete: "cascade" }),
+    scope: text("scope").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    revokedAt: timestamp("revoked_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("mcp_access_tokens_hash_idx").on(t.tokenHash), index("mcp_access_tokens_user_idx").on(t.userId)],
+);
+
+// Refresh tokens use rotating semantics: on each refresh we mint a new pair and
+// stamp the old refresh row with revoked_at + rotated_to (id of the replacement)
+// so the audit trail is preserved. `SELECT … FOR UPDATE` inside the rotation tx
+// prevents two concurrent refreshes from both succeeding.
+export const mcpRefreshTokens = pgTable(
+  "mcp_refresh_tokens",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    tokenHash: text("token_hash").notNull().unique(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => mcpOauthClients.id, { onDelete: "cascade" }),
+    scope: text("scope").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    revokedAt: timestamp("revoked_at"),
+    rotatedTo: text("rotated_to"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("mcp_refresh_tokens_hash_idx").on(t.tokenHash), index("mcp_refresh_tokens_user_idx").on(t.userId)],
+);
+
+// Consent rows let us auto-approve subsequent /authorize hits for the same
+// (user, client) pair without re-prompting. Revoking a grant deletes the row
+// so the next reconnect requires fresh consent.
+export const mcpConsents = pgTable(
+  "mcp_consents",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => mcpOauthClients.id, { onDelete: "cascade" }),
+    scope: text("scope").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("mcp_consents_user_client_unique").on(t.userId, t.clientId)],
+);
+
+// Free-form text event column (rather than an enum) so we can add new events
+// without a migration. Meta is JSON-stringified ad-hoc context. user_id is
+// nullable + SET NULL so the audit trail survives user deletion.
+export const mcpAuditLog = pgTable(
+  "mcp_audit_log",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    event: text("event").notNull(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    clientId: text("client_id"),
+    ip: text("ip"),
+    meta: text("meta"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("mcp_audit_log_event_idx").on(t.event), index("mcp_audit_log_created_idx").on(t.createdAt)],
+);
+
 // Goal-Value junction table (many-to-many relationship)
 export const goalValues = pgTable("goal_values", {
   id: text("id")

@@ -162,6 +162,13 @@
       "when": 1779120100000,
       "tag": "0022_people_attachments_storage",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1779522827016,
+      "tag": "0023_boring_captain_stacy",
+      "breakpoints": true
     }
   ]
 }

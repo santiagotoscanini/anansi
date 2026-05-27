@@ -56,7 +56,19 @@
     "preparingBackup": "Preparando copia…",
     "backupDownloaded_one": "Copia descargada ({{count}} archivo)",
     "backupDownloaded_other": "Copia descargada ({{count}} archivos)",
-    "exportFailed": "La exportación falló"
+    "exportFailed": "La exportación falló",
+    "mcp": "Anansi para Claude",
+    "mcpHelp": "Conectá Anansi con Claude (Desktop, Code o claude.ai). Después podés hablarle a Claude para crear metas, capturar próximos gestos, actualizar tu retrato — lo mismo que hace la app, más algo de lo que solo leyendo te exige.",
+    "mcpServerUrl": "URL del servidor",
+    "mcpServerUrlHelp": "Pegá esta URL en tu cliente de Claude como servidor MCP por HTTP. La primera vez abre una pestaña del navegador para iniciar sesión.",
+    "mcpCopyUrl": "Copiar URL",
+    "mcpCopied": "Copiado",
+    "mcpClaudeCliHeading": "Claude Code CLI",
+    "mcpClaudeCliHelp": "Camino más rápido: corré esto en cualquier terminal. Claude Code registra el servidor y abre el flujo OAuth en el navegador la primera vez que llames /mcp.",
+    "mcpClaudeCodeHeading": "Claude Code (.mcp.json)",
+    "mcpClaudeCodeHelp": "O, persistido por proyecto: agregá esta entrada al .mcp.json, luego ejecutá /mcp dentro de Claude Code.",
+    "mcpClaudeDesktopHeading": "Claude Desktop y claude.ai",
+    "mcpClaudeDesktopHelp": "Abrí Configuración → Conectores → Agregar conector personalizado, pegá la URL de arriba y aprobá la pantalla de consentimiento que se abre en el navegador."
   },
   "dashboard": {
     "nav": {
@@ -1088,6 +1100,22 @@
           "duration": "2 años adentro"
         }
       }
+    },
+    "claude": {
+      "eyebrow": "Interludio · agentes",
+      "title1": "Hablale",
+      "title2": "<em>a través de Claude.</em>",
+      "intro": "anansi habla Model Context Protocol. Conectalo con Claude — Desktop, Code o claude.ai — y capturá metas, programá próximos gestos, editá tu retrato del Yo, todo conversando.",
+      "exampleLabel": "Probá decir:",
+      "examples": [
+        "Agendá un café con mamá el próximo martes.",
+        "Agregá 'pedirle perdón a Lucía' como próximo gesto, con vencimiento en dos semanas.",
+        "¿Qué tengo en mente para el año que viene?",
+        "Creá una meta para el maratón y etiquetala con salud y crecimiento."
+      ],
+      "howLabel": "Cómo",
+      "howBody": "Iniciá sesión una vez, pegá la URL de tu anansi en el diálogo de conector de Claude, y aprobá la pantalla de consentimiento que se abre en el navegador. La URL exacta y un snippet .mcp.json listo para copiar están en Configuración → Anansi para Claude.",
+      "safety": "Anansi es el servidor de autorización OAuth. Los tokens se limitan a tu cuenta, se renuevan cada 30 días y los revocás al instante desde tu cliente de Claude."
     },
     "spider": {
       "eyebrow": "Capítulo V · el nombre",

@@ -1,7 +1,20 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Camera, Download, Loader2, Sun, Moon, Monitor, Upload, X, Languages } from "lucide-react";
+import { useRef, useState, useSyncExternalStore } from "react";
+import {
+  Camera,
+  Check,
+  Copy,
+  Download,
+  Loader2,
+  Sparkles,
+  Sun,
+  Moon,
+  Monitor,
+  Upload,
+  X,
+  Languages,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { api } from "~/trpc/react";
@@ -22,6 +35,47 @@ const fieldLabel = "mb-1.5 block text-[11px] font-medium uppercase tracking-wide
 const inputClass =
   "w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]";
 const sectionClass = "border-t border-[var(--hairline)] px-6 py-5";
+
+// Fallback host shown in the MCP snippets before the client-side hydration
+// resolves `window.location.origin`. Also the canonical prod URL, so the
+// pre-hydration paint shows something that's actually correct in production
+// rather than a placeholder the user has to mentally substitute.
+const DEFAULT_MCP_URL = "https://anansi.toscanini.me/api/mcp";
+
+// Code snippet block with an absolutely-positioned Copy button. Used inside
+// the MCP setup panel for the `claude mcp add` CLI line and the .mcp.json
+// fragment. Each instance owns its own "copied" flash state so two visible
+// snippets don't clobber each other's feedback.
+function CodeSnippet({ code, ariaLabel }: { code: string; ariaLabel: string }) {
+  const [copied, setCopied] = useState(false);
+  const { t } = useTranslation();
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // Clipboard write can be blocked (insecure context, embedded iframe).
+      // Text inside <pre> stays selectable, so the user always has a fallback.
+    }
+  };
+  return (
+    <div className="relative">
+      <pre className="overflow-x-auto rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] py-2 pl-3 pr-12 font-mono text-[12px] leading-relaxed text-[var(--ink)]">
+        {code}
+      </pre>
+      <button
+        type="button"
+        onClick={() => void handleCopy()}
+        aria-label={copied ? t("profile.mcpCopied") : ariaLabel}
+        title={copied ? t("profile.mcpCopied") : t("profile.mcpCopyUrl")}
+        className="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--hairline)] bg-[var(--canvas)] text-[var(--ink-3)] transition-all hover:text-[var(--ink)]"
+      >
+        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+      </button>
+    </div>
+  );
+}
 
 export default function ProfileModal({ onClose, onImportBackup }: ProfileModalProps) {
   const { t } = useTranslation();
@@ -52,6 +106,29 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isExporting, setIsExporting] = useState(false);
+
+  // MCP server URL — derived from window.location.origin so it works in dev
+  // (http://localhost:3000) and prod alike. useSyncExternalStore handles the
+  // SSR/CSR split cleanly (empty string on server snapshot, real URL on
+  // client) without tripping react-hooks/set-state-in-effect.
+  const mcpServerUrl = useSyncExternalStore(
+    () => () => undefined,
+    () => `${window.location.origin}/api/mcp`,
+    () => "",
+  );
+  const [mcpCopied, setMcpCopied] = useState(false);
+
+  const handleCopyMcpUrl = async () => {
+    if (!mcpServerUrl) return;
+    try {
+      await navigator.clipboard.writeText(mcpServerUrl);
+      setMcpCopied(true);
+      setTimeout(() => setMcpCopied(false), 1600);
+    } catch {
+      // Clipboard API can be blocked (insecure context, embedded iframe, …);
+      // the URL is still selectable, so silent fallback is fine.
+    }
+  };
 
   const dirty = me && (name !== me.name || email !== me.email);
 
@@ -405,6 +482,93 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
             >
               <Upload className="h-3.5 w-3.5" /> {t("profile.importBackup")}
             </button>
+          </div>
+        </div>
+
+        {/* MCP — connect Anansi to Claude. The URL is the only piece of data
+            the user needs to copy; from there the OAuth flow is browser-driven
+            (sign-in → consent → token issued to the Claude client). We don't
+            surface "manage connected clients" UI yet; revocation goes through
+            the Claude side for v1. */}
+        <div className={sectionClass}>
+          <label className={fieldLabel}>
+            <span className="inline-flex items-center gap-1.5">
+              <Sparkles className="h-3 w-3" />
+              {t("profile.mcp")}
+            </span>
+          </label>
+          <p className="mb-4 text-xs leading-relaxed text-[var(--ink-3)]">{t("profile.mcpHelp")}</p>
+
+          <label className={`${fieldLabel} mt-3`}>{t("profile.mcpServerUrl")}</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              readOnly
+              value={mcpServerUrl}
+              onClick={(e) => e.currentTarget.select()}
+              className={`${inputClass} font-mono text-[12px]`}
+              spellCheck={false}
+              aria-label={t("profile.mcpServerUrl")}
+            />
+            <button
+              type="button"
+              onClick={() => void handleCopyMcpUrl()}
+              disabled={!mcpServerUrl}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-1.5 text-xs text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:opacity-50"
+            >
+              {mcpCopied ? (
+                <>
+                  <Check className="h-3.5 w-3.5" /> {t("profile.mcpCopied")}
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" /> {t("profile.mcpCopyUrl")}
+                </>
+              )}
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] text-[var(--ink-3)]">{t("profile.mcpServerUrlHelp")}</p>
+
+          {/* Claude Code CLI — the lowest-friction path. `claude mcp add`
+              writes the server into the user-scope config, no JSON editing.
+              Same pattern as Linear's docs (`claude mcp add --transport http
+              linear-server https://mcp.linear.app/mcp`). */}
+          <div className="mt-5">
+            <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+              {t("profile.mcpClaudeCliHeading")}
+            </div>
+            <p className="mb-2 text-xs text-[var(--ink-3)]">{t("profile.mcpClaudeCliHelp")}</p>
+            <CodeSnippet
+              ariaLabel={t("profile.mcpCopyUrl")}
+              code={`claude mcp add --transport http anansi ${mcpServerUrl || DEFAULT_MCP_URL}`}
+            />
+          </div>
+
+          {/* Claude Code — show a copy-pasteable .mcp.json snippet. Plain
+              <pre> so the JSON copies verbatim including the braces; users
+              who use Claude Code know this format. */}
+          <div className="mt-5">
+            <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+              {t("profile.mcpClaudeCodeHeading")}
+            </div>
+            <p className="mb-2 text-xs text-[var(--ink-3)]">{t("profile.mcpClaudeCodeHelp")}</p>
+            <CodeSnippet
+              ariaLabel={t("profile.mcpCopyUrl")}
+              code={`{
+  "mcpServers": {
+    "anansi": { "type": "http", "url": "${mcpServerUrl || DEFAULT_MCP_URL}" }
+  }
+}`}
+            />
+          </div>
+
+          {/* Claude Desktop + claude.ai — the URL goes into the connector
+              form. No code snippet here; the UI form handles the rest. */}
+          <div className="mt-5">
+            <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+              {t("profile.mcpClaudeDesktopHeading")}
+            </div>
+            <p className="text-xs text-[var(--ink-3)]">{t("profile.mcpClaudeDesktopHelp")}</p>
           </div>
         </div>
       </div>

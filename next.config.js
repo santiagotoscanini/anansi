@@ -69,6 +69,21 @@ const nextConfig = {
       },
     ];
   },
+  // Next's app router doesn't route folders whose names start with `.`, so we
+  // can't put a route.ts at `app/.well-known/`. Rewrites map the spec-required
+  // `/.well-known/oauth-*` URLs onto regular routes under `/api/oauth/`.
+  async rewrites() {
+    return [
+      {
+        source: "/.well-known/oauth-authorization-server",
+        destination: "/api/oauth/well-known/oauth-authorization-server",
+      },
+      {
+        source: "/.well-known/oauth-protected-resource",
+        destination: "/api/oauth/well-known/oauth-protected-resource",
+      },
+    ];
+  },
 };
 
 export default nextConfig;

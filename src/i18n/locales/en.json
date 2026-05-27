@@ -56,7 +56,19 @@
     "preparingBackup": "Preparing backup…",
     "backupDownloaded_one": "Backup downloaded ({{count}} file)",
     "backupDownloaded_other": "Backup downloaded ({{count}} files)",
-    "exportFailed": "Export failed"
+    "exportFailed": "Export failed",
+    "mcp": "Anansi for Claude",
+    "mcpHelp": "Connect Anansi to Claude (Desktop, Code, or claude.ai). Once linked, you can talk to Claude to create goals, capture next bids, update your Self portrait — anything the app lets you do, plus a few that reading takes from you.",
+    "mcpServerUrl": "Server URL",
+    "mcpServerUrlHelp": "Paste this into your Claude client as an HTTP MCP server. It opens a browser tab the first time to sign you in.",
+    "mcpCopyUrl": "Copy URL",
+    "mcpCopied": "Copied",
+    "mcpClaudeCliHeading": "Claude Code CLI",
+    "mcpClaudeCliHelp": "Fastest path: run this in any terminal. Claude Code registers the server and walks the browser OAuth flow on first /mcp call.",
+    "mcpClaudeCodeHeading": "Claude Code (.mcp.json)",
+    "mcpClaudeCodeHelp": "Or, commit per-project: add this entry to a project's .mcp.json, then run /mcp inside Claude Code.",
+    "mcpClaudeDesktopHeading": "Claude Desktop & claude.ai",
+    "mcpClaudeDesktopHelp": "Open Settings → Connectors → Add custom connector, paste the URL above, and approve the consent screen that opens in your browser."
   },
   "dashboard": {
     "nav": {
@@ -1088,6 +1100,22 @@
           "duration": "2 years in"
         }
       }
+    },
+    "claude": {
+      "eyebrow": "Interlude · agents",
+      "title1": "Talk to it",
+      "title2": "<em>through Claude.</em>",
+      "intro": "anansi speaks Model Context Protocol. Connect it to Claude — Desktop, Code, or claude.ai — and capture goals, schedule next bids, edit your Self page, all by talking.",
+      "exampleLabel": "Try saying:",
+      "examples": [
+        "Schedule coffee with Mom next Tuesday.",
+        "Add 'apologize to Lucia' as a next bid, due in two weeks.",
+        "What's on my mind for the year ahead?",
+        "Create a goal for the marathon and tag it with health and growth."
+      ],
+      "howLabel": "How",
+      "howBody": "Sign in once, paste your anansi URL into Claude's connector dialog, approve the consent screen that opens in your browser. The exact URL + a copy-pasteable .mcp.json snippet live in Settings → Anansi for Claude.",
+      "safety": "Anansi is the OAuth authorization server. Tokens are scoped to your account, refresh on a 30-day clock, and revoke instantly from your Claude client."
     },
     "spider": {
       "eyebrow": "Chapter V · the name",

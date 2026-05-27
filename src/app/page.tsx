@@ -15,7 +15,7 @@
 // translator can reorder Spanish word order without touching code.
 
 import Link from "next/link";
-import { ArrowRight, Heart, Shield, Clock, Plus } from "lucide-react";
+import { ArrowRight, Heart, Shield, Clock, Plus, Sparkles } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { GoalsProvider, useGoals } from "~/contexts/GoalsContext";
 import { AnansiMark, BrandLockup } from "~/components/goals/Brand";
@@ -513,6 +513,138 @@ function LandingPageInner() {
                   </p>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ============ III.5 · TALK TO IT THROUGH CLAUDE ============
+            Slim interlude between Surfaces and Whispers. Not a numbered
+            chapter — we don't want to renumber I-VI in every locale. The
+            visual is a single rounded panel with example prompts on the
+            left and the "how" copy on the right. */}
+        <section className="px-6 pb-8 md:px-16">
+          <div className="mx-auto max-w-[1280px]">
+            <div
+              className="overflow-hidden"
+              style={{
+                background: "var(--canvas)",
+                border: "1px solid var(--hairline)",
+                borderRadius: 22,
+                padding: "44px 48px",
+              }}
+            >
+              <div className="grid grid-cols-1 gap-12 md:grid-cols-[1fr_1fr]">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <span
+                      className="inline-flex h-9 w-9 items-center justify-center"
+                      style={{ borderRadius: 10, background: "var(--paper-deep)", color: "var(--ink)" }}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                    </span>
+                    <Eyebrow>{t("landing.claude.eyebrow")}</Eyebrow>
+                  </div>
+                  <h2
+                    className="mt-5"
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      fontSize: 42,
+                      fontWeight: 400,
+                      lineHeight: 1.05,
+                      letterSpacing: "-0.02em",
+                    }}
+                  >
+                    {t("landing.claude.title1")}
+                    <br />
+                    <Trans i18nKey="landing.claude.title2" components={{ em: <BrandEm /> }} />
+                  </h2>
+                  <p
+                    className="mt-5"
+                    style={{
+                      fontFamily: "var(--font-text)",
+                      fontSize: 17,
+                      lineHeight: 1.55,
+                      color: "var(--ink-2)",
+                      maxWidth: 500,
+                    }}
+                  >
+                    {t("landing.claude.intro")}
+                  </p>
+                </div>
+
+                <div>
+                  <div
+                    className="mb-3"
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 11,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      color: "var(--ink-3)",
+                    }}
+                  >
+                    {t("landing.claude.exampleLabel")}
+                  </div>
+                  <ul className="m-0 list-none space-y-2 p-0">
+                    {/* `returnObjects` + a typed defaultValue gives back string[]; no cast needed. */}
+                    {t("landing.claude.examples", { returnObjects: true, defaultValue: [] as string[] }).map(
+                      (ex, i) => (
+                        <li
+                          key={i}
+                          style={{
+                            fontFamily: "var(--font-text)",
+                            fontStyle: "italic",
+                            fontSize: 15,
+                            lineHeight: 1.5,
+                            color: "var(--ink-2)",
+                            paddingLeft: 16,
+                            position: "relative",
+                          }}
+                        >
+                          <span style={{ position: "absolute", left: 0, color: "var(--ink-4)" }}>›</span>
+                          {ex}
+                        </li>
+                      ),
+                    )}
+                  </ul>
+
+                  <div className="mt-6 pt-5" style={{ borderTop: "1px solid var(--hairline)" }}>
+                    <div
+                      className="mb-2"
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 11,
+                        letterSpacing: "0.12em",
+                        textTransform: "uppercase",
+                        color: "var(--ink-3)",
+                      }}
+                    >
+                      {t("landing.claude.howLabel")}
+                    </div>
+                    <p
+                      style={{
+                        fontFamily: "var(--font-text)",
+                        fontSize: 14,
+                        lineHeight: 1.55,
+                        color: "var(--ink-2)",
+                      }}
+                    >
+                      {t("landing.claude.howBody")}
+                    </p>
+                    <p
+                      className="mt-3"
+                      style={{
+                        fontFamily: "var(--font-text)",
+                        fontSize: 13,
+                        lineHeight: 1.5,
+                        color: "var(--ink-3)",
+                      }}
+                    >
+                      {t("landing.claude.safety")}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>

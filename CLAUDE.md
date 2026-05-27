@@ -298,6 +298,79 @@ attachments/    private, RLS owner-only-all-ops
 - Base64 envelope validated before reaching Storage.
 - Attachments: Storage write first, then DB insert. A DB-insert failure rolls the storage object back via a best-effort `remove`; the worst case is a stray orphan blob (costs storage, doesn't surface to users).
 
+## MCP server (talk-to-Anansi via Claude)
+
+Anansi ships a remote **Model Context Protocol** server at `POST /api/mcp` so Claude Desktop / claude.ai Connectors / Claude Code can read and write the user's goals, tasks, people, values, bids, dates, groups, bucket list, and Self entries through a tool catalog. The server **IS its own OAuth 2.1 Authorization Server** — it does not delegate to Supabase upstream — but it uses the existing Supabase session as the identity input to `/oauth/authorize`. Bearer tokens are short-lived (1h access) with rotating refresh (30d).
+
+Transport: Streamable HTTP via `@modelcontextprotocol/sdk`'s `WebStandardStreamableHTTPServerTransport` (stateless, JSON response mode). Each request creates a fresh `McpServer` + transport; bearer is validated against `mcp_access_tokens.token_hash`, identity resolved to `{ userId, userName }`, and the same `createCaller(ctx)` that powers tRPC server-side calls dispatches each tool. No parallel business logic; no extra network hop.
+
+### Endpoints
+
+- `POST /api/mcp` — main JSON-RPC endpoint. 401 + `WWW-Authenticate: Bearer realm="anansi-mcp", resource_metadata="…"` on missing/invalid token.
+- `GET /.well-known/oauth-protected-resource` — RFC 9728 (rewritten in `next.config.js` to `/api/oauth/well-known/oauth-protected-resource`).
+- `GET /.well-known/oauth-authorization-server` — RFC 8414 (same rewrite shape).
+- `POST /oauth/register` — RFC 7591 Dynamic Client Registration. Public-client only (`token_endpoint_auth_method = "none"`). Rate-limited 5/min/IP.
+- `GET /oauth/authorize` — server-component consent page. Reads Supabase cookie. No session → 302 `/login?next=<this-url-encoded>` (login/register honor `?next=`). Prior consent for same `(user, client, scope)` → auto-mint code + 302 to redirect_uri. Otherwise renders `ConsentScreen`.
+- `POST /oauth/authorize/decision` — handles Approve/Deny. CSRF-guarded by Origin/Referer check. Approve mints a 60s single-use code bound to PKCE + redirect_uri, records consent, 303 to redirect_uri.
+- `POST /oauth/token` — `authorization_code` + `refresh_token` grants. PKCE S256 only. Refresh is rotating with `SELECT … FOR UPDATE` to serialize concurrent rotations. Rate-limited 20/min/IP.
+- `POST /oauth/revoke` — RFC 7009. Always returns 200.
+
+### MCP tool catalog
+
+`registerAllTools()` (in `src/lib/mcp/tools/index.ts`) wires **51 tools** across 10 domain files. All tool names are flat verb-first snake_case (`list_goals`, `update_person`, `set_next_bid_done`, …). Hand-written `title` + `description` drive LLM tool selection; Zod raw shapes give the SDK enough type info to both generate the inputSchema JSON Schema AND validate inputs at call-time.
+
+Domains: `system` (1 — `whoami`), `goals` (4), `tasks` (4), `values` (7), `people` (9), `next_bids` (6), `important_dates` (4), `groups` (5), `bucket_list` (5), `self` (6). Out of scope for v1 (re-add when needed): connections (graph topology), tracking items / sync templates / weekly sync, attachments / images, backup / data export.
+
+MCP-specific gates (not in underlying tRPC schemas): `create_person` / `update_person` reject URL emojis (LLM can't construct valid Supabase Storage URLs anyway); `create_goal` omits the `tasks` array (use `create_task` after the goal exists) so the LLM doesn't have to think about pre-cast task ids.
+
+### Tables (one migration: 0023)
+
+All `user_id` columns are `uuid REFERENCES users(id) ON DELETE CASCADE`. Tokens stored as `token_hash` (SHA-256 hex of the raw value) — raw token never persisted.
+
+- **mcp_oauth_clients** — DCR clients: `client_name`, `redirect_uris (text[])`, `grant_types (text[])`, `token_endpoint_auth_method` ("none"), `scope`. Id IS the public `client_id`.
+- **mcp_authorization_codes** — single-use, 60s TTL, PKCE-bound: `client_id`, `user_id`, `redirect_uri`, `code_challenge`, `code_challenge_method` ("S256"), `scope`, `expires_at`, `consumed_at`. Id IS the opaque code value.
+- **mcp_access_tokens** — `token_hash UNIQUE`, `user_id`, `client_id`, `scope`, `expires_at`, `revoked_at`. Hot-path indexes on `token_hash` and `user_id`.
+- **mcp_refresh_tokens** — same shape + `rotated_to` (id of the replacement token for audit trail).
+- **mcp_consents** — `(user_id, client_id) UNIQUE`, latest granted `scope`. Drives auto-approve on subsequent `/authorize` hits for the same client.
+- **mcp_audit_log** — `event` (`register | authorize_started | consent_granted | consent_auto | authorize_denied | token_issued | token_refreshed | token_refresh_failed | token_revoked`), `user_id` (SET NULL on delete), `client_id`, `ip`, `meta` (JSON-stringified).
+
+### File layout (under src/)
+
+```
+app/api/mcp/route.ts                           # Bearer auth + tRPC bridge + transport
+app/api/oauth/well-known/{oauth-authorization-server,oauth-protected-resource}/route.ts
+app/oauth/{register,token,revoke}/route.ts
+app/oauth/authorize/page.tsx                   # Server component, consent + auto-approve
+app/oauth/authorize/decision/route.ts          # Form POST → code mint
+components/oauth/ConsentScreen.tsx             # Server-rendered consent UI (EN-only for v1)
+lib/mcp/server.ts                              # Per-request McpServer factory
+lib/mcp/caller.ts                              # createMcpCaller → createCaller(ctx)
+lib/mcp/errors.ts                              # mapTrpcError + mcpJsonResult
+lib/mcp/tools/{system,goals,tasks,values,people,next_bids,important_dates,groups,bucket_list,self}.ts
+lib/mcp/oauth/{store,clients,codes,tokens,pkce,consent,metadata,scopes,audit,authorize-validation}.ts
+```
+
+### Dev wiring
+
+Add to `.mcp.json` in any project (or Claude Desktop's config):
+
+```json
+{ "mcpServers": { "anansi": { "type": "http", "url": "http://localhost:3000/api/mcp" } } }
+```
+
+In Claude Code, run `/mcp` and pick `anansi` → it walks DCR + browser OAuth automatically. For prod, swap the URL. The MCP client caches the issued client_id and refresh token, so the browser-tab login flow runs once per device.
+
+### Security knobs
+
+- Access tokens: 1h. Refresh: 30d, rotating. New issuance revokes any prior `(user, client)` tokens — one active grant per pair.
+- PKCE: S256 only. `plain` is rejected at the metadata level.
+- Auth codes: 60s TTL, single-use (atomic `UPDATE … SET consumed_at = now() WHERE consumed_at IS NULL`), bound to PKCE challenge + redirect_uri.
+- Redirect URIs: exact string match against DCR-registered list; `http://` only allowed for `localhost`/`127.0.0.1`/`[::1]`; `javascript:` / `data:` / `file:` schemes refused at registration.
+- CSRF on `/oauth/authorize/decision`: Origin/Referer header check.
+- Rate limits: 5/min/IP on `/oauth/register`, 20/min/IP on `/oauth/token`, 300/min/IP on `/api/mcp`.
+- DCR is unauthenticated and publicly accessible — acceptable for a single-user personal app. For multi-tenant deployment, add an admin allow-list before exposing.
+- Audit log captures every OAuth state change (never tool calls — too noisy). Token hashes / raw codes are never logged.
+
 ## Maintenance
 
 **This file is the single source of truth.** Update it on the same commit as any change to: schema, API endpoints, file structure, features, tech stack, auth, file storage, or major UI restructuring. Out-of-date docs are worse than no docs — a future agent will trust the wrong fact and break something.

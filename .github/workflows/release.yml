@@ -8,11 +8,8 @@
 # rebuilds well under a minute when only TS/TSX changes (the npm ci layer
 # stays warm because package*.json hasn't changed).
 #
-# No build-time env vars are needed. All Supabase credentials are read
-# server-side at runtime (the browser bundle contains zero Supabase config —
-# auth runs through server actions in src/app/auth/actions.ts). Set
-# SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_SERVICE_ROLE_KEY, and
-# DATABASE_URL at `docker run` time.
+# No build-time env vars are needed. All secrets are read server-side at
+# runtime. Set DATABASE_URL and AUTH_SECRET at `docker run` time.
 
 name: Release Docker image
 

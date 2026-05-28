@@ -40,12 +40,9 @@ export function safeExtension(fileName: string, sniffedImageMime: string | null)
   return SAFE_NONIMAGE_EXTS.has(raw) ? raw : ".bin";
 }
 
-// Storage bucket ids. Created by migrations 0021/0022 with matching RLS.
-export const AVATAR_BUCKET = "avatars";
-export const PEOPLE_PHOTOS_BUCKET = "people-photos";
-export const ATTACHMENTS_BUCKET = "attachments";
-
-// Signed-URL TTL for private attachments. Long enough that a single sync
-// render stays valid through any client-side debouncing/refetch; short
-// enough that a leaked URL has bounded blast radius.
-export const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
+// Helper for routers that store a `/api/files/{id}` reference (e.g.
+// users.avatarUrl, people.emoji when an image is uploaded). Kept in one
+// place so a future change to the serving route only touches this string.
+export function fileUrl(fileId: string): string {
+  return `/api/files/${fileId}`;
+}

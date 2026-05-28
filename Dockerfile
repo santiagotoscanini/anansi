@@ -3,12 +3,9 @@
 # cache behind. Pairs with `output: "standalone"` in next.config.js — Next
 # emits .next/standalone/server.js with only the runtime-needed node_modules.
 #
-# No build-time secrets — every Supabase credential (URL, publishable key,
-# service-role key) is read by server-only code at runtime. The browser bundle
-# carries no Supabase config at all (auth flows through server actions in
-# src/app/auth/actions.ts), so the image is fully portable: rotate Supabase
-# keys without rebuilding, deploy the same image against staging or prod by
-# changing env vars at `docker run` time.
+# No build-time secrets. The only runtime env vars the image needs are
+# DATABASE_URL (Postgres) and AUTH_SECRET (Auth.js JWT signing). Set them at
+# `docker run` time — the image stays portable across environments.
 
 # ───── Stage 1: deps ─────────────────────────────────────────────────────
 # Resolve node_modules ONCE against an immutable lockfile. This layer is

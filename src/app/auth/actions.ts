@@ -1,127 +1,85 @@
 "use server";
 
-import { headers } from "next/headers";
-import { createClient } from "~/lib/supabase/server";
+import { eq } from "drizzle-orm";
+import bcrypt from "bcryptjs";
+import { signIn, signOut, auth } from "~/lib/auth";
+import { db } from "~/lib/data";
+import { users } from "~/lib/data/schema";
 
-// Server actions for every browser-initiated auth operation. Replaces the
-// previous browser-side @supabase/ssr client, which required the publishable
-// key to be inlined at build time as NEXT_PUBLIC_*. With auth done here, all
-// Supabase credentials stay server-only and the Docker image becomes fully
-// runtime-configurable.
+// Server actions that wrap Auth.js for the browser-initiated auth flows.
+// Each returns a serializable { ok, error? } so call sites can render toasts
+// without throwing across the server/client boundary.
 //
-// Each action returns a serializable `{ ok, error? }` shape so call sites can
-// surface toasts without throwing across the server/client boundary. Cookies
-// (access + refresh) are set by the @supabase/ssr server client through the
-// cookie adapter in src/lib/supabase/server.ts.
+// v1: email/password only — no Google, no magic links, no email confirmation,
+// no password reset. Adding any of those means wiring an email transport
+// and switching the providers list in src/lib/auth/index.ts.
 
 type Result<T = unknown> = { ok: true; data?: T } | { ok: false; error: string };
 
-// Build an absolute origin from the forwarded request headers so OAuth /
-// email-confirmation links resolve to the same host the user is on. Mirrors
-// the resolveOrigin helper in src/lib/mcp/oauth/metadata.ts.
-async function resolveOrigin(): Promise<string> {
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
-  return `${proto}://${host}`;
-}
-
 export async function signInWithPasswordAction(email: string, password: string): Promise<Result> {
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  try {
+    await signIn("credentials", { email, password, redirect: false });
+    return { ok: true };
+  } catch {
+    // Auth.js throws on bad credentials. Don't leak which field was wrong.
+    return { ok: false, error: "Email or password is incorrect" };
+  }
 }
 
-export async function signUpAction(
-  name: string,
-  email: string,
-  password: string,
-): Promise<Result<{ needsConfirmation: boolean }>> {
-  const supabase = await createClient();
-  const origin = await resolveOrigin();
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      // `name` is read by the on_auth_user_created trigger in migration
-      // 0019_supabase_auth.sql to populate public.users.name.
-      data: { name },
-      emailRedirectTo: `${origin}/auth/confirm?next=/app`,
-    },
+export async function signUpAction(name: string, email: string, password: string): Promise<Result> {
+  const trimmedName = name.trim();
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!trimmedName) return { ok: false, error: "Name is required" };
+  if (password.length < 12) return { ok: false, error: "Password must be at least 12 characters" };
+
+  const existing = await db.query.users.findFirst({ where: eq(users.email, normalizedEmail) });
+  if (existing) return { ok: false, error: "An account with this email already exists" };
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  await db.insert(users).values({
+    name: trimmedName,
+    email: normalizedEmail,
+    passwordHash,
   });
-  if (error) return { ok: false, error: error.message };
-  return { ok: true, data: { needsConfirmation: !data.session } };
-}
 
-// Google / Apple — wired here so the call sites don't have to change shape
-// when either provider gets enabled in the Supabase dashboard. Currently they
-// short-circuit with a polite "not configured" message.
-export async function signInWithGoogleAction(): Promise<Result> {
-  return { ok: false, error: "Google sign-in is not configured yet." };
-  // To enable, restore:
-  //   const supabase = await createClient();
-  //   const origin = await resolveOrigin();
-  //   const { data, error } = await supabase.auth.signInWithOAuth({
-  //     provider: "google",
-  //     options: { redirectTo: `${origin}/auth/callback?next=/app` },
-  //   });
-  //   if (error) return { ok: false, error: error.message };
-  //   return { ok: true, data: { url: data.url } };
-}
-
-export async function signInWithAppleAction(): Promise<Result> {
-  return { ok: false, error: "Apple sign-in is not configured yet." };
-}
-
-export async function sendPasswordResetAction(email: string): Promise<Result> {
-  const supabase = await createClient();
-  const origin = await resolveOrigin();
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/confirm?next=/reset-password`,
-  });
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  try {
+    await signIn("credentials", { email: normalizedEmail, password, redirect: false });
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Account created, but sign-in failed. Try logging in." };
+  }
 }
 
 export async function signOutAction(): Promise<Result> {
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signOut();
-  if (error) return { ok: false, error: error.message };
+  await signOut({ redirect: false });
   return { ok: true };
 }
 
-// Password change while logged in. We re-authenticate with the current
-// password first (Supabase's updateUser doesn't ask for it natively) so a
-// stolen session cookie can't rotate the password without the original
-// credential — same UX guarantee the prior browser-side flow gave.
+// Password change while logged in. Re-auth with bcrypt against the stored
+// hash before writing the new one — same UX guarantee as the previous
+// Supabase flow, no session round-trip required.
 export async function changePasswordAction(currentPassword: string, newPassword: string): Promise<Result> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user?.email) return { ok: false, error: "Not signed in." };
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: "Not signed in." };
 
-  const reauth = await supabase.auth.signInWithPassword({ email: user.email, password: currentPassword });
-  if (reauth.error) return { ok: false, error: "Current password is incorrect" };
+  const user = await db.query.users.findFirst({ where: eq(users.id, session.user.id) });
+  if (!user?.passwordHash) return { ok: false, error: "No password set on this account." };
 
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
-  if (error) return { ok: false, error: error.message };
+  const ok = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!ok) return { ok: false, error: "Current password is incorrect" };
+
+  if (newPassword.length < 12) return { ok: false, error: "New password must be at least 12 characters" };
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, user.id));
   return { ok: true };
 }
 
-// Recovery-flow password set. The user has already clicked the email link
-// (which goes through /auth/confirm → verifyOtp), so a session exists; we
-// just need to update the password. No re-auth here — the link click IS the
-// proof of intent.
-export async function setRecoveryPasswordAction(newPassword: string): Promise<Result> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "Recovery session has expired. Request a new link." };
-
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
-}
+// Google / Apple / password-reset call sites still exist in components. We
+// keep these stub actions to avoid a wider UI refactor; they short-circuit
+// with a polite "not configured" message and the UI surfaces it as a toast.
+// Wire-up TODO when an email provider lands or Google is enabled.
+//
+// export async function signInWithGoogleAction(): Promise<Result> {
+//   return { ok: false, error: "Google sign-in is not configured yet." };
+// }

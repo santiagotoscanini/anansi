@@ -45,13 +45,13 @@ export function getRandomEmoji(): string {
 }
 
 /**
- * Check if a string is an image reference (absolute http(s) URL — every
- * uploaded image now resolves to a Supabase Storage URL, public or signed).
- * Emoji codepoints never start with `http`, so this cleanly disambiguates.
+ * Check if a string is an image reference (absolute http(s) URL or a
+ * relative `/api/files/{id}` path issued by our own files API). Emoji
+ * codepoints never start with `http` or `/`, so this cleanly disambiguates.
  */
 export function isEmojiUrl(emoji: string | undefined): boolean {
   if (!emoji) return false;
-  return emoji.startsWith("http://") || emoji.startsWith("https://");
+  return emoji.startsWith("http://") || emoji.startsWith("https://") || emoji.startsWith("/api/files/");
 }
 
 // Soft cap on an emoji glyph's length. A single emoji can be one codepoint
@@ -70,26 +70,18 @@ export function isEmojiGlyph(value: string): boolean {
   return true;
 }
 
-// True when the string is a URL we issued ourselves — a Supabase Storage
-// public URL for an image we host. This is the ONLY URL shape the app
-// accepts in user-facing emoji fields; pasted external URLs are rejected
-// so users can't smuggle tracking pixels through someone else's directory.
-// Falls back to false (fail-closed) if the supabase URL env isn't set —
-// we'd rather break the validator than accept arbitrary URLs by default.
-//
-// SERVER-ONLY function. Callers (api/types.ts, backup.ts) all run on the
-// server. The `SUPABASE_URL` env var is intentionally non-public — moving it
-// out of the client bundle is what makes the Docker image runtime-configurable.
+// True when the string is an image reference we issued ourselves — a path
+// to the `/api/files/{id}` route. This is the ONLY URL shape accepted in
+// user-facing emoji fields; pasted external URLs are rejected so users
+// can't smuggle tracking pixels through arbitrary external hosts.
 export function isOurStorageImageUrl(value: string): boolean {
-  const base = process.env.SUPABASE_URL;
-  if (!base) return false;
-  const prefix = `${base.replace(/\/$/, "")}/storage/v1/object/public/`;
-  if (!value.startsWith(prefix)) return false;
-  // Optional cache-bust query (?v=...) is fine; protocol-tricks like
-  // a second `://` in the path are not — split off any query before this
-  // check so a legitimate ?v=... isn't penalized.
+  if (!value.startsWith("/api/files/")) return false;
+  // Optional cache-bust query (?v=...) is fine. Disallow any further path
+  // segments after the id so a crafted "/api/files/abc/../other" can't
+  // sneak through.
   const noQuery = value.split("?")[0] ?? value;
-  if (noQuery.includes("://", prefix.length)) return false;
+  const tail = noQuery.slice("/api/files/".length);
+  if (!tail || tail.includes("/") || tail.includes("\\")) return false;
   return true;
 }
 

@@ -4,14 +4,7 @@ import React, { createContext, useContext, useCallback, useMemo, useRef } from "
 import type { ReactNode } from "react";
 import { api, type RouterOutputs } from "~/trpc/react";
 import { computeImportance, type Importance } from "~/lib/computation/importance";
-import {
-  signInWithPasswordAction,
-  signUpAction,
-  signInWithGoogleAction,
-  signInWithAppleAction,
-  sendPasswordResetAction,
-  signOutAction,
-} from "~/app/auth/actions";
+import { signInWithPasswordAction, signUpAction, signOutAction } from "~/app/auth/actions";
 import type {
   Value,
   Goal,
@@ -24,10 +17,10 @@ import type {
   CreateTrackingItem,
 } from "~/lib/api/types";
 
-// All Supabase auth operations now run through server actions in
-// src/app/auth/actions.ts — there is no browser-side Supabase client. That
-// keeps the publishable key out of the client bundle so the Docker image
-// builds without `NEXT_PUBLIC_*` build args and stays runtime-configurable.
+// Auth runs through Auth.js v5 (next-auth). Browser-initiated flows call
+// server actions in src/app/auth/actions.ts which delegate to `signIn` /
+// `signOut`; the session cookie is HttpOnly so we never touch document.cookie
+// from here.
 //
 // Stable empty fallbacks so `dataQuery.data?.values ?? []` doesn't create a
 // fresh array reference each render (which would propagate to every consumer
@@ -55,14 +48,7 @@ interface GoalsContextType {
   isDataLoading: boolean;
 
   signInWithPassword: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
-  signUp: (
-    name: string,
-    email: string,
-    password: string,
-  ) => Promise<{ ok: boolean; error?: string; needsConfirmation?: boolean }>;
-  signInWithGoogle: () => Promise<{ ok: boolean; error?: string }>;
-  signInWithApple: () => Promise<{ ok: boolean; error?: string }>;
-  sendPasswordReset: (email: string) => Promise<{ ok: boolean; error?: string }>;
+  signUp: (name: string, email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
   checkAuthentication: () => Promise<void>;
 
@@ -206,12 +192,9 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   };
 
   // Each browser-initiated auth operation calls a server action which writes
-  // the session cookies through the server-side @supabase/ssr client; we then
-  // invalidate the `me` query so isAuthenticated flips on the next render.
-  // The previous `onAuthStateChange` subscriber is gone — there's no longer a
-  // browser Supabase instance to subscribe to. Email-confirm and OAuth flows
-  // land via route handlers that already revalidate the cookies, and the next
-  // tRPC call's UNAUTHORIZED bounces the user to /login if a token expired
+  // the Auth.js JWT session cookie; we then invalidate the `me` query so
+  // isAuthenticated flips on the next render. The next tRPC call's
+  // UNAUTHORIZED bounces the user to /login if the session expired
   // mid-session.
   const signInWithPassword = async (email: string, password: string): Promise<{ ok: boolean; error?: string }> => {
     const result = await signInWithPasswordAction(email, password);
@@ -220,35 +203,10 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   };
 
-  const signUp = async (
-    name: string,
-    email: string,
-    password: string,
-  ): Promise<{ ok: boolean; error?: string; needsConfirmation?: boolean }> => {
+  const signUp = async (name: string, email: string, password: string): Promise<{ ok: boolean; error?: string }> => {
     const result = await signUpAction(name, email, password);
     if (!result.ok) return { ok: false, error: result.error };
-    const needsConfirmation = result.data?.needsConfirmation ?? true;
-    if (!needsConfirmation) await utils.auth.me.invalidate();
-    return { ok: true, needsConfirmation };
-  };
-
-  const signInWithGoogle = async (): Promise<{ ok: boolean; error?: string }> => {
-    const result = await signInWithGoogleAction();
-    if (!result.ok) return { ok: false, error: result.error };
     await utils.auth.me.invalidate();
-    return { ok: true };
-  };
-
-  const signInWithApple = async (): Promise<{ ok: boolean; error?: string }> => {
-    const result = await signInWithAppleAction();
-    if (!result.ok) return { ok: false, error: result.error };
-    await utils.auth.me.invalidate();
-    return { ok: true };
-  };
-
-  const sendPasswordReset = async (email: string): Promise<{ ok: boolean; error?: string }> => {
-    const result = await sendPasswordResetAction(email);
-    if (!result.ok) return { ok: false, error: result.error };
     return { ok: true };
   };
 
@@ -854,9 +812,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     isDataLoading,
     signInWithPassword,
     signUp,
-    signInWithGoogle,
-    signInWithApple,
-    sendPasswordReset,
     logout,
     checkAuthentication,
     refreshData,

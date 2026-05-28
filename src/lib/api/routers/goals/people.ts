@@ -32,9 +32,8 @@ import {
 } from "../../types";
 import { decodeImageUpload, UploadValidationError } from "../../../image-upload";
 import { checkRateLimit } from "../../../rate-limit";
-import { createId } from "@paralleldrive/cuid2";
-import { PEOPLE_PHOTOS_BUCKET, safeExtension } from "./_shared";
-import { createServiceRoleClient } from "../../../supabase/service";
+import { fileUrl } from "./_shared";
+import { files } from "../../../data/schema";
 
 export const peopleRouter = createTRPCRouter({
   people: createTRPCRouter({
@@ -183,13 +182,11 @@ export const peopleRouter = createTRPCRouter({
       return rows;
     }),
 
-    // Upload a picture for a person. Writes to the public `people-photos`
-    // Supabase Storage bucket at `{userId}/{id}.{ext}` (id is fresh per
-    // upload, so old files become orphans rather than being overwritten —
-    // acceptable trade-off for a personal app). RLS enforces that only the
-    // owning user can write under their folder. Returns the public URL so
-    // the caller can stash it in `people.emoji` (the column already accepts
-    // URL-typed values via Avatar.tsx).
+    // Upload a picture for a person. Persisted to the `files` table; the
+    // returned URL is a `/api/files/{id}` pointer the caller stashes in
+    // `people.emoji` (the column already accepts URL-typed values via
+    // Avatar.tsx). Old photos become orphan rows on re-upload — acceptable
+    // for a personal app, and a future cleanup pass can sweep them.
     uploadImage: protectedProcedure
       .input(
         z.object({
@@ -212,20 +209,19 @@ export const peopleRouter = createTRPCRouter({
           }
           throw err;
         }
-        const ext = safeExtension(input.fileName, decoded.mime);
-        const id = createId();
-        const objectPath = `${ctx.user.userId}/${id}${ext}`;
         const contentType = decoded.mime ?? "application/octet-stream";
-
-        const supabase = createServiceRoleClient();
-        const { error: uploadError } = await supabase.storage
-          .from(PEOPLE_PHOTOS_BUCKET)
-          .upload(objectPath, decoded.buffer, { contentType });
-        if (uploadError) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: uploadError.message });
-        }
-        const { data: publicUrl } = supabase.storage.from(PEOPLE_PHOTOS_BUCKET).getPublicUrl(objectPath);
-        return { url: publicUrl.publicUrl };
+        const [file] = await db
+          .insert(files)
+          .values({
+            ownerId: ctx.user.userId,
+            fileName: input.fileName,
+            mimeType: contentType,
+            sizeBytes: decoded.buffer.length,
+            data: decoded.buffer,
+          })
+          .returning({ id: files.id });
+        if (!file) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to store image" });
+        return { url: fileUrl(file.id) };
       }),
 
     // Bucket list items the person is named on. Mirror of getTasksAsReferent — used

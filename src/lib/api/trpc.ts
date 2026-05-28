@@ -2,35 +2,32 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
 import { eq } from "drizzle-orm";
-import { createClient } from "../supabase/server";
+import { auth } from "~/lib/auth";
 import { db } from "../data";
 import { users } from "../data/schema";
 
 /**
  * 1. Context
  *
- * Auth identity is owned by Supabase Auth. We read the verified user from
- * the session cookies via `@supabase/ssr`'s server client and stamp the
- * downstream-friendly `{ userId, userName }` shape onto context — every
- * router still reads `ctx.user.userId` exactly as before.
+ * Auth identity is owned by Auth.js — we resolve the current session via the
+ * `auth()` server helper, which decodes the JWT session cookie. The shape we
+ * stamp onto ctx (`{ userId, userName }`) is unchanged so the routers keep
+ * reading `ctx.user.userId` exactly as before.
  *
- * `userName` is looked up from `public.users` (mirrored from auth.users by
- * the on_auth_user_created trigger). If the row hasn't materialized yet
- * (race window on a brand-new signup), we fall back to the email so the
- * context is never partially populated.
+ * `userName` is looked up from `public.users` (the local profile row). If the
+ * row hasn't been materialized for some reason (race window on a brand-new
+ * signup), we fall back to the session's email so the context is never
+ * partially populated.
  *
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  const supabase = await createClient();
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser();
+  const session = await auth();
 
   let user: { userId?: string; userName?: string } = {};
-  if (authUser) {
-    const [row] = await db.select({ name: users.name }).from(users).where(eq(users.id, authUser.id)).limit(1);
-    user = { userId: authUser.id, userName: row?.name ?? authUser.email ?? "" };
+  if (session?.user?.id) {
+    const [row] = await db.select({ name: users.name }).from(users).where(eq(users.id, session.user.id)).limit(1);
+    user = { userId: session.user.id, userName: row?.name ?? session.user.email ?? "" };
   }
 
   return { ...opts, user };

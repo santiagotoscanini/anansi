@@ -8,6 +8,7 @@ import {
   bucketListItemPeople,
   bucketListItems,
   connections,
+  files,
   goalValues,
   goals,
   nextBids,
@@ -28,9 +29,6 @@ import {
   weeklySyncItems,
 } from "../../../data/schema";
 import { backupSchema } from "../../types";
-import path from "path";
-import { ATTACHMENTS_BUCKET } from "./_shared";
-import { createServiceRoleClient } from "../../../supabase/service";
 import { isEmojiGlyph, isOurStorageImageUrl } from "../../../emoji-utils";
 
 // On import, a backup is user-supplied JSON — never trust its emoji
@@ -165,20 +163,23 @@ export const backupRouter = createTRPCRouter({
             .where(inArray(tasks.goalId, goalIds))
         : [];
 
-      // Download each attachment from Supabase Storage and base64-encode.
-      // Skip missing files (deliver a partial backup rather than failing
-      // entirely). Service-role client; ownership is enforced by the
-      // userId-scoped query that produced `attachmentRows` above.
-      const supabase = createServiceRoleClient();
-      const files: { attachmentId: string; data: string }[] = [];
+      // Pull the underlying file bytes for every attachment and base64-encode.
+      // Skip missing rows (deliver a partial backup rather than failing) —
+      // attachments.fileId is NOT NULL so this only happens if a file was
+      // deleted out of band, which shouldn't be possible through the API.
+      const fileIds = attachmentRows.map((a) => a.fileId);
+      const fileRows = fileIds.length
+        ? await db.select({ id: files.id, data: files.data }).from(files).where(inArray(files.id, fileIds))
+        : [];
+      const fileById = new Map(fileRows.map((f) => [f.id, f] as const));
+      const exportedFiles: { attachmentId: string; data: string }[] = [];
       for (const a of attachmentRows) {
-        const { data, error } = await supabase.storage.from(ATTACHMENTS_BUCKET).download(a.storagePath);
-        if (error || !data) {
-          console.warn(`[backup.export] missing file skipped: ${a.storagePath} (${error?.message})`);
+        const f = fileById.get(a.fileId);
+        if (!f) {
+          console.warn(`[backup.export] missing file skipped for attachment ${a.id} (fileId ${a.fileId})`);
           continue;
         }
-        const buf = Buffer.from(await data.arrayBuffer());
-        files.push({ attachmentId: a.id, data: buf.toString("base64") });
+        exportedFiles.push({ attachmentId: a.id, data: Buffer.from(f.data).toString("base64") });
       }
 
       // Strip user-discriminator columns from rows that include them; the
@@ -204,7 +205,7 @@ export const backupRouter = createTRPCRouter({
         syncTemplates: syncTemplateRows.map(stripUser),
         syncTemplateItems: syncTemplateItemRows,
         attachments: attachmentRows.map(stripUser),
-        files,
+        files: exportedFiles,
         people: peopleRows.map(stripUser),
         userSelf: userSelfRow ? stripUser(userSelfRow) : null,
         taskReferents: taskReferentsRows,
@@ -303,27 +304,48 @@ export const backupRouter = createTRPCRouter({
           }
           if (b.weeklySyncItems.length) await tx.insert(weeklySyncItems).values(b.weeklySyncItems);
 
-          // Attachments: keep ids, rewrite storage_path to land under the new
-          // user's folder in the `attachments` bucket. The Storage upload
-          // happens after the DB commit below; the path stored here is the
-          // post-rewrite path.
+          // Attachments: for every blob in b.files, insert a fresh files row
+          // (owned by the importing user) and point the attachment at it.
+          // Attachments without a matching file blob are dropped — partial
+          // backups stay partial, no dangling FKs.
           if (b.attachments.length) {
-            await tx.insert(attachments).values(
-              b.attachments.map((a) => {
-                const ext = path.extname(a.fileName);
-                return {
-                  id: a.id,
-                  userId,
-                  parentType: a.parentType,
-                  parentId: a.parentId,
+            const blobByAttachmentId = new Map(b.files.map((f) => [f.attachmentId, f.data] as const));
+            type AttachmentInsert = typeof attachments.$inferInsert;
+            const attachmentRows: AttachmentInsert[] = [];
+            for (const a of b.attachments) {
+              const base64 = blobByAttachmentId.get(a.id);
+              if (!base64) {
+                console.warn(`[backup.import] attachment ${a.id} skipped — no file blob in backup`);
+                continue;
+              }
+              const cleanBase64 = base64.replace(/^data:[^;]+;base64,/, "");
+              const buf = Buffer.from(cleanBase64, "base64");
+              const [file] = await tx
+                .insert(files)
+                .values({
+                  ownerId: userId,
                   fileName: a.fileName,
-                  fileType: a.fileType,
-                  storagePath: `${userId}/${a.id}${ext}`,
-                  sizeBytes: a.sizeBytes,
-                  createdAt: a.createdAt,
-                };
-              }),
-            );
+                  // Backup format predates a mime column on attachments — fall
+                  // back to octet-stream; the file route serves what it gets.
+                  mimeType: "application/octet-stream",
+                  sizeBytes: a.sizeBytes ?? buf.length,
+                  data: buf,
+                })
+                .returning({ id: files.id });
+              if (!file) continue;
+              attachmentRows.push({
+                id: a.id,
+                userId,
+                parentType: a.parentType,
+                parentId: a.parentId,
+                fileName: a.fileName,
+                fileType: a.fileType,
+                fileId: file.id,
+                sizeBytes: a.sizeBytes,
+                createdAt: a.createdAt,
+              });
+            }
+            if (attachmentRows.length) await tx.insert(attachments).values(attachmentRows);
           }
 
           if (b.people.length) {
@@ -358,31 +380,10 @@ export const backupRouter = createTRPCRouter({
           }
         });
 
-        // Files land in Supabase Storage after the DB commit. The new
-        // storage_path is `{userId}/{id}.{ext}` inside the `attachments`
-        // bucket — keyed only on user, RLS-scoped.
-        const supabase = createServiceRoleClient();
+        // File blobs land in the same `files` table the attachments now
+        // reference — no post-commit upload step. The DB tx above is the
+        // entire write; everything either committed or rolled back together.
         const fileFailures: string[] = [];
-        for (const f of b.files) {
-          const attachment = b.attachments.find((a) => a.id === f.attachmentId);
-          if (!attachment) continue;
-          const ext = path.extname(attachment.fileName);
-          const storagePath = `${userId}/${attachment.id}${ext}`;
-          try {
-            const cleanBase64 = f.data.replace(/^data:[^;]+;base64,/, "");
-            const buf = Buffer.from(cleanBase64, "base64");
-            const { error } = await supabase.storage
-              .from(ATTACHMENTS_BUCKET)
-              .upload(storagePath, buf, { upsert: true });
-            if (error) {
-              console.error(`[backup.import] failed to upload ${storagePath}:`, error.message);
-              fileFailures.push(storagePath);
-            }
-          } catch (err) {
-            console.error(`[backup.import] failed to upload ${storagePath}:`, err);
-            fileFailures.push(storagePath);
-          }
-        }
 
         return {
           success: true,

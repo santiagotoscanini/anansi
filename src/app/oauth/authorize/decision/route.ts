@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "~/lib/supabase/server";
+import { auth } from "~/lib/auth";
 import { validateAuthorize, buildRedirect } from "~/lib/mcp/oauth/authorize-validation";
 import { recordConsent } from "~/lib/mcp/oauth/consent";
 import { mintAuthCode } from "~/lib/mcp/oauth/codes";
@@ -70,11 +70,9 @@ export async function POST(req: NextRequest) {
 
   // Session check happens AFTER param validation so a missing-session error
   // doesn't reveal whether the client_id was valid.
-  const supabase = await createClient();
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser();
-  if (!authUser) {
+  const session = await auth();
+  const sessionUserId = session?.user?.id ?? null;
+  if (!sessionUserId) {
     return NextResponse.redirect(
       `${resolveOrigin(req)}/login?next=${encodeURIComponent(`/oauth/authorize?${new URLSearchParams(body).toString()}`)}`,
       303,
@@ -87,7 +85,7 @@ export async function POST(req: NextRequest) {
   if (decision === "deny") {
     await appendAudit({
       event: "authorize_denied",
-      userId: authUser.id,
+      userId: sessionUserId,
       clientId: client.clientId,
       ip,
       meta: { scope },
@@ -103,10 +101,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  await recordConsent(authUser.id, client.clientId, scope);
+  await recordConsent(sessionUserId, client.clientId, scope);
   const code = await mintAuthCode({
     clientId: client.clientId,
-    userId: authUser.id,
+    userId: sessionUserId,
     redirectUri,
     codeChallenge,
     codeChallengeMethod,
@@ -115,7 +113,7 @@ export async function POST(req: NextRequest) {
 
   await appendAudit({
     event: "consent_granted",
-    userId: authUser.id,
+    userId: sessionUserId,
     clientId: client.clientId,
     ip,
     meta: { scope },

@@ -9,7 +9,7 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, Loader2, Mail } from "lucide-react";
+import { ArrowRight, Check, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useGoals } from "~/contexts/GoalsContext";
 import { AnansiMark, BrandLockup, Wordmark } from "~/components/goals/Brand";
@@ -54,23 +54,6 @@ const fieldError = {
   color: "var(--rust)",
 } as const;
 
-const socialBtnStyle: React.CSSProperties = {
-  width: "100%",
-  height: 48,
-  background: "var(--canvas)",
-  border: "1px solid var(--hairline-2)",
-  borderRadius: 10,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 10,
-  fontSize: 14,
-  color: "var(--ink)",
-  cursor: "pointer",
-  marginBottom: 14,
-  fontFamily: "var(--font-ui)",
-};
-
 export function LoginScreen({
   onSwitchToRegister,
   onSuccess,
@@ -78,7 +61,7 @@ export function LoginScreen({
   onSwitchToRegister: () => void;
   onSuccess?: () => void;
 }) {
-  const { signInWithPassword, signInWithGoogle, signInWithApple } = useGoals();
+  const { signInWithPassword } = useGoals();
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -103,19 +86,6 @@ export function LoginScreen({
       toast.error(errMsg ?? t("auth.login.credentialsRejected"));
       setPassword("");
     }
-  };
-
-  // Google + Apple buttons are visually disabled (see below) — these handlers
-  // stay so wiring is one-liner when the dashboard side gets configured.
-  // For now `signInWith*` returns an error and we surface it as a toast.
-  const handleGoogle = async () => {
-    const { error: errMsg } = await signInWithGoogle();
-    toast(errMsg ?? t("auth.common.googleSoon"), { icon: "🤝" });
-  };
-
-  const handleApple = async () => {
-    const { error: errMsg } = await signInWithApple();
-    toast(errMsg ?? t("auth.common.appleSoon"), { icon: "🤝" });
   };
 
   return (
@@ -219,39 +189,6 @@ export function LoginScreen({
             <span className="brand-em">.</span>
           </h2>
 
-          <button
-            type="button"
-            onClick={() => void handleGoogle()}
-            disabled
-            title={t("auth.common.googleSoon")}
-            style={{ ...socialBtnStyle, opacity: 0.5, cursor: "not-allowed" }}
-          >
-            <GoogleGlyph /> {t("auth.common.continueGoogle")}
-            <span style={{ marginLeft: 8, fontSize: 11, color: "var(--ink-3)" }}>
-              {t("auth.common.googleSoonBadge")}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleApple()}
-            disabled
-            title={t("auth.common.appleSoon")}
-            style={{ ...socialBtnStyle, marginBottom: 24, opacity: 0.5, cursor: "not-allowed" }}
-          >
-            <AppleGlyph /> {t("auth.common.continueApple")}
-            <span style={{ marginLeft: 8, fontSize: 11, color: "var(--ink-3)" }}>
-              {t("auth.common.appleSoonBadge")}
-            </span>
-          </button>
-
-          <div className="mb-5 flex items-center gap-3">
-            <span style={{ flex: 1, height: 1, background: "var(--hairline)" }} />
-            <span style={{ fontFamily: "var(--font-text)", fontStyle: "italic", fontSize: 12, color: "var(--ink-3)" }}>
-              {t("auth.common.orWithEmail")}
-            </span>
-            <span style={{ flex: 1, height: 1, background: "var(--hairline)" }} />
-          </div>
-
           <label style={{ display: "block", marginBottom: 14 }}>
             <span style={fieldLabel}>{t("auth.common.emailLabel")}</span>
             <input
@@ -265,22 +202,7 @@ export function LoginScreen({
           </label>
 
           <label style={{ display: "block", marginBottom: 8 }}>
-            <span style={{ ...fieldLabel, display: "flex", justifyContent: "space-between" }}>
-              <span>{t("auth.common.passwordLabel")}</span>
-              <Link
-                href="/forgot-password"
-                style={{
-                  color: "var(--clay-deep)",
-                  background: "transparent",
-                  border: 0,
-                  fontSize: 12,
-                  cursor: "pointer",
-                  textDecoration: "none",
-                }}
-              >
-                {t("auth.login.forgot")}
-              </Link>
-            </span>
+            <span style={fieldLabel}>{t("auth.common.passwordLabel")}</span>
             <input
               type="password"
               value={password}
@@ -373,10 +295,6 @@ export function RegisterScreen({
   const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string }>({});
   const [agreed, setAgreed] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  // When email confirmation is required (Supabase default), signUp returns no
-  // session — we flip to a "check your email" panel instead of bouncing
-  // the user to /app, since they're not signed in until they click the link.
-  const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState<string | null>(null);
 
   const validate = () => {
     const next: typeof errors = {};
@@ -384,8 +302,6 @@ export function RegisterScreen({
     if (!email.trim()) next.email = t("auth.register.errorEmailMissing");
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) next.email = t("auth.register.errorEmailFormat");
     if (!password) next.password = t("auth.register.errorPasswordMissing");
-    // Supabase's default minimum is 6. We keep the higher 12-char bar from
-    // the previous bcrypt flow — defence in depth on top of Supabase's bar.
     else if (password.length < 12) next.password = t("auth.register.errorPasswordShort");
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -401,13 +317,9 @@ export function RegisterScreen({
     setSubmitting(true);
     try {
       const normalizedEmail = email.trim().toLowerCase();
-      const { ok, error: errMsg, needsConfirmation } = await signUp(name.trim(), normalizedEmail, password);
+      const { ok, error: errMsg } = await signUp(name.trim(), normalizedEmail, password);
       if (!ok) {
         toast.error(errMsg ?? t("auth.register.emailTaken"));
-        return;
-      }
-      if (needsConfirmation) {
-        setPendingConfirmationEmail(normalizedEmail);
         return;
       }
       toast.success(t("auth.register.welcomeNamed", { name: name.split(" ")[0] }));
@@ -418,10 +330,6 @@ export function RegisterScreen({
       setSubmitting(false);
     }
   };
-
-  if (pendingConfirmationEmail) {
-    return <CheckYourEmailScreen email={pendingConfirmationEmail} onSwitchToLogin={onSwitchToLogin} />;
-  }
 
   const passwordStrength = (() => {
     if (!password) return null;
@@ -677,158 +585,5 @@ export function RegisterScreen({
         </div>
       </div>
     </div>
-  );
-}
-
-// Post-signup state when Supabase's email-confirmation flow is in effect.
-// The user has a row in auth.users but no session — they need to click the
-// link in the confirmation email before they can sign in. We render a
-// dedicated panel instead of letting them sit on a stale registration form.
-function CheckYourEmailScreen({ email, onSwitchToLogin }: { email: string; onSwitchToLogin: () => void }) {
-  const { t } = useTranslation();
-  return (
-    <div className="grid min-h-screen md:grid-cols-2">
-      <div className="flex flex-col justify-center" style={{ padding: "64px 32px", background: "var(--paper)" }}>
-        <div className="mb-6 flex justify-center md:hidden">
-          <HomeLockup size={22} />
-        </div>
-        <div className="mx-auto w-full max-w-md">
-          <div
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              letterSpacing: "0.1em",
-              color: "var(--ink-3)",
-              textTransform: "uppercase",
-              marginBottom: 12,
-            }}
-          >
-            {t("auth.checkEmail.kicker")}
-          </div>
-          <h2
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: 36,
-              lineHeight: 1.1,
-              marginBottom: 16,
-              color: "var(--ink)",
-            }}
-          >
-            {t("auth.checkEmail.title")}
-            <span className="brand-em">.</span>
-          </h2>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "8px 12px",
-              borderRadius: 999,
-              background: "var(--canvas)",
-              border: "1px solid var(--hairline-2)",
-              fontFamily: "var(--font-mono)",
-              fontSize: 12,
-              color: "var(--ink-2)",
-              marginBottom: 24,
-            }}
-          >
-            <Mail size={14} /> {email}
-          </div>
-          <p
-            style={{
-              fontFamily: "var(--font-text)",
-              fontStyle: "italic",
-              fontSize: 17,
-              color: "var(--ink-2)",
-              lineHeight: 1.5,
-              marginBottom: 28,
-            }}
-          >
-            {t("auth.checkEmail.body")}
-          </p>
-          <button
-            type="button"
-            onClick={onSwitchToLogin}
-            style={{
-              width: "100%",
-              height: 48,
-              background: "var(--clay)",
-              color: "var(--paper)",
-              border: 0,
-              borderRadius: 999,
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 10,
-            }}
-          >
-            {t("auth.checkEmail.back")} <ArrowRight size={14} />
-          </button>
-        </div>
-      </div>
-      <div
-        className="relative hidden overflow-hidden md:flex md:flex-col md:justify-between"
-        style={{
-          background: "var(--paper-deep)",
-          borderLeft: "1px solid var(--hairline)",
-          padding: "64px 64px 56px",
-        }}
-      >
-        <div style={{ position: "absolute", bottom: -160, right: -160, opacity: 0.06, color: "var(--ink)" }}>
-          <AnansiMark size={520} strokeWidth={1} />
-        </div>
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <HomeLockup size={26} />
-        </div>
-        <div style={{ position: "relative", zIndex: 1, maxWidth: 460 }}>
-          <p
-            style={{
-              fontFamily: "var(--font-text)",
-              fontStyle: "italic",
-              fontSize: 19,
-              color: "var(--ink-2)",
-              lineHeight: 1.45,
-            }}
-          >
-            {t("auth.checkEmail.testimonial")}
-          </p>
-        </div>
-        <div />
-      </div>
-    </div>
-  );
-}
-
-function GoogleGlyph() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden>
-      <path
-        fill="#4285F4"
-        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-      />
-      <path
-        fill="#34A853"
-        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M5.84 14.1A6.6 6.6 0 0 1 5.5 12c0-.73.12-1.44.34-2.1V7.06H2.18A11 11 0 0 0 1 12c0 1.78.43 3.46 1.18 4.94l3.66-2.84z"
-      />
-      <path
-        fill="#EA4335"
-        d="M12 5.38c1.62 0 3.06.56 4.21 1.65l3.15-3.15C17.46 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"
-      />
-    </svg>
-  );
-}
-
-function AppleGlyph() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M17.05 12.04c-.03-2.94 2.4-4.37 2.51-4.43-1.37-2-3.5-2.27-4.26-2.3-1.81-.19-3.55 1.07-4.47 1.07-.94 0-2.36-1.05-3.88-1.02-2 .03-3.84 1.16-4.86 2.95-2.07 3.6-.53 8.92 1.5 11.85.99 1.43 2.17 3.03 3.7 2.97 1.49-.06 2.05-.96 3.85-.96s2.3.96 3.87.93c1.6-.03 2.6-1.45 3.58-2.89.55-.85 1.13-1.79 1.53-2.83-3.92-1.48-3.97-3.31-3.97-3.34zM14.07 4.07c.82-1 1.37-2.39 1.22-3.78-1.18.05-2.6.79-3.45 1.79-.76.88-1.42 2.29-1.24 3.65 1.31.1 2.65-.66 3.47-1.66z" />
-    </svg>
   );
 }

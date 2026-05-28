@@ -1,7 +1,7 @@
 /* eslint-disable i18next/no-literal-string -- OAuth authorize/error pages render as server components, which the project's i18next client-runtime can't reach yet. English-only for v1; same migration path as ConsentScreen.tsx. */
 
 import { redirect } from "next/navigation";
-import { createClient } from "~/lib/supabase/server";
+import { auth } from "~/lib/auth";
 import { db } from "~/lib/data";
 import { users } from "~/lib/data/schema";
 import { eq } from "drizzle-orm";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 // /oauth/authorize entry point. Handles four cases:
 //   1. Invalid request → show an error page (NEVER 302 to an unverified URI).
-//   2. No Supabase session → 302 to /login?next=<original-url> (returns here
+//   2. No Auth.js session → 302 to /login?next=<original-url> (returns here
 //      after sign-in, picks up the query params again).
 //   3. Has session AND prior consent for (client, scope) → auto-mint code,
 //      302 directly to redirect_uri?code=…&state=…
@@ -50,14 +50,12 @@ export default async function AuthorizePage({
   }
   const { client, redirectUri, codeChallenge, codeChallengeMethod, scope, state } = validation.req;
 
-  // Read the Supabase session via the server-side cookie client. If absent,
-  // bounce to /login with `next` set to this URL so we resume after sign-in.
-  const supabase = await createClient();
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser();
+  // Read the Auth.js session. If absent, bounce to /login with `next` set
+  // to this URL so we resume after sign-in.
+  const session = await auth();
+  const sessionUserId = session?.user?.id ?? null;
 
-  if (!authUser) {
+  if (!sessionUserId) {
     const qs = new URLSearchParams();
     qs.set("client_id", client.clientId);
     qs.set("redirect_uri", redirectUri);
@@ -71,14 +69,14 @@ export default async function AuthorizePage({
 
   // Look up the user's email for the consent screen ("Signed in as …") and
   // for audit-log meta.
-  const [userRow] = await db.select({ email: users.email }).from(users).where(eq(users.id, authUser.id)).limit(1);
-  const userEmail = userRow?.email ?? authUser.email ?? "(unknown)";
+  const [userRow] = await db.select({ email: users.email }).from(users).where(eq(users.id, sessionUserId)).limit(1);
+  const userEmail = userRow?.email ?? session?.user?.email ?? "(unknown)";
 
   // Auto-approve path: prior consent for an equal-or-wider scope set.
-  if (await hasExistingConsent(authUser.id, client.clientId, scope)) {
+  if (await hasExistingConsent(sessionUserId, client.clientId, scope)) {
     const code = await mintAuthCode({
       clientId: client.clientId,
-      userId: authUser.id,
+      userId: sessionUserId,
       redirectUri,
       codeChallenge,
       codeChallengeMethod,
@@ -86,7 +84,7 @@ export default async function AuthorizePage({
     });
     await appendAudit({
       event: "consent_auto",
-      userId: authUser.id,
+      userId: sessionUserId,
       clientId: client.clientId,
       meta: { scope },
     });
@@ -95,7 +93,7 @@ export default async function AuthorizePage({
 
   await appendAudit({
     event: "authorize_started",
-    userId: authUser.id,
+    userId: sessionUserId,
     clientId: client.clientId,
     meta: { scope, redirectUri },
   });

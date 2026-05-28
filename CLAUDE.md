@@ -6,25 +6,23 @@ Feature surface: visual goal hierarchies with weighted connections, weekly progr
 
 ## Local dev credentials
 
-Local dev runs against an external Postgres (Supabase Session Pooler URL in `.env` → `DATABASE_URL`). Auth is handled by **Supabase Auth** (`@supabase/ssr`) — the local `users` table is a thin profile mirror keyed on `auth.users(id)`, auto-populated by the `on_auth_user_created` trigger.
+Local dev runs against any Postgres (Supabase Session Pooler, local docker, RDS, …) configured via `.env` → `DATABASE_URL`. Auth is handled by **Auth.js v5** (`next-auth`) with the **Credentials provider** — email + password only, no magic links, no email confirmation, no password reset. The JWT session cookie is signed with `AUTH_SECRET` (generate with `openssl rand -base64 32`).
 
 The conventional test user for automated flows (Playwright, manual smoke testing) is:
 
 - **Email:** `santi@test.local`
-- **Password:** `devpassword12345` (Supabase's minimum is 6, but AuthScreens enforces 12)
+- **Password:** `devpassword12345` (AuthScreens enforces 12)
 
-Create it via the UI: open `http://localhost:3000/register`, fill in name + email + password, then click the confirmation link from the email. The `on_auth_user_created` trigger materializes the `public.users` row automatically.
+Create it via the UI: open `http://localhost:3000/register`, fill in name + email + password, submit. The server action bcrypts the password, inserts the user row, and signs you in — no confirmation email, no second step.
 
-If you want to skip email confirmation during local dev, toggle **Authentication → Providers → Email → "Confirm email"** OFF in the Supabase dashboard (leave ON in any non-dev environment). Re-enabling sends a fresh confirmation link on the next sign-up.
-
-If you lock yourself out, request a reset at `/forgot-password` (the email link drops you on `/reset-password` already signed in to set a new password). Or wipe `auth.users` for the email via the Supabase dashboard and re-register.
+If you lock yourself out: there's no password reset flow yet. Either re-register with a different email or wipe the user row from the DB and re-register.
 
 Local dev DB only — do not reuse credentials in production.
 
 ## Stack
 
 - **Frontend:** Next.js 16 (app dir), React 19, TypeScript, Tailwind, React Flow (`@xyflow/react`), Framer Motion, Lucide, dnd-kit
-- **Backend:** tRPC v11, Next.js API routes, Supabase Auth (`@supabase/ssr`), Zod
+- **Backend:** tRPC v11, Next.js API routes, Auth.js v5 (`next-auth` + `@auth/drizzle-adapter`), bcryptjs, Zod
 - **Database:** PostgreSQL + Drizzle ORM + Drizzle Kit
 - **State:** React Context + TanStack Query (via tRPC) + IDB Keyval
 
@@ -92,15 +90,17 @@ User-owned tracking-items library (goal optional → "Unscoped"), reusable sync 
 - **Self page** — "living portrait": prose fields on `user_self` + list buckets in `self_list_items` (energizers, drainers, just-for-me, proud, patterns by category, triggers, released, year-ahead). Empty fields = clean page, not unfinished form.
 
 ### Auth & multi-user
-**Supabase Auth** (`@supabase/ssr`, server-only) handles signup, sign-in (email/password + Google OAuth), email confirmation, password reset, and session cookies. Apple OAuth is wired but disabled. **All auth operations run through server actions in `src/app/auth/actions.ts`** (`signInWithPasswordAction`, `signUpAction`, `signInWithGoogleAction`, `sendPasswordResetAction`, `signOutAction`, `changePasswordAction`, `setRecoveryPasswordAction`). The browser bundle contains no Supabase client at all — that's what keeps `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` strictly runtime env vars (no `NEXT_PUBLIC_` prefix, never inlined at build time, image stays portable across environments).
+**Auth.js v5** (`next-auth`, server-only) with the Credentials provider handles signup + sign-in via email/password. JWT session strategy: the session token is a signed cookie (`AUTH_SECRET`), no `sessions` table. Google is scaffolded (commented out) in `src/lib/auth/index.ts`; uncomment + add `AUTH_GOOGLE_ID/AUTH_GOOGLE_SECRET` to enable. **Browser-initiated flows run through server actions in `src/app/auth/actions.ts`** (`signInWithPasswordAction`, `signUpAction`, `signOutAction`, `changePasswordAction`). The browser bundle contains no auth SDK — everything stays server-side.
+
+No email-dependent flows in v1: no email confirmation, no magic links, no password reset. Adding any of those means wiring an email transport and switching the providers list in `src/lib/auth/index.ts`.
 
 Identity flow:
-- Sessions live in HttpOnly cookies set by `src/lib/supabase/{server,client,middleware}.ts`; the project-root `middleware.ts` refreshes tokens on every request.
-- `/auth/callback` exchanges the OAuth `code` for a session; `/auth/confirm` runs `verifyOtp` for email-confirm + recovery + email-change flows. `/forgot-password` and `/reset-password` drive the recovery UX.
-- `public.users.id` is `uuid REFERENCES auth.users(id) ON DELETE CASCADE`. The `on_auth_user_created` trigger (migration 0019) mirrors every Supabase signup into `public.users` so the local profile row exists by the time the first request lands. No password column lives on `public.users` — credentials belong to Supabase.
-- The tRPC context (`src/lib/api/trpc.ts`) resolves the current user via `supabase.auth.getUser()` and exposes the same `{ userId, userName }` shape the rest of the routers already read.
+- Sessions live in HttpOnly cookies issued by Auth.js's edge middleware (`middleware.ts` re-exports `auth as middleware`). JWT strategy means there's no token refresh round-trip.
+- `/api/auth/[...nextauth]/route.ts` handles all NextAuth callbacks (sign-in, sign-out, session reads).
+- `public.users.id` is `uuid` with `defaultRandom()` — generated locally on user creation. No FK to an external auth table. The `accounts` table exists (required by `@auth/drizzle-adapter`) but is empty until Google is enabled.
+- The tRPC context (`src/lib/api/trpc.ts`) resolves the current user via `await auth()` (server helper) and exposes the same `{ userId, userName }` shape every router already reads.
 
-Full per-user data isolation via the 11 cascade FKs. Profile page (`ProfileModal`) handles name/email edit, avatar upload, and password change. Password change calls `changePasswordAction` which re-auths server-side with the current password first, then runs `supabase.auth.updateUser({ password })` — preserves the "verify current first" UX guarantee without round-tripping a session cookie through the browser SDK.
+Full per-user data isolation via cascade FKs. Profile page (`ProfileModal`) handles name/email edit, avatar upload, and password change. Password change calls `changePasswordAction` which bcrypt-compares the current password before writing the new hash — preserves the "verify current first" UX guarantee.
 
 ### File management
 Image, document, and other binary uploads on weekly-sync items; built-in inline text editor for sync notes (DB-only, no filesystem).
@@ -110,8 +110,15 @@ Image, document, and other binary uploads on weekly-sync items; built-in inline 
 **Conventions for every table:** `id` (text, primary key, cuid2), `createdAt` and `updatedAt` (timestamp, audit). Listed only when notable. All user-scoped tables cascade-delete on `users.id`. **Exception:** `users.id` itself is a `uuid` matching `auth.users(id)` (Supabase Auth's primary key) and every `user_id` FK column is also `uuid` — no cuid2 on the user identity boundary.
 
 ### users
-- `id` (uuid, PK, FK to `auth.users(id)` ON DELETE CASCADE — populated by the `on_auth_user_created` trigger; do NOT generate locally)
-- `name`, `email` (UNIQUE — mirrored from `auth.users.email` on signup; email changes flow through `supabase.auth.updateUser({ email })` and re-mirror on next sign-in), `avatarUrl` (text, nullable — path under `/uploads/{userId}/avatar`; null = `Avatar.tsx` initial fallback)
+- `id` (uuid, PK, `defaultRandom()` — generated locally on user creation; no external auth-table FK)
+- `name`, `email` (UNIQUE), `passwordHash` (nullable — bcrypt-hashed by `signUpAction`/`changePasswordAction`), `emailVerified` (timestamp, nullable — unused in v1; Auth.js adapter type compatibility), `image` (text, nullable — Auth.js adapter compatibility, unused), `avatarUrl` (text, nullable — `/api/files/{id}` pointer; null = `Avatar.tsx` initial fallback), `locale` (BCP-47 code, nullable)
+
+### accounts (Auth.js)
+- Created by `@auth/drizzle-adapter`. Empty in v1 (Credentials provider doesn't write here). Required so the adapter's assertions succeed and the table is ready the day a social provider lands.
+
+### files
+- Generic binary blob store — replaces Supabase Storage. One row per uploaded file (avatars, person photos, sync attachments). Bytes live in `data` (bytea); served by `/api/files/[id]` which auth-gates by session cookie + owner match.
+- `id` (cuid2, PK), `ownerId` (uuid, FK → users.id, cascade), `fileName`, `mimeType`, `sizeBytes` (int), `data` (bytea), `createdAt`
 
 ### values
 - `name`, `color`, `userId`
@@ -140,8 +147,8 @@ Named bundles of tracking items. **Partial unique index** enforces "at most one 
 - `weeklySyncItems`: `weeklySyncId` (cascade), `trackingItemId` (cascade), `textContent` (nullable, inline notes — replaces old notes.txt files), `orderIdx` (NOT NULL, default 0)
 
 ### attachments
-Polymorphic file metadata, keyed on `(parentType, parentId)`. Today's only producer is `parentType = 'weekly_sync_item'`, but the schema is permissive so other entities can opt in without a migration. Stored at `uploads/{userId}/attachments/{id}.{ext}` — decoupled from goal/date so unscoped items can hold files.
-- `userId` (cascade), `parentType` (NOT NULL discriminator), `parentId` (NOT NULL), `fileName`, `fileType` (enum: image|document|video|audio|other), `storagePath`, `sizeBytes` (nullable). Indexed on `(parentType, parentId)` and `userId`.
+Polymorphic file metadata, keyed on `(parentType, parentId)`. Today's only producer is `parentType = 'weekly_sync_item'`, but the schema is permissive so other entities can opt in without a migration. Bytes live in the `files` table; `fileId` FK cascades, so deleting an attachment removes the blob in the same tx.
+- `userId` (cascade), `parentType` (NOT NULL discriminator), `parentId` (NOT NULL), `fileName`, `fileType` (enum: image|document|video|audio|other), `fileId` (NOT NULL, FK → files.id, cascade), `sizeBytes` (nullable). Indexed on `(parentType, parentId)` and `userId`.
 
 ### goalValues (junction)
 - `goalId` (FK), `valueId` (FK)
@@ -197,12 +204,13 @@ One table for every list-shaped Self section. Server enforces `patternCategory` 
 ## Backend endpoints (tRPC)
 
 ### auth
-Signup/sign-in/sign-out/password-reset are **server actions** (`src/app/auth/actions.ts`); `GoalsContext.tsx` exposes thin wrappers (`signInWithPassword`, `signUp`, `signInWithGoogle`, `sendPasswordReset`, `logout`) that call the actions and invalidate the `auth.me` tRPC query. The tRPC router only covers authenticated profile reads/writes against the local mirror:
-- `me` — returns `{ id, name, email, avatarUrl }` from `public.users`
-- `updateProfile` (rejects email collisions; email change routes through `supabase.auth.updateUser({ email })` so Supabase sends a confirmation)
-- `uploadAvatar` (base64 → Supabase Storage bucket `avatars` at `{userId}/avatar`; upsert overwrites previous), `removeAvatar` (storage object delete + clear `users.avatarUrl`)
+Signup/sign-in/sign-out/password-change are **server actions** (`src/app/auth/actions.ts`); `GoalsContext.tsx` exposes thin wrappers (`signInWithPassword`, `signUp`, `logout`) that call the actions and invalidate the `auth.me` tRPC query. The tRPC router only covers authenticated profile reads/writes against the local users row:
+- `me` — returns `{ id, name, email, avatarUrl, locale }` from `public.users`
+- `updateProfile` (rejects email collisions; writes directly to `public.users`)
+- `uploadAvatar` (base64 → `files` table, sets `users.avatarUrl` to `/api/files/{id}`; previous avatar's blob deleted after the update), `removeAvatar` (clears `users.avatarUrl` + deletes the blob)
+- `setLocale` (persists the BCP-47 locale code)
 
-Password change while logged in: server action `changePasswordAction` (re-auth via `signInWithPassword`, then `updateUser({ password })`). No tRPC procedure.
+Password change while logged in: server action `changePasswordAction` (bcrypt-compares current, then writes new hash). No tRPC procedure.
 
 ### goals.goals
 - `getAll`, `create`, `update`, `delete` — full CRUD with tasks + value associations + cascading
@@ -232,8 +240,8 @@ Password change while logged in: server action `changePasswordAction` (re-auth v
 - `addItem` (idempotent), `removeItem` (drops from this sync only; library row stays; hand-deletes attachments to unlink files), `setItemText`, `reorderItems`
 
 ### goals.attachments
-- `upload({ parentType: 'weekly_sync_item', parentId, fileName, fileType, data })` — base64; Storage upload first, then DB insert. DB insert failure rolls the storage object back via best-effort remove. Returns a freshly-minted signed URL.
-- `delete({ id })` — DB delete + storage object remove
+- `upload({ parentType: 'weekly_sync_item', parentId, fileName, fileType, data })` — base64; inserts the file blob into `files`, then the attachment metadata row. Metadata-insert failure rolls back the file row (no orphan bytes). Returns `{ url }` as a `/api/files/{id}` path.
+- `delete({ id })` — single attachment delete; cascades the `files` row via FK.
 
 ### goals.images
 - `upload`, `uploadMultiple` — single-image / multi-image upload (used outside the weekly-sync flow)
@@ -269,34 +277,23 @@ Password change while logged in: server action `changePasswordAction` (re-auth v
 
 ## File storage
 
-All binary uploads live in **Supabase Storage** — nothing touches the local filesystem (Vercel and similar runtimes have a read-only FS). Sync-item text notes are inline in `weekly_sync_items.text_content` (DB-only).
+All binary uploads live in the **`files`** Postgres table — bytes stored as `bytea`, served by the `/api/files/[id]` route. No external object store, no signed URLs, no RLS dance: the route auth-gates by Auth.js session cookie + `ownerId` match, full stop. Sync-item text notes are inline in `weekly_sync_items.text_content` (DB-only).
 
-Server-side storage ops go through a **service-role** Supabase client (`src/lib/supabase/service.ts`, env: `SUPABASE_SERVICE_ROLE_KEY`). The session-scoped `@supabase/ssr` client *would* be the more principled choice, but with the new `sb_publishable_…` / ES256 JWT scheme Storage does not propagate JWT claims into Postgres RLS evaluation — `auth.uid()` resolves as NULL inside `storage.objects` policies and every owner-folder check fails. Same security model as the rest of the app: paths are constructed from the server-verified `ctx.user.userId`, RLS becomes inert defense-in-depth.
+The route is auth-gated on every request and returns 404 for both "not found" and "not owned by caller" so no enumeration leaks. `Cache-Control: private, max-age=300` lets the browser keep the bytes for the session without persisting them in a shared cache.
 
-Three buckets, each created with matching RLS in migrations 0021 / 0022:
+How callers reference uploaded files:
+- `users.avatarUrl` holds `/api/files/{fileId}` (or null for the initials fallback). Replaced atomically on re-upload, old file row deleted after the update lands.
+- `people.emoji` accepts either an emoji glyph or `/api/files/{fileId}` (the `Avatar.tsx` component branches on it via `isEmojiUrl`). The Zod schema validates the URL shape via `isOurStorageImageUrl`.
+- `attachments.fileId` is a NOT NULL FK on `files.id` with cascade — one delete removes the metadata row + blob in the same tx.
 
-```
-avatars/        public, RLS write-only-owner
-  {userId}/avatar                   # current user avatar; public URL with ?v= cache bust
-
-people-photos/  public, RLS write-only-owner
-  {userId}/{photoId}.{ext}          # person photos (uploaded via people.uploadImage)
-
-attachments/    private, RLS owner-only-all-ops
-  {userId}/{attachmentId}.{ext}     # weekly-sync attachments, served via signed URLs
-```
-
-`attachments.storagePath` in the DB holds the bucket-relative key (`{userId}/{id}.{ext}`); the router mints short-lived signed URLs (1h TTL) when hydrating sync items. The attachments path is keyed only on user — the DB resolves "which sync item" via `(parentType, parentId)`, so unscoped items still work.
-
-**Supported types:** images (PNG/JPG/JPEG/GIF/WebP), documents (TXT/PDF/...), video, audio, other.
+**Supported types:** images (PNG/JPG/JPEG/GIF/WebP), documents (TXT/PDF/...), video, audio, other. Image MIME is sniffed via magic bytes in `image-upload.ts`; non-image extensions are clamped to a safe-extension allow-list in `_shared.safeExtension`.
 
 **Security:**
-- Avatars and people-photos: public-read (URLs are unguessable without the user UUID — and an attacker who has your UUID has bigger problems). INSERT/UPDATE/DELETE on `storage.objects` restricted to the owning user via RLS that matches `auth.uid()` against the first path segment.
-- Attachments: private bucket; SELECT/INSERT/UPDATE/DELETE all RLS-gated on owner-folder. Reads go through `createSignedUrl` minted by the session-scoped client — a leaked URL expires within an hour.
-- Every attachment row carries `userId`; uploads validate parent-row owner; deletes match by id AND userId.
-- Paths are constructed server-side from validated ids — no user-supplied path segments.
-- Base64 envelope validated before reaching Storage.
-- Attachments: Storage write first, then DB insert. A DB-insert failure rolls the storage object back via a best-effort `remove`; the worst case is a stray orphan blob (costs storage, doesn't surface to users).
+- The serving route requires an authenticated session AND matches `files.ownerId` against the session user. Nothing else.
+- Upload routes (`auth.uploadAvatar`, `people.uploadImage`, `attachments.upload`) build the `ownerId` from the server-verified `ctx.user.userId` — no user-supplied path segments anywhere.
+- Base64 envelope decoded + validated (size + image magic-bytes if `fileType === 'image'`) before any DB write.
+- Attachment upload inserts the `files` row first, then the `attachments` metadata row. If the metadata insert throws, the file row is rolled back via a follow-up delete (no orphan bytes).
+- `isOurStorageImageUrl` rejects anything that isn't a clean `/api/files/{id}` path so user-pasted external URLs can't be smuggled through the emoji/avatar fields.
 
 ## MCP server (talk-to-Anansi via Claude)
 
@@ -402,7 +399,6 @@ Drizzle migrations live in `src/lib/data/db/migrations/`.
    - `npm run db:migrate` to apply.
    - **Do not** use `npm run db:push` during this workflow — it's interactive and touches unrelated foreign keys.
 
-3. **Drizzle does not introspect the `on_auth_user_created` trigger** that mirrors `auth.users` → `public.users` (defined in `0019_supabase_auth.sql`). Treat the trigger as load-bearing — `npm run db:pull` will not see it and a regenerated schema could silently drop it. If you ever need to regenerate, copy the trigger DDL back into the new migration by hand.
 
 ---
 

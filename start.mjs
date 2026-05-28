@@ -25,6 +25,14 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
+// AUTH_SECRET signs the Auth.js JWT session cookie. next-auth v5 errors on
+// the first session read without it in production; preflight here so the
+// container fails fast at boot rather than on the first sign-in attempt.
+if (!process.env.AUTH_SECRET) {
+  console.error("[start] AUTH_SECRET is not set — refusing to boot (generate with: openssl rand -base64 32)");
+  process.exit(1);
+}
+
 console.log("[start] applying migrations…");
 const sql = postgres(DATABASE_URL, {
   // One-shot connection, no need for a pool. `prepare: false` keeps us

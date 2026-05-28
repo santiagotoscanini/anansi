@@ -1,18 +1,19 @@
+import { createId } from "@paralleldrive/cuid2";
+import { relations, sql } from "drizzle-orm";
 import {
-  pgTable,
-  text,
-  uuid,
-  integer,
-  real,
   boolean,
-  timestamp,
-  pgEnum,
+  customType,
   index,
+  integer,
+  pgEnum,
+  pgTable,
+  real,
+  text,
+  timestamp,
   uniqueIndex,
+  uuid,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
-import { relations, sql } from "drizzle-orm";
-import { createId } from "@paralleldrive/cuid2";
 
 // Enums
 export const importanceEnum = pgEnum("importance", ["Low", "Medium", "High"]);
@@ -41,17 +42,33 @@ export const selfPatternCategoryEnum = pgEnum("self_pattern_category", [
   "body_state",
   "choice",
 ]);
+// Postgres `bytea` for file blobs. drizzle-orm doesn't ship a built-in
+// helper so we declare one here. `data` is the only column that uses it.
+const bytea = customType<{ data: Buffer; default: false }>({
+  dataType() {
+    return "bytea";
+  },
+});
+
 // Users table.
 //
-// `id` is a Supabase `auth.users(id)` UUID — the row is populated by the
-// `on_auth_user_created` trigger in migration 0019_supabase_auth.sql. The
-// FK to `auth.users` cascades on delete so removing a Supabase Auth user
-// nukes the entire owned subtree via the existing cascades on every child
-// table. No password column lives here — Supabase Auth owns credentials.
+// `id` is a self-generated UUID — Auth.js's Drizzle adapter expects users.id
+// to be a uuid and defaults a new id at insert time. `passwordHash` is set
+// by the credentials sign-up flow (server action) and read by the Credentials
+// provider's authorize callback. `emailVerified` + `image` exist for adapter
+// compatibility (mirrors the Auth.js core type) — emailVerified is unused for
+// v1 (no email confirmation), `image` is unused (we store uploaded avatars
+// under `avatarUrl`).
 export const users = pgTable("users", {
-  id: uuid("id").primaryKey(),
+  id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
+  emailVerified: timestamp("email_verified", { mode: "date" }),
+  image: text("image"),
+  passwordHash: text("password_hash"),
+  // avatarUrl is the canonical avatar reference rendered by Avatar.tsx.
+  // For uploaded avatars it holds a `/api/files/{fileId}` path; null means
+  // "use the initials fallback".
   avatarUrl: text("avatar_url"),
   // BCP-47 locale code (e.g. "en", "es"). Nullable: null means the user has
   // never picked a language and the client should fall back to its browser
@@ -62,6 +79,54 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// Auth.js `accounts` table — required by @auth/drizzle-adapter when ANY OAuth
+// provider is configured (it stores the provider's user id + tokens). Empty in
+// v1 since the only enabled provider is Credentials (which doesn't write here),
+// but the table must exist or NextAuth's adapter assertions fail at boot.
+// Schema mirrors the adapter's `AdapterAccount` shape exactly.
+export const accounts = pgTable(
+  "accounts",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    provider: text("provider").notNull(),
+    providerAccountId: text("provider_account_id").notNull(),
+    refresh_token: text("refresh_token"),
+    access_token: text("access_token"),
+    expires_at: integer("expires_at"),
+    token_type: text("token_type"),
+    scope: text("scope"),
+    id_token: text("id_token"),
+    session_state: text("session_state"),
+  },
+  (t) => [uniqueIndex("accounts_provider_account_unique").on(t.provider, t.providerAccountId)],
+);
+
+// Binary file storage — replaces Supabase Storage. One row per uploaded
+// blob (avatars, person photos, sync attachments). Bytes live inline in the
+// `data` column; metadata (filename, mime, size) drives the `/api/files/[id]`
+// serving route. Ownership is enforced at read time by joining on `ownerId`
+// against the current session user.
+export const files = pgTable(
+  "files",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    fileName: text("file_name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    data: bytea("data").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("files_owner_idx").on(t.ownerId)],
+);
 
 // Values table
 export const values = pgTable("values", {
@@ -300,8 +365,8 @@ export const syncTemplateItems = pgTable(
 
 // Generic polymorphic attachments table. parent_type discriminates
 // ('weekly_sync_item' is the only producer today; designed to extend to other
-// entities later). Storage path is uploads/{userId}/attachments/{id}.{ext},
-// decoupled from goal/tracking-item ids so items without goals can still hold files.
+// entities later). Bytes live in the `files` table — `fileId` FK with cascade
+// means deleting an attachment row removes the underlying blob in the same tx.
 export const attachments = pgTable(
   "attachments",
   {
@@ -315,7 +380,9 @@ export const attachments = pgTable(
     parentId: text("parent_id").notNull(),
     fileName: text("file_name").notNull(),
     fileType: fileTypeEnum("file_type").notNull(),
-    storagePath: text("storage_path").notNull(),
+    fileId: text("file_id")
+      .notNull()
+      .references(() => files.id, { onDelete: "cascade" }),
     sizeBytes: integer("size_bytes"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
@@ -723,6 +790,22 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     references: [userSelf.userId],
   }),
   selfListItems: many(selfListItems),
+  accounts: many(accounts),
+  files: many(files),
+}));
+
+export const accountsRelations = relations(accounts, ({ one }) => ({
+  user: one(users, {
+    fields: [accounts.userId],
+    references: [users.id],
+  }),
+}));
+
+export const filesRelations = relations(files, ({ one }) => ({
+  owner: one(users, {
+    fields: [files.ownerId],
+    references: [users.id],
+  }),
 }));
 
 export const bucketListItemsRelations = relations(bucketListItems, ({ one, many }) => ({

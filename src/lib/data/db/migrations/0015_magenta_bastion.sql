@@ -1,1 +1,0 @@
-ALTER TYPE "public"."self_list_kind" ADD VALUE 'proud' BEFORE 'pattern';

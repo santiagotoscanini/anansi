@@ -9,10 +9,11 @@
 # stays warm because package*.json hasn't changed).
 #
 # Public Supabase config is injected at build time as ARGs sourced from
-# repository VARIABLES (vars.*, NOT secrets.*) — these are publishable per
-# the project's CLAUDE.md and are inlined into the client bundle anyway.
-# Server-only secrets (DATABASE_URL, SUPABASE_SERVICE_ROLE_KEY, etc.) are
-# passed at `docker run` time, never baked into the image.
+# repository SECRETS. The Supabase publishable key is technically safe to
+# expose (it's designed to be in browser bundles, gated by RLS), but storing
+# it as a Secret rather than a Variable means GHA masks it in logs — pure
+# upside for a one-line change. Server-only secrets (DATABASE_URL,
+# SUPABASE_SERVICE_ROLE_KEY) are passed at `docker run` time, never baked in.
 
 name: Release Docker image
 
@@ -72,13 +73,13 @@ jobs:
           # final one — costs cache storage but pays off on rebuilds.
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # Public Supabase config — Variables (not Secrets) by design.
-          # If a var is unset, the build still succeeds but the runtime
-          # client will be misconfigured; set both in Repo Settings →
-          # Secrets and variables → Actions → Variables.
+          # Public Supabase config — Repo Secrets. If a secret is unset,
+          # the build still succeeds but Next inlines an empty string and
+          # the runtime client breaks silently. Set both in Repo Settings →
+          # Secrets and variables → Actions → Secrets.
           build-args: |
-            NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Image summary
         run: |

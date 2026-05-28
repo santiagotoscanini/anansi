@@ -8,12 +8,11 @@
 # rebuilds well under a minute when only TS/TSX changes (the npm ci layer
 # stays warm because package*.json hasn't changed).
 #
-# Public Supabase config is injected at build time as ARGs sourced from
-# repository SECRETS. The Supabase publishable key is technically safe to
-# expose (it's designed to be in browser bundles, gated by RLS), but storing
-# it as a Secret rather than a Variable means GHA masks it in logs — pure
-# upside for a one-line change. Server-only secrets (DATABASE_URL,
-# SUPABASE_SERVICE_ROLE_KEY) are passed at `docker run` time, never baked in.
+# No build-time env vars are needed. All Supabase credentials are read
+# server-side at runtime (the browser bundle contains zero Supabase config —
+# auth runs through server actions in src/app/auth/actions.ts). Set
+# SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_SERVICE_ROLE_KEY, and
+# DATABASE_URL at `docker run` time.
 
 name: Release Docker image
 
@@ -73,13 +72,6 @@ jobs:
           # final one — costs cache storage but pays off on rebuilds.
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          # Public Supabase config — Repo Secrets. If a secret is unset,
-          # the build still succeeds but Next inlines an empty string and
-          # the runtime client breaks silently. Set both in Repo Settings →
-          # Secrets and variables → Actions → Secrets.
-          build-args: |
-            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Image summary
         run: |

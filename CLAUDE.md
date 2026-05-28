@@ -92,7 +92,7 @@ User-owned tracking-items library (goal optional → "Unscoped"), reusable sync 
 - **Self page** — "living portrait": prose fields on `user_self` + list buckets in `self_list_items` (energizers, drainers, just-for-me, proud, patterns by category, triggers, released, year-ahead). Empty fields = clean page, not unfinished form.
 
 ### Auth & multi-user
-**Supabase Auth** (`@supabase/ssr`) handles signup, sign-in (email/password + Google OAuth), email confirmation, password reset, and session cookies. Apple OAuth is wired at the SDK level but disabled until the dashboard side is configured.
+**Supabase Auth** (`@supabase/ssr`, server-only) handles signup, sign-in (email/password + Google OAuth), email confirmation, password reset, and session cookies. Apple OAuth is wired but disabled. **All auth operations run through server actions in `src/app/auth/actions.ts`** (`signInWithPasswordAction`, `signUpAction`, `signInWithGoogleAction`, `sendPasswordResetAction`, `signOutAction`, `changePasswordAction`, `setRecoveryPasswordAction`). The browser bundle contains no Supabase client at all — that's what keeps `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` strictly runtime env vars (no `NEXT_PUBLIC_` prefix, never inlined at build time, image stays portable across environments).
 
 Identity flow:
 - Sessions live in HttpOnly cookies set by `src/lib/supabase/{server,client,middleware}.ts`; the project-root `middleware.ts` refreshes tokens on every request.
@@ -100,7 +100,7 @@ Identity flow:
 - `public.users.id` is `uuid REFERENCES auth.users(id) ON DELETE CASCADE`. The `on_auth_user_created` trigger (migration 0019) mirrors every Supabase signup into `public.users` so the local profile row exists by the time the first request lands. No password column lives on `public.users` — credentials belong to Supabase.
 - The tRPC context (`src/lib/api/trpc.ts`) resolves the current user via `supabase.auth.getUser()` and exposes the same `{ userId, userName }` shape the rest of the routers already read.
 
-Full per-user data isolation via the 11 cascade FKs. Profile page (`ProfileModal`) handles name/email edit, avatar upload, and password change (re-auths with the current password first via `signInWithPassword`, then calls `updateUser({ password })`).
+Full per-user data isolation via the 11 cascade FKs. Profile page (`ProfileModal`) handles name/email edit, avatar upload, and password change. Password change calls `changePasswordAction` which re-auths server-side with the current password first, then runs `supabase.auth.updateUser({ password })` — preserves the "verify current first" UX guarantee without round-tripping a session cookie through the browser SDK.
 
 ### File management
 Image, document, and other binary uploads on weekly-sync items; built-in inline text editor for sync notes (DB-only, no filesystem).
@@ -197,12 +197,12 @@ One table for every list-shaped Self section. Server enforces `patternCategory` 
 ## Backend endpoints (tRPC)
 
 ### auth
-Signup/sign-in/sign-out/password-reset are Supabase-handled client-side (see `signInWithPassword`/`signUp`/`signInWithGoogle`/`sendPasswordReset` exported from `src/contexts/GoalsContext.tsx`). The tRPC router only covers authenticated profile reads/writes against the local mirror:
+Signup/sign-in/sign-out/password-reset are **server actions** (`src/app/auth/actions.ts`); `GoalsContext.tsx` exposes thin wrappers (`signInWithPassword`, `signUp`, `signInWithGoogle`, `sendPasswordReset`, `logout`) that call the actions and invalidate the `auth.me` tRPC query. The tRPC router only covers authenticated profile reads/writes against the local mirror:
 - `me` — returns `{ id, name, email, avatarUrl }` from `public.users`
 - `updateProfile` (rejects email collisions; email change routes through `supabase.auth.updateUser({ email })` so Supabase sends a confirmation)
 - `uploadAvatar` (base64 → Supabase Storage bucket `avatars` at `{userId}/avatar`; upsert overwrites previous), `removeAvatar` (storage object delete + clear `users.avatarUrl`)
 
-Password change while logged in: client-side, via `supabase.auth.signInWithPassword` (re-auth) then `supabase.auth.updateUser({ password })`. No tRPC procedure.
+Password change while logged in: server action `changePasswordAction` (re-auth via `signInWithPassword`, then `updateUser({ password })`). No tRPC procedure.
 
 ### goals.goals
 - `getAll`, `create`, `update`, `delete` — full CRUD with tasks + value associations + cascading

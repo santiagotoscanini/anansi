@@ -3,10 +3,12 @@
 # cache behind. Pairs with `output: "standalone"` in next.config.js — Next
 # emits .next/standalone/server.js with only the runtime-needed node_modules.
 #
-# Build args expose NEXT_PUBLIC_* env vars to the builder stage so they get
-# inlined into the client bundle. These are "publishable" Supabase values
-# (per the project's CLAUDE.md), safe to embed in the image. Server-only
-# secrets (DATABASE_URL, SUPABASE_SERVICE_ROLE_KEY) are passed at runtime.
+# No build-time secrets — every Supabase credential (URL, publishable key,
+# service-role key) is read by server-only code at runtime. The browser bundle
+# carries no Supabase config at all (auth flows through server actions in
+# src/app/auth/actions.ts), so the image is fully portable: rotate Supabase
+# keys without rebuilding, deploy the same image against staging or prod by
+# changing env vars at `docker run` time.
 
 # ───── Stage 1: deps ─────────────────────────────────────────────────────
 # Resolve node_modules ONCE against an immutable lockfile. This layer is
@@ -32,12 +34,6 @@ COPY . .
 # added (cheaper than making the COPY conditional with BuildKit tricks).
 RUN mkdir -p public
 
-# Public Supabase config — inlined into the client bundle at build time.
-# Pass via --build-arg from the GHA workflow (sourced from repo Variables).
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build

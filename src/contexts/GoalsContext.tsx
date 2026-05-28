@@ -1,10 +1,17 @@
 "use client";
 
-import React, { createContext, useContext, useCallback, useEffect, useMemo, useRef } from "react";
+import React, { createContext, useContext, useCallback, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import { api, type RouterOutputs } from "~/trpc/react";
 import { computeImportance, type Importance } from "~/lib/computation/importance";
-import { createClient } from "~/lib/supabase/client";
+import {
+  signInWithPasswordAction,
+  signUpAction,
+  signInWithGoogleAction,
+  signInWithAppleAction,
+  sendPasswordResetAction,
+  signOutAction,
+} from "~/app/auth/actions";
 import type {
   Value,
   Goal,
@@ -17,11 +24,11 @@ import type {
   CreateTrackingItem,
 } from "~/lib/api/types";
 
-// One browser-side Supabase client per page lifetime. `createClient` returns
-// a fresh client on each call, so module-scoping it keeps the auth state
-// machine (and its onAuthStateChange subscribers) in a single place.
-const supabase = createClient();
-
+// All Supabase auth operations now run through server actions in
+// src/app/auth/actions.ts — there is no browser-side Supabase client. That
+// keeps the publishable key out of the client bundle so the Docker image
+// builds without `NEXT_PUBLIC_*` build args and stays runtime-configurable.
+//
 // Stable empty fallbacks so `dataQuery.data?.values ?? []` doesn't create a
 // fresh array reference each render (which would propagate to every consumer
 // that uses values/goals/connections in a useMemo dep). Module-level so the
@@ -198,14 +205,17 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     delete: api.goals.attachments.delete.useMutation(),
   };
 
-  // Cookie writes (access + refresh) happen inside the Supabase client via
-  // our cookie adapter. We then invalidate the me query so isAuthenticated
-  // flips on the next render — the auth.onAuthStateChange subscriber below
-  // does the same job for OAuth/email-confirm flows where the session lands
-  // mid-page without going through these functions.
+  // Each browser-initiated auth operation calls a server action which writes
+  // the session cookies through the server-side @supabase/ssr client; we then
+  // invalidate the `me` query so isAuthenticated flips on the next render.
+  // The previous `onAuthStateChange` subscriber is gone — there's no longer a
+  // browser Supabase instance to subscribe to. Email-confirm and OAuth flows
+  // land via route handlers that already revalidate the cookies, and the next
+  // tRPC call's UNAUTHORIZED bounces the user to /login if a token expired
+  // mid-session.
   const signInWithPassword = async (email: string, password: string): Promise<{ ok: boolean; error?: string }> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { ok: false, error: error.message };
+    const result = await signInWithPasswordAction(email, password);
+    if (!result.ok) return { ok: false, error: result.error };
     await utils.auth.me.invalidate();
     return { ok: true };
   };
@@ -215,62 +225,37 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
     email: string,
     password: string,
   ): Promise<{ ok: boolean; error?: string; needsConfirmation?: boolean }> => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        // `name` is read by the on_auth_user_created trigger in migration
-        // 0019_supabase_auth.sql to populate public.users.name.
-        data: { name },
-        emailRedirectTo: typeof window !== "undefined" ? `${window.location.origin}/auth/confirm?next=/app` : undefined,
-      },
-    });
-    if (error) return { ok: false, error: error.message };
-    // When "Confirm email" is ON (the project default), signUp returns a
-    // user but no session — the UI should show "check your email" state
-    // until the confirmation link is clicked.
-    const needsConfirmation = !data.session;
+    const result = await signUpAction(name, email, password);
+    if (!result.ok) return { ok: false, error: result.error };
+    const needsConfirmation = result.data?.needsConfirmation ?? true;
     if (!needsConfirmation) await utils.auth.me.invalidate();
     return { ok: true, needsConfirmation };
   };
 
-  // Google and Apple are wired at the SDK level but disabled until the
-  // dashboard side is configured (OAuth client id/secret for Google;
-  // Services ID + .p8 key for Apple). Leaving the hooks in place so the UI
-  // doesn't need to change shape when we flip either on.
   const signInWithGoogle = async (): Promise<{ ok: boolean; error?: string }> => {
-    return { ok: false, error: "Google sign-in is not configured yet." };
-    // To enable, restore the call below and toggle Authentication →
-    // Providers → Google in the Supabase dashboard:
-    //   const { error } = await supabase.auth.signInWithOAuth({
-    //     provider: "google",
-    //     options: {
-    //       redirectTo: typeof window !== "undefined"
-    //         ? `${window.location.origin}/auth/callback?next=/app`
-    //         : undefined,
-    //     },
-    //   });
-    //   if (error) return { ok: false, error: error.message };
-    //   return { ok: true };
+    const result = await signInWithGoogleAction();
+    if (!result.ok) return { ok: false, error: result.error };
+    await utils.auth.me.invalidate();
+    return { ok: true };
   };
 
   const signInWithApple = async (): Promise<{ ok: boolean; error?: string }> => {
-    return { ok: false, error: "Apple sign-in is not configured yet." };
+    const result = await signInWithAppleAction();
+    if (!result.ok) return { ok: false, error: result.error };
+    await utils.auth.me.invalidate();
+    return { ok: true };
   };
 
   const sendPasswordReset = async (email: string): Promise<{ ok: boolean; error?: string }> => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo:
-        typeof window !== "undefined" ? `${window.location.origin}/auth/confirm?next=/reset-password` : undefined,
-    });
-    if (error) return { ok: false, error: error.message };
+    const result = await sendPasswordResetAction(email);
+    if (!result.ok) return { ok: false, error: result.error };
     return { ok: true };
   };
 
   const logout = () => {
     void (async () => {
       try {
-        await supabase.auth.signOut();
+        await signOutAction();
       } finally {
         // Reset cached queries so isAuthenticated flips to false on the next
         // me refetch (which will 401 now that the cookie is cleared). Goals,
@@ -285,21 +270,6 @@ export function GoalsProvider({ children }: { children: ReactNode }) {
   const checkAuthentication = async () => {
     await meQuery.refetch();
   };
-
-  // Bridge Supabase's auth state machine into TanStack Query: any sign-in,
-  // sign-out, or token-refresh event invalidates the me query so the UI
-  // re-derives isAuthenticated. SIGNED_OUT also drops the cached data so a
-  // new user signing in on the same browser doesn't see the previous one's
-  // goals between mount and refetch.
-  useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      void utils.auth.me.invalidate();
-      if (event === "SIGNED_OUT") {
-        void utils.goals.data.getAll.reset();
-      }
-    });
-    return () => sub.subscription.unsubscribe();
-  }, [utils]);
 
   // Re-fetch the merged goals/values/connections payload. Most mutations
   // call invalidateData below — refreshData stays around for components

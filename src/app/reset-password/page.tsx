@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { GoalsProvider } from "~/contexts/GoalsContext";
-import { createClient } from "~/lib/supabase/client";
+import { setRecoveryPasswordAction } from "~/app/auth/actions";
+import { api } from "~/trpc/react";
 import { AnansiMark, BrandLockup } from "~/components/goals/Brand";
 import { Toaster } from "react-hot-toast";
 import toast from "react-hot-toast";
@@ -34,35 +35,21 @@ const fieldInput: React.CSSProperties = {
   fontFamily: "var(--font-ui)",
 };
 
-// Lives outside the GoalsProvider's auth wiring on purpose: by the time the
-// user lands here they hit /auth/confirm with `type=recovery`, which calls
-// verifyOtp and establishes a session. We talk to Supabase directly to call
-// updateUser({ password }) — no tRPC procedure, no go-between.
+// The recovery session is the one established by /auth/confirm after the
+// user clicks the email link (verifyOtp + cookie set). We use the existing
+// auth.me tRPC query to detect that session — no browser Supabase client
+// involved. setRecoveryPasswordAction does the actual updateUser server-side.
 function ResetPasswordInner() {
   const router = useRouter();
   const { t } = useTranslation();
-  const supabase = createClient();
-  const [checking, setChecking] = useState(true);
-  const [hasSession, setHasSession] = useState(false);
+  // `retry: false` so the loading-vs-expired flip happens immediately on
+  // first 401 instead of churning through TanStack Query's default backoff.
+  const meQuery = api.auth.me.useQuery(undefined, { retry: false });
+  const checking = meQuery.isLoading;
+  const hasSession = meQuery.isSuccess && !!meQuery.data;
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  // The recovery flow only works while the OTP-issued session is live. If
-  // someone lands on /reset-password without going through /auth/confirm,
-  // we bounce them to /forgot-password so they request a new link.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const { data } = await supabase.auth.getUser();
-      if (cancelled) return;
-      setHasSession(!!data.user);
-      setChecking(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -75,10 +62,10 @@ function ResetPasswordInner() {
       return;
     }
     setSubmitting(true);
-    const { error } = await supabase.auth.updateUser({ password });
+    const result = await setRecoveryPasswordAction(password);
     setSubmitting(false);
-    if (error) {
-      toast.error(error.message);
+    if (!result.ok) {
+      toast.error(result.error);
       return;
     }
     toast.success(t("auth.reset.success"));

@@ -18,12 +18,10 @@ import {
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { api } from "~/trpc/react";
-import { createClient } from "~/lib/supabase/client";
+import { changePasswordAction } from "~/app/auth/actions";
 import Avatar from "./Avatar";
 import { useTheme, type ThemePref } from "~/lib/theme";
 import { useLocale } from "~/i18n/useLocale";
-
-const supabase = createClient();
 
 interface ProfileModalProps {
   onClose: () => void;
@@ -163,17 +161,12 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
     }
     setChangingPassword(true);
     try {
-      // Supabase doesn't ask for the current password on updateUser — to
-      // preserve the previous "verify current first" UX we re-authenticate
-      // with the supplied old password. If that fails the change is rejected.
-      const reauth = await supabase.auth.signInWithPassword({ email: me.email, password: currentPassword });
-      if (reauth.error) {
-        toast.error("Current password is incorrect");
-        return;
-      }
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) {
-        toast.error(error.message);
+      // changePasswordAction re-authenticates with the current password
+      // (Supabase's updateUser doesn't ask for it natively) then updates.
+      // Runs server-side so no browser Supabase client is needed.
+      const result = await changePasswordAction(currentPassword, newPassword);
+      if (!result.ok) {
+        toast.error(result.error);
         return;
       }
       setCurrentPassword("");

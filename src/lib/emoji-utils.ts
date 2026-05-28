@@ -76,8 +76,12 @@ export function isEmojiGlyph(value: string): boolean {
 // so users can't smuggle tracking pixels through someone else's directory.
 // Falls back to false (fail-closed) if the supabase URL env isn't set —
 // we'd rather break the validator than accept arbitrary URLs by default.
+//
+// SERVER-ONLY function. Callers (api/types.ts, backup.ts) all run on the
+// server. The `SUPABASE_URL` env var is intentionally non-public — moving it
+// out of the client bundle is what makes the Docker image runtime-configurable.
 export function isOurStorageImageUrl(value: string): boolean {
-  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const base = process.env.SUPABASE_URL;
   if (!base) return false;
   const prefix = `${base.replace(/\/$/, "")}/storage/v1/object/public/`;
   if (!value.startsWith(prefix)) return false;

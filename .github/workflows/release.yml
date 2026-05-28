@@ -2,9 +2,7 @@
 # Container Registry on every push to main and on manual dispatch.
 #
 # Tags applied:
-#   - latest          (only on main)
-#   - main            (branch ref)
-#   - sha-<7chars>    (immutable, pin deployments to this)
+#   - latest          (only on main — the one tag for now)
 #
 # Layer cache lives in GitHub Actions cache (type=gha,mode=max), which keeps
 # rebuilds well under a minute when only TS/TSX changes (the npm ci layer
@@ -56,8 +54,6 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=sha,prefix=sha-,format=short
             type=raw,value=latest,enable={{is_default_branch}}
           labels: |
             org.opencontainers.image.title=anansi

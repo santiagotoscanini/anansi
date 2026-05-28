@@ -55,11 +55,29 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
+# Migration runner + SQL files. The runner (start.mjs) lives at the WORKDIR
+# root next to server.js; the SQL ledger lives under ./drizzle/migrations so
+# the path matches what start.mjs passes to migrate().
+#
+# `drizzle-orm` and `postgres` are also copied from the deps stage because
+# Next's webpack standalone tracing inlines runtime deps into .next chunks
+# rather than emitting them as real node_modules. start.mjs is a sibling
+# script that needs to `import` them through Node's resolution, so they have
+# to exist on disk. drizzle-orm has zero hard runtime deps and postgres has
+# none either, so this is just two flat dirs — no transitive dep walking.
+COPY --from=builder --chown=nextjs:nodejs /app/start.mjs ./start.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/src/lib/data/db/migrations ./drizzle/migrations
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/drizzle-orm ./node_modules/drizzle-orm
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/postgres ./node_modules/postgres
+
 USER nextjs
 
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 EXPOSE 3000
 
-# Standalone output writes server.js at the WORKDIR root.
-CMD ["node", "server.js"]
+# start.mjs applies migrations then imports server.js. Single Node process —
+# signals from the container runtime hit the server cleanly. Pass MIGRATE_ONLY=1
+# to short-circuit after migrations (clean fit for a NixOS ExecStartPre that
+# gates the app service on a successful migration run).
+CMD ["node", "start.mjs"]

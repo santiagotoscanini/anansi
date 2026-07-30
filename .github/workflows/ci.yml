@@ -34,9 +34,4 @@ jobs:
         run: npm run typecheck
 
       - name: Build
-        # JWT_SECRET is required at module-load by src/lib/auth-server.ts —
-        # any 32+ char string is fine for a build-only smoke. Real secret
-        # is injected at deploy time, never set here.
-        env:
-          JWT_SECRET: ci-build-only-secret-not-used-for-real-auth-32chars
         run: npm run build

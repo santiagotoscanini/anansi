@@ -62,7 +62,7 @@ async function handle(req: NextRequest): Promise<Response> {
   // responses (rather than SSE) keeps the proxy story simple; the MCP client
   // upgrades to SSE only when the server holds the response open for
   // long-running work, which we don't do for any current tool.
-  const caller = createMcpCaller(auth.userId, auth.userName);
+  const caller = createMcpCaller(auth.userId);
   const server = buildMcpServer(caller);
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,

@@ -1,36 +1,26 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
-import { eq } from "drizzle-orm";
 import { auth } from "~/lib/auth";
-import { db } from "../data";
-import { users } from "../data/schema";
 
 /**
  * 1. Context
  *
  * Auth identity is owned by Auth.js — we resolve the current session via the
- * `auth()` server helper, which decodes the JWT session cookie. The shape we
- * stamp onto ctx (`{ userId, userName }`) is unchanged so the routers keep
- * reading `ctx.user.userId` exactly as before.
+ * `auth()` server helper, which decodes the JWT session cookie. The only thing
+ * routers read off the context is `ctx.user.userId`.
  *
- * `userName` is looked up from `public.users` (the local profile row). If the
- * row hasn't been materialized for some reason (race window on a brand-new
- * signup), we fall back to the session's email so the context is never
- * partially populated.
+ * There used to be a `userName` field here, populated by a `SELECT name FROM
+ * users` on every single request. Nothing ever read it — procedures that need
+ * the profile (e.g. `auth.me`) query it themselves — so it was one wasted
+ * round-trip per request. Removed.
  *
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
   const session = await auth();
 
-  let user: { userId?: string; userName?: string } = {};
-  if (session?.user?.id) {
-    const [row] = await db.select({ name: users.name }).from(users).where(eq(users.id, session.user.id)).limit(1);
-    user = { userId: session.user.id, userName: row?.name ?? session.user.email ?? "" };
-  }
-
-  return { ...opts, user };
+  return { ...opts, user: { userId: session?.user?.id } };
 };
 
 /**
@@ -94,7 +84,7 @@ export const protectedProcedure = trpcBuilder.procedure.use(
     return next({
       ctx: {
         ...ctx,
-        user: ctx.user as { userId: string; userName: string },
+        user: ctx.user as { userId: string },
       },
     });
   }),

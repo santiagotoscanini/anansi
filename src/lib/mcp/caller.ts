@@ -9,9 +9,9 @@ import { createCaller } from "../api/root";
 // `protectedProcedure` reads `ctx.user.userId`; nothing else looks at headers,
 // so a minimal Headers object is fine. The tRPC instance threads userId
 // through to every route's ownership check.
-export function createMcpCaller(userId: string, userName: string) {
+export function createMcpCaller(userId: string) {
   return createCaller({
     headers: new Headers(),
-    user: { userId, userName },
+    user: { userId },
   });
 }

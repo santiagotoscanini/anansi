@@ -2,8 +2,6 @@ import "~/styles/globals.css";
 import { Suspense, type PropsWithChildren } from "react";
 import { cookies } from "next/headers";
 import { Cormorant_Garamond, Instrument_Serif, Newsreader, Geist, Geist_Mono } from "next/font/google";
-import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Analytics } from "@vercel/analytics/react";
 import { TRPCProvider } from "~/trpc/react";
 import ThemeSync from "~/components/ThemeSync";
 import I18nProvider from "~/i18n/Provider";
@@ -94,8 +92,6 @@ export default async function RootLayout({ children }: PropsWithChildren) {
           </Suspense>
           <TRPCProvider>{children}</TRPCProvider>
         </I18nProvider>
-        <SpeedInsights />
-        <Analytics />
       </body>
     </html>
   );

@@ -1,6 +1,6 @@
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { db } from "../../data";
-import { mcpAccessTokens, mcpRefreshTokens, users } from "../../data/schema";
+import { mcpAccessTokens, mcpRefreshTokens } from "../../data/schema";
 import { generateToken, hashToken } from "./store";
 
 // Token lifetimes. Access is short (1h) so even a leak self-heals; refresh is
@@ -168,15 +168,18 @@ export async function rotateRefreshToken(
 
 export interface ValidatedBearer {
   userId: string;
-  userName: string;
   clientId: string;
   scope: string;
 }
 
 // Resolve an Authorization: Bearer header into the owning user. Single hot path
-// per MCP request: hash → indexed lookup → join users for the name. Returns
-// null on any failure — the caller surfaces 401 with WWW-Authenticate so the
-// MCP client knows to refresh.
+// per MCP request: hash → indexed lookup. Returns null on any failure — the
+// caller surfaces 401 with WWW-Authenticate so the MCP client knows to refresh.
+//
+// This used to innerJoin `users` to carry a display name through to the tRPC
+// context, but nothing read it. The join is not needed to prove the user still
+// exists either: `mcp_access_tokens.user_id` is a cascade FK, so a deleted user
+// takes their tokens with them.
 export async function validateBearer(rawToken: string): Promise<ValidatedBearer | null> {
   if (!rawToken) return null;
   const tokenHash = hashToken(rawToken);
@@ -185,13 +188,8 @@ export async function validateBearer(rawToken: string): Promise<ValidatedBearer 
       userId: mcpAccessTokens.userId,
       clientId: mcpAccessTokens.clientId,
       scope: mcpAccessTokens.scope,
-      expiresAt: mcpAccessTokens.expiresAt,
-      revokedAt: mcpAccessTokens.revokedAt,
-      userName: users.name,
-      userEmail: users.email,
     })
     .from(mcpAccessTokens)
-    .innerJoin(users, eq(users.id, mcpAccessTokens.userId))
     .where(
       and(
         eq(mcpAccessTokens.tokenHash, tokenHash),
@@ -203,7 +201,6 @@ export async function validateBearer(rawToken: string): Promise<ValidatedBearer 
   if (!row) return null;
   return {
     userId: row.userId,
-    userName: row.userName || row.userEmail || "",
     clientId: row.clientId,
     scope: row.scope,
   };

@@ -9,20 +9,31 @@
 
 # ───── Stage 1: deps ─────────────────────────────────────────────────────
 # Resolve node_modules ONCE against an immutable lockfile. This layer is
-# cached across builds and only invalidates when package*.json changes.
-FROM node:20-alpine AS deps
+# cached across builds and only invalidates when the manifests change.
+FROM node:24-alpine AS deps
 WORKDIR /app
-# libc6-compat is required by some npm packages that ship glibc-linked
-# binaries (pg native bindings, etc.) and run under Alpine's musl.
+# libc6-compat is required by some packages that ship glibc-linked binaries
+# and run under Alpine's musl.
 RUN apk add --no-cache libc6-compat
-COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN corepack enable
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# node-linker=hoisted produces a flat, npm-style node_modules instead of
+# pnpm's default symlinks into .pnpm/. That is load-bearing here: the runtime
+# stage copies node_modules/drizzle-orm and node_modules/postgres as standalone
+# directories, and a symlink into a .pnpm store that is never copied would
+# arrive dangling — start.mjs would then fail to import them at boot.
+#
+# --frozen-lockfile also means the supply-chain cooldown in pnpm-workspace.yaml
+# never applies during a build: cooldown gates resolution, and a satisfied
+# lockfile resolves nothing.
+RUN pnpm install --frozen-lockfile --config.node-linker=hoisted
 
 # ───── Stage 2: builder ──────────────────────────────────────────────────
 # Run the actual Next build. Inherits node_modules from stage 1.
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 RUN apk add --no-cache libc6-compat
+RUN corepack enable
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # This project has no `public/` directory — Next's icon conventions colocate
@@ -33,12 +44,12 @@ RUN mkdir -p public
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN npm run build
+RUN pnpm build
 
 # ───── Stage 3: runtime ──────────────────────────────────────────────────
 # The standalone server + its trimmed node_modules. Static assets and
 # /public are copied separately — Next's standalone output excludes them.
-FROM node:20-alpine AS runner
+FROM node:24-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production

@@ -1,0 +1,31 @@
+# pnpm 11 reads project settings from this file, not .npmrc.
+#
+# Supply-chain cooldown: refuse to RESOLVE a package version published less than
+# 7 days ago, so a freshly-published (possibly compromised) release ages out
+# before it can enter the lockfile. This bites at resolution time — `pnpm add`,
+# `pnpm update` — and NOT on a plain or `--frozen-lockfile` install against an
+# already-satisfied lockfile, which is why CI and Docker are unaffected.
+#
+# ADDING A DEPENDENCY: see the "Supply-chain cooldown" note in CLAUDE.md. If
+# resolution fails with ERR_PNPM_MISSING_TIME, comment the line below out, run
+# the install, then restore it and confirm `pnpm install --frozen-lockfile`
+# still succeeds. `pnpm dlx` from this repo needs
+# `--config.minimum-release-age=0`.
+minimumReleaseAge: 10080 # 7 days in minutes; pnpm's own default is 1440 (1 day)
+
+# Escape hatch for an urgent security fix — list package names to bypass the
+# cooldown for those packages only:
+# minimumReleaseAgeExclude:
+#   - some-package
+
+# Treat package.json "engines" as a hard requirement rather than a warning.
+engineStrict: true
+
+# Postinstall scripts are blocked by default; these three are opted in because
+# each ships a platform-specific native binary that does not work unbuilt.
+# Anything not listed here stays blocked, which is the point — a compromised
+# transitive dependency cannot run code at install time.
+allowBuilds:
+  esbuild: true # bundler binary behind tsx and drizzle-kit
+  sharp: true # Next's image optimisation
+  unrs-resolver: true # native resolver used by the ESLint TS import plugin

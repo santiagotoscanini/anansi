@@ -168,8 +168,11 @@ export default function GoalsGraph() {
     [addConnection, t],
   );
 
+  // `_event` is typed as the DOM union rather than React.MouseEvent: React Flow
+  // 12.9 widened OnNodeDrag to `MouseEvent | TouchEvent` so touch drags type
+  // correctly. The handler never reads the event, so this is signature-only.
   const onNodeDragStop = useCallback(
-    (_event: React.MouseEvent, node: Node, nodes?: Node[]) => {
+    (_event: MouseEvent | TouchEvent, node: Node, nodes?: Node[]) => {
       // If multiple nodes were dragged, update all of them
       if (nodes && nodes.length > 1) {
         // Filter to only selected nodes that were actually moved

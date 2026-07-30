@@ -1,6 +1,11 @@
 import next from 'eslint-config-next/core-web-vitals'
 import tseslint from 'typescript-eslint'
 import i18next from 'eslint-plugin-i18next'
+// Direct dependency, not inherited from eslint-config-next. The two rules
+// enabled below are load-bearing (see the comment at their definition), and
+// eslint-config-next is removed when Next goes — without this import they
+// would silently stop running rather than error.
+import reactHooks from 'eslint-plugin-react-hooks'
 
 const config = [
   ...next,
@@ -14,6 +19,7 @@ const config = [
   })),
   {
     files: ['**/*.ts', '**/*.tsx'],
+    plugins: { 'react-hooks': reactHooks },
     languageOptions: {
       parserOptions: {
         projectService: true,

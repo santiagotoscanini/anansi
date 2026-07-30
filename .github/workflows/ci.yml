@@ -37,6 +37,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # format:check first: a formatting failure is the cheapest to diagnose,
+      # and it stops a reformat-only diff from being blamed on lint or types.
+      - name: Format check
+        run: pnpm format:check
+
       - name: Lint
         run: pnpm lint
 

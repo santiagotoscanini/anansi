@@ -101,7 +101,7 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
-    "description": "Create a new top-level or sub-goal. Pass parentId to nest under another goal. `position` is the {x,y} canvas placement \u2014 pick something around {x: 100, y: 100} if you don't have a preference. Add tasks separately with `create_task` after the goal exists.",
+    "description": "Create a new top-level or sub-goal. Pass parentId to nest under another goal. `position` is the {x,y} canvas placement — pick something around {x: 100, y: 100} if you don't have a preference. Add tasks separately with `create_task` after the goal exists.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -200,7 +200,7 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
-    "description": "Add a yearly-recurring date for a person. `year` is optional \u2014 used for 'turning N' math.",
+    "description": "Add a yearly-recurring date for a person. `year` is optional — used for 'turning N' math.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -251,7 +251,7 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
-    "description": "Record an actionable bid toward a person. `dueAt` is optional \u2014 bids without a deadline appear in the person's list but never on the upcoming feed.",
+    "description": "Record an actionable bid toward a person. `dueAt` is optional — bids without a deadline appear in the person's list but never on the upcoming feed.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -334,7 +334,7 @@
           "type": "array"
         },
         "legacyMessage": {
-          "description": "Unfinished business \u2014 repair, release, end.",
+          "description": "Unfinished business — repair, release, end.",
           "type": "string"
         },
         "myNeeds": {
@@ -365,7 +365,7 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
-    "description": "Add an entry to one of the Self list buckets. `patternCategory` is required ONLY when `kind = pattern` \u2014 server ignores it for other kinds.",
+    "description": "Add an entry to one of the Self list buckets. `patternCategory` is required ONLY when `kind = pattern` — server ignores it for other kinds.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -417,7 +417,7 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
-    "description": "Add a task to a goal. Difficulty is a vibes-based 1 (easy) to 3 (hard). `scheduledAt` is the optional deadline \u2014 omit for backlog. `referentIds` are people the user is relying on for this task; `groupIds` tag the task with cross-entity groups.",
+    "description": "Add a task to a goal. Difficulty is a vibes-based 1 (easy) to 3 (hard). `scheduledAt` is the optional deadline — omit for backlog. `referentIds` are people the user is relying on for this task; `groupIds` tag the task with cross-entity groups.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -555,7 +555,7 @@
       "idempotentHint": true,
       "openWorldHint": false
     },
-    "description": "Archive a goal and its associated connections + tracking items. Children of the goal become parent-less (not deleted). Confirm with the user before calling \u2014 this is destructive.",
+    "description": "Archive a goal and its associated connections + tracking items. Children of the goal become parent-less (not deleted). Confirm with the user before calling — this is destructive.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -633,7 +633,7 @@
       "idempotentHint": true,
       "openWorldHint": false
     },
-    "description": "Hard-delete. Only use for entries that were captured incorrectly \u2014 prefer `set_next_bid_done`.",
+    "description": "Hard-delete. Only use for entries that were captured incorrectly — prefer `set_next_bid_done`.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -763,7 +763,7 @@
     "title": "Delete a value behavior"
   },
   {
-    "description": "Full record for one person \u2014 reflection prompts, category, groups.",
+    "description": "Full record for one person — reflection prompts, category, groups.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -992,7 +992,7 @@
     "title": "Upcoming bids across all people"
   },
   {
-    "description": "Return the ordered list of behavior rows attached to a value \u2014 concrete evidence the user uses to confirm they're living it.",
+    "description": "Return the ordered list of behavior rows attached to a value — concrete evidence the user uses to confirm they're living it.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -1031,7 +1031,7 @@
       "idempotentHint": true,
       "openWorldHint": false
     },
-    "description": "Toggle completion. Done bids stay visible \u2014 the trail of fulfilled bids is intentional.",
+    "description": "Toggle completion. Done bids stay visible — the trail of fulfilled bids is intentional.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -1244,7 +1244,7 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
-    "description": "Patch a goal's metadata. Pass only the fields you want to change. `valueIds` REPLACES the entire tag set if passed (omit to leave tags alone). Tasks are NOT editable here \u2014 use the task tools.",
+    "description": "Patch a goal's metadata. Pass only the fields you want to change. `valueIds` REPLACES the entire tag set if passed (omit to leave tags alone). Tasks are NOT editable here — use the task tools.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -1596,7 +1596,7 @@
           ]
         },
         "thisYearSelfDescription": {
-          "description": "Who I am this year \u2014 a paragraph.",
+          "description": "Who I am this year — a paragraph.",
           "type": [
             "string",
             "null"

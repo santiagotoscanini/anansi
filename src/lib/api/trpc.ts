@@ -100,21 +100,19 @@ const translateAppErrors = trpcBuilder.middleware(async ({ next }) => {
  *
  * This is a procedure that requires a user to be authenticated.
  */
-export const protectedProcedure = trpcBuilder.procedure
-  .use(translateAppErrors)
-  .use(
-    trpcBuilder.middleware(({ ctx, next }) => {
-      if (!ctx.user.userId) {
-        // Surface a real 401 to the client so React Query can distinguish
-        // "session ended, redirect to login" from "server error".
-        throw new TRPCError({ code: "UNAUTHORIZED" });
-      }
+export const protectedProcedure = trpcBuilder.procedure.use(translateAppErrors).use(
+  trpcBuilder.middleware(({ ctx, next }) => {
+    if (!ctx.user.userId) {
+      // Surface a real 401 to the client so React Query can distinguish
+      // "session ended, redirect to login" from "server error".
+      throw new TRPCError({ code: "UNAUTHORIZED" });
+    }
 
-      return next({
-        ctx: {
-          ...ctx,
-          user: ctx.user as { userId: string },
-        },
-      });
-    }),
-  );
+    return next({
+      ctx: {
+        ...ctx,
+        user: ctx.user as { userId: string },
+      },
+    });
+  }),
+);

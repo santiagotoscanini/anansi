@@ -4,7 +4,6 @@
 // Columns that point at one (users.avatarUrl, people.emoji when an image was
 // uploaded, attachments) store the URL *string*, not the id — so writing and
 // reading that string has to agree, and both live here.
-import path from "path";
 
 /**
  * The one place the public file URL shape is constructed.
@@ -29,44 +28,4 @@ export function parseFileId(value: string | null): string | null {
   const tail = value.slice(prefix.length).split("?")[0] ?? "";
   if (!tail || tail.includes("/")) return null;
   return tail;
-}
-
-// Allowed extensions for non-image attachments (images use the sniffed-MIME
-// extension instead). Any extension outside this list is replaced with `.bin`,
-// so a `.exe`/`.html`/`.svg` upload becomes a `.bin` blob that browsers
-// content-disposition-download rather than execute.
-const SAFE_NONIMAGE_EXTS = new Set([
-  ".pdf",
-  ".txt",
-  ".md",
-  ".rtf",
-  ".csv",
-  ".doc",
-  ".docx",
-  ".xls",
-  ".xlsx",
-  ".ppt",
-  ".pptx",
-  ".odt",
-  ".ods",
-  ".odp",
-  ".zip",
-  ".mp3",
-  ".wav",
-  ".ogg",
-  ".m4a",
-  ".flac",
-  ".mp4",
-  ".mov",
-  ".webm",
-  ".mkv",
-  ".avi",
-]);
-
-export function safeExtension(fileName: string, sniffedImageMime: string | null): string {
-  if (sniffedImageMime) {
-    return sniffedImageMime === "image/jpeg" ? ".jpg" : `.${sniffedImageMime.split("/")[1]}`;
-  }
-  const raw = path.extname(fileName).toLowerCase();
-  return SAFE_NONIMAGE_EXTS.has(raw) ? raw : ".bin";
 }

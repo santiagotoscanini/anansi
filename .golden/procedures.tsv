@@ -1,0 +1,84 @@
+auth.ts	18	me  protectedProcedure.query(async ({ ctx }) => {
+auth.ts	34	updateProfile  protectedProcedure
+auth.ts	68	uploadAvatar  protectedProcedure
+auth.ts	133	setLocale  protectedProcedure.input(z.object({ locale  z.enum(["en", "es"]) })).mutation(async ({ input, ctx }) => {
+auth.ts	148	removeAvatar  protectedProcedure.mutation(async ({ ctx }) => {
+goals/people.ts	40	getAll  protectedProcedure
+goals/people.ts	64	getById  protectedProcedure.input(z.object({ id  z.string() })).query(async ({ ctx, input }) => {
+goals/people.ts	75	create  protectedProcedure.input(createPersonSchema).mutation(async ({ input, ctx }) => {
+goals/people.ts	88	update  protectedProcedure.input(updatePersonSchema).mutation(async ({ input, ctx }) => {
+goals/people.ts	105	archive  protectedProcedure.input(z.object({ id  z.string() })).mutation(async ({ input, ctx }) => {
+goals/people.ts	114	unarchive  protectedProcedure.input(z.object({ id  z.string() })).mutation(async ({ input, ctx }) => {
+goals/people.ts	123	delete  protectedProcedure.input(z.object({ id  z.string() })).mutation(async ({ input, ctx }) => {
+goals/people.ts	131	setCategory  protectedProcedure
+goals/people.ts	154	getTasksAsReferent  protectedProcedure.input(z.object({ personId  z.string() })).query(async ({ input, ctx }) => {
+goals/people.ts	190	uploadImage  protectedProcedure
+goals/people.ts	229	getBucketListItemsAsParticipant  protectedProcedure
+goals/people.ts	257	getAll  protectedProcedure.query(async ({ ctx }) => {
+goals/people.ts	265	create  protectedProcedure.input(createPersonGroupSchema).mutation(async ({ input, ctx }) => {
+goals/people.ts	274	update  protectedProcedure.input(updatePersonGroupSchema).mutation(async ({ input, ctx }) => {
+goals/people.ts	284	delete  protectedProcedure.input(z.object({ id  z.string() })).mutation(async ({ input, ctx }) => {
+goals/people.ts	292	getTasks  protectedProcedure.input(z.object({ groupId  z.string() })).query(async ({ input, ctx }) => {
+goals/people.ts	323	list  protectedProcedure.input(z.object({ personId  z.string() })).query(async ({ input, ctx }) => {
+goals/people.ts	334	create  protectedProcedure.input(createNextBidSchema).mutation(async ({ input, ctx }) => {
+goals/people.ts	352	update  protectedProcedure.input(updateNextBidSchema).mutation(async ({ input, ctx }) => {
+goals/people.ts	367	setCompleted  protectedProcedure.input(setNextBidCompletedSchema).mutation(async ({ input, ctx }) => {
+goals/people.ts	383	delete  protectedProcedure.input(z.object({ id  z.string() })).mutation(async ({ input, ctx }) => {
+goals/people.ts	401	listUpcoming  protectedProcedure
+goals/people.ts	428	list  protectedProcedure.input(z.object({ personId  z.string() }).optional()).query(async ({ input, ctx }) => {
+goals/people.ts	460	create  protectedProcedure.input(createImportantDateSchema).mutation(async ({ input, ctx }) => {
+goals/people.ts	480	update  protectedProcedure.input(updateImportantDateSchema).mutation(async ({ input, ctx }) => {
+goals/people.ts	499	delete  protectedProcedure.input(z.object({ id  z.string() })).mutation(async ({ input, ctx }) => {
+goals/people.ts	514	list  protectedProcedure.query(async ({ ctx }) => {
+goals/people.ts	538	create  protectedProcedure.input(createBucketListItemSchema).mutation(async ({ input, ctx }) => {
+goals/people.ts	556	update  protectedProcedure.input(updateBucketListItemSchema).mutation(async ({ input, ctx }) => {
+goals/people.ts	582	toggleCompleted  protectedProcedure
+goals/people.ts	597	delete  protectedProcedure.input(z.object({ id  z.string() })).mutation(async ({ input, ctx }) => {
+goals/self.ts	16	get  protectedProcedure.query(async ({ ctx }) => {
+goals/self.ts	21	update  protectedProcedure.input(updateSelfSchema).mutation(async ({ input, ctx }) => {
+goals/self.ts	45	list  protectedProcedure.query(async ({ ctx }) => {
+goals/self.ts	53	create  protectedProcedure.input(createSelfListItemSchema).mutation(async ({ input, ctx }) => {
+goals/self.ts	76	update  protectedProcedure.input(updateSelfListItemSchema).mutation(async ({ input, ctx }) => {
+goals/self.ts	94	delete  protectedProcedure.input(z.object({ id  z.string() })).mutation(async ({ input, ctx }) => {
+goals/self.ts	101	reorder  protectedProcedure.input(reorderSelfListItemsSchema).mutation(async ({ input, ctx }) => {
+goals/goals.ts	30	getAll  protectedProcedure.query(async ({ ctx })  Promise<Goal[]> => {
+goals/goals.ts	35	create  protectedProcedure.input(createGoalSchema).mutation(async ({ input, ctx }) => {
+goals/goals.ts	94	update  protectedProcedure.input(updateGoalSchema).mutation(async ({ input, ctx }) => {
+goals/goals.ts	134	delete  protectedProcedure.input(z.object({ id  z.string() })).mutation(async ({ input, ctx }) => {
+goals/goals.ts	166	create  protectedProcedure
+goals/goals.ts	192	update  protectedProcedure
+goals/goals.ts	228	delete  protectedProcedure
+goals/goals.ts	249	setScheduled  protectedProcedure
+goals/goals.ts	270	getAll  protectedProcedure.query(async ({ ctx }) => {
+goals/goals.ts	295	create  protectedProcedure.input(createConnectionSchema).mutation(async ({ input, ctx }) => {
+goals/goals.ts	319	update  protectedProcedure.input(updateConnectionSchema).mutation(async ({ input, ctx }) => {
+goals/goals.ts	341	delete  protectedProcedure.input(z.object({ id  z.string() })).mutation(async ({ input, ctx }) => {
+goals/goals.ts	364	getAll  protectedProcedure.query(async ({ ctx }) => {
+goals/values.ts	11	getAll  protectedProcedure.query(async ({ ctx }) => {
+goals/values.ts	15	create  protectedProcedure.input(createValueSchema).mutation(async ({ input, ctx }) => {
+goals/values.ts	26	update  protectedProcedure.input(updateValueSchema).mutation(async ({ input, ctx }) => {
+goals/values.ts	36	delete  protectedProcedure.input(z.object({ id  z.string() })).mutation(async ({ input, ctx }) => {
+goals/values.ts	47	list  protectedProcedure.input(z.object({ valueId  z.string() })).query(async ({ input, ctx }) => {
+goals/values.ts	62	listAll  protectedProcedure.query(async ({ ctx }) => {
+goals/values.ts	79	create  protectedProcedure.input(createValueBehaviorSchema).mutation(async ({ input, ctx }) => {
+goals/values.ts	102	delete  protectedProcedure.input(z.object({ id  z.string() })).mutation(async ({ input, ctx }) => {
+goals/backup.ts	47	export  protectedProcedure.query(async ({ ctx }) => {
+goals/backup.ts	224	import  protectedProcedure
+goals/sync.ts	37	list  protectedProcedure
+goals/sync.ts	53	create  protectedProcedure.input(createTrackingItemSchema).mutation(async ({ input, ctx }) => {
+goals/sync.ts	77	update  protectedProcedure.input(updateTrackingItemSchema).mutation(async ({ input, ctx }) => {
+goals/sync.ts	103	delete  protectedProcedure.input(z.object({ id  z.string() })).mutation(async ({ input, ctx }) => {
+goals/sync.ts	142	list  protectedProcedure.query(async ({ ctx }) => {
+goals/sync.ts	162	create  protectedProcedure.input(createSyncTemplateSchema).mutation(async ({ input, ctx }) => {
+goals/sync.ts	185	update  protectedProcedure.input(updateSyncTemplateSchema).mutation(async ({ input, ctx }) => {
+goals/sync.ts	209	delete  protectedProcedure.input(z.object({ id  z.string() })).mutation(async ({ input, ctx }) => {
+goals/sync.ts	222	setItems  protectedProcedure.input(setSyncTemplateItemsSchema).mutation(async ({ input, ctx }) => {
+goals/sync.ts	262	getByWeek  protectedProcedure.input(z.object({ weekStart  z.date() })).query(async ({ input, ctx }) => {
+goals/sync.ts	278	getWeeklyRetrospectiveData  protectedProcedure
+goals/sync.ts	417	create  protectedProcedure.input(createWeeklySyncSchema).mutation(async ({ input, ctx }) => {
+goals/sync.ts	469	addItem  protectedProcedure.input(addSyncItemSchema).mutation(async ({ input, ctx }) => {
+goals/sync.ts	516	removeItem  protectedProcedure.input(removeSyncItemSchema).mutation(async ({ input, ctx }) => {
+goals/sync.ts	535	setItemText  protectedProcedure.input(setSyncItemTextSchema).mutation(async ({ input, ctx }) => {
+goals/sync.ts	550	reorderItems  protectedProcedure.input(reorderSyncItemsSchema).mutation(async ({ input, ctx }) => {
+goals/sync.ts	585	upload  protectedProcedure.input(uploadAttachmentSchema).mutation(async ({ input, ctx }) => {
+goals/sync.ts	665	delete  protectedProcedure.input(z.object({ id  z.string() })).mutation(async ({ input, ctx }) => {

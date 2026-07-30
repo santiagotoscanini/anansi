@@ -1,0 +1,11 @@
+--font-brand: var(--font-cormorant), "Cormorant Garamond", Georgia, serif
+--font-cormorant: "Cormorant Garamond", "Cormorant Garamond Fallback"
+--font-display: var(--font-instrument-serif), "Instrument Serif", Georgia, serif
+--font-geist-mono: "Geist Mono", "Geist Mono Fallback"
+--font-geist: "Geist", "Geist Fallback"
+--font-instrument-serif: "Instrument Serif", "Instrument Serif Fallback"
+--font-mono: var(--font-geist-mono), "JetBrains Mono", ui-monospace, monospace
+--font-newsreader: "Newsreader", "Newsreader Fallback"
+--font-text: var(--font-newsreader), "Newsreader", Georgia, serif
+--font-ui: var(--font-geist), ui-sans-serif, system-ui, sans-serif
+class="h-full cormorant_garamond_f09503bc-module__K-pjfa__variable instrument_serif_36c08d54-module__zNcuWW__variable newsreader_41f04a75-module__UtvqFW__variable geist_5d0d33a4-module__sW_UoG__variable geist_mono_d030d9df-module__Yd1Xqa__variable"

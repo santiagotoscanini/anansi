@@ -1,0 +1,1783 @@
+[
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Append a concrete behavior row (e.g. 'Date night every Saturday') to a value.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "valueId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "valueId",
+        "content"
+      ],
+      "type": "object"
+    },
+    "name": "add_value_behavior",
+    "title": "Add a behavior to a value"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Soft-archive a person. They drop out of the active directory but their data stays intact. Prefer this over `delete_person`.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "archive_person",
+    "title": "Archive a person"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Capture something the user wants to do. `personIds` links people to this item ('people I want to do this with').",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        "personIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "type": "object"
+    },
+    "name": "create_bucket_list_item",
+    "title": "Add a bucket-list item"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Create a new top-level or sub-goal. Pass parentId to nest under another goal. `position` is the {x,y} canvas placement \u2014 pick something around {x: 100, y: 100} if you don't have a preference. Add tasks separately with `create_task` after the goal exists.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "description": "One-paragraph description of the goal. Empty string is fine.",
+          "type": "string"
+        },
+        "emoji": {
+          "pattern": "^\\S{1,8}$",
+          "type": "string"
+        },
+        "parentId": {
+          "description": "Goal id to nest under. Omit for a top-level goal.",
+          "type": "string"
+        },
+        "position": {
+          "additionalProperties": false,
+          "description": "Canvas position. Pick {x:100,y:100} if you don't have a preference.",
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        "title": {
+          "description": "Short goal title (the headline on the card).",
+          "minLength": 1,
+          "type": "string"
+        },
+        "valueIds": {
+          "default": [],
+          "description": "Existing value ids tagged on this goal.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "position"
+      ],
+      "type": "object"
+    },
+    "name": "create_goal",
+    "title": "Create a goal"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Add a new group. Color is any CSS hex like #f97316.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "color"
+      ],
+      "type": "object"
+    },
+    "name": "create_group",
+    "title": "Create a group"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Add a yearly-recurring date for a person. `year` is optional \u2014 used for 'turning N' math.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "day": {
+          "maximum": 31,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "label": {
+          "description": "Short label like 'Birthday' or 'Anniversary'.",
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "month": {
+          "maximum": 12,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "personId": {
+          "type": "string"
+        },
+        "year": {
+          "description": "Original year, if known.",
+          "maximum": 3000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "personId",
+        "label",
+        "month",
+        "day"
+      ],
+      "type": "object"
+    },
+    "name": "create_important_date",
+    "title": "Record an important date"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Record an actionable bid toward a person. `dueAt` is optional \u2014 bids without a deadline appear in the person's list but never on the upcoming feed.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "dueAt": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "personId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "personId",
+        "content"
+      ],
+      "type": "object"
+    },
+    "name": "create_next_bid",
+    "title": "Capture a next bid"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Add someone to the CRM. `category` is required: to_process (newly captured), exploring (decision pending), long_term (committed), or context_bound (situational ties like coworkers).",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "appreciation": {
+          "description": "Things you appreciate about this person.",
+          "type": "string"
+        },
+        "boardOrder": {
+          "type": "integer"
+        },
+        "category": {
+          "enum": [
+            "to_process",
+            "exploring",
+            "long_term",
+            "context_bound"
+          ],
+          "type": "string"
+        },
+        "decideBy": {
+          "description": "Decision deadline (exploring column only).",
+          "format": "date-time",
+          "type": "string"
+        },
+        "emoji": {
+          "pattern": "^\\S{1,8}$",
+          "type": "string"
+        },
+        "groupIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "legacyMessage": {
+          "description": "Unfinished business \u2014 repair, release, end.",
+          "type": "string"
+        },
+        "myNeeds": {
+          "description": "Your unspoken needs in this relationship.",
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "selfReflection": {
+          "description": "What this person teaches you about yourself.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "category"
+      ],
+      "type": "object"
+    },
+    "name": "create_person",
+    "title": "Create a person"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Add an entry to one of the Self list buckets. `patternCategory` is required ONLY when `kind = pattern` \u2014 server ignores it for other kinds.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "energizer",
+            "drainer",
+            "just_for_me",
+            "proud",
+            "pattern",
+            "trigger",
+            "release",
+            "year_ahead"
+          ],
+          "type": "string"
+        },
+        "patternCategory": {
+          "enum": [
+            "relational",
+            "self_pattern",
+            "communication",
+            "body_state",
+            "choice"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "content"
+      ],
+      "type": "object"
+    },
+    "name": "create_self_item",
+    "title": "Add an item to a Self bucket"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Add a task to a goal. Difficulty is a vibes-based 1 (easy) to 3 (hard). `scheduledAt` is the optional deadline \u2014 omit for backlog. `referentIds` are people the user is relying on for this task; `groupIds` tag the task with cross-entity groups.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "completed": {
+          "default": false,
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "difficulty": {
+          "description": "1 = easy, 2 = medium, 3 = hard.",
+          "enum": [
+            1,
+            2,
+            3
+          ],
+          "type": "number"
+        },
+        "emoji": {
+          "pattern": "^\\S{1,8}$",
+          "type": "string"
+        },
+        "goalId": {
+          "description": "Parent goal id.",
+          "type": "string"
+        },
+        "groupIds": {
+          "description": "Groups this task belongs to.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "referentIds": {
+          "description": "People I'm relying on for this task.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "scheduledAt": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Deadline date or null/omit for backlog."
+        },
+        "title": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "goalId",
+        "title",
+        "difficulty"
+      ],
+      "type": "object"
+    },
+    "name": "create_task",
+    "title": "Create a task"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Create a new value tag. Color is any CSS-valid hex like #f97316.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "description": "CSS color, typically a hex like #f97316.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "color"
+      ],
+      "type": "object"
+    },
+    "name": "create_value",
+    "title": "Create a value"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Hard-delete. Confirm with the user before calling.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_bucket_list_item",
+    "title": "Delete a bucket-list item"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Archive a goal and its associated connections + tracking items. Children of the goal become parent-less (not deleted). Confirm with the user before calling \u2014 this is destructive.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_goal",
+    "title": "Delete a goal"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Remove a group. Cascades to its memberships (people and tasks lose this tag).",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_group",
+    "title": "Delete a group"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Remove the recurring date entry.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_important_date",
+    "title": "Delete an important date"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Hard-delete. Only use for entries that were captured incorrectly \u2014 prefer `set_next_bid_done`.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_next_bid",
+    "title": "Delete a next bid"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Remove a Self item entirely.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_self_item",
+    "title": "Delete a Self list item"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Hard-delete a task. Confirm with the user before calling.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "goalId": {
+          "description": "Parent goal id (used for ownership check).",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "goalId"
+      ],
+      "type": "object"
+    },
+    "name": "delete_task",
+    "title": "Delete a task"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Remove a value and untag every goal that used it. Confirm with the user.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_value",
+    "title": "Delete a value"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Remove a single behavior row from a value.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_value_behavior",
+    "title": "Delete a value behavior"
+  },
+  {
+    "description": "Full record for one person \u2014 reflection prompts, category, groups.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "get_person",
+    "title": "Get a person"
+  },
+  {
+    "description": "Return the user's prose Self row (or null if not yet started).",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object"
+    },
+    "name": "get_self",
+    "title": "Get the user's self portrait"
+  },
+  {
+    "description": "All bucket-list items oldest-first, with linked person ids hydrated.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object"
+    },
+    "name": "list_bucket_list",
+    "title": "List bucket-list items"
+  },
+  {
+    "description": "Return every active goal the user owns, with embedded tasks, value tags, parent-child links, and canvas position. The primary read tool for goals; call before mutating to learn the available ids.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object"
+    },
+    "name": "list_goals",
+    "title": "List goals"
+  },
+  {
+    "description": "Every task tagged with the group, joined with the parent goal's context.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "groupId"
+      ],
+      "type": "object"
+    },
+    "name": "list_group_tasks",
+    "title": "Tasks in a group"
+  },
+  {
+    "description": "All groups the user has defined. Each group can tag people AND tasks.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object"
+    },
+    "name": "list_groups",
+    "title": "List groups"
+  },
+  {
+    "description": "Yearly-recurring dates across people. Pass personId to filter to one person, omit for all dates sorted by month/day.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "personId": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_important_dates",
+    "title": "List important dates"
+  },
+  {
+    "description": "All open + completed bids for one person, ordered oldest-first.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "personId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "personId"
+      ],
+      "type": "object"
+    },
+    "name": "list_next_bids",
+    "title": "List next bids for a person"
+  },
+  {
+    "description": "Directory of every person the user tracks, with their categories and group memberships.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "includeArchived": {
+          "default": false,
+          "description": "Include archived people. Default false.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_people",
+    "title": "List people"
+  },
+  {
+    "description": "Read-only: bucket-list items where this person is one of the 'people I want to do this with'.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "personId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "personId"
+      ],
+      "type": "object"
+    },
+    "name": "list_person_bucket_list",
+    "title": "Bucket-list items linked to a person"
+  },
+  {
+    "description": "Return every task where this person is listed as a referent, joined with the parent goal's context. Use to answer 'what am I depending on X for?'",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "personId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "personId"
+      ],
+      "type": "object"
+    },
+    "name": "list_person_tasks",
+    "title": "Tasks I'm relying on this person for"
+  },
+  {
+    "description": "Return every list-shaped Self item across all kinds (energizer, drainer, just_for_me, proud, pattern, trigger, release, year_ahead). Group client-side by `kind`.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object"
+    },
+    "name": "list_self_items",
+    "title": "List Self list items"
+  },
+  {
+    "description": "Open bids with a `dueAt` falling within the window, across every active person. Joined with person name + emoji. Default window 60 days.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "withinDays": {
+          "default": 60,
+          "maximum": 365,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_upcoming_next_bids",
+    "title": "Upcoming bids across all people"
+  },
+  {
+    "description": "Return the ordered list of behavior rows attached to a value \u2014 concrete evidence the user uses to confirm they're living it.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "valueId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "valueId"
+      ],
+      "type": "object"
+    },
+    "name": "list_value_behaviors",
+    "title": "List behaviors for a value"
+  },
+  {
+    "description": "All values defined by the user, with names and colors. Call before tagging goals so you have the right ids.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object"
+    },
+    "name": "list_values",
+    "title": "List values"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Toggle completion. Done bids stay visible \u2014 the trail of fulfilled bids is intentional.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "completed": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "completed"
+      ],
+      "type": "object"
+    },
+    "name": "set_next_bid_done",
+    "title": "Mark a bid done (or reopen)"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Lightweight alternative to `update_person` when you only need to change the category (and optionally the order within the column).",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "boardOrder": {
+          "type": "integer"
+        },
+        "category": {
+          "enum": [
+            "to_process",
+            "exploring",
+            "long_term",
+            "context_bound"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "category"
+      ],
+      "type": "object"
+    },
+    "name": "set_person_category",
+    "title": "Move a person between board columns"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Update only a task's `scheduledAt` deadline. Pass null to move the task back to the backlog (unscheduled). Prefer this over `update_task` when scheduling is the only change.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "scheduledAt": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "New deadline date, or null to unschedule."
+        }
+      },
+      "required": [
+        "id",
+        "scheduledAt"
+      ],
+      "type": "object"
+    },
+    "name": "set_task_scheduled",
+    "title": "Set or clear a task's deadline"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Set or clear the completion timestamp on a bucket-list item.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "completed": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "completed"
+      ],
+      "type": "object"
+    },
+    "name": "toggle_bucket_list_done",
+    "title": "Mark a bucket-list item done (or undone)"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Restore a previously archived person to the active directory.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "unarchive_person",
+    "title": "Unarchive a person"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Edit content/description/people. `personIds` REPLACES the linked-person set if passed; omit to leave alone. `content` is required even on update.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "personIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "content"
+      ],
+      "type": "object"
+    },
+    "name": "update_bucket_list_item",
+    "title": "Update a bucket-list item"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Patch a goal's metadata. Pass only the fields you want to change. `valueIds` REPLACES the entire tag set if passed (omit to leave tags alone). Tasks are NOT editable here \u2014 use the task tools.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "emoji": {
+          "pattern": "^\\S{1,8}$",
+          "type": "string"
+        },
+        "id": {
+          "description": "Goal id.",
+          "type": "string"
+        },
+        "parentId": {
+          "description": "New parent goal id (or omit to leave unchanged).",
+          "type": "string"
+        },
+        "position": {
+          "additionalProperties": false,
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ],
+          "type": "object"
+        },
+        "title": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "valueIds": {
+          "description": "Replace the goal's value tags with this set if passed.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_goal",
+    "title": "Update a goal"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Rename, recolor, or reorder a group.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "orderIdx": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_group",
+    "title": "Update a group"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Patch label/month/day/year. Pass `year: null` to clear the originating year.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "day": {
+          "maximum": 31,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "month": {
+          "maximum": 12,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "year": {
+          "anyOf": [
+            {
+              "maximum": 3000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_important_date",
+    "title": "Update an important date"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Patch content or deadline. Pass `dueAt: null` to clear the deadline.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "dueAt": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_next_bid",
+    "title": "Update a next bid"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Patch a person's fields. `groupIds` REPLACES the group set if passed; omit to leave alone. Use null on `decideBy` to clear it.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "appreciation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "boardOrder": {
+          "type": "integer"
+        },
+        "category": {
+          "enum": [
+            "to_process",
+            "exploring",
+            "long_term",
+            "context_bound"
+          ],
+          "type": "string"
+        },
+        "decideBy": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "emoji": {
+          "pattern": "^\\S{1,8}$",
+          "type": "string"
+        },
+        "groupIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "legacyMessage": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "myNeeds": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "selfReflection": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_person",
+    "title": "Update a person"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Partial upsert of prose Self fields. Only the fields you pass get written; omitted fields are untouched. Passing null clears a field.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "apologyLanguage": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attachmentTendencies": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "conflictStyle": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "descriptionYear": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Calendar year this description was written for."
+        },
+        "loveLanguageGive": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "loveLanguageReceive": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "myStory": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "noteToFutureSelf": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stressResponse": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "thisYearSelfDescription": {
+          "description": "Who I am this year \u2014 a paragraph.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "name": "update_self",
+    "title": "Update self portrait"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Edit content or pattern category of an existing Self item.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "patternCategory": {
+          "anyOf": [
+            {
+              "enum": [
+                "relational",
+                "self_pattern",
+                "communication",
+                "body_state",
+                "choice"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_self_item",
+    "title": "Update a Self list item"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Patch a task. Pass only the fields you want to change. `referentIds` and `groupIds` REPLACE the existing sets if passed; omit to leave them alone. Setting `completed: true` marks the task done.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "completed": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "difficulty": {
+          "enum": [
+            1,
+            2,
+            3
+          ],
+          "type": "number"
+        },
+        "emoji": {
+          "pattern": "^\\S{1,8}$",
+          "type": "string"
+        },
+        "goalId": {
+          "description": "Parent goal id (used for ownership check).",
+          "type": "string"
+        },
+        "groupIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "referentIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "scheduledAt": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Deadline, null to clear."
+        },
+        "title": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "goalId"
+      ],
+      "type": "object"
+    },
+    "name": "update_task",
+    "title": "Update a task"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Rename or recolor a value. Pass only the fields you want to change.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_value",
+    "title": "Update a value"
+  },
+  {
+    "description": "Return the Anansi profile of the user whose token is being used. Useful for verifying the MCP connection works.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object"
+    },
+    "name": "whoami",
+    "title": "Who am I?"
+  }
+]

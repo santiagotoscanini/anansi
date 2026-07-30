@@ -51,3 +51,7 @@ public/.s3-local/.bucket
 # Local logs and personal notes
 .dev.log
 GET-SHIT-DONE.md
+
+# Phase 0 migration oracle is committed; keep credential material out of it
+.golden/*cookie*
+.golden/*token*

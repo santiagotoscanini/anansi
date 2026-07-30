@@ -1,4 +1,6 @@
 # Validates every PR + every push to main: lint, typecheck, build.
+# Runs on the self-hosted runner (s2-server) — an ephemeral container
+# per job, so each run starts clean like a hosted runner.
 name: CI
 
 on:

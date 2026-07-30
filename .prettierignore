@@ -1,0 +1,22 @@
+# Build output and generated files — never format these.
+.next
+.output
+.nitro
+dist
+node_modules
+pnpm-lock.yaml
+
+# Drizzle's generated SQL + snapshot ledger. These are produced by
+# `drizzle-kit generate` and hashed in meta/_journal.json; reformatting them
+# would desync the ledger from the applied migrations.
+src/lib/data/db/migrations
+
+# The regression oracle. Reformatting the captured JSON would make every
+# golden diff report drift that isn't there.
+.golden
+
+# Hand-authored docs. CLAUDE.md is the project's source of truth and is
+# structured deliberately; Prettier's markdown formatter reflows tables and
+# renumbers lists.
+CLAUDE.md
+README.md

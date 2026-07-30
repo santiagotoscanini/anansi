@@ -1,17 +1,17 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { CheckSquare, HelpCircle, Square, X } from "lucide-react";
-import toast from "react-hot-toast";
-import { useTranslation } from "react-i18next";
-import { api } from "~/trpc/react";
-import DatePicker from "./DatePicker";
+import { useState } from 'react'
+import { CheckSquare, HelpCircle, Square, X } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
+import { api } from '~/trpc/react'
+import DatePicker from './DatePicker'
 
 // Shared with PersonModal — kept inline rather than imported to avoid coupling
 // the section to PersonModal's internals. They're trivial Tailwind strings.
-const fieldHelper = "mt-1.5 text-xs text-[var(--ink-3)]";
+const fieldHelper = 'mt-1.5 text-xs text-[var(--ink-3)]'
 const inputClass =
-  "w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]";
+  'w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]'
 
 // "Next bids" — actionable improvements to the relationship. Capture when
 // noticed; mark done when acted on; the trail stays visible.
@@ -19,38 +19,38 @@ const inputClass =
 // Extracted from PersonModal as part of H2. The section gates everything on
 // `personId`: until the parent row is saved, children can't FK back to it.
 export default function PersonBidsSection({ personId }: { personId: string | null | undefined }) {
-  const { t } = useTranslation();
-  const enabled = !!personId;
-  const utils = api.useUtils();
-  const invalidate = () => void utils.goals.nextBids.list.invalidate({ personId: personId ?? "" });
+  const { t } = useTranslation()
+  const enabled = !!personId
+  const utils = api.useUtils()
+  const invalidate = () => void utils.goals.nextBids.list.invalidate({ personId: personId ?? '' })
 
-  const query = api.goals.nextBids.list.useQuery({ personId: personId ?? "" }, { enabled });
-  const create = api.goals.nextBids.create.useMutation({ onSuccess: invalidate });
-  const update = api.goals.nextBids.update.useMutation({ onSuccess: invalidate });
-  const setCompleted = api.goals.nextBids.setCompleted.useMutation({ onSuccess: invalidate });
-  const remove = api.goals.nextBids.delete.useMutation({ onSuccess: invalidate });
+  const query = api.goals.nextBids.list.useQuery({ personId: personId ?? '' }, { enabled })
+  const create = api.goals.nextBids.create.useMutation({ onSuccess: invalidate })
+  const update = api.goals.nextBids.update.useMutation({ onSuccess: invalidate })
+  const setCompleted = api.goals.nextBids.setCompleted.useMutation({ onSuccess: invalidate })
+  const remove = api.goals.nextBids.delete.useMutation({ onSuccess: invalidate })
 
-  const [draft, setDraft] = useState("");
-  const [draftDue, setDraftDue] = useState<Date | null>(null);
+  const [draft, setDraft] = useState('')
+  const [draftDue, setDraftDue] = useState<Date | null>(null)
 
   const handleAdd = async () => {
-    const content = draft.trim();
-    if (!content || !personId) return;
+    const content = draft.trim()
+    if (!content || !personId) return
     try {
-      await create.mutateAsync({ personId, content, dueAt: draftDue });
-      setDraft("");
-      setDraftDue(null);
+      await create.mutateAsync({ personId, content, dueAt: draftDue })
+      setDraft('')
+      setDraftDue(null)
     } catch {
-      toast.error(t("personBids.addFailed"));
+      toast.error(t('personBids.addFailed'))
     }
-  };
+  }
 
   return (
     <div>
-      <SectionLabel hint={t("personBids.sectionHint")}>{t("personBids.sectionTitle")}</SectionLabel>
+      <SectionLabel hint={t('personBids.sectionHint')}>{t('personBids.sectionTitle')}</SectionLabel>
 
       {!enabled ? (
-        <p className={fieldHelper}>{t("personBids.saveFirst")}</p>
+        <p className={fieldHelper}>{t('personBids.saveFirst')}</p>
       ) : (
         <>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -59,18 +59,18 @@ export default function PersonBidsSection({ personId }: { personId: string | nul
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  void handleAdd();
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  void handleAdd()
                 }
               }}
-              placeholder={t("personBids.addPlaceholder")}
+              placeholder={t('personBids.addPlaceholder')}
               className={`${inputClass} flex-1`}
             />
             <DatePicker
               value={draftDue}
               onChange={setDraftDue}
-              placeholder={t("personBids.deadlinePlaceholder")}
+              placeholder={t('personBids.deadlinePlaceholder')}
               className="sm:w-48"
             />
             <button
@@ -79,7 +79,7 @@ export default function PersonBidsSection({ personId }: { personId: string | nul
               disabled={!draft.trim() || create.isPending}
               className="shrink-0 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {t("common.add")}
+              {t('common.add')}
             </button>
           </div>
 
@@ -91,32 +91,32 @@ export default function PersonBidsSection({ personId }: { personId: string | nul
                   bid={bid}
                   onToggleDone={async (done) => {
                     try {
-                      await setCompleted.mutateAsync({ id: bid.id, completed: done });
+                      await setCompleted.mutateAsync({ id: bid.id, completed: done })
                     } catch {
-                      toast.error(t("personBids.updateFailed"));
+                      toast.error(t('personBids.updateFailed'))
                     }
                   }}
                   onEditContent={async (content) => {
-                    const trimmed = content.trim();
-                    if (!trimmed) return;
+                    const trimmed = content.trim()
+                    if (!trimmed) return
                     try {
-                      await update.mutateAsync({ id: bid.id, content: trimmed });
+                      await update.mutateAsync({ id: bid.id, content: trimmed })
                     } catch {
-                      toast.error(t("personBids.updateFailed"));
+                      toast.error(t('personBids.updateFailed'))
                     }
                   }}
                   onEditDue={async (dueAt) => {
                     try {
-                      await update.mutateAsync({ id: bid.id, dueAt });
+                      await update.mutateAsync({ id: bid.id, dueAt })
                     } catch {
-                      toast.error(t("personBids.updateDeadlineFailed"));
+                      toast.error(t('personBids.updateDeadlineFailed'))
                     }
                   }}
                   onDelete={async () => {
                     try {
-                      await remove.mutateAsync({ id: bid.id });
+                      await remove.mutateAsync({ id: bid.id })
                     } catch {
-                      toast.error(t("personBids.removeFailed"));
+                      toast.error(t('personBids.removeFailed'))
                     }
                   }}
                   deleteDisabled={remove.isPending}
@@ -127,7 +127,7 @@ export default function PersonBidsSection({ personId }: { personId: string | nul
         </>
       )}
     </div>
-  );
+  )
 }
 
 // Section header with hover-tooltip — duplicated from PersonModal's FieldLabel
@@ -148,7 +148,7 @@ function SectionLabel({ children, hint }: { children: React.ReactNode; hint?: Re
         </span>
       )}
     </div>
-  );
+  )
 }
 
 // Single-line row: checkbox · text · deadline pill · ×. Click the text to edit
@@ -161,26 +161,26 @@ function BidRow({
   onDelete,
   deleteDisabled,
 }: {
-  bid: { id: string; content: string; dueAt: Date | null; completedAt: Date | null };
-  onToggleDone: (done: boolean) => void;
-  onEditContent: (content: string) => void;
-  onEditDue: (dueAt: Date | null) => void;
-  onDelete: () => void;
-  deleteDisabled: boolean;
+  bid: { id: string; content: string; dueAt: Date | null; completedAt: Date | null }
+  onToggleDone: (done: boolean) => void
+  onEditContent: (content: string) => void
+  onEditDue: (dueAt: Date | null) => void
+  onDelete: () => void
+  deleteDisabled: boolean
 }) {
-  const { t } = useTranslation();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(bid.content);
-  const done = !!bid.completedAt;
+  const { t } = useTranslation()
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(bid.content)
+  const done = !!bid.completedAt
   // eslint-disable-next-line react-hooks/purity -- comparison-only Date.now() for overdue marker.
-  const overdue = !done && bid.dueAt && new Date(bid.dueAt).getTime() < Date.now();
+  const overdue = !done && bid.dueAt && new Date(bid.dueAt).getTime() < Date.now()
 
   const commit = () => {
-    const trimmed = draft.trim();
-    if (trimmed && trimmed !== bid.content) onEditContent(trimmed);
-    else setDraft(bid.content);
-    setEditing(false);
-  };
+    const trimmed = draft.trim()
+    if (trimmed && trimmed !== bid.content) onEditContent(trimmed)
+    else setDraft(bid.content)
+    setEditing(false)
+  }
 
   return (
     <li className="group flex h-10 items-center gap-3 px-3 transition-colors hover:bg-[var(--vellum)]">
@@ -188,7 +188,7 @@ function BidRow({
         type="button"
         onClick={() => onToggleDone(!done)}
         className="shrink-0 text-[var(--ink-3)] transition-colors hover:text-[var(--ink)]"
-        aria-label={done ? t("personBids.markNotDone") : t("personBids.markDone")}
+        aria-label={done ? t('personBids.markNotDone') : t('personBids.markDone')}
       >
         {done ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
       </button>
@@ -200,13 +200,13 @@ function BidRow({
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                commit();
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                commit()
               }
-              if (e.key === "Escape") {
-                setDraft(bid.content);
-                setEditing(false);
+              if (e.key === 'Escape') {
+                setDraft(bid.content)
+                setEditing(false)
               }
             }}
             autoFocus
@@ -216,13 +216,13 @@ function BidRow({
           <button
             type="button"
             onClick={() => {
-              setDraft(bid.content);
-              setEditing(true);
+              setDraft(bid.content)
+              setEditing(true)
             }}
             className={`block w-full truncate text-left text-sm transition-colors ${
-              done ? "text-[var(--ink-3)] line-through" : "text-[var(--ink)] hover:text-[var(--ink)]"
+              done ? 'text-[var(--ink-3)] line-through' : 'text-[var(--ink)] hover:text-[var(--ink)]'
             }`}
-            title={t("personBids.clickToEdit")}
+            title={t('personBids.clickToEdit')}
           >
             {bid.content}
           </button>
@@ -231,20 +231,20 @@ function BidRow({
       <DatePicker
         value={bid.dueAt}
         onChange={onEditDue}
-        placeholder={t("personBids.addDeadline")}
+        placeholder={t('personBids.addDeadline')}
         size="sm"
         align="right"
-        className={overdue ? "[&_button]:!text-[var(--amber)]" : ""}
+        className={overdue ? '[&_button]:!text-[var(--amber)]' : ''}
       />
       <button
         type="button"
         onClick={onDelete}
         disabled={deleteDisabled}
         className="shrink-0 rounded p-1 text-[var(--ink-4)] opacity-100 transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:cursor-not-allowed md:opacity-0 md:group-hover:opacity-100"
-        aria-label={t("personBids.removeBid")}
+        aria-label={t('personBids.removeBid')}
       >
         <X className="h-3.5 w-3.5" />
       </button>
     </li>
-  );
+  )
 }

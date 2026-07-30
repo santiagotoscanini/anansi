@@ -1,11 +1,11 @@
-import NextAuth, { type NextAuthConfig } from "next-auth";
-import Credentials from "next-auth/providers/credentials";
-import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import bcrypt from "bcryptjs";
-import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { db } from "~/lib/data";
-import { accounts, users } from "~/lib/data/schema";
+import NextAuth, { type NextAuthConfig } from 'next-auth'
+import Credentials from 'next-auth/providers/credentials'
+import { DrizzleAdapter } from '@auth/drizzle-adapter'
+import bcrypt from 'bcryptjs'
+import { z } from 'zod'
+import { eq } from 'drizzle-orm'
+import { db } from '~/lib/data'
+import { accounts, users } from '~/lib/data/schema'
 
 // Auth.js v5 — Credentials provider only for v1. Google is scaffolded but
 // commented out (re-enable by `import Google from "next-auth/providers/google"`,
@@ -25,10 +25,10 @@ const config = {
   providers: [
     // Google, // uncomment after setting AUTH_GOOGLE_ID + AUTH_GOOGLE_SECRET
     Credentials({
-      name: "credentials",
+      name: 'credentials',
       credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
         const parsed = z
@@ -36,24 +36,24 @@ const config = {
             email: z.string().email(),
             password: z.string().min(1),
           })
-          .safeParse(credentials);
-        if (!parsed.success) return null;
+          .safeParse(credentials)
+        if (!parsed.success) return null
 
-        const { email, password } = parsed.data;
+        const { email, password } = parsed.data
         const user = await db.query.users.findFirst({
           where: eq(users.email, email),
-        });
-        if (!user?.passwordHash) return null;
+        })
+        if (!user?.passwordHash) return null
 
-        const ok = await bcrypt.compare(password, user.passwordHash);
-        if (!ok) return null;
+        const ok = await bcrypt.compare(password, user.passwordHash)
+        if (!ok) return null
 
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           image: user.avatarUrl,
-        };
+        }
       },
     }),
   ],
@@ -61,21 +61,21 @@ const config = {
     // Add the user id to the JWT on sign-in so the session callback can
     // surface it to the server-side `auth()` resolver (and ultimately tRPC ctx).
     jwt({ token, user }) {
-      if (user) token.id = user.id;
-      return token;
+      if (user) token.id = user.id
+      return token
     },
     session({ session, token }) {
-      if (token.id) session.user.id = token.id as string;
-      return session;
+      if (token.id) session.user.id = token.id as string
+      return session
     },
   },
   pages: {
-    signIn: "/login",
+    signIn: '/login',
   },
   session: {
-    strategy: "jwt",
+    strategy: 'jwt',
   },
   debug: false,
-} satisfies NextAuthConfig;
+} satisfies NextAuthConfig
 
-export const { handlers, auth, signIn, signOut } = NextAuth(config);
+export const { handlers, auth, signIn, signOut } = NextAuth(config)

@@ -1,5 +1,5 @@
 /* eslint-disable i18next/no-literal-string -- legal copy, untranslated by design until reviewed */
-import Link from "next/link";
+import Link from 'next/link'
 
 // Public Terms of Service. Sibling of /privacy. Like the privacy page,
 // this is starter content based on what Anansi actually does — read it
@@ -7,40 +7,40 @@ import Link from "next/link";
 // jurisdiction. The "Contact" line needs a real email.
 
 export const metadata = {
-  title: "Terms · Anansi",
-  description: "The agreement between you and Anansi.",
-};
+  title: 'Terms · Anansi',
+  description: 'The agreement between you and Anansi.',
+}
 
 export default function TermsPage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16 md:py-24" style={{ color: "var(--ink)" }}>
+    <main className="mx-auto max-w-3xl px-6 py-16 md:py-24" style={{ color: 'var(--ink)' }}>
       <header className="mb-12">
         <p
           className="mb-4"
           style={{
-            fontFamily: "var(--font-mono)",
+            fontFamily: 'var(--font-mono)',
             fontSize: 11,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            color: "var(--ink-3)",
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'var(--ink-3)',
           }}
         >
           Terms of Service
         </p>
         <h1
           className="mb-4"
-          style={{ fontFamily: "var(--font-display)", fontSize: 44, lineHeight: 1.1, color: "var(--ink)" }}
+          style={{ fontFamily: 'var(--font-display)', fontSize: 44, lineHeight: 1.1, color: 'var(--ink)' }}
         >
           The agreement between you and Anansi.
         </h1>
-        <p style={{ fontFamily: "var(--font-text)", fontSize: 16, lineHeight: 1.65, color: "var(--ink-2)" }}>
+        <p style={{ fontFamily: 'var(--font-text)', fontSize: 16, lineHeight: 1.65, color: 'var(--ink-2)' }}>
           By creating an Anansi account or using the service, you agree to these terms. They are short on purpose; if
           anything below isn&apos;t acceptable to you, please don&apos;t sign up — and if you already have an account,
           you can export your data and close it at any time.
         </p>
         <p
           className="mt-6"
-          style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.1em", color: "var(--ink-3)" }}
+          style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', color: 'var(--ink-3)' }}
         >
           Last updated: 2026-05-14
         </p>
@@ -156,12 +156,12 @@ export default function TermsPage() {
       <nav
         className="mt-16 flex gap-6 pt-8"
         style={{
-          borderTop: "1px solid var(--hairline)",
-          fontFamily: "var(--font-mono)",
+          borderTop: '1px solid var(--hairline)',
+          fontFamily: 'var(--font-mono)',
           fontSize: 11,
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          color: "var(--ink-3)",
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          color: 'var(--ink-3)',
         }}
       >
         <Link href="/">Home</Link>
@@ -169,7 +169,7 @@ export default function TermsPage() {
         <Link href="/login">Sign in</Link>
       </nav>
     </main>
-  );
+  )
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -177,13 +177,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <section className="mb-10">
       <h2
         className="mb-3"
-        style={{ fontFamily: "var(--font-display)", fontSize: 22, lineHeight: 1.25, color: "var(--ink)" }}
+        style={{ fontFamily: 'var(--font-display)', fontSize: 22, lineHeight: 1.25, color: 'var(--ink)' }}
       >
         {title}
       </h2>
       <div
         className="space-y-3"
-        style={{ fontFamily: "var(--font-text)", fontSize: 16, lineHeight: 1.65, color: "var(--ink-2)" }}
+        style={{ fontFamily: 'var(--font-text)', fontSize: 16, lineHeight: 1.65, color: 'var(--ink-2)' }}
       >
         {children}
       </div>
@@ -195,5 +195,5 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         section a { text-decoration: underline; text-underline-offset: 2px; }
       `}</style>
     </section>
-  );
+  )
 }

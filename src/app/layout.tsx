@@ -1,12 +1,12 @@
-import "~/styles/globals.css";
-import { Suspense, type PropsWithChildren } from "react";
-import { cookies } from "next/headers";
-import { Cormorant_Garamond, Instrument_Serif, Newsreader, Geist, Geist_Mono } from "next/font/google";
-import { TRPCProvider } from "~/trpc/react";
-import ThemeSync from "~/components/ThemeSync";
-import I18nProvider from "~/i18n/Provider";
-import { STORAGE_KEY as LOCALE_COOKIE, FALLBACK_LOCALE, coerceLocale } from "~/i18n/constants";
-import LocaleQueryParam from "~/i18n/LocaleQueryParam";
+import '~/styles/globals.css'
+import { Suspense, type PropsWithChildren } from 'react'
+import { cookies } from 'next/headers'
+import { Cormorant_Garamond, Instrument_Serif, Newsreader, Geist, Geist_Mono } from 'next/font/google'
+import { TRPCProvider } from '~/trpc/react'
+import ThemeSync from '~/components/ThemeSync'
+import I18nProvider from '~/i18n/Provider'
+import { STORAGE_KEY as LOCALE_COOKIE, FALLBACK_LOCALE, coerceLocale } from '~/i18n/constants'
+import LocaleQueryParam from '~/i18n/LocaleQueryParam'
 
 // The Anansi type stack. Five typefaces, each playing a single role:
 //   brand   — italic Cormorant Garamond is the wordmark + inline accent
@@ -16,38 +16,38 @@ import LocaleQueryParam from "~/i18n/LocaleQueryParam";
 //   mono    — Geist Mono for eyebrows, dates, and quiet citations
 // Each next/font declares a CSS var globals.css reads via var(--font-…).
 const cormorant = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  style: ["italic", "normal"],
-  variable: "--font-cormorant",
-  display: "swap",
-});
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  style: ['italic', 'normal'],
+  variable: '--font-cormorant',
+  display: 'swap',
+})
 const instrumentSerif = Instrument_Serif({
-  subsets: ["latin"],
-  weight: ["400"],
-  style: ["italic", "normal"],
-  variable: "--font-instrument-serif",
-  display: "swap",
-});
+  subsets: ['latin'],
+  weight: ['400'],
+  style: ['italic', 'normal'],
+  variable: '--font-instrument-serif',
+  display: 'swap',
+})
 const newsreader = Newsreader({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
-  style: ["italic", "normal"],
-  variable: "--font-newsreader",
-  display: "swap",
-});
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600'],
+  style: ['italic', 'normal'],
+  variable: '--font-newsreader',
+  display: 'swap',
+})
 const geist = Geist({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-geist",
-  display: "swap",
-});
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-geist',
+  display: 'swap',
+})
 const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-geist-mono",
-  display: "swap",
-});
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-geist-mono',
+  display: 'swap',
+})
 
 // Theme bootstrap previously lived here as a raw <script> in <head> so the
 // warm-cream → coffee-dark swap happened before first paint. Removed because
@@ -67,16 +67,16 @@ export default async function RootLayout({ children }: PropsWithChildren) {
     newsreader.variable,
     geist.variable,
     geistMono.variable,
-  ].join(" ");
+  ].join(' ')
 
   // SSR-correct locale: read the `anansi:locale` cookie that the client
   // mirrors on every i18n.changeLanguage (via the detector's `caches`
   // config). I18nProvider applies it synchronously before the first render
   // commits, so the SSR output and the client hydration agree from the
   // start — no "Looking for your threads…" → "Buscando tus hilos…" flicker.
-  const cookieStore = await cookies();
-  const initialLocale = coerceLocale(cookieStore.get(LOCALE_COOKIE)?.value);
-  const htmlLang = initialLocale ?? FALLBACK_LOCALE;
+  const cookieStore = await cookies()
+  const initialLocale = coerceLocale(cookieStore.get(LOCALE_COOKIE)?.value)
+  const htmlLang = initialLocale ?? FALLBACK_LOCALE
 
   return (
     <html className={`h-full ${fontClass}`} lang={htmlLang} data-theme="light" suppressHydrationWarning>
@@ -94,10 +94,10 @@ export default async function RootLayout({ children }: PropsWithChildren) {
         </I18nProvider>
       </body>
     </html>
-  );
+  )
 }
 
 export const metadata = {
-  title: "anansi",
+  title: 'anansi',
   description: "A thinking surface for what you want, who you love, and who you're becoming.",
-};
+}

@@ -1,6 +1,6 @@
 // Transport only. Logic lives in src/server/services/{goals,tasks,connections,data}.ts.
-import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../../trpc";
+import { z } from 'zod'
+import { createTRPCRouter, protectedProcedure } from '../../trpc'
 import {
   createConnectionSchema,
   createGoalSchema,
@@ -9,13 +9,13 @@ import {
   updateGoalSchema,
   updateTaskSchema,
   type Goal,
-} from "../../types";
-import * as connectionsService from "~/server/services/connections";
-import * as dataService from "~/server/services/data";
-import * as goalsService from "~/server/services/goals";
-import * as tasksService from "~/server/services/tasks";
+} from '../../types'
+import * as connectionsService from '~/server/services/connections'
+import * as dataService from '~/server/services/data'
+import * as goalsService from '~/server/services/goals'
+import * as tasksService from '~/server/services/tasks'
 
-const idInput = z.object({ id: z.string() });
+const idInput = z.object({ id: z.string() })
 
 export const goalsRouter = createTRPCRouter({
   goals: createTRPCRouter({
@@ -71,4 +71,4 @@ export const goalsRouter = createTRPCRouter({
   data: createTRPCRouter({
     getAll: protectedProcedure.query(({ ctx }) => dataService.getAll(ctx.user.userId)),
   }),
-});
+})

@@ -1,13 +1,13 @@
 // Transport only. All logic lives in src/server/services/{values,value-behaviors}.ts
 // so the MCP tools (and, after the migration, TanStack Start server functions)
 // can call it without going through tRPC.
-import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../../trpc";
-import { createValueBehaviorSchema, createValueSchema, updateValueSchema } from "../../types";
-import * as valueBehaviorsService from "~/server/services/value-behaviors";
-import * as valuesService from "~/server/services/values";
+import { z } from 'zod'
+import { createTRPCRouter, protectedProcedure } from '../../trpc'
+import { createValueBehaviorSchema, createValueSchema, updateValueSchema } from '../../types'
+import * as valueBehaviorsService from '~/server/services/value-behaviors'
+import * as valuesService from '~/server/services/values'
 
-const idInput = z.object({ id: z.string() });
+const idInput = z.object({ id: z.string() })
 
 export const valuesRouter = createTRPCRouter({
   values: createTRPCRouter({
@@ -41,4 +41,4 @@ export const valuesRouter = createTRPCRouter({
       .input(idInput)
       .mutation(({ input, ctx }) => valueBehaviorsService.remove(ctx.user.userId, input.id)),
   }),
-});
+})

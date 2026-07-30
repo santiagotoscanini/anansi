@@ -1,5 +1,5 @@
 /* eslint-disable i18next/no-literal-string -- legal copy, untranslated by design until reviewed */
-import Link from "next/link";
+import Link from 'next/link'
 
 // Public privacy policy. Linked from the landing page footer and the
 // auth-page legal footer. Pure server component — no client state, no
@@ -14,40 +14,40 @@ import Link from "next/link";
 // `privacy@…` to find it.
 
 export const metadata = {
-  title: "Privacy · Anansi",
-  description: "How Anansi handles your data.",
-};
+  title: 'Privacy · Anansi',
+  description: 'How Anansi handles your data.',
+}
 
 export default function PrivacyPage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16 md:py-24" style={{ color: "var(--ink)" }}>
+    <main className="mx-auto max-w-3xl px-6 py-16 md:py-24" style={{ color: 'var(--ink)' }}>
       <header className="mb-12">
         <p
           className="mb-4"
           style={{
-            fontFamily: "var(--font-mono)",
+            fontFamily: 'var(--font-mono)',
             fontSize: 11,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            color: "var(--ink-3)",
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'var(--ink-3)',
           }}
         >
           Privacy
         </p>
         <h1
           className="mb-4"
-          style={{ fontFamily: "var(--font-display)", fontSize: 44, lineHeight: 1.1, color: "var(--ink)" }}
+          style={{ fontFamily: 'var(--font-display)', fontSize: 44, lineHeight: 1.1, color: 'var(--ink)' }}
         >
           What Anansi does with your data.
         </h1>
-        <p style={{ fontFamily: "var(--font-text)", fontSize: 16, lineHeight: 1.65, color: "var(--ink-2)" }}>
+        <p style={{ fontFamily: 'var(--font-text)', fontSize: 16, lineHeight: 1.65, color: 'var(--ink-2)' }}>
           Anansi is a place to talk about your life — your goals, the people in it, the patterns you notice in yourself.
           That makes the data inside unusually personal. This page explains exactly what we keep, where it lives, and
           what you can do about it.
         </p>
         <p
           className="mt-6"
-          style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.1em", color: "var(--ink-3)" }}
+          style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', color: 'var(--ink-3)' }}
         >
           Last updated: 2026-05-14
         </p>
@@ -180,12 +180,12 @@ export default function PrivacyPage() {
       <nav
         className="mt-16 flex gap-6 pt-8"
         style={{
-          borderTop: "1px solid var(--hairline)",
-          fontFamily: "var(--font-mono)",
+          borderTop: '1px solid var(--hairline)',
+          fontFamily: 'var(--font-mono)',
           fontSize: 11,
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          color: "var(--ink-3)",
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          color: 'var(--ink-3)',
         }}
       >
         <Link href="/">Home</Link>
@@ -193,7 +193,7 @@ export default function PrivacyPage() {
         <Link href="/login">Sign in</Link>
       </nav>
     </main>
-  );
+  )
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -201,13 +201,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <section className="mb-10">
       <h2
         className="mb-3"
-        style={{ fontFamily: "var(--font-display)", fontSize: 22, lineHeight: 1.25, color: "var(--ink)" }}
+        style={{ fontFamily: 'var(--font-display)', fontSize: 22, lineHeight: 1.25, color: 'var(--ink)' }}
       >
         {title}
       </h2>
       <div
         className="space-y-3"
-        style={{ fontFamily: "var(--font-text)", fontSize: 16, lineHeight: 1.65, color: "var(--ink-2)" }}
+        style={{ fontFamily: 'var(--font-text)', fontSize: 16, lineHeight: 1.65, color: 'var(--ink-2)' }}
       >
         {children}
       </div>
@@ -219,5 +219,5 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         section a { text-decoration: underline; text-underline-offset: 2px; }
       `}</style>
     </section>
-  );
+  )
 }

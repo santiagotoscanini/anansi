@@ -1,6 +1,6 @@
-"use client";
+'use client'
 
-import { useMemo, useState } from "react";
+import { useMemo, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -12,50 +12,50 @@ import {
   useDroppable,
   type DragEndEvent,
   type DragStartEvent,
-} from "@dnd-kit/core";
-import toast from "react-hot-toast";
-import { useTranslation } from "react-i18next";
-import { api } from "~/trpc/react";
-import type { PersonCategory } from "~/lib/api/types";
-import PersonModal, { type PersonRow } from "./PersonModal";
-import Avatar from "./Avatar";
+} from '@dnd-kit/core'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
+import { api } from '~/trpc/react'
+import type { PersonCategory } from '~/lib/api/types'
+import PersonModal, { type PersonRow } from './PersonModal'
+import Avatar from './Avatar'
 
 type ColumnLabelKey =
-  | "relationships.columnExploring"
-  | "relationships.columnContextBound"
-  | "relationships.columnLongTerm"
-  | "relationships.columnToProcess";
+  | 'relationships.columnExploring'
+  | 'relationships.columnContextBound'
+  | 'relationships.columnLongTerm'
+  | 'relationships.columnToProcess'
 
 type ColumnHintKey =
-  | "relationships.columnExploringHint"
-  | "relationships.columnContextBoundHint"
-  | "relationships.columnLongTermHint"
-  | "relationships.columnToProcessHint";
+  | 'relationships.columnExploringHint'
+  | 'relationships.columnContextBoundHint'
+  | 'relationships.columnLongTermHint'
+  | 'relationships.columnToProcessHint'
 
 type Column = {
-  id: PersonCategory;
-  labelKey: ColumnLabelKey;
-  hintKey: ColumnHintKey;
-};
+  id: PersonCategory
+  labelKey: ColumnLabelKey
+  hintKey: ColumnHintKey
+}
 
 // Ordered to match the natural arc of a relationship: new people enter via
 // Exploring, settle into either Context-bound (handled well, not deepening)
 // or Long-term (the deepest connections), and only fall into To Process
 // when something specifically needs repair, release, or ending.
 const COLUMNS: Column[] = [
-  { id: "exploring", labelKey: "relationships.columnExploring", hintKey: "relationships.columnExploringHint" },
+  { id: 'exploring', labelKey: 'relationships.columnExploring', hintKey: 'relationships.columnExploringHint' },
   {
-    id: "context_bound",
-    labelKey: "relationships.columnContextBound",
-    hintKey: "relationships.columnContextBoundHint",
+    id: 'context_bound',
+    labelKey: 'relationships.columnContextBound',
+    hintKey: 'relationships.columnContextBoundHint',
   },
-  { id: "long_term", labelKey: "relationships.columnLongTerm", hintKey: "relationships.columnLongTermHint" },
-  { id: "to_process", labelKey: "relationships.columnToProcess", hintKey: "relationships.columnToProcessHint" },
-];
+  { id: 'long_term', labelKey: 'relationships.columnLongTerm', hintKey: 'relationships.columnLongTermHint' },
+  { id: 'to_process', labelKey: 'relationships.columnToProcess', hintKey: 'relationships.columnToProcessHint' },
+]
 
 function isOverdue(d: Date | null | undefined): boolean {
-  if (!d) return false;
-  return new Date(d).getTime() < Date.now();
+  if (!d) return false
+  return new Date(d).getTime() < Date.now()
 }
 
 function PersonCard({
@@ -63,19 +63,19 @@ function PersonCard({
   onClick,
   isDragging = false,
 }: {
-  person: PersonRow;
-  onClick?: () => void;
-  isDragging?: boolean;
+  person: PersonRow
+  onClick?: () => void
+  isDragging?: boolean
 }) {
-  const { t } = useTranslation();
-  const overdue = person.category === "exploring" && isOverdue(person.decideBy);
+  const { t } = useTranslation()
+  const overdue = person.category === 'exploring' && isOverdue(person.decideBy)
   return (
     <div
       onClick={onClick}
       className={`flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
         isDragging
-          ? "border-[var(--hairline-2)] bg-[var(--paper)] shadow-2xl"
-          : "cursor-grab border-[var(--hairline)] bg-[var(--vellum)] hover:border-[var(--hairline-2)] hover:bg-[var(--vellum)] active:cursor-grabbing"
+          ? 'border-[var(--hairline-2)] bg-[var(--paper)] shadow-2xl'
+          : 'cursor-grab border-[var(--hairline)] bg-[var(--vellum)] hover:border-[var(--hairline-2)] hover:bg-[var(--vellum)] active:cursor-grabbing'
       }`}
     >
       <Avatar name={person.name} emoji={person.emoji} size="sm" />
@@ -84,32 +84,32 @@ function PersonCard({
           <span className="truncate text-sm font-medium text-[var(--ink)]">{person.name}</span>
           {overdue && (
             <span className="shrink-0 rounded-full border border-[var(--amber)] bg-[var(--amber-soft)] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[var(--amber)]">
-              {t("relationships.overdueTag")}
+              {t('relationships.overdueTag')}
             </span>
           )}
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 function DraggableCard({ person, onClick }: { person: PersonRow; onClick: () => void }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: person.id });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: person.id })
   return (
     <div
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      className={isDragging ? "opacity-30" : ""}
+      className={isDragging ? 'opacity-30' : ''}
       onClick={(e) => {
         // Only fire click if we didn't drag (dnd-kit suppresses it naturally)
-        if (!isDragging) onClick();
-        e.stopPropagation();
+        if (!isDragging) onClick()
+        e.stopPropagation()
       }}
     >
       <PersonCard person={person} />
     </div>
-  );
+  )
 }
 
 function DroppableColumn({
@@ -117,17 +117,17 @@ function DroppableColumn({
   people,
   onCardClick,
 }: {
-  column: Column;
-  people: PersonRow[];
-  onCardClick: (p: PersonRow) => void;
+  column: Column
+  people: PersonRow[]
+  onCardClick: (p: PersonRow) => void
 }) {
-  const { t } = useTranslation();
-  const { setNodeRef, isOver } = useDroppable({ id: column.id });
+  const { t } = useTranslation()
+  const { setNodeRef, isOver } = useDroppable({ id: column.id })
   return (
     <section
       ref={setNodeRef}
       className={`flex min-w-0 flex-col rounded-xl border bg-[var(--vellum)] transition-colors ${
-        isOver ? "border-[var(--hairline-2)] bg-[var(--vellum)]" : "border-[var(--hairline)]"
+        isOver ? 'border-[var(--hairline-2)] bg-[var(--vellum)]' : 'border-[var(--hairline)]'
       }`}
     >
       <div className="flex h-20 flex-col justify-start border-b border-[var(--hairline)] px-4 py-3">
@@ -142,132 +142,132 @@ function DroppableColumn({
       <div className="flex flex-1 flex-col gap-2 p-3">
         {people.length === 0 ? (
           <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-[var(--hairline)] text-xs text-[var(--ink-4)]">
-            {t("relationships.dropHere")}
+            {t('relationships.dropHere')}
           </div>
         ) : (
           people.map((p) => <DraggableCard key={p.id} person={p} onClick={() => onCardClick(p)} />)
         )}
       </div>
     </section>
-  );
+  )
 }
 
 export default function RelationshipsBoard() {
-  const { t } = useTranslation();
-  const utils = api.useUtils();
-  const getAllInput = { includeArchived: false };
-  const peopleQuery = api.goals.people.getAll.useQuery(getAllInput);
+  const { t } = useTranslation()
+  const utils = api.useUtils()
+  const getAllInput = { includeArchived: false }
+  const peopleQuery = api.goals.people.getAll.useQuery(getAllInput)
   const setCategoryMutation = api.goals.people.setCategory.useMutation({
     // Optimistic update — avoids the post-drop flash where the card snaps back to
     // its source column while waiting for the mutation to resolve.
     onMutate: async (vars) => {
-      await utils.goals.people.getAll.cancel(getAllInput);
-      const prev = utils.goals.people.getAll.getData(getAllInput);
+      await utils.goals.people.getAll.cancel(getAllInput)
+      const prev = utils.goals.people.getAll.getData(getAllInput)
       utils.goals.people.getAll.setData(getAllInput, (old) => {
-        if (!old) return old;
+        if (!old) return old
         return old.map((p) =>
           p.id === vars.id ? { ...p, category: vars.category, boardOrder: vars.boardOrder ?? 0 } : p,
-        );
-      });
-      return { prev };
+        )
+      })
+      return { prev }
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) utils.goals.people.getAll.setData(getAllInput, ctx.prev);
-      toast.error(t("relationships.moveFailed"));
+      if (ctx?.prev) utils.goals.people.getAll.setData(getAllInput, ctx.prev)
+      toast.error(t('relationships.moveFailed'))
     },
     onSettled: () => {
-      void utils.goals.people.getAll.invalidate();
+      void utils.goals.people.getAll.invalidate()
     },
-  });
+  })
 
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [editingPerson, setEditingPerson] = useState<PersonRow | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [editingPerson, setEditingPerson] = useState<PersonRow | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor),
-  );
+  )
 
   const { byColumn, flatById } = useMemo(() => {
-    const rows = (peopleQuery.data ?? []) as PersonRow[];
-    const byColumn: Record<Column["id"], PersonRow[]> = {
+    const rows = (peopleQuery.data ?? []) as PersonRow[]
+    const byColumn: Record<Column['id'], PersonRow[]> = {
       to_process: [],
       exploring: [],
       long_term: [],
       context_bound: [],
-    };
-    const flatById: Record<string, PersonRow> = {};
+    }
+    const flatById: Record<string, PersonRow> = {}
     for (const p of rows) {
-      flatById[p.id] = p;
-      byColumn[p.category].push(p);
+      flatById[p.id] = p
+      byColumn[p.category].push(p)
     }
-    for (const col of Object.keys(byColumn) as Column["id"][]) {
-      byColumn[col].sort((a, b) => a.boardOrder - b.boardOrder || a.name.localeCompare(b.name));
+    for (const col of Object.keys(byColumn) as Column['id'][]) {
+      byColumn[col].sort((a, b) => a.boardOrder - b.boardOrder || a.name.localeCompare(b.name))
     }
-    return { byColumn, flatById };
-  }, [peopleQuery.data]);
+    return { byColumn, flatById }
+  }, [peopleQuery.data])
 
-  const activePerson = activeId ? flatById[activeId] : null;
+  const activePerson = activeId ? flatById[activeId] : null
 
   const handleDragStart = (e: DragStartEvent) => {
-    setActiveId(String(e.active.id));
-  };
+    setActiveId(String(e.active.id))
+  }
 
   const handleDragEnd = (e: DragEndEvent) => {
-    setActiveId(null);
-    if (!e.over) return;
-    const personId = String(e.active.id);
-    const targetColumn = e.over.id as Column["id"];
-    const person = flatById[personId];
-    if (!person) return;
-    if (person.category === targetColumn) return;
+    setActiveId(null)
+    if (!e.over) return
+    const personId = String(e.active.id)
+    const targetColumn = e.over.id as Column['id']
+    const person = flatById[personId]
+    if (!person) return
+    if (person.category === targetColumn) return
 
-    setCategoryMutation.mutate({ id: personId, category: targetColumn, boardOrder: 0 });
-  };
+    setCategoryMutation.mutate({ id: personId, category: targetColumn, boardOrder: 0 })
+  }
 
   const refetch = () => {
-    void utils.goals.people.getAll.invalidate();
-  };
+    void utils.goals.people.getAll.invalidate()
+  }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--paper)" }}>
-      <header className="shrink-0 px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: "1px solid var(--hairline)" }}>
+    <div className="flex h-full flex-col overflow-hidden" style={{ background: 'var(--paper)' }}>
+      <header className="shrink-0 px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
         <div
           style={{
-            fontFamily: "var(--font-mono)",
+            fontFamily: 'var(--font-mono)',
             fontSize: 11,
-            letterSpacing: "0.08em",
-            color: "var(--ink-3)",
-            textTransform: "uppercase",
+            letterSpacing: '0.08em',
+            color: 'var(--ink-3)',
+            textTransform: 'uppercase',
             marginBottom: 10,
           }}
         >
-          {t("relationships.eyebrow")}
+          {t('relationships.eyebrow')}
         </div>
         <h1
           style={{
-            fontFamily: "var(--font-display)",
+            fontFamily: 'var(--font-display)',
             fontSize: 44,
             lineHeight: 1.2,
-            letterSpacing: "-0.02em",
-            color: "var(--ink)",
+            letterSpacing: '-0.02em',
+            color: 'var(--ink)',
           }}
         >
-          {t("relationships.titlePre")}
-          <span className="brand-em">{t("relationships.titleEm")}</span>
-          {t("relationships.titlePost")}
+          {t('relationships.titlePre')}
+          <span className="brand-em">{t('relationships.titleEm')}</span>
+          {t('relationships.titlePost')}
         </h1>
         <p
           className="mt-3 max-w-2xl"
           style={{
-            fontFamily: "var(--font-text)",
-            fontStyle: "italic",
+            fontFamily: 'var(--font-text)',
+            fontStyle: 'italic',
             fontSize: 17,
-            color: "var(--ink-2)",
+            color: 'var(--ink-2)',
             lineHeight: 1.4,
           }}
         >
-          {t("relationships.subtitle")}
+          {t('relationships.subtitle')}
         </p>
       </header>
 
@@ -286,5 +286,5 @@ export default function RelationshipsBoard() {
 
       {editingPerson && <PersonModal person={editingPerson} onClose={() => setEditingPerson(null)} onSaved={refetch} />}
     </div>
-  );
+  )
 }

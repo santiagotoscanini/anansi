@@ -1,10 +1,10 @@
-"use client";
+'use client'
 
-import { useState, type ReactNode } from "react";
-import { I18nextProvider } from "react-i18next";
+import { useState, type ReactNode } from 'react'
+import { I18nextProvider } from 'react-i18next'
 
-import i18n from "./config";
-import { SUPPORTED_LOCALES, type Locale } from "./constants";
+import i18n from './config'
+import { SUPPORTED_LOCALES, type Locale } from './constants'
 
 // Synchronous SSR locale handshake. The server reads the `anansi:locale`
 // cookie in src/app/layout.tsx and passes its value (validated) as
@@ -23,14 +23,14 @@ export default function I18nProvider({ children, initialLocale }: { children: Re
   // synchronous; the returned promise resolves later but the language is
   // already set when t() is called from children below.
   useState(() => {
-    if (!initialLocale) return null;
-    const isSupported = SUPPORTED_LOCALES.some((l) => l.code === initialLocale);
-    if (!isSupported) return null;
+    if (!initialLocale) return null
+    const isSupported = SUPPORTED_LOCALES.some((l) => l.code === initialLocale)
+    if (!isSupported) return null
     if (i18n.resolvedLanguage !== initialLocale) {
-      void i18n.changeLanguage(initialLocale);
+      void i18n.changeLanguage(initialLocale)
     }
-    return null;
-  });
+    return null
+  })
 
-  return <I18nextProvider i18n={i18n}>{children}</I18nextProvider>;
+  return <I18nextProvider i18n={i18n}>{children}</I18nextProvider>
 }

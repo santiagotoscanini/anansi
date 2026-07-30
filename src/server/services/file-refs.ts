@@ -13,7 +13,7 @@
  * If the serving route ever moves, this needs a migration, not just an edit.
  */
 export function fileUrl(fileId: string): string {
-  return `/api/files/${fileId}`;
+  return `/api/files/${fileId}`
 }
 
 /**
@@ -22,10 +22,10 @@ export function fileUrl(fileId: string): string {
  * "not one of ours" as "nothing to clean up" rather than erroring.
  */
 export function parseFileId(value: string | null): string | null {
-  if (!value) return null;
-  const prefix = "/api/files/";
-  if (!value.startsWith(prefix)) return null;
-  const tail = value.slice(prefix.length).split("?")[0] ?? "";
-  if (!tail || tail.includes("/")) return null;
-  return tail;
+  if (!value) return null
+  const prefix = '/api/files/'
+  if (!value.startsWith(prefix)) return null
+  const tail = value.slice(prefix.length).split('?')[0] ?? ''
+  if (!tail || tail.includes('/')) return null
+  return tail
 }

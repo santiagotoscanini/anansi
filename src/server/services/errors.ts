@@ -22,12 +22,7 @@
 // non-enumeration property, not an oversight. Don't add FORBIDDEN without
 // checking you aren't leaking existence.
 export type AppErrorCode =
-  | "UNAUTHORIZED"
-  | "NOT_FOUND"
-  | "BAD_REQUEST"
-  | "CONFLICT"
-  | "TOO_MANY_REQUESTS"
-  | "INTERNAL_SERVER_ERROR";
+  'UNAUTHORIZED' | 'NOT_FOUND' | 'BAD_REQUEST' | 'CONFLICT' | 'TOO_MANY_REQUESTS' | 'INTERNAL_SERVER_ERROR'
 
 const HTTP_STATUS: Record<AppErrorCode, number> = {
   UNAUTHORIZED: 401,
@@ -36,22 +31,22 @@ const HTTP_STATUS: Record<AppErrorCode, number> = {
   CONFLICT: 409,
   TOO_MANY_REQUESTS: 429,
   INTERNAL_SERVER_ERROR: 500,
-};
+}
 
 export class AppError extends Error {
-  readonly code: AppErrorCode;
+  readonly code: AppErrorCode
 
   constructor(code: AppErrorCode, message?: string) {
-    super(message ?? code);
-    this.code = code;
-    this.name = "AppError";
+    super(message ?? code)
+    this.code = code
+    this.name = 'AppError'
   }
 
   get status(): number {
-    return HTTP_STATUS[this.code];
+    return HTTP_STATUS[this.code]
   }
 }
 
 export function isAppError(err: unknown): err is AppError {
-  return err instanceof AppError;
+  return err instanceof AppError
 }

@@ -8,24 +8,24 @@
 //   4. Bump the Zod enum in src/lib/api/routers/auth.ts:setLocale.
 
 export const SUPPORTED_LOCALES = [
-  { code: "en", label: "English" },
-  { code: "es", label: "Español" },
-] as const;
+  { code: 'en', label: 'English' },
+  { code: 'es', label: 'Español' },
+] as const
 
-export type Locale = (typeof SUPPORTED_LOCALES)[number]["code"];
+export type Locale = (typeof SUPPORTED_LOCALES)[number]['code']
 
-export const FALLBACK_LOCALE: Locale = "en";
+export const FALLBACK_LOCALE: Locale = 'en'
 
 // Same key used for the localStorage cache (set by i18next-browser-
 // languagedetector) AND the cookie the server reads on every request. Both
 // stay in sync because the detector's `caches` config writes to both.
-export const STORAGE_KEY = "anansi:locale";
+export const STORAGE_KEY = 'anansi:locale'
 
 // Server-side helper: validate a raw cookie value against SUPPORTED_LOCALES.
 // Returns the validated locale, or undefined if missing/unrecognized — the
 // layout passes this to I18nProvider; an undefined value leaves i18next at
 // its fallback for SSR and lets the client detector take over post-hydration.
 export function coerceLocale(raw: string | undefined): Locale | undefined {
-  if (!raw) return undefined;
-  return SUPPORTED_LOCALES.some((l) => l.code === raw) ? (raw as Locale) : undefined;
+  if (!raw) return undefined
+  return SUPPORTED_LOCALES.some((l) => l.code === raw) ? (raw as Locale) : undefined
 }

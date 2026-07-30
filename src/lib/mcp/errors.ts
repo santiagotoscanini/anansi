@@ -1,5 +1,5 @@
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { AppError, type AppErrorCode } from "~/server/services/errors";
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { AppError, type AppErrorCode } from '~/server/services/errors'
 
 // Translate a thrown service error into an MCP-shaped tool error so the LLM
 // gets something it can actually surface to the user. `isError: true` is the
@@ -23,25 +23,25 @@ export function mcpErrorFromUnknown(err: unknown): CallToolResult {
     // failure returns NOT_FOUND so a caller can't distinguish "someone else's
     // record" from "no such record".
     const messageByCode: Record<AppErrorCode, string> = {
-      UNAUTHORIZED: "Not authorized. Re-authenticate the Anansi MCP connection.",
+      UNAUTHORIZED: 'Not authorized. Re-authenticate the Anansi MCP connection.',
       NOT_FOUND: "That record doesn't exist (or doesn't belong to you).",
-      BAD_REQUEST: err.message || "Invalid input.",
-      CONFLICT: err.message || "Conflict with existing data.",
-      TOO_MANY_REQUESTS: "Slow down — too many requests.",
-      INTERNAL_SERVER_ERROR: "Something went wrong on the Anansi side.",
-    };
-    const text = messageByCode[err.code];
+      BAD_REQUEST: err.message || 'Invalid input.',
+      CONFLICT: err.message || 'Conflict with existing data.',
+      TOO_MANY_REQUESTS: 'Slow down — too many requests.',
+      INTERNAL_SERVER_ERROR: 'Something went wrong on the Anansi side.',
+    }
+    const text = messageByCode[err.code]
     return {
       isError: true,
-      content: [{ type: "text", text }],
+      content: [{ type: 'text', text }],
       _meta: { trpc_code: err.code },
-    };
+    }
   }
-  const message = err instanceof Error ? err.message : "Unknown error";
+  const message = err instanceof Error ? err.message : 'Unknown error'
   return {
     isError: true,
-    content: [{ type: "text", text: message }],
-  };
+    content: [{ type: 'text', text: message }],
+  }
 }
 
 // Convenience: wrap a tool's success payload as a single JSON text block.
@@ -55,9 +55,9 @@ export function mcpJsonResult(payload: unknown): CallToolResult {
   return {
     content: [
       {
-        type: "text",
-        text: JSON.stringify(payload, (_k, v: unknown) => (typeof v === "bigint" ? v.toString() : v), 2),
+        type: 'text',
+        text: JSON.stringify(payload, (_k, v: unknown) => (typeof v === 'bigint' ? v.toString() : v), 2),
       },
     ],
-  };
+  }
 }

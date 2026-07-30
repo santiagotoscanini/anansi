@@ -1,7 +1,7 @@
 // Transport only. Logic lives in
 // src/server/services/{people,groups,next-bids,important-dates,bucket-list}.ts.
-import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../../trpc";
+import { z } from 'zod'
+import { createTRPCRouter, protectedProcedure } from '../../trpc'
 import {
   createBucketListItemSchema,
   createImportantDateSchema,
@@ -15,15 +15,15 @@ import {
   updateNextBidSchema,
   updatePersonGroupSchema,
   updatePersonSchema,
-} from "../../types";
-import * as bucketListService from "~/server/services/bucket-list";
-import * as groupsService from "~/server/services/groups";
-import * as importantDatesService from "~/server/services/important-dates";
-import * as nextBidsService from "~/server/services/next-bids";
-import * as peopleService from "~/server/services/people";
+} from '../../types'
+import * as bucketListService from '~/server/services/bucket-list'
+import * as groupsService from '~/server/services/groups'
+import * as importantDatesService from '~/server/services/important-dates'
+import * as nextBidsService from '~/server/services/next-bids'
+import * as peopleService from '~/server/services/people'
 
-const idInput = z.object({ id: z.string() });
-const personIdInput = z.object({ personId: z.string() });
+const idInput = z.object({ id: z.string() })
+const personIdInput = z.object({ personId: z.string() })
 
 export const peopleRouter = createTRPCRouter({
   people: createTRPCRouter({
@@ -168,4 +168,4 @@ export const peopleRouter = createTRPCRouter({
       .input(idInput)
       .mutation(({ input, ctx }) => bucketListService.remove(ctx.user.userId, input.id)),
   }),
-});
+})

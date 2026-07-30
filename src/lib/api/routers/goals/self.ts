@@ -1,14 +1,14 @@
 // Transport only. Logic lives in src/server/services/{self,self-list-items}.ts.
-import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../../trpc";
+import { z } from 'zod'
+import { createTRPCRouter, protectedProcedure } from '../../trpc'
 import {
   createSelfListItemSchema,
   reorderSelfListItemsSchema,
   updateSelfListItemSchema,
   updateSelfSchema,
-} from "../../types";
-import * as selfListItemsService from "~/server/services/self-list-items";
-import * as selfService from "~/server/services/self";
+} from '../../types'
+import * as selfListItemsService from '~/server/services/self-list-items'
+import * as selfService from '~/server/services/self'
 
 export const selfRouter = createTRPCRouter({
   self: createTRPCRouter({
@@ -38,4 +38,4 @@ export const selfRouter = createTRPCRouter({
       .input(reorderSelfListItemsSchema)
       .mutation(({ input, ctx }) => selfListItemsService.reorder(ctx.user.userId, input)),
   }),
-});
+})

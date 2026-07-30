@@ -32,21 +32,21 @@
 //   X-DNS-Prefetch-Control: on
 //     Modest perf win; harmless from a security standpoint.
 const SECURITY_HEADERS = [
-  { key: "X-Frame-Options", value: "DENY" },
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
   {
-    key: "Permissions-Policy",
-    value: ["camera=()", "microphone=()", "geolocation=()", "payment=()", "usb=()", "interest-cohort=()"].join(", "),
+    key: 'Permissions-Policy',
+    value: ['camera=()', 'microphone=()', 'geolocation=()', 'payment=()', 'usb=()', 'interest-cohort=()'].join(', '),
   },
-  { key: "X-DNS-Prefetch-Control", value: "on" },
-];
+  { key: 'X-DNS-Prefetch-Control', value: 'on' },
+]
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  output: "standalone",
+  output: 'standalone',
   // No remotePatterns: avatars / people photos / attachments come from
   // Supabase Storage and are rendered via `<Image unoptimized>`, which
   // bypasses Next's optimizer and its hostname allow-list. If we ever turn
@@ -64,10 +64,10 @@ const nextConfig = {
         // Apply to every response. The matcher excludes Next's internal
         // `_next/*` static asset paths is unnecessary — these headers are
         // safe on static assets too.
-        source: "/:path*",
+        source: '/:path*',
         headers: SECURITY_HEADERS,
       },
-    ];
+    ]
   },
   // Next's app router doesn't route folders whose names start with `.`, so we
   // can't put a route.ts at `app/.well-known/`. Rewrites map the spec-required
@@ -75,15 +75,15 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        source: "/.well-known/oauth-authorization-server",
-        destination: "/api/oauth/well-known/oauth-authorization-server",
+        source: '/.well-known/oauth-authorization-server',
+        destination: '/api/oauth/well-known/oauth-authorization-server',
       },
       {
-        source: "/.well-known/oauth-protected-resource",
-        destination: "/api/oauth/well-known/oauth-protected-resource",
+        source: '/.well-known/oauth-protected-resource',
+        destination: '/api/oauth/well-known/oauth-protected-resource',
       },
-    ];
+    ]
   },
-};
+}
 
-export default nextConfig;
+export default nextConfig

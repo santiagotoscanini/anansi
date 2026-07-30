@@ -1,42 +1,42 @@
 // User-defined tags that span BOTH people and tasks — "Family" can hold a
 // partner and the "call mom" task. The table is still named `person_groups`
 // for backwards compat; the user-facing concept is just "Groups".
-import { and, asc, eq } from "drizzle-orm";
-import { db } from "~/lib/data";
-import { goals, personGroups, tasks, tasksToGroups } from "~/lib/data/schema";
-import type { CreatePersonGroup, UpdatePersonGroup } from "~/lib/api/types";
-import { AppError } from "./errors";
+import { and, asc, eq } from 'drizzle-orm'
+import { db } from '~/lib/data'
+import { goals, personGroups, tasks, tasksToGroups } from '~/lib/data/schema'
+import type { CreatePersonGroup, UpdatePersonGroup } from '~/lib/api/types'
+import { AppError } from './errors'
 
 export async function list(userId: string) {
   return await db
     .select()
     .from(personGroups)
     .where(eq(personGroups.userId, userId))
-    .orderBy(asc(personGroups.orderIdx), asc(personGroups.createdAt));
+    .orderBy(asc(personGroups.orderIdx), asc(personGroups.createdAt))
 }
 
 export async function create(userId: string, input: CreatePersonGroup) {
   const [row] = await db
     .insert(personGroups)
     .values({ ...input, userId })
-    .returning();
-  if (!row) throw new AppError("INTERNAL_SERVER_ERROR", "Failed to create group");
-  return row;
+    .returning()
+  if (!row) throw new AppError('INTERNAL_SERVER_ERROR', 'Failed to create group')
+  return row
 }
 
 export async function update(userId: string, input: UpdatePersonGroup) {
-  const { id, ...rest } = input;
+  const { id, ...rest } = input
   const [updated] = await db
     .update(personGroups)
     .set({ ...rest, updatedAt: new Date() })
     .where(and(eq(personGroups.id, id), eq(personGroups.userId, userId)))
-    .returning();
-  return updated;
+    .returning()
+  return updated
 }
 
 export async function remove(userId: string, id: string) {
-  await db.delete(personGroups).where(and(eq(personGroups.id, id), eq(personGroups.userId, userId)));
-  return { success: true };
+  await db.delete(personGroups).where(and(eq(personGroups.id, id), eq(personGroups.userId, userId)))
+  return { success: true }
 }
 
 /**
@@ -51,8 +51,8 @@ export async function getTasks(userId: string, groupId: string) {
     .select({ id: personGroups.id })
     .from(personGroups)
     .where(and(eq(personGroups.id, groupId), eq(personGroups.userId, userId)))
-    .limit(1);
-  if (!group) return [];
+    .limit(1)
+  if (!group) return []
 
   return await db
     .select({
@@ -68,5 +68,5 @@ export async function getTasks(userId: string, groupId: string) {
     .from(tasksToGroups)
     .innerJoin(tasks, eq(tasksToGroups.taskId, tasks.id))
     .innerJoin(goals, eq(tasks.goalId, goals.id))
-    .where(and(eq(tasksToGroups.groupId, groupId), eq(goals.userId, userId), eq(goals.status, "active")));
+    .where(and(eq(tasksToGroups.groupId, groupId), eq(goals.userId, userId), eq(goals.status, 'active')))
 }

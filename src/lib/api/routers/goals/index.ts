@@ -1,10 +1,10 @@
-import { createTRPCRouter } from "../../trpc";
-import { valuesRouter } from "./values";
-import { goalsRouter as goalsCoreRouter } from "./goals";
-import { syncRouter } from "./sync";
-import { peopleRouter } from "./people";
-import { selfRouter } from "./self";
-import { backupRouter } from "./backup";
+import { createTRPCRouter } from '../../trpc'
+import { valuesRouter } from './values'
+import { goalsRouter as goalsCoreRouter } from './goals'
+import { syncRouter } from './sync'
+import { peopleRouter } from './people'
+import { selfRouter } from './self'
+import { backupRouter } from './backup'
 
 // The public `goals` router is the merge of the per-feature routers below.
 // Each file owns one cohesive slice of the API surface; this index just
@@ -16,4 +16,4 @@ export const goalsRouter = createTRPCRouter({
   ...peopleRouter._def.record,
   ...selfRouter._def.record,
   ...backupRouter._def.record,
-});
+})

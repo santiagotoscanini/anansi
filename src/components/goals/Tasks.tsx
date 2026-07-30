@@ -1,24 +1,24 @@
-"use client";
+'use client'
 
-import { useMemo, useState } from "react";
-import Image from "next/image";
-import { CheckSquare, Search, Square } from "lucide-react";
-import { useTranslation } from "react-i18next";
-import { useGoals } from "~/contexts/GoalsContext";
-import { isEmojiUrl } from "~/lib/emoji-utils";
-import { formatScheduledShort } from "~/lib/horizon-period";
-import { api } from "~/trpc/react";
-import TaskModal from "./TaskModal";
-import Avatar from "./Avatar";
+import { useMemo, useState } from 'react'
+import Image from 'next/image'
+import { CheckSquare, Search, Square } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { useGoals } from '~/contexts/GoalsContext'
+import { isEmojiUrl } from '~/lib/emoji-utils'
+import { formatScheduledShort } from '~/lib/horizon-period'
+import { api } from '~/trpc/react'
+import TaskModal from './TaskModal'
+import Avatar from './Avatar'
 
-type FilterMode = "open" | "all" | "completed";
+type FilterMode = 'open' | 'all' | 'completed'
 
-type FilterLabelKey = "tasks.filterOpen" | "tasks.filterAll" | "tasks.filterCompleted";
+type FilterLabelKey = 'tasks.filterOpen' | 'tasks.filterAll' | 'tasks.filterCompleted'
 const FILTER_LABEL_KEYS: Record<FilterMode, FilterLabelKey> = {
-  open: "tasks.filterOpen",
-  all: "tasks.filterAll",
-  completed: "tasks.filterCompleted",
-};
+  open: 'tasks.filterOpen',
+  all: 'tasks.filterAll',
+  completed: 'tasks.filterCompleted',
+}
 
 // Tasks tab — the cross-goal task editor. Tasks are normally created/edited
 // inside their parent goal's modal, but the graph view makes that fiddly when
@@ -28,90 +28,90 @@ const FILTER_LABEL_KEYS: Record<FilterMode, FilterLabelKey> = {
 // groups). Read-side data flows through the existing GoalsContext (no new
 // router); the modal handles the mutation.
 export default function Tasks() {
-  const { t } = useTranslation();
-  const { goals } = useGoals();
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterMode>("open");
-  const [open, setOpen] = useState<{ goalId: string; taskId: string } | null>(null);
+  const { t } = useTranslation()
+  const { goals } = useGoals()
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState<FilterMode>('open')
+  const [open, setOpen] = useState<{ goalId: string; taskId: string } | null>(null)
 
-  const peopleData = api.goals.people.getAll.useQuery({ includeArchived: false }).data;
+  const peopleData = api.goals.people.getAll.useQuery({ includeArchived: false }).data
   const peopleById = useMemo(() => {
-    const m = new Map<string, NonNullable<typeof peopleData>[number]>();
-    for (const p of peopleData ?? []) m.set(p.id, p);
-    return m;
-  }, [peopleData]);
+    const m = new Map<string, NonNullable<typeof peopleData>[number]>()
+    for (const p of peopleData ?? []) m.set(p.id, p)
+    return m
+  }, [peopleData])
 
-  const groupsData = api.goals.groups.getAll.useQuery().data;
+  const groupsData = api.goals.groups.getAll.useQuery().data
   const groupsById = useMemo(() => {
-    const m = new Map<string, NonNullable<typeof groupsData>[number]>();
-    for (const g of groupsData ?? []) m.set(g.id, g);
-    return m;
-  }, [groupsData]);
+    const m = new Map<string, NonNullable<typeof groupsData>[number]>()
+    for (const g of groupsData ?? []) m.set(g.id, g)
+    return m
+  }, [groupsData])
 
-  const q = search.trim().toLowerCase();
+  const q = search.trim().toLowerCase()
   const grouped = useMemo(() => {
-    const out: { goal: (typeof goals)[number]; tasks: (typeof goals)[number]["tasks"] }[] = [];
+    const out: { goal: (typeof goals)[number]; tasks: (typeof goals)[number]['tasks'] }[] = []
     for (const g of goals) {
       const filtered = g.tasks.filter((task) => {
-        if (filter === "open" && task.completed) return false;
-        if (filter === "completed" && !task.completed) return false;
-        if (!q) return true;
-        const hay = `${task.title} ${task.description ?? ""}`.toLowerCase();
-        return hay.includes(q);
-      });
-      if (filtered.length > 0) out.push({ goal: g, tasks: filtered });
+        if (filter === 'open' && task.completed) return false
+        if (filter === 'completed' && !task.completed) return false
+        if (!q) return true
+        const hay = `${task.title} ${task.description ?? ''}`.toLowerCase()
+        return hay.includes(q)
+      })
+      if (filtered.length > 0) out.push({ goal: g, tasks: filtered })
     }
     // Goals with the most pending work first — useful when the list is long.
-    out.sort((a, b) => b.tasks.length - a.tasks.length);
-    return out;
-  }, [goals, q, filter]);
+    out.sort((a, b) => b.tasks.length - a.tasks.length)
+    return out
+  }, [goals, q, filter])
 
-  const totalCount = grouped.reduce((sum, g) => sum + g.tasks.length, 0);
+  const totalCount = grouped.reduce((sum, g) => sum + g.tasks.length, 0)
 
   return (
-    <div className="h-full overflow-y-auto" style={{ background: "var(--paper)" }}>
+    <div className="h-full overflow-y-auto" style={{ background: 'var(--paper)' }}>
       {/* Warm screen header — eyebrow + display title with brand-em + italic sub */}
       <header
         className="px-6 pb-6 pt-10 md:px-12 md:pb-7 md:pt-12"
-        style={{ borderBottom: "1px solid var(--hairline)" }}
+        style={{ borderBottom: '1px solid var(--hairline)' }}
       >
         <div className="mx-auto max-w-5xl">
           <div className="min-w-0">
             <div
               style={{
-                fontFamily: "var(--font-mono)",
+                fontFamily: 'var(--font-mono)',
                 fontSize: 11,
-                letterSpacing: "0.08em",
-                color: "var(--ink-3)",
-                textTransform: "uppercase",
+                letterSpacing: '0.08em',
+                color: 'var(--ink-3)',
+                textTransform: 'uppercase',
                 marginBottom: 10,
               }}
             >
-              {t("tasks.eyebrowPrefix", { count: totalCount, filter: t(FILTER_LABEL_KEYS[filter]) })}
+              {t('tasks.eyebrowPrefix', { count: totalCount, filter: t(FILTER_LABEL_KEYS[filter]) })}
             </div>
             <h1
               style={{
-                fontFamily: "var(--font-display)",
+                fontFamily: 'var(--font-display)',
                 fontSize: 44,
                 lineHeight: 1.2,
-                letterSpacing: "-0.02em",
-                color: "var(--ink)",
+                letterSpacing: '-0.02em',
+                color: 'var(--ink)',
               }}
             >
-              {t("tasks.titlePre")}
-              <span className="brand-em">{t("tasks.titleEm")}</span>
+              {t('tasks.titlePre')}
+              <span className="brand-em">{t('tasks.titleEm')}</span>
             </h1>
             <p
               className="mt-3 max-w-xl"
               style={{
-                fontFamily: "var(--font-text)",
-                fontStyle: "italic",
+                fontFamily: 'var(--font-text)',
+                fontStyle: 'italic',
                 fontSize: 17,
-                color: "var(--ink-2)",
+                color: 'var(--ink-2)',
                 lineHeight: 1.4,
               }}
             >
-              {t("tasks.subtitle")}
+              {t('tasks.subtitle')}
             </p>
           </div>
           {/* Toolbar row — search expands on the left, filter pill anchors right. */}
@@ -119,35 +119,35 @@ export default function Tasks() {
             <div
               className="flex h-9 max-w-md flex-1 items-center gap-2 rounded-lg px-3"
               style={{
-                background: "var(--canvas)",
-                border: "1px solid var(--hairline-2)",
-                boxShadow: "var(--shadow-sm)",
+                background: 'var(--canvas)',
+                border: '1px solid var(--hairline-2)',
+                boxShadow: 'var(--shadow-sm)',
               }}
             >
-              <Search className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--ink-3)" }} />
+              <Search className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--ink-3)' }} />
               <input
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder={t("tasks.searchPlaceholder")}
+                placeholder={t('tasks.searchPlaceholder')}
                 className="flex-1 bg-transparent text-sm outline-none"
-                style={{ color: "var(--ink)" }}
+                style={{ color: 'var(--ink)' }}
               />
             </div>
             <div
               className="flex gap-1 rounded-full p-1 text-xs"
-              style={{ background: "var(--paper-deep)", border: "1px solid var(--hairline)" }}
+              style={{ background: 'var(--paper-deep)', border: '1px solid var(--hairline)' }}
             >
-              {(["open", "all", "completed"] as const).map((mode) => (
+              {(['open', 'all', 'completed'] as const).map((mode) => (
                 <button
                   key={mode}
                   onClick={() => setFilter(mode)}
                   className="rounded-full px-3.5 py-1.5 capitalize transition-all"
                   style={{
-                    background: filter === mode ? "var(--canvas)" : "transparent",
-                    color: filter === mode ? "var(--ink)" : "var(--ink-2)",
+                    background: filter === mode ? 'var(--canvas)' : 'transparent',
+                    color: filter === mode ? 'var(--ink)' : 'var(--ink-2)',
                     fontWeight: filter === mode ? 500 : 400,
-                    boxShadow: filter === mode ? "var(--shadow-sm)" : "none",
+                    boxShadow: filter === mode ? 'var(--shadow-sm)' : 'none',
                   }}
                 >
                   {t(FILTER_LABEL_KEYS[mode])}
@@ -164,12 +164,12 @@ export default function Tasks() {
           <div className="rounded-xl border border-dashed border-[var(--hairline)] bg-[var(--vellum)] p-10 text-center">
             <p className="text-[var(--ink-3)]">
               {q
-                ? t("tasks.emptyNoMatches")
-                : filter === "completed"
-                  ? t("tasks.emptyCompleted")
-                  : filter === "open"
-                    ? t("tasks.emptyOpen")
-                    : t("tasks.emptyAll")}
+                ? t('tasks.emptyNoMatches')
+                : filter === 'completed'
+                  ? t('tasks.emptyCompleted')
+                  : filter === 'open'
+                    ? t('tasks.emptyOpen')
+                    : t('tasks.emptyAll')}
             </p>
           </div>
         ) : (
@@ -198,10 +198,10 @@ export default function Tasks() {
                   {tasks.map((task) => {
                     const referents = (task.referentIds ?? [])
                       .map((id) => peopleById.get(id))
-                      .filter((p): p is NonNullable<typeof p> => !!p);
+                      .filter((p): p is NonNullable<typeof p> => !!p)
                     const taskGroups = (task.groupIds ?? [])
                       .map((id) => groupsById.get(id))
-                      .filter((g): g is NonNullable<typeof g> => !!g);
+                      .filter((g): g is NonNullable<typeof g> => !!g)
                     return (
                       <li key={task.id}>
                         <button
@@ -233,7 +233,7 @@ export default function Tasks() {
                           <div className="min-w-0 flex-1">
                             <div
                               className={`truncate text-sm ${
-                                task.completed ? "text-[var(--ink-3)] line-through" : "text-[var(--ink)]"
+                                task.completed ? 'text-[var(--ink-3)] line-through' : 'text-[var(--ink)]'
                               }`}
                             >
                               {task.title}
@@ -294,7 +294,7 @@ export default function Tasks() {
                           ) : null}
                         </button>
                       </li>
-                    );
+                    )
                   })}
                 </ul>
               </section>
@@ -305,5 +305,5 @@ export default function Tasks() {
 
       {open && <TaskModal key={open.taskId} goalId={open.goalId} taskId={open.taskId} onClose={() => setOpen(null)} />}
     </div>
-  );
+  )
 }

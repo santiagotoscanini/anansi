@@ -1,6 +1,6 @@
-import { and, eq, isNull } from "drizzle-orm";
-import { db } from "../../data";
-import { mcpAuthorizationCodes } from "../../data/schema";
+import { and, eq, isNull } from 'drizzle-orm'
+import { db } from '../../data'
+import { mcpAuthorizationCodes } from '../../data/schema'
 
 // Authorization codes are single-use, 60-second-TTL, and bound to the exact
 // (client_id, redirect_uri, code_challenge) tuple they were minted under.
@@ -8,15 +8,15 @@ import { mcpAuthorizationCodes } from "../../data/schema";
 // we skip a second column. `consumed_at` flips on first redemption so a
 // replay attempt fails even before the TTL elapses.
 
-const CODE_TTL_MS = 60_000;
+const CODE_TTL_MS = 60_000
 
 export interface MintCodeInput {
-  clientId: string;
-  userId: string;
-  redirectUri: string;
-  codeChallenge: string;
-  codeChallengeMethod: string;
-  scope: string;
+  clientId: string
+  userId: string
+  redirectUri: string
+  codeChallenge: string
+  codeChallengeMethod: string
+  scope: string
 }
 
 export async function mintAuthCode(input: MintCodeInput): Promise<string> {
@@ -31,16 +31,16 @@ export async function mintAuthCode(input: MintCodeInput): Promise<string> {
       scope: input.scope,
       expiresAt: new Date(Date.now() + CODE_TTL_MS),
     })
-    .returning({ id: mcpAuthorizationCodes.id });
-  if (!row) throw new Error("auth code insert returned no row");
-  return row.id;
+    .returning({ id: mcpAuthorizationCodes.id })
+  if (!row) throw new Error('auth code insert returned no row')
+  return row.id
 }
 
 export interface ConsumedCode {
-  userId: string;
-  scope: string;
-  codeChallenge: string;
-  codeChallengeMethod: string;
+  userId: string
+  scope: string
+  codeChallenge: string
+  codeChallengeMethod: string
 }
 
 // Atomic single-use consumption: UPDATE … SET consumed_at = now() WHERE id = ?
@@ -49,11 +49,11 @@ export interface ConsumedCode {
 // (client_id, redirect_uri) equality at the same time — the spec requires
 // these match what was sent on /authorize.
 export async function consumeAuthCode(args: {
-  code: string;
-  clientId: string;
-  redirectUri: string;
+  code: string
+  clientId: string
+  redirectUri: string
 }): Promise<ConsumedCode | null> {
-  const now = new Date();
+  const now = new Date()
   const [row] = await db
     .update(mcpAuthorizationCodes)
     .set({ consumedAt: now })
@@ -65,13 +65,13 @@ export async function consumeAuthCode(args: {
         isNull(mcpAuthorizationCodes.consumedAt),
       ),
     )
-    .returning();
-  if (!row) return null;
-  if (row.expiresAt <= now) return null; // expired, but we still consumed it — fine, single-use is preserved
+    .returning()
+  if (!row) return null
+  if (row.expiresAt <= now) return null // expired, but we still consumed it — fine, single-use is preserved
   return {
     userId: row.userId,
     scope: row.scope,
     codeChallenge: row.codeChallenge,
     codeChallengeMethod: row.codeChallengeMethod,
-  };
+  }
 }

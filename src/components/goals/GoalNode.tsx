@@ -1,112 +1,112 @@
-"use client";
+'use client'
 
-import { memo, useMemo } from "react";
-import Image from "next/image";
-import { Handle, Position } from "@xyflow/react";
-import { Target, CheckCircle, Pencil } from "lucide-react";
-import { useTranslation } from "react-i18next";
-import { useGoals } from "~/contexts/GoalsContext";
-import type { Goal } from "~/lib/api/types";
-import { isEmojiUrl } from "~/lib/emoji-utils";
-import { bucketForDate } from "~/lib/horizon-period";
-import { api } from "~/trpc/react";
-import Avatar from "./Avatar";
+import { memo, useMemo } from 'react'
+import Image from 'next/image'
+import { Handle, Position } from '@xyflow/react'
+import { Target, CheckCircle, Pencil } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { useGoals } from '~/contexts/GoalsContext'
+import type { Goal } from '~/lib/api/types'
+import { isEmojiUrl } from '~/lib/emoji-utils'
+import { bucketForDate } from '~/lib/horizon-period'
+import { api } from '~/trpc/react'
+import Avatar from './Avatar'
 
 interface GoalNodeProps {
-  data: Goal & { onEdit?: () => void };
-  selected?: boolean;
+  data: Goal & { onEdit?: () => void }
+  selected?: boolean
 }
 
 // Importance enum from API → translation key for the importance label shown
 // on the node header. Typed as a union so t() stays happy under module aug.
-type ImportanceLabelKey = "goalNode.importanceHigh" | "goalNode.importanceMedium" | "goalNode.importanceLow";
-const IMPORTANCE_LABEL_KEY: Record<"High" | "Medium" | "Low", ImportanceLabelKey> = {
-  High: "goalNode.importanceHigh",
-  Medium: "goalNode.importanceMedium",
-  Low: "goalNode.importanceLow",
-};
+type ImportanceLabelKey = 'goalNode.importanceHigh' | 'goalNode.importanceMedium' | 'goalNode.importanceLow'
+const IMPORTANCE_LABEL_KEY: Record<'High' | 'Medium' | 'Low', ImportanceLabelKey> = {
+  High: 'goalNode.importanceHigh',
+  Medium: 'goalNode.importanceMedium',
+  Low: 'goalNode.importanceLow',
+}
 
 const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
-  const { t } = useTranslation();
-  const { values, getGoalProgress, connections } = useGoals();
-  const associatedValues = values.filter((v) => data.valueIds?.includes(v.id));
+  const { t } = useTranslation()
+  const { values, getGoalProgress, connections } = useGoals()
+  const associatedValues = values.filter((v) => data.valueIds?.includes(v.id))
 
   // Collect unique referent people across all tasks on this goal. Shown as a
   // stacked avatar cluster at the bottom of the node — mirrors the values
   // hover pattern at the top.
-  const peopleQuery = api.goals.people.getAll.useQuery({ includeArchived: false });
+  const peopleQuery = api.goals.people.getAll.useQuery({ includeArchived: false })
   const referentPeople = useMemo(() => {
-    const ids = new Set<string>();
-    for (const t of data.tasks) for (const id of t.referentIds ?? []) ids.add(id);
-    if (ids.size === 0) return [];
-    const byId = new Map((peopleQuery.data ?? []).map((p) => [p.id, p]));
+    const ids = new Set<string>()
+    for (const t of data.tasks) for (const id of t.referentIds ?? []) ids.add(id)
+    if (ids.size === 0) return []
+    const byId = new Map((peopleQuery.data ?? []).map((p) => [p.id, p]))
     return Array.from(ids)
       .map((id) => byId.get(id))
-      .filter((p): p is NonNullable<typeof p> => !!p);
-  }, [data.tasks, peopleQuery.data]);
+      .filter((p): p is NonNullable<typeof p> => !!p)
+  }, [data.tasks, peopleQuery.data])
 
   // Get all progress data from single source
-  const progress = getGoalProgress(data.id);
-  const completion = progress.totalProgress;
-  const ownCompletion = progress.ownProgress;
-  const predecessorAverage = progress.dependenciesProgress;
-  const hasPredecessors = connections.some((c) => c.target === data.id);
+  const progress = getGoalProgress(data.id)
+  const completion = progress.totalProgress
+  const ownCompletion = progress.ownProgress
+  const predecessorAverage = progress.dependenciesProgress
+  const hasPredecessors = connections.some((c) => c.target === data.id)
 
   // Calculate goal difficulty based on tasks
   const calculateDifficulty = () => {
-    if (data.tasks.length === 0) return { level: "easy", average: 1 };
+    if (data.tasks.length === 0) return { level: 'easy', average: 1 }
 
-    const totalDifficulty = data.tasks.reduce((sum, task) => sum + task.difficulty, 0);
-    const averageDifficulty = totalDifficulty / data.tasks.length;
+    const totalDifficulty = data.tasks.reduce((sum, task) => sum + task.difficulty, 0)
+    const averageDifficulty = totalDifficulty / data.tasks.length
 
-    let level: "easy" | "medium" | "hard";
-    if (averageDifficulty < 1.5) level = "easy";
-    else if (averageDifficulty >= 1.5 && averageDifficulty < 2.5) level = "medium";
-    else level = "hard";
+    let level: 'easy' | 'medium' | 'hard'
+    if (averageDifficulty < 1.5) level = 'easy'
+    else if (averageDifficulty >= 1.5 && averageDifficulty < 2.5) level = 'medium'
+    else level = 'hard'
 
-    return { level, average: averageDifficulty };
-  };
+    return { level, average: averageDifficulty }
+  }
 
-  const difficulty = calculateDifficulty();
+  const difficulty = calculateDifficulty()
 
   // Get importance from stored data
-  const importance = data.importance || "Low";
+  const importance = data.importance || 'Low'
 
   // Difficulty display component with colored bar
   const DifficultyInfo = () => {
     const getDifficultyColor = () => {
       switch (difficulty.level) {
-        case "easy":
-          return "bg-[var(--moss)]";
-        case "medium":
-          return "bg-[var(--amber)]";
-        case "hard":
-          return "bg-[var(--rust)]";
+        case 'easy':
+          return 'bg-[var(--moss)]'
+        case 'medium':
+          return 'bg-[var(--amber)]'
+        case 'hard':
+          return 'bg-[var(--rust)]'
         default:
-          return "bg-[var(--ink-3)]";
+          return 'bg-[var(--ink-3)]'
       }
-    };
+    }
 
     // Calculate bar width based on difficulty average (1-3 scale, convert to percentage)
-    const barWidth = Math.min(100, Math.max(0, (difficulty.average / 3) * 100));
+    const barWidth = Math.min(100, Math.max(0, (difficulty.average / 3) * 100))
 
     return (
       <div className="mt-1 flex items-center gap-2">
-        <span className="w-8 text-[9px] text-[var(--ink-3)]">{t("goalNode.difficulty")}</span>
+        <span className="w-8 text-[9px] text-[var(--ink-3)]">{t('goalNode.difficulty')}</span>
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--vellum)]">
           <div className={`h-full ${getDifficultyColor()} transition-all`} style={{ width: `${barWidth}%` }} />
         </div>
         <span className="w-8 text-right text-[9px] text-[var(--ink-2)]">{difficulty.average.toFixed(1)}</span>
       </div>
-    );
-  };
+    )
+  }
 
   const handleEditClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent node selection
+    e.stopPropagation() // Prevent node selection
     if (data.onEdit) {
-      data.onEdit();
+      data.onEdit()
     }
-  };
+  }
 
   // Importance now lives on a thin top-stripe color, not the whole
   // border. Matches the design's slim GoalNode chrome (top-pill + warm
@@ -114,30 +114,30 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
   // a heat-map.
   const importanceColor = (() => {
     switch (importance) {
-      case "High":
-        return "var(--rust)";
-      case "Medium":
-        return "var(--amber)";
-      case "Low":
+      case 'High':
+        return 'var(--rust)'
+      case 'Medium':
+        return 'var(--amber)'
+      case 'Low':
       default:
-        return "var(--ink-4)";
+        return 'var(--ink-4)'
     }
-  })();
+  })()
 
   const getProgressBarColor = (percent: number) => {
-    if (percent < 33) return "bg-[var(--rust)]";
-    if (percent < 67) return "bg-[var(--amber)]";
-    return "bg-[var(--moss)]";
-  };
+    if (percent < 33) return 'bg-[var(--rust)]'
+    if (percent < 67) return 'bg-[var(--amber)]'
+    return 'bg-[var(--moss)]'
+  }
 
   return (
     <div
       className="relative min-w-[220px] max-w-[300px] rounded-[14px] p-4 transition-all"
       style={{
-        background: "var(--canvas)",
-        border: "1px solid var(--hairline)",
-        boxShadow: selected ? "var(--shadow-pop)" : "var(--shadow-md)",
-        outline: selected ? "2px solid var(--clay)" : "none",
+        background: 'var(--canvas)',
+        border: '1px solid var(--hairline)',
+        boxShadow: selected ? 'var(--shadow-pop)' : 'var(--shadow-md)',
+        outline: selected ? '2px solid var(--clay)' : 'none',
         outlineOffset: 2,
       }}
     >
@@ -145,22 +145,22 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
       <span
         aria-hidden
         style={{
-          position: "absolute",
+          position: 'absolute',
           top: 0,
           left: 14,
           right: 14,
           height: 3,
           background: importanceColor,
-          borderRadius: "0 0 999px 999px",
+          borderRadius: '0 0 999px 999px',
         }}
       />
-      <Handle type="target" position={Position.Left} id="left" className="!bg-[var(--vellum)]" style={{ top: "50%" }} />
+      <Handle type="target" position={Position.Left} id="left" className="!bg-[var(--vellum)]" style={{ top: '50%' }} />
       <Handle
         type="source"
         position={Position.Right}
         id="right"
         className="!bg-[var(--vellum)]"
-        style={{ top: "50%" }}
+        style={{ top: '50%' }}
       />
 
       {/* Value Dots at the top - Expand on hover */}
@@ -169,9 +169,9 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
           <div
             className="relative flex gap-1.5 rounded-full px-2 py-1"
             style={{
-              background: "var(--canvas)",
-              border: "1px solid var(--hairline)",
-              boxShadow: "var(--shadow-sm)",
+              background: 'var(--canvas)',
+              border: '1px solid var(--hairline)',
+              boxShadow: 'var(--shadow-sm)',
             }}
           >
             {/* Color dots */}
@@ -188,9 +188,9 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
               <div
                 className="flex flex-wrap gap-1 rounded-lg p-2"
                 style={{
-                  background: "var(--canvas)",
-                  border: "1px solid var(--hairline)",
-                  boxShadow: "var(--shadow-md)",
+                  background: 'var(--canvas)',
+                  border: '1px solid var(--hairline)',
+                  boxShadow: 'var(--shadow-md)',
                 }}
               >
                 {associatedValues.map((value) => (
@@ -199,7 +199,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
                     className="whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium"
                     style={{
                       backgroundColor: value.color,
-                      color: "var(--paper)",
+                      color: 'var(--paper)',
                     }}
                   >
                     {value.name}
@@ -219,7 +219,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
             isEmojiUrl(data.emoji) ? (
               <Image
                 src={data.emoji}
-                alt={t("goalNode.emojiAlt")}
+                alt={t('goalNode.emojiAlt')}
                 width={20}
                 height={20}
                 unoptimized
@@ -234,13 +234,13 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
             <Target className="h-5 w-5 text-[var(--ink-2)]" />
           )}
           <span className="text-xs text-[var(--ink-2)]">
-            {t("goalNode.importance", { level: t(IMPORTANCE_LABEL_KEY[importance]) })}
+            {t('goalNode.importance', { level: t(IMPORTANCE_LABEL_KEY[importance]) })}
           </span>
         </div>
         <button
           onClick={handleEditClick}
           className="rounded p-1 opacity-60 transition-opacity hover:bg-[var(--vellum)] hover:opacity-100"
-          title={t("goalNode.editGoal")}
+          title={t('goalNode.editGoal')}
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
@@ -256,28 +256,28 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
           each task's scheduledAt date. Pills hide when nothing is scheduled. */}
       <div className="mb-2 flex items-center justify-between gap-2 text-xs text-[var(--ink-2)]">
         <span>
-          {t("goalNode.tasksCount", {
+          {t('goalNode.tasksCount', {
             done: data.tasks.filter((task) => task.completed).length,
             total: data.tasks.length,
           })}
         </span>
         {(() => {
-          const now = new Date();
-          let m = 0;
-          let q = 0;
-          let y = 0;
+          const now = new Date()
+          let m = 0
+          let q = 0
+          let y = 0
           for (const task of data.tasks) {
-            if (task.completed || !task.scheduledAt) continue;
-            const b = bucketForDate(new Date(task.scheduledAt), now);
-            if (b === "month") m += 1;
-            else if (b === "quarter") q += 1;
-            else if (b === "year") y += 1;
+            if (task.completed || !task.scheduledAt) continue
+            const b = bucketForDate(new Date(task.scheduledAt), now)
+            if (b === 'month') m += 1
+            else if (b === 'quarter') q += 1
+            else if (b === 'year') y += 1
           }
-          if (m + q + y === 0) return null;
+          if (m + q + y === 0) return null
           return (
             <span
               className="flex shrink-0 items-center gap-1"
-              title={t("goalNode.bucketTooltip", { month: m, quarter: q, year: y })}
+              title={t('goalNode.bucketTooltip', { month: m, quarter: q, year: y })}
             >
               {m > 0 && (
                 <span className="rounded-full border border-[var(--moss)] bg-[var(--moss-soft)] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-[var(--moss)]">
@@ -295,7 +295,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
                 </span>
               )}
             </span>
-          );
+          )
         })()}
       </div>
 
@@ -306,7 +306,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
           <div className="space-y-1">
             {/* Own progress */}
             <div className="flex items-center gap-2">
-              <span className="w-8 text-[9px] text-[var(--ink-3)]">{t("goalNode.own")}</span>
+              <span className="w-8 text-[9px] text-[var(--ink-3)]">{t('goalNode.own')}</span>
               <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--vellum)]">
                 <div
                   className={`h-full transition-all ${getProgressBarColor(ownCompletion)}`}
@@ -317,7 +317,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
             </div>
             {/* Dependencies progress */}
             <div className="flex items-center gap-2">
-              <span className="w-8 text-[9px] text-[var(--ink-3)]">{t("goalNode.deps")}</span>
+              <span className="w-8 text-[9px] text-[var(--ink-3)]">{t('goalNode.deps')}</span>
               <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--vellum)]">
                 <div
                   className={`h-full opacity-70 transition-all ${getProgressBarColor(predecessorAverage)}`}
@@ -374,9 +374,9 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
             <div
               className="flex flex-wrap justify-center gap-1 rounded-lg p-2"
               style={{
-                background: "var(--canvas)",
-                border: "1px solid var(--hairline)",
-                boxShadow: "var(--shadow-md)",
+                background: 'var(--canvas)',
+                border: '1px solid var(--hairline)',
+                boxShadow: 'var(--shadow-md)',
               }}
             >
               {referentPeople.map((p) => (
@@ -395,12 +395,12 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
 
       {/* Completion Percentage */}
       <div className="mt-2 text-center text-xs font-semibold text-[var(--ink)]">
-        {t("goalNode.percentComplete", { percent: Math.round(completion) })}
+        {t('goalNode.percentComplete', { percent: Math.round(completion) })}
       </div>
     </div>
-  );
-});
+  )
+})
 
-GoalNode.displayName = "GoalNode";
+GoalNode.displayName = 'GoalNode'
 
-export default GoalNode;
+export default GoalNode

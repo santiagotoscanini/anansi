@@ -1,7 +1,7 @@
 // Transport only. Logic lives in
 // src/server/services/{tracking-items,sync-templates,weekly-sync,attachments}.ts.
-import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../../trpc";
+import { z } from 'zod'
+import { createTRPCRouter, protectedProcedure } from '../../trpc'
 import {
   addSyncItemSchema,
   createSyncTemplateSchema,
@@ -14,14 +14,14 @@ import {
   updateSyncTemplateSchema,
   updateTrackingItemSchema,
   uploadAttachmentSchema,
-} from "../../types";
-import * as attachmentsService from "~/server/services/attachments";
-import * as syncTemplatesService from "~/server/services/sync-templates";
-import * as trackingItemsService from "~/server/services/tracking-items";
-import * as weeklySyncService from "~/server/services/weekly-sync";
+} from '../../types'
+import * as attachmentsService from '~/server/services/attachments'
+import * as syncTemplatesService from '~/server/services/sync-templates'
+import * as trackingItemsService from '~/server/services/tracking-items'
+import * as weeklySyncService from '~/server/services/weekly-sync'
 
-const idInput = z.object({ id: z.string() });
-const weekStartInput = z.object({ weekStart: z.date() });
+const idInput = z.object({ id: z.string() })
+const weekStartInput = z.object({ weekStart: z.date() })
 
 export const syncRouter = createTRPCRouter({
   trackingItems: createTRPCRouter({
@@ -101,4 +101,4 @@ export const syncRouter = createTRPCRouter({
       .input(idInput)
       .mutation(({ input, ctx }) => attachmentsService.remove(ctx.user.userId, input.id)),
   }),
-});
+})

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from 'next/link'
 
 /* eslint-disable i18next/no-literal-string -- legal page link labels, EN-only until reviewed */
 
@@ -11,11 +11,11 @@ export default function LegalFooter() {
     <div
       className="pointer-events-none fixed bottom-3 right-4 z-50 flex gap-4"
       style={{
-        fontFamily: "var(--font-mono)",
+        fontFamily: 'var(--font-mono)',
         fontSize: 10,
-        letterSpacing: "0.1em",
-        textTransform: "uppercase",
-        color: "var(--ink-3)",
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
+        color: 'var(--ink-3)',
       }}
     >
       <Link href="/privacy" className="pointer-events-auto hover:text-[var(--ink)]">
@@ -25,5 +25,5 @@ export default function LegalFooter() {
         Terms
       </Link>
     </div>
-  );
+  )
 }

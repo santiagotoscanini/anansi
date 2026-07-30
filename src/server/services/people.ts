@@ -5,8 +5,8 @@
 // Also home to the two person-ownership guards the next-bids, important-dates
 // and bucket-list services share. People own no rows themselves; every child
 // table (next_bids, important_dates, …) proves ownership by joining back here.
-import { and, asc, eq, inArray } from "drizzle-orm";
-import { db } from "~/lib/data";
+import { and, asc, eq, inArray } from 'drizzle-orm'
+import { db } from '~/lib/data'
 import {
   bucketListItemPeople,
   bucketListItems,
@@ -16,12 +16,12 @@ import {
   peopleToGroups,
   taskReferents,
   tasks,
-} from "~/lib/data/schema";
-import type { CreatePerson, PersonCategory, UpdatePerson } from "~/lib/api/types";
-import { decodeImageUpload, UploadValidationError } from "~/lib/image-upload";
-import { checkRateLimit } from "~/lib/rate-limit";
-import { AppError } from "./errors";
-import { fileUrl } from "./file-refs";
+} from '~/lib/data/schema'
+import type { CreatePerson, PersonCategory, UpdatePerson } from '~/lib/api/types'
+import { decodeImageUpload, UploadValidationError } from '~/lib/image-upload'
+import { checkRateLimit } from '~/lib/rate-limit'
+import { AppError } from './errors'
+import { fileUrl } from './file-refs'
 
 /**
  * Two ownership guards, because the callers genuinely want different things and
@@ -40,20 +40,20 @@ export async function ownsPerson(userId: string, personId: string): Promise<bool
     .select({ id: people.id })
     .from(people)
     .where(and(eq(people.id, personId), eq(people.userId, userId)))
-    .limit(1);
-  return row !== undefined;
+    .limit(1)
+  return row !== undefined
 }
 
 export async function assertOwnsPerson(userId: string, personId: string) {
   if (!(await ownsPerson(userId, personId))) {
-    throw new AppError("NOT_FOUND", "Person not found or access denied");
+    throw new AppError('NOT_FOUND', 'Person not found or access denied')
   }
 }
 
 export async function list(userId: string, input?: { includeArchived?: boolean }) {
-  const rows = await db.select().from(people).where(eq(people.userId, userId));
-  const visible = input?.includeArchived ? rows : rows.filter((p) => p.archivedAt === null);
-  if (visible.length === 0) return [] as ((typeof rows)[number] & { groupIds: string[] })[];
+  const rows = await db.select().from(people).where(eq(people.userId, userId))
+  const visible = input?.includeArchived ? rows : rows.filter((p) => p.archivedAt === null)
+  if (visible.length === 0) return [] as ((typeof rows)[number] & { groupIds: string[] })[]
 
   // Hydrate group memberships so the directory can render group chips
   // without a per-row query.
@@ -65,11 +65,11 @@ export async function list(userId: string, input?: { includeArchived?: boolean }
         peopleToGroups.personId,
         visible.map((p) => p.id),
       ),
-    );
+    )
   return visible.map((p) => ({
     ...p,
     groupIds: memberships.filter((m) => m.personId === p.id).map((m) => m.groupId),
-  }));
+  }))
 }
 
 export async function getById(userId: string, id: string) {
@@ -77,41 +77,41 @@ export async function getById(userId: string, id: string) {
     .select()
     .from(people)
     .where(and(eq(people.id, id), eq(people.userId, userId)))
-    .limit(1);
-  if (!row) return null;
-  const memberships = await db.select().from(peopleToGroups).where(eq(peopleToGroups.personId, row.id));
-  return { ...row, groupIds: memberships.map((m) => m.groupId) };
+    .limit(1)
+  if (!row) return null
+  const memberships = await db.select().from(peopleToGroups).where(eq(peopleToGroups.personId, row.id))
+  return { ...row, groupIds: memberships.map((m) => m.groupId) }
 }
 
 export async function create(userId: string, input: CreatePerson) {
-  const { groupIds, ...rest } = input;
+  const { groupIds, ...rest } = input
   const [newPerson] = await db
     .insert(people)
     .values({ ...rest, userId })
-    .returning();
-  if (!newPerson) throw new AppError("INTERNAL_SERVER_ERROR", "Failed to create person");
+    .returning()
+  if (!newPerson) throw new AppError('INTERNAL_SERVER_ERROR', 'Failed to create person')
   if (groupIds?.length) {
-    await db.insert(peopleToGroups).values(groupIds.map((groupId) => ({ personId: newPerson.id, groupId })));
+    await db.insert(peopleToGroups).values(groupIds.map((groupId) => ({ personId: newPerson.id, groupId })))
   }
-  return newPerson;
+  return newPerson
 }
 
 /** `groupIds` is replace-set: omit to leave memberships untouched, `[]` clears. */
 export async function update(userId: string, input: UpdatePerson) {
-  const { id, groupIds, ...updateData } = input;
+  const { id, groupIds, ...updateData } = input
   const [updated] = await db
     .update(people)
     .set({ ...updateData, updatedAt: new Date() })
     .where(and(eq(people.id, id), eq(people.userId, userId)))
-    .returning();
+    .returning()
 
   if (groupIds !== undefined) {
-    await db.delete(peopleToGroups).where(eq(peopleToGroups.personId, id));
+    await db.delete(peopleToGroups).where(eq(peopleToGroups.personId, id))
     if (groupIds.length > 0) {
-      await db.insert(peopleToGroups).values(groupIds.map((groupId) => ({ personId: id, groupId })));
+      await db.insert(peopleToGroups).values(groupIds.map((groupId) => ({ personId: id, groupId })))
     }
   }
-  return updated;
+  return updated
 }
 
 /** Archiving is the preferred removal — `remove` is only for wrong entries. */
@@ -120,8 +120,8 @@ export async function archive(userId: string, id: string) {
     .update(people)
     .set({ archivedAt: new Date(), updatedAt: new Date() })
     .where(and(eq(people.id, id), eq(people.userId, userId)))
-    .returning();
-  return updated;
+    .returning()
+  return updated
 }
 
 export async function unarchive(userId: string, id: string) {
@@ -129,13 +129,13 @@ export async function unarchive(userId: string, id: string) {
     .update(people)
     .set({ archivedAt: null, updatedAt: new Date() })
     .where(and(eq(people.id, id), eq(people.userId, userId)))
-    .returning();
-  return updated;
+    .returning()
+  return updated
 }
 
 export async function remove(userId: string, id: string) {
-  await db.delete(people).where(and(eq(people.id, id), eq(people.userId, userId)));
-  return { success: true };
+  await db.delete(people).where(and(eq(people.id, id), eq(people.userId, userId)))
+  return { success: true }
 }
 
 /**
@@ -155,8 +155,8 @@ export async function setCategory(
       updatedAt: new Date(),
     })
     .where(and(eq(people.id, input.id), eq(people.userId, userId)))
-    .returning();
-  return updated;
+    .returning()
+  return updated
 }
 
 /**
@@ -165,7 +165,7 @@ export async function setCategory(
  */
 export async function getTasksAsReferent(userId: string, personId: string) {
   // Verify the person belongs to the user (prevents enumeration via task refs).
-  if (!(await ownsPerson(userId, personId))) return [];
+  if (!(await ownsPerson(userId, personId))) return []
 
   return await db
     .select({
@@ -179,7 +179,7 @@ export async function getTasksAsReferent(userId: string, personId: string) {
     .from(taskReferents)
     .innerJoin(tasks, eq(taskReferents.taskId, tasks.id))
     .innerJoin(goals, eq(tasks.goalId, goals.id))
-    .where(and(eq(taskReferents.personId, personId), eq(goals.userId, userId), eq(goals.status, "active")));
+    .where(and(eq(taskReferents.personId, personId), eq(goals.userId, userId), eq(goals.status, 'active')))
 }
 
 /**
@@ -188,7 +188,7 @@ export async function getTasksAsReferent(userId: string, personId: string) {
  */
 export async function getBucketListItemsAsParticipant(userId: string, personId: string) {
   // Verify the person belongs to the user (prevents enumeration via junction rows).
-  if (!(await ownsPerson(userId, personId))) return [];
+  if (!(await ownsPerson(userId, personId))) return []
 
   return await db
     .select({
@@ -199,7 +199,7 @@ export async function getBucketListItemsAsParticipant(userId: string, personId: 
     .from(bucketListItemPeople)
     .innerJoin(bucketListItems, eq(bucketListItemPeople.bucketItemId, bucketListItems.id))
     .where(and(eq(bucketListItemPeople.personId, personId), eq(bucketListItems.userId, userId)))
-    .orderBy(asc(bucketListItems.createdAt));
+    .orderBy(asc(bucketListItems.createdAt))
 }
 
 /**
@@ -210,15 +210,15 @@ export async function getBucketListItemsAsParticipant(userId: string, personId: 
  * cleanup pass can sweep them.
  */
 export async function uploadImage(userId: string, input: { fileName: string; data: string }) {
-  const rl = checkRateLimit("people.uploadImage", `user:${userId}`, { limit: 20, windowMs: 60_000 });
-  if (!rl.allowed) throw new AppError("TOO_MANY_REQUESTS", "Too many uploads, slow down");
+  const rl = checkRateLimit('people.uploadImage', `user:${userId}`, { limit: 20, windowMs: 60_000 })
+  if (!rl.allowed) throw new AppError('TOO_MANY_REQUESTS', 'Too many uploads, slow down')
 
-  let decoded;
+  let decoded
   try {
-    decoded = decodeImageUpload(input.data);
+    decoded = decodeImageUpload(input.data)
   } catch (err) {
-    if (err instanceof UploadValidationError) throw new AppError("BAD_REQUEST", err.message);
-    throw err;
+    if (err instanceof UploadValidationError) throw new AppError('BAD_REQUEST', err.message)
+    throw err
   }
 
   const [file] = await db
@@ -226,11 +226,11 @@ export async function uploadImage(userId: string, input: { fileName: string; dat
     .values({
       ownerId: userId,
       fileName: input.fileName,
-      mimeType: decoded.mime ?? "application/octet-stream",
+      mimeType: decoded.mime ?? 'application/octet-stream',
       sizeBytes: decoded.buffer.length,
       data: decoded.buffer,
     })
-    .returning({ id: files.id });
-  if (!file) throw new AppError("INTERNAL_SERVER_ERROR", "Failed to store image");
-  return { url: fileUrl(file.id) };
+    .returning({ id: files.id })
+  if (!file) throw new AppError('INTERNAL_SERVER_ERROR', 'Failed to store image')
+  return { url: fileUrl(file.id) }
 }

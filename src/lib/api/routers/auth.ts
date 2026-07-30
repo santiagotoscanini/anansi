@@ -2,9 +2,9 @@
 //
 // Sign-in / sign-up / sign-out / password change are not here — they flow
 // through Auth.js server actions in src/app/auth/actions.ts.
-import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
-import * as authService from "~/server/services/auth";
+import { z } from 'zod'
+import { createTRPCRouter, protectedProcedure } from '../trpc'
+import * as authService from '~/server/services/auth'
 
 export const authRouter = createTRPCRouter({
   me: protectedProcedure.query(({ ctx }) => authService.me(ctx.user.userId)),
@@ -29,8 +29,8 @@ export const authRouter = createTRPCRouter({
     .mutation(({ input, ctx }) => authService.uploadAvatar(ctx.user.userId, input)),
 
   setLocale: protectedProcedure
-    .input(z.object({ locale: z.enum(["en", "es"]) }))
+    .input(z.object({ locale: z.enum(['en', 'es']) }))
     .mutation(({ input, ctx }) => authService.setLocale(ctx.user.userId, input.locale)),
 
   removeAvatar: protectedProcedure.mutation(({ ctx }) => authService.removeAvatar(ctx.user.userId)),
-});
+})

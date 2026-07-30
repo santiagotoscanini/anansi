@@ -65,11 +65,11 @@
   --on-inverse: var(--paper);
 
   /* -------- Type stack — references next/font CSS vars from layout.tsx -------- */
-  --font-brand: var(--font-cormorant), "Cormorant Garamond", Georgia, serif;
-  --font-display: var(--font-instrument-serif), "Instrument Serif", Georgia, serif;
-  --font-text: var(--font-newsreader), "Newsreader", Georgia, serif;
+  --font-brand: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
+  --font-display: var(--font-instrument-serif), 'Instrument Serif', Georgia, serif;
+  --font-text: var(--font-newsreader), 'Newsreader', Georgia, serif;
   --font-ui: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), "JetBrains Mono", ui-monospace, monospace;
+  --font-mono: var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace;
 
   /* -------- Type scale -------- */
   --t-xs: 11px;
@@ -109,7 +109,7 @@
 /* ============================================================
    DARK MODE — warm dark, deep coffee. Same warm hues, inverted.
    ============================================================ */
-[data-theme="dark"] {
+[data-theme='dark'] {
   --paper: oklch(0.16 0.01 50);
   --paper-deep: oklch(0.13 0.01 50);
   --canvas: oklch(0.2 0.011 52);
@@ -166,9 +166,11 @@
     font-size: var(--t-base);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-feature-settings: "ss01", "ss02", "cv11";
+    font-feature-settings: 'ss01', 'ss02', 'cv11';
     text-rendering: optimizeLegibility;
-    transition: background var(--dur-3) var(--ease), color var(--dur-3) var(--ease);
+    transition:
+      background var(--dur-3) var(--ease),
+      color var(--dur-3) var(--ease);
     overflow-x: hidden;
   }
   h1,
@@ -228,7 +230,7 @@
   line-height: 1;
   position: relative;
   white-space: nowrap;
-  font-feature-settings: "kern", "liga", "calt", "swsh";
+  font-feature-settings: 'kern', 'liga', 'calt', 'swsh';
   /* Inherits parent color so the same lockup works on warm-paper light
      panels AND on the inverted ink-background register card. */
   color: inherit;
@@ -288,7 +290,7 @@
   line-height: 0.95;
   vertical-align: baseline;
 }
-[data-theme="dark"] .brand-em {
+[data-theme='dark'] .brand-em {
   color: var(--clay);
 }
 

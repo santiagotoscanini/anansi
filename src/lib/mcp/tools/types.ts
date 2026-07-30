@@ -1,4 +1,4 @@
-import "server-only";
+import 'server-only'
 
 /**
  * Everything a tool needs to act on the caller's behalf.
@@ -9,5 +9,5 @@ import "server-only";
  * synthetic request context, no second validation pass.
  */
 export type McpCtx = {
-  userId: string;
-};
+  userId: string
+}

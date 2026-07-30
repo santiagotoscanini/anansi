@@ -1,7 +1,7 @@
-"use client";
+'use client'
 
-import { useMemo, useRef, useState } from "react";
-import NextImage from "next/image";
+import { useMemo, useRef, useState } from 'react'
+import NextImage from 'next/image'
 import {
   CalendarDays,
   ChevronDown,
@@ -13,23 +13,23 @@ import {
   Trash2,
   Users,
   Check,
-} from "lucide-react";
-import toast from "react-hot-toast";
-import { useTranslation } from "react-i18next";
-import { useGoals } from "~/contexts/GoalsContext";
-import { api, type RouterOutputs } from "~/trpc/react";
-import { bucketForDate, formatScheduledShort } from "~/lib/horizon-period";
-import Avatar from "./Avatar";
-import { Btn, Card, Eyebrow, SecLabel } from "./ui";
+} from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
+import { useGoals } from '~/contexts/GoalsContext'
+import { api, type RouterOutputs } from '~/trpc/react'
+import { bucketForDate, formatScheduledShort } from '~/lib/horizon-period'
+import Avatar from './Avatar'
+import { Btn, Card, Eyebrow, SecLabel } from './ui'
 
-type WeeklyRetroData = RouterOutputs["goals"]["weeklySync"]["getWeeklyRetrospectiveData"];
+type WeeklyRetroData = RouterOutputs['goals']['weeklySync']['getWeeklyRetrospectiveData']
 
 // "Pulse" — the warm daily landing. Header reads as a journal entry
 // (eyebrow + display headline with inline italic clay accent), body is
 // a flat list of this week's prompts. Heavy management still lives on
 // the Sync tab.
 export default function Pulse() {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
   const {
     goals,
     getWeekStartDate,
@@ -39,53 +39,53 @@ export default function Pulse() {
     uploadWeeklySyncFile,
     deleteWeeklySyncFile,
     refreshWeeklyRetrospectiveData,
-  } = useGoals();
+  } = useGoals()
 
-  const peopleQuery = api.goals.people.getAll.useQuery();
-  const importantDatesQuery = api.goals.importantDates.list.useQuery();
-  const upcomingBidsQuery = api.goals.nextBids.listUpcoming.useQuery();
-  const [showYearlySection, setShowYearlySection] = useState(false);
+  const peopleQuery = api.goals.people.getAll.useQuery()
+  const importantDatesQuery = api.goals.importantDates.list.useQuery()
+  const upcomingBidsQuery = api.goals.nextBids.listUpcoming.useQuery()
+  const [showYearlySection, setShowYearlySection] = useState(false)
 
-  const [weekStart] = useState<Date>(() => getWeekStartDate(new Date()));
-  const query = getWeeklyRetrospectiveData(weekStart);
-  const data: WeeklyRetroData | undefined = query.data;
-  const weeklySync = data?.weeklySync;
+  const [weekStart] = useState<Date>(() => getWeekStartDate(new Date()))
+  const query = getWeeklyRetrospectiveData(weekStart)
+  const data: WeeklyRetroData | undefined = query.data
+  const weeklySync = data?.weeklySync
 
   const items = useMemo(() => {
-    if (!data) return [];
+    if (!data) return []
     const flat = [
       ...data.goals.flatMap((g) => g.items.map((it) => ({ ...it, goalTitle: g.title }))),
       ...data.unscopedItems.map((it) => ({ ...it, goalTitle: null as string | null })),
-    ];
+    ]
     return flat.sort((a, b) => {
-      const order = a.orderIdx - b.orderIdx;
-      return order !== 0 ? order : a.createdAt.getTime() - b.createdAt.getTime();
-    });
-  }, [data]);
+      const order = a.orderIdx - b.orderIdx
+      return order !== 0 ? order : a.createdAt.getTime() - b.createdAt.getTime()
+    })
+  }, [data])
 
-  const filled = items.filter((it) => (it.textContent ?? "").trim().length > 0 || it.attachments.length > 0);
-  const progress = items.length === 0 ? 0 : Math.round((filled.length / items.length) * 100);
+  const filled = items.filter((it) => (it.textContent ?? '').trim().length > 0 || it.attachments.length > 0)
+  const progress = items.length === 0 ? 0 : Math.round((filled.length / items.length) * 100)
 
   // Horizon bucket math — see horizon-period.ts. month/quarter render
   // inline, year stays collapsed by default.
   const horizonBuckets = useMemo(() => {
     type FlatTask = {
-      id: string;
-      title: string;
-      goalId: string;
-      goalTitle: string;
-      goalEmoji: string | undefined;
-      scheduledAt: Date;
-    };
-    const now = new Date();
-    const month: FlatTask[] = [];
-    const quarter: FlatTask[] = [];
-    const year: FlatTask[] = [];
+      id: string
+      title: string
+      goalId: string
+      goalTitle: string
+      goalEmoji: string | undefined
+      scheduledAt: Date
+    }
+    const now = new Date()
+    const month: FlatTask[] = []
+    const quarter: FlatTask[] = []
+    const year: FlatTask[] = []
     for (const g of goals) {
       for (const task of g.tasks) {
-        if (task.completed || !task.scheduledAt) continue;
-        const at = new Date(task.scheduledAt);
-        const b = bucketForDate(at, now);
+        if (task.completed || !task.scheduledAt) continue
+        const at = new Date(task.scheduledAt)
+        const b = bucketForDate(at, now)
         const flat: FlatTask = {
           id: task.id,
           title: task.title,
@@ -93,230 +93,230 @@ export default function Pulse() {
           goalTitle: g.title,
           goalEmoji: g.emoji,
           scheduledAt: at,
-        };
-        if (b === "month") month.push(flat);
-        else if (b === "quarter") quarter.push(flat);
-        else if (b === "year") year.push(flat);
+        }
+        if (b === 'month') month.push(flat)
+        else if (b === 'quarter') quarter.push(flat)
+        else if (b === 'year') year.push(flat)
       }
     }
     const byDate = (a: FlatTask, b: FlatTask) =>
-      a.scheduledAt.getTime() - b.scheduledAt.getTime() || a.title.localeCompare(b.title);
-    month.sort(byDate);
-    quarter.sort(byDate);
-    year.sort(byDate);
-    return { month, quarter, year };
-  }, [goals]);
+      a.scheduledAt.getTime() - b.scheduledAt.getTime() || a.title.localeCompare(b.title)
+    month.sort(byDate)
+    quarter.sort(byDate)
+    year.sort(byDate)
+    return { month, quarter, year }
+  }, [goals])
 
   // People needing attention — same logic as before, just colored warm.
-  const peopleRows = peopleQuery.data ?? [];
+  const peopleRows = peopleQuery.data ?? []
   type AttentionReason =
-    | { kind: "overdue"; daysOverdue: number; decideBy: Date }
-    | { kind: "due-soon"; daysUntil: number; decideBy: Date }
-    | { kind: "exploring-no-date" }
-    | { kind: "inbox" };
-  type AttentionRow = { person: (typeof peopleRows)[number]; reason: AttentionReason };
-  const attentionRows: AttentionRow[] = [];
+    | { kind: 'overdue'; daysOverdue: number; decideBy: Date }
+    | { kind: 'due-soon'; daysUntil: number; decideBy: Date }
+    | { kind: 'exploring-no-date' }
+    | { kind: 'inbox' }
+  type AttentionRow = { person: (typeof peopleRows)[number]; reason: AttentionReason }
+  const attentionRows: AttentionRow[] = []
   // eslint-disable-next-line react-hooks/purity -- comparison only; intentional fresh `now`
-  const nowMs = Date.now();
-  const fortnightMs = 14 * 24 * 60 * 60 * 1000;
+  const nowMs = Date.now()
+  const fortnightMs = 14 * 24 * 60 * 60 * 1000
   for (const p of peopleRows) {
-    if (p.archivedAt !== null) continue;
-    if (p.category === "to_process") {
-      attentionRows.push({ person: p, reason: { kind: "inbox" } });
-      continue;
+    if (p.archivedAt !== null) continue
+    if (p.category === 'to_process') {
+      attentionRows.push({ person: p, reason: { kind: 'inbox' } })
+      continue
     }
-    if (p.category === "exploring") {
+    if (p.category === 'exploring') {
       if (!p.decideBy) {
-        attentionRows.push({ person: p, reason: { kind: "exploring-no-date" } });
-        continue;
+        attentionRows.push({ person: p, reason: { kind: 'exploring-no-date' } })
+        continue
       }
-      const decideBy = new Date(p.decideBy);
-      const diff = decideBy.getTime() - nowMs;
+      const decideBy = new Date(p.decideBy)
+      const diff = decideBy.getTime() - nowMs
       if (diff < 0) {
         attentionRows.push({
           person: p,
-          reason: { kind: "overdue", daysOverdue: Math.ceil(-diff / (24 * 60 * 60 * 1000)), decideBy },
-        });
+          reason: { kind: 'overdue', daysOverdue: Math.ceil(-diff / (24 * 60 * 60 * 1000)), decideBy },
+        })
       } else if (diff <= fortnightMs) {
         attentionRows.push({
           person: p,
-          reason: { kind: "due-soon", daysUntil: Math.round(diff / (24 * 60 * 60 * 1000)), decideBy },
-        });
+          reason: { kind: 'due-soon', daysUntil: Math.round(diff / (24 * 60 * 60 * 1000)), decideBy },
+        })
       }
     }
   }
   const reasonRank = (r: AttentionReason): number => {
-    if (r.kind === "overdue") return 0;
-    if (r.kind === "due-soon") return 1;
-    if (r.kind === "exploring-no-date") return 2;
-    return 3;
-  };
+    if (r.kind === 'overdue') return 0
+    if (r.kind === 'due-soon') return 1
+    if (r.kind === 'exploring-no-date') return 2
+    return 3
+  }
   attentionRows.sort((a, b) => {
-    const r = reasonRank(a.reason) - reasonRank(b.reason);
-    if (r !== 0) return r;
-    const aDate = "decideBy" in a.reason ? a.reason.decideBy.getTime() : Number.POSITIVE_INFINITY;
-    const bDate = "decideBy" in b.reason ? b.reason.decideBy.getTime() : Number.POSITIVE_INFINITY;
-    return aDate - bDate || a.person.name.localeCompare(b.person.name);
-  });
+    const r = reasonRank(a.reason) - reasonRank(b.reason)
+    if (r !== 0) return r
+    const aDate = 'decideBy' in a.reason ? a.reason.decideBy.getTime() : Number.POSITIVE_INFINITY
+    const bDate = 'decideBy' in b.reason ? b.reason.decideBy.getTime() : Number.POSITIVE_INFINITY
+    return aDate - bDate || a.person.name.localeCompare(b.person.name)
+  })
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const personById = new Map(peopleRows.map((p) => [p.id, p]));
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const personById = new Map(peopleRows.map((p) => [p.id, p]))
   const upcomingDates = (importantDatesQuery.data ?? [])
     .map((d) => {
-      const thisYear = new Date(today.getFullYear(), d.month - 1, d.day);
+      const thisYear = new Date(today.getFullYear(), d.month - 1, d.day)
       const next =
-        thisYear.getTime() < today.getTime() ? new Date(today.getFullYear() + 1, d.month - 1, d.day) : thisYear;
-      const daysUntil = Math.round((next.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
-      const turning = d.year ? next.getFullYear() - d.year : null;
-      return { ...d, next, daysUntil, turning, person: personById.get(d.personId) };
+        thisYear.getTime() < today.getTime() ? new Date(today.getFullYear() + 1, d.month - 1, d.day) : thisYear
+      const daysUntil = Math.round((next.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
+      const turning = d.year ? next.getFullYear() - d.year : null
+      return { ...d, next, daysUntil, turning, person: personById.get(d.personId) }
     })
     .filter((d) => d.daysUntil >= 0 && d.daysUntil <= 30 && d.person?.archivedAt === null)
-    .sort((a, b) => a.daysUntil - b.daysUntil);
+    .sort((a, b) => a.daysUntil - b.daysUntil)
 
   type UpcomingRow =
-    | { kind: "date"; id: string; date: Date; daysUntil: number; person: string; label: string; turning: number | null }
+    | { kind: 'date'; id: string; date: Date; daysUntil: number; person: string; label: string; turning: number | null }
     | {
-        kind: "bid";
-        id: string;
-        date: Date;
-        daysUntil: number;
-        person: string;
-        personEmoji: string | null;
-        content: string;
-      };
-  const upcomingFeed: UpcomingRow[] = [];
+        kind: 'bid'
+        id: string
+        date: Date
+        daysUntil: number
+        person: string
+        personEmoji: string | null
+        content: string
+      }
+  const upcomingFeed: UpcomingRow[] = []
   for (const d of upcomingDates) {
-    if (!d.person) continue;
+    if (!d.person) continue
     upcomingFeed.push({
-      kind: "date",
+      kind: 'date',
       id: `date:${d.id}`,
       date: d.next,
       daysUntil: d.daysUntil,
       person: d.person.name,
       label: d.label,
       turning: d.turning,
-    });
+    })
   }
   for (const b of upcomingBidsQuery.data ?? []) {
-    if (!b.dueAt) continue;
-    const due = new Date(b.dueAt);
-    const daysUntil = Math.round((due.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+    if (!b.dueAt) continue
+    const due = new Date(b.dueAt)
+    const daysUntil = Math.round((due.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
     upcomingFeed.push({
-      kind: "bid",
+      kind: 'bid',
       id: `bid:${b.id}`,
       date: due,
       daysUntil,
       person: b.personName,
       personEmoji: b.personEmoji,
       content: b.content,
-    });
+    })
   }
-  upcomingFeed.sort((a, b) => a.date.getTime() - b.date.getTime());
+  upcomingFeed.sort((a, b) => a.date.getTime() - b.date.getTime())
 
   const handleStart = async () => {
     try {
-      await createWeeklySync(weekStart);
+      await createWeeklySync(weekStart)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("pulse.startFailed"));
+      toast.error(err instanceof Error ? err.message : t('pulse.startFailed'))
     }
-  };
+  }
 
   const formatRange = (start: Date) => {
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-    return `${fmt(start)} – ${fmt(end)}, ${start.getFullYear()}`;
-  };
+    const end = new Date(start)
+    end.setDate(end.getDate() + 6)
+    const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    return `${fmt(start)} – ${fmt(end)}, ${start.getFullYear()}`
+  }
 
   const greeting = (() => {
-    const h = new Date().getHours();
-    if (h < 5) return t("pulse.greetingLate");
-    if (h < 12) return t("pulse.greetingMorning");
-    if (h < 18) return t("pulse.greetingAfternoon");
-    return t("pulse.greetingEvening");
-  })();
+    const h = new Date().getHours()
+    if (h < 5) return t('pulse.greetingLate')
+    if (h < 12) return t('pulse.greetingMorning')
+    if (h < 18) return t('pulse.greetingAfternoon')
+    return t('pulse.greetingEvening')
+  })()
 
   const formatDaysUntil = (daysUntil: number): string => {
-    if (daysUntil === 0) return t("pulse.today");
-    if (daysUntil < 0) return t("pulse.daysOverdue", { count: -daysUntil });
-    if (daysUntil === 1) return t("pulse.tomorrow");
-    return t("pulse.inDays", { count: daysUntil });
-  };
+    if (daysUntil === 0) return t('pulse.today')
+    if (daysUntil < 0) return t('pulse.daysOverdue', { count: -daysUntil })
+    if (daysUntil === 1) return t('pulse.tomorrow')
+    return t('pulse.inDays', { count: daysUntil })
+  }
 
   if (query.isLoading) {
     return (
-      <div className="flex h-full items-center justify-center" style={{ color: "var(--ink-3)" }}>
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("pulse.loading")}
+      <div className="flex h-full items-center justify-center" style={{ color: 'var(--ink-3)' }}>
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t('pulse.loading')}
       </div>
-    );
+    )
   }
 
   return (
-    <div className="h-full overflow-y-auto" style={{ background: "var(--paper)" }}>
+    <div className="h-full overflow-y-auto" style={{ background: 'var(--paper)' }}>
       {/* Pulse hero — eyebrow + warm headline + italic Newsreader subtitle */}
       <header
         className="px-6 pb-7 pt-10 md:px-12 md:pb-8 md:pt-14"
-        style={{ borderBottom: "1px solid var(--hairline)" }}
+        style={{ borderBottom: '1px solid var(--hairline)' }}
       >
         <div className="mx-auto flex max-w-5xl flex-wrap items-baseline justify-between gap-6">
           <div className="min-w-0 flex-1">
             <Eyebrow>
-              {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })} ·{" "}
+              {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} ·{' '}
               {formatRange(weekStart)}
             </Eyebrow>
             <h1
               style={{
-                fontFamily: "var(--font-display)",
+                fontFamily: 'var(--font-display)',
                 fontSize: 52,
                 lineHeight: 1.18,
-                letterSpacing: "-0.02em",
-                color: "var(--ink)",
+                letterSpacing: '-0.02em',
+                color: 'var(--ink)',
                 paddingBottom: 8,
               }}
             >
-              {greeting}, <span className="brand-em">{t("pulse.greetingSuffix")}</span>
+              {greeting}, <span className="brand-em">{t('pulse.greetingSuffix')}</span>
             </h1>
             <p
               style={{
-                fontFamily: "var(--font-text)",
-                fontStyle: "italic",
+                fontFamily: 'var(--font-text)',
+                fontStyle: 'italic',
                 fontSize: 19,
-                color: "var(--ink-2)",
+                color: 'var(--ink-2)',
                 marginTop: 12,
                 lineHeight: 1.4,
                 maxWidth: 580,
               }}
             >
-              {t("pulse.subtitle")}
+              {t('pulse.subtitle')}
             </p>
           </div>
           {weeklySync && items.length > 0 && (
             <div className="flex flex-col items-end gap-2">
               <div
                 className="flex items-center gap-3"
-                style={{ color: "var(--ink-3)", fontSize: 11, fontFamily: "var(--font-mono)" }}
+                style={{ color: 'var(--ink-3)', fontSize: 11, fontFamily: 'var(--font-mono)' }}
               >
                 <span>
-                  <span style={{ color: "var(--ink)" }}>{filled.length}</span>/{items.length}{" "}
-                  {t("pulse.filledProgress")}
+                  <span style={{ color: 'var(--ink)' }}>{filled.length}</span>/{items.length}{' '}
+                  {t('pulse.filledProgress')}
                 </span>
                 <span
                   style={{
                     width: 96,
                     height: 4,
-                    background: "var(--vellum)",
+                    background: 'var(--vellum)',
                     borderRadius: 99,
-                    overflow: "hidden",
+                    overflow: 'hidden',
                   }}
                 >
                   <span
                     style={{
-                      display: "block",
+                      display: 'block',
                       width: `${progress}%`,
-                      height: "100%",
-                      background: "var(--clay)",
-                      transition: "width var(--dur-3) var(--ease)",
+                      height: '100%',
+                      background: 'var(--clay)',
+                      transition: 'width var(--dur-3) var(--ease)',
                     }}
                   />
                 </span>
@@ -332,24 +332,24 @@ export default function Pulse() {
           (1.4fr / 1fr at desktop, single-column on mobile). */}
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-0 px-0 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         {/* LEFT — the week so far */}
-        <section className="px-6 py-7 md:px-10" style={{ borderRight: "1px solid var(--hairline)" }}>
+        <section className="px-6 py-7 md:px-10" style={{ borderRight: '1px solid var(--hairline)' }}>
           <div className="mb-4 flex items-baseline justify-between">
-            <SecLabel>{t("pulse.weekSoFar")}</SecLabel>
+            <SecLabel>{t('pulse.weekSoFar')}</SecLabel>
             {weeklySync && (
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink-3)" }}>
-                {t("pulse.autoSaved")}
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}>
+                {t('pulse.autoSaved')}
               </span>
             )}
           </div>
 
           {!weeklySync ? (
             <EmptyState
-              title={t("pulse.emptyNoSyncTitle")}
-              body={t("pulse.emptyNoSyncBody")}
-              cta={{ label: t("pulse.startThisWeek"), onClick: () => void handleStart() }}
+              title={t('pulse.emptyNoSyncTitle')}
+              body={t('pulse.emptyNoSyncBody')}
+              cta={{ label: t('pulse.startThisWeek'), onClick: () => void handleStart() }}
             />
           ) : items.length === 0 ? (
-            <EmptyState title={t("pulse.emptyNoItemsTitle")} body={t("pulse.emptyNoItemsBody")} />
+            <EmptyState title={t('pulse.emptyNoItemsTitle')} body={t('pulse.emptyNoItemsBody')} />
           ) : (
             <ul className="space-y-3">
               {items.map((it) => (
@@ -364,19 +364,19 @@ export default function Pulse() {
                   }
                   onUploadImages={async (files) => {
                     for (const file of Array.from(files)) {
-                      const reader = new FileReader();
+                      const reader = new FileReader()
                       const data = await new Promise<string>((resolve, reject) => {
-                        reader.onload = () => resolve(reader.result as string);
-                        reader.onerror = reject;
-                        reader.readAsDataURL(file);
-                      });
-                      await uploadWeeklySyncFile(data, weeklySync.id, it.trackingItemId, file.name, "image", false);
+                        reader.onload = () => resolve(reader.result as string)
+                        reader.onerror = reject
+                        reader.readAsDataURL(file)
+                      })
+                      await uploadWeeklySyncFile(data, weeklySync.id, it.trackingItemId, file.name, 'image', false)
                     }
-                    await refreshWeeklyRetrospectiveData();
+                    await refreshWeeklyRetrospectiveData()
                   }}
                   onDeleteAttachment={async (id) => {
-                    await deleteWeeklySyncFile(id);
-                    await refreshWeeklyRetrospectiveData();
+                    await deleteWeeklySyncFile(id)
+                    await refreshWeeklyRetrospectiveData()
                   }}
                 />
               ))}
@@ -385,64 +385,64 @@ export default function Pulse() {
         </section>
 
         {/* RIGHT — paper-deep sidebar with Upcoming feed + On the horizon */}
-        <aside className="px-6 py-7 md:px-8" style={{ background: "var(--paper-deep)" }}>
+        <aside className="px-6 py-7 md:px-8" style={{ background: 'var(--paper-deep)' }}>
           {/* Upcoming — important dates + bids */}
           {upcomingFeed.length > 0 && (
             <>
               <div className="mb-2 flex items-center gap-2">
-                <CalendarDays className="h-3.5 w-3.5" style={{ color: "var(--ink-3)" }} />
-                <SecLabel>{t("pulse.upcoming")}</SecLabel>
+                <CalendarDays className="h-3.5 w-3.5" style={{ color: 'var(--ink-3)' }} />
+                <SecLabel>{t('pulse.upcoming')}</SecLabel>
               </div>
               <p
                 className="mb-4"
                 style={{
-                  fontFamily: "var(--font-text)",
-                  fontStyle: "italic",
+                  fontFamily: 'var(--font-text)',
+                  fontStyle: 'italic',
                   fontSize: 13,
-                  color: "var(--ink-3)",
+                  color: 'var(--ink-3)',
                 }}
               >
-                {t("pulse.upcomingHelp")}
+                {t('pulse.upcomingHelp')}
               </p>
               <ul>
                 {upcomingFeed.map((row, i) => (
                   <li
                     key={row.id}
                     className="flex items-start gap-3 py-3"
-                    style={{ borderBottom: i === upcomingFeed.length - 1 ? "none" : "1px solid var(--hairline)" }}
+                    style={{ borderBottom: i === upcomingFeed.length - 1 ? 'none' : '1px solid var(--hairline)' }}
                   >
-                    {row.kind === "date" ? (
+                    {row.kind === 'date' ? (
                       <span
                         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
-                        style={{ background: "var(--amber-soft)", color: "var(--amber)" }}
-                        title={t("pulse.importantDateTitle")}
+                        style={{ background: 'var(--amber-soft)', color: 'var(--amber)' }}
+                        title={t('pulse.importantDateTitle')}
                       >
                         <CalendarDays className="h-3 w-3" />
                       </span>
                     ) : (
                       <span
                         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
-                        style={{ background: "var(--plum-soft)", color: "var(--plum)" }}
-                        title={t("pulse.bidTitle")}
+                        style={{ background: 'var(--plum-soft)', color: 'var(--plum)' }}
+                        title={t('pulse.bidTitle')}
                       >
                         <Gift className="h-3 w-3" />
                       </span>
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px]" style={{ color: "var(--ink)", fontWeight: 500 }}>
-                        {row.kind === "date" ? row.label : row.content}
-                        {row.kind === "date" && row.turning !== null && row.turning > 0 && (
-                          <span className="ml-1.5" style={{ fontSize: 11, color: "var(--ink-3)", fontWeight: 400 }}>
-                            · {t("pulse.turning", { n: row.turning })}
+                      <div className="text-[13px]" style={{ color: 'var(--ink)', fontWeight: 500 }}>
+                        {row.kind === 'date' ? row.label : row.content}
+                        {row.kind === 'date' && row.turning !== null && row.turning > 0 && (
+                          <span className="ml-1.5" style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 400 }}>
+                            · {t('pulse.turning', { n: row.turning })}
                           </span>
                         )}
                       </div>
-                      <div className="mt-0.5 text-xs" style={{ color: "var(--ink-3)" }}>
-                        {row.person} ·{" "}
+                      <div className="mt-0.5 text-xs" style={{ color: 'var(--ink-3)' }}>
+                        {row.person} ·{' '}
                         <span
                           style={{
                             color:
-                              row.daysUntil <= 0 ? "var(--rust)" : row.daysUntil <= 3 ? "var(--clay)" : "var(--ink-3)",
+                              row.daysUntil <= 0 ? 'var(--rust)' : row.daysUntil <= 3 ? 'var(--clay)' : 'var(--ink-3)',
                           }}
                         >
                           {formatDaysUntil(row.daysUntil)}
@@ -457,10 +457,10 @@ export default function Pulse() {
 
           {/* On the horizon — bucketed tasks */}
           {(horizonBuckets.month.length > 0 || horizonBuckets.quarter.length > 0 || horizonBuckets.year.length > 0) && (
-            <div className={upcomingFeed.length > 0 ? "mt-8" : ""}>
+            <div className={upcomingFeed.length > 0 ? 'mt-8' : ''}>
               <div className="mb-3 flex items-center gap-2">
-                <Hourglass className="h-3.5 w-3.5" style={{ color: "var(--ink-3)" }} />
-                <SecLabel>{t("pulse.onTheHorizon")}</SecLabel>
+                <Hourglass className="h-3.5 w-3.5" style={{ color: 'var(--ink-3)' }} />
+                <SecLabel>{t('pulse.onTheHorizon')}</SecLabel>
               </div>
 
               {horizonBuckets.month.length > 0 && (
@@ -469,17 +469,17 @@ export default function Pulse() {
                     <span
                       className="inline-flex items-center gap-2"
                       style={{
-                        fontFamily: "var(--font-mono)",
+                        fontFamily: 'var(--font-mono)',
                         fontSize: 10,
-                        color: "var(--clay)",
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
+                        color: 'var(--clay)',
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
                       }}
                     >
-                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--clay)" }} />
-                      {t("pulse.thisMonth")}
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--clay)' }} />
+                      {t('pulse.thisMonth')}
                     </span>
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink-2)" }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
                       {horizonBuckets.month.length}
                     </span>
                   </div>
@@ -487,15 +487,15 @@ export default function Pulse() {
                     <div
                       key={task.id}
                       className="flex items-center gap-2 py-1 text-[13px]"
-                      style={{ color: "var(--ink)" }}
+                      style={{ color: 'var(--ink)' }}
                     >
-                      {task.goalEmoji && !task.goalEmoji.startsWith("http") && (
+                      {task.goalEmoji && !task.goalEmoji.startsWith('http') && (
                         <span className="leading-none">{task.goalEmoji}</span>
                       )}
                       <span className="min-w-0 flex-1 truncate">{task.title}</span>
                       <span
                         className="shrink-0 tabular-nums"
-                        style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink-3)" }}
+                        style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}
                       >
                         {formatScheduledShort(task.scheduledAt)}
                       </span>
@@ -509,13 +509,13 @@ export default function Pulse() {
                   onClick={() => setShowYearlySection(false)}
                   className="mb-1.5 flex w-full items-center gap-2 rounded-lg px-3.5 py-2.5 text-xs"
                   style={{
-                    border: "1px dashed var(--hairline-2)",
-                    color: "var(--ink-3)",
-                    background: "transparent",
+                    border: '1px dashed var(--hairline-2)',
+                    color: 'var(--ink-3)',
+                    background: 'transparent',
                   }}
                 >
-                  <ChevronRight className="h-3 w-3" />{" "}
-                  {t("pulse.thisQuarter", { count: horizonBuckets.quarter.length })}
+                  <ChevronRight className="h-3 w-3" />{' '}
+                  {t('pulse.thisQuarter', { count: horizonBuckets.quarter.length })}
                 </button>
               )}
 
@@ -524,13 +524,13 @@ export default function Pulse() {
                   onClick={() => setShowYearlySection((v) => !v)}
                   className="flex w-full items-center gap-2 rounded-lg px-3.5 py-2.5 text-xs"
                   style={{
-                    border: "1px dashed var(--hairline-2)",
-                    color: "var(--ink-3)",
-                    background: "transparent",
+                    border: '1px dashed var(--hairline-2)',
+                    color: 'var(--ink-3)',
+                    background: 'transparent',
                   }}
                 >
-                  {showYearlySection ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}{" "}
-                  {t("pulse.thisYear", { count: horizonBuckets.year.length })}
+                  {showYearlySection ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}{' '}
+                  {t('pulse.thisYear', { count: horizonBuckets.year.length })}
                 </button>
               )}
 
@@ -540,15 +540,15 @@ export default function Pulse() {
                     <div
                       key={task.id}
                       className="flex items-center gap-2 py-1 text-[13px]"
-                      style={{ color: "var(--ink)" }}
+                      style={{ color: 'var(--ink)' }}
                     >
-                      {task.goalEmoji && !task.goalEmoji.startsWith("http") && (
+                      {task.goalEmoji && !task.goalEmoji.startsWith('http') && (
                         <span className="leading-none">{task.goalEmoji}</span>
                       )}
                       <span className="min-w-0 flex-1 truncate">{task.title}</span>
                       <span
                         className="shrink-0 tabular-nums"
-                        style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--ink-3)" }}
+                        style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}
                       >
                         {formatScheduledShort(task.scheduledAt)}
                       </span>
@@ -569,30 +569,30 @@ export default function Pulse() {
           <section>
             <div className="mb-4 flex items-baseline justify-between">
               <div className="flex items-center gap-2">
-                <Users className="h-3.5 w-3.5" style={{ color: "var(--ink-3)" }} />
-                <SecLabel>{t("pulse.peopleAttention")}</SecLabel>
+                <Users className="h-3.5 w-3.5" style={{ color: 'var(--ink-3)' }} />
+                <SecLabel>{t('pulse.peopleAttention')}</SecLabel>
               </div>
             </div>
             <ul className="space-y-2">
               {attentionRows.map(({ person, reason }) => {
                 const accentStyle =
-                  reason.kind === "overdue"
-                    ? { borderColor: "var(--rust)", background: "var(--rust-soft)", textColor: "var(--rust)" }
-                    : reason.kind === "due-soon"
-                      ? { borderColor: "var(--amber)", background: "var(--amber-soft)", textColor: "var(--amber)" }
-                      : { borderColor: "var(--hairline-2)", background: "var(--canvas)", textColor: "var(--ink-2)" };
+                  reason.kind === 'overdue'
+                    ? { borderColor: 'var(--rust)', background: 'var(--rust-soft)', textColor: 'var(--rust)' }
+                    : reason.kind === 'due-soon'
+                      ? { borderColor: 'var(--amber)', background: 'var(--amber-soft)', textColor: 'var(--amber)' }
+                      : { borderColor: 'var(--hairline-2)', background: 'var(--canvas)', textColor: 'var(--ink-2)' }
                 const reasonLabel =
-                  reason.kind === "overdue"
-                    ? t("pulse.decisionOverdue", { count: reason.daysOverdue })
-                    : reason.kind === "due-soon"
+                  reason.kind === 'overdue'
+                    ? t('pulse.decisionOverdue', { count: reason.daysOverdue })
+                    : reason.kind === 'due-soon'
                       ? reason.daysUntil === 0
-                        ? t("pulse.decisionDueToday")
+                        ? t('pulse.decisionDueToday')
                         : reason.daysUntil === 1
-                          ? t("pulse.decisionDueTomorrow")
-                          : t("pulse.decisionDueIn", { count: reason.daysUntil })
-                      : reason.kind === "exploring-no-date"
-                        ? t("pulse.exploringNoDate")
-                        : t("pulse.inboxToProcess");
+                          ? t('pulse.decisionDueTomorrow')
+                          : t('pulse.decisionDueIn', { count: reason.daysUntil })
+                      : reason.kind === 'exploring-no-date'
+                        ? t('pulse.exploringNoDate')
+                        : t('pulse.inboxToProcess')
                 return (
                   <li
                     key={person.id}
@@ -604,70 +604,70 @@ export default function Pulse() {
                   >
                     <Avatar name={person.name} emoji={person.emoji} size="sm" shape="circle" />
                     <span className="min-w-0 flex-1">
-                      <span style={{ color: "var(--ink)" }}>{person.name}</span>
-                      <span style={{ color: "var(--ink-4)", margin: "0 6px" }}>·</span>
+                      <span style={{ color: 'var(--ink)' }}>{person.name}</span>
+                      <span style={{ color: 'var(--ink-4)', margin: '0 6px' }}>·</span>
                       <span style={{ color: accentStyle.textColor }}>{reasonLabel}</span>
                     </span>
                   </li>
-                );
+                )
               })}
             </ul>
           </section>
         )}
       </div>
     </div>
-  );
+  )
 }
 
 interface PulseItemProps {
   item: {
-    id: string;
-    trackingItemId: string;
-    title: string;
-    description: string | null;
-    textContent: string | null;
-    attachments: { id: string; fileName: string; url: string; createdAt: Date }[];
-    goalTitle: string | null;
-  };
-  weeklySyncId: string;
-  onSaveText: (content: string) => Promise<void> | void;
-  onUploadImages: (files: FileList) => Promise<void>;
-  onDeleteAttachment: (id: string) => Promise<void>;
+    id: string
+    trackingItemId: string
+    title: string
+    description: string | null
+    textContent: string | null
+    attachments: { id: string; fileName: string; url: string; createdAt: Date }[]
+    goalTitle: string | null
+  }
+  weeklySyncId: string
+  onSaveText: (content: string) => Promise<void> | void
+  onUploadImages: (files: FileList) => Promise<void>
+  onDeleteAttachment: (id: string) => Promise<void>
 }
 
 function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: PulseItemProps) {
-  const { t } = useTranslation();
-  const [text, setText] = useState(item.textContent ?? "");
-  const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
-  const timer = useRef<NodeJS.Timeout | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { t } = useTranslation()
+  const [text, setText] = useState(item.textContent ?? '')
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const timer = useRef<NodeJS.Timeout | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const handleChange = (next: string) => {
-    setText(next);
-    setStatus("saving");
-    if (timer.current) clearTimeout(timer.current);
+    setText(next)
+    setStatus('saving')
+    if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       void Promise.resolve(onSaveText(next))
-        .then(() => setStatus("saved"))
+        .then(() => setStatus('saved'))
         .catch((err: unknown) => {
-          toast.error(err instanceof Error ? err.message : t("pulse.saveFailed"));
-          setStatus("idle");
-        });
-    }, 700);
-  };
+          toast.error(err instanceof Error ? err.message : t('pulse.saveFailed'))
+          setStatus('idle')
+        })
+    }, 700)
+  }
 
-  const isFilled = text.trim().length > 0 || item.attachments.length > 0;
+  const isFilled = text.trim().length > 0 || item.attachments.length > 0
 
   return (
-    <Card pad={18} style={{ background: "var(--canvas)" }}>
+    <Card pad={18} style={{ background: 'var(--canvas)' }}>
       <div className="flex items-start gap-3">
         <span
           className="mt-1 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full"
           style={{
-            border: `1.5px solid ${isFilled ? "var(--moss)" : "var(--ink-4)"}`,
-            background: isFilled ? "var(--moss)" : "transparent",
-            color: "var(--paper)",
-            transition: "background var(--dur-1) var(--ease)",
+            border: `1.5px solid ${isFilled ? 'var(--moss)' : 'var(--ink-4)'}`,
+            background: isFilled ? 'var(--moss)' : 'transparent',
+            color: 'var(--paper)',
+            transition: 'background var(--dur-1) var(--ease)',
           }}
         >
           {isFilled && <Check size={13} />}
@@ -676,10 +676,10 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
           <div className="flex flex-wrap items-baseline gap-2">
             <h3
               style={{
-                fontFamily: "var(--font-display)",
+                fontFamily: 'var(--font-display)',
                 fontSize: 19,
                 lineHeight: 1.3,
-                color: "var(--ink)",
+                color: 'var(--ink)',
               }}
             >
               {item.title}
@@ -688,11 +688,11 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
               <span
                 className="rounded-full px-2 py-0.5"
                 style={{
-                  background: "var(--clay-soft)",
-                  color: "var(--clay-deep)",
+                  background: 'var(--clay-soft)',
+                  color: 'var(--clay-deep)',
                   fontSize: 10,
-                  letterSpacing: "0.04em",
-                  textTransform: "uppercase",
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
                   fontWeight: 500,
                 }}
               >
@@ -702,34 +702,34 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
               <span
                 className="rounded-full px-2 py-0.5"
                 style={{
-                  background: "var(--vellum)",
-                  color: "var(--ink-3)",
+                  background: 'var(--vellum)',
+                  color: 'var(--ink-3)',
                   fontSize: 10,
-                  letterSpacing: "0.04em",
-                  textTransform: "uppercase",
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
                   fontWeight: 500,
                 }}
               >
-                {t("pulse.unscoped")}
+                {t('pulse.unscoped')}
               </span>
             )}
-            <div className="ml-auto shrink-0 text-xs" style={{ color: "var(--ink-3)" }}>
-              {status === "saving" && (
+            <div className="ml-auto shrink-0 text-xs" style={{ color: 'var(--ink-3)' }}>
+              {status === 'saving' && (
                 <span className="flex items-center gap-1">
-                  <Loader2 className="h-3 w-3 animate-spin" /> {t("pulse.saving")}
+                  <Loader2 className="h-3 w-3 animate-spin" /> {t('pulse.saving')}
                 </span>
               )}
-              {status === "saved" && <span style={{ color: "var(--moss)" }}>{t("pulse.saved")}</span>}
+              {status === 'saved' && <span style={{ color: 'var(--moss)' }}>{t('pulse.saved')}</span>}
             </div>
           </div>
           {item.description && (
             <p
               className="mt-1"
               style={{
-                fontFamily: "var(--font-text)",
-                fontStyle: "italic",
+                fontFamily: 'var(--font-text)',
+                fontStyle: 'italic',
                 fontSize: 13,
-                color: "var(--ink-3)",
+                color: 'var(--ink-3)',
               }}
             >
               {item.description}
@@ -740,22 +740,22 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
             value={text}
             onChange={(e) => handleChange(e.target.value)}
             rows={3}
-            placeholder={t("pulse.itemPlaceholder")}
+            placeholder={t('pulse.itemPlaceholder')}
             className="mt-3 w-full resize-y rounded-md p-3 text-sm outline-none"
             style={{
-              background: "var(--paper-deep)",
-              border: "1px solid var(--hairline)",
-              color: "var(--ink)",
-              fontFamily: "var(--font-text)",
+              background: 'var(--paper-deep)',
+              border: '1px solid var(--hairline)',
+              color: 'var(--ink)',
+              fontFamily: 'var(--font-text)',
               lineHeight: 1.55,
             }}
             onFocus={(e) => {
-              e.currentTarget.style.borderColor = "var(--clay)";
-              e.currentTarget.style.boxShadow = "0 0 0 3px var(--clay-soft)";
+              e.currentTarget.style.borderColor = 'var(--clay)'
+              e.currentTarget.style.boxShadow = '0 0 0 3px var(--clay-soft)'
             }}
             onBlur={(e) => {
-              e.currentTarget.style.borderColor = "var(--hairline)";
-              e.currentTarget.style.boxShadow = "none";
+              e.currentTarget.style.borderColor = 'var(--hairline)'
+              e.currentTarget.style.boxShadow = 'none'
             }}
           />
 
@@ -764,14 +764,14 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
               <div
                 key={a.id}
                 className="group relative h-12 w-12 overflow-hidden rounded-md"
-                style={{ border: "1px solid var(--hairline-2)" }}
+                style={{ border: '1px solid var(--hairline-2)' }}
               >
                 <NextImage src={a.url} alt={a.fileName} fill sizes="48px" className="object-cover" unoptimized />
                 <button
                   onClick={() => void onDeleteAttachment(a.id)}
                   className="absolute right-0.5 top-0.5 rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
-                  style={{ background: "rgba(28, 20, 8, 0.75)", color: "var(--paper)" }}
-                  aria-label={t("pulse.removeAttachment")}
+                  style={{ background: 'rgba(28, 20, 8, 0.75)', color: 'var(--paper)' }}
+                  aria-label={t('pulse.removeAttachment')}
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
@@ -781,12 +781,12 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
               onClick={() => fileInputRef.current?.click()}
               className="flex h-12 w-12 items-center justify-center rounded-md"
               style={{
-                border: "1px dashed var(--hairline-2)",
-                color: "var(--ink-3)",
-                background: "transparent",
+                border: '1px dashed var(--hairline-2)',
+                color: 'var(--ink-3)',
+                background: 'transparent',
               }}
-              aria-label={t("pulse.addImage")}
-              title={t("pulse.addImage")}
+              aria-label={t('pulse.addImage')}
+              title={t('pulse.addImage')}
             >
               <ImagePlus className="h-4 w-4" />
             </button>
@@ -797,8 +797,8 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
               multiple
               onChange={(e) => {
                 if (e.target.files && e.target.files.length > 0) {
-                  void onUploadImages(e.target.files);
-                  e.target.value = "";
+                  void onUploadImages(e.target.files)
+                  e.target.value = ''
                 }
               }}
               className="hidden"
@@ -807,7 +807,7 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
         </div>
       </div>
     </Card>
-  );
+  )
 }
 
 function EmptyState({
@@ -815,24 +815,24 @@ function EmptyState({
   body,
   cta,
 }: {
-  title: string;
-  body: string;
-  cta?: { label: string; onClick: () => void };
+  title: string
+  body: string
+  cta?: { label: string; onClick: () => void }
 }) {
   return (
     <div
       className="rounded-2xl px-8 py-16 text-center"
       style={{
-        border: "1px dashed var(--hairline-2)",
-        background: "var(--paper-deep)",
+        border: '1px dashed var(--hairline-2)',
+        background: 'var(--paper-deep)',
       }}
     >
       <p
         style={{
-          fontFamily: "var(--font-display)",
+          fontFamily: 'var(--font-display)',
           fontSize: 24,
-          color: "var(--ink)",
-          letterSpacing: "-0.01em",
+          color: 'var(--ink)',
+          letterSpacing: '-0.01em',
         }}
       >
         {title}
@@ -840,13 +840,13 @@ function EmptyState({
       <p
         className="mt-3"
         style={{
-          fontFamily: "var(--font-text)",
-          fontStyle: "italic",
+          fontFamily: 'var(--font-text)',
+          fontStyle: 'italic',
           fontSize: 15,
-          color: "var(--ink-2)",
+          color: 'var(--ink-2)',
           lineHeight: 1.5,
           maxWidth: 520,
-          margin: "12px auto 0",
+          margin: '12px auto 0',
         }}
       >
         {body}
@@ -859,5 +859,5 @@ function EmptyState({
         </div>
       )}
     </div>
-  );
+  )
 }

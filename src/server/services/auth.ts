@@ -7,13 +7,13 @@
 // Avatar bytes live in the `files` table and are served by /api/files/[id];
 // users.avatarUrl holds a `/api/files/{id}` pointer, or null for the initials
 // fallback in Avatar.tsx.
-import { and, eq, ne } from "drizzle-orm";
-import { db } from "~/lib/data";
-import { files, users } from "~/lib/data/schema";
-import { decodeImageUpload, UploadValidationError } from "~/lib/image-upload";
-import { checkRateLimit } from "~/lib/rate-limit";
-import { AppError } from "./errors";
-import { fileUrl, parseFileId } from "./file-refs";
+import { and, eq, ne } from 'drizzle-orm'
+import { db } from '~/lib/data'
+import { files, users } from '~/lib/data/schema'
+import { decodeImageUpload, UploadValidationError } from '~/lib/image-upload'
+import { checkRateLimit } from '~/lib/rate-limit'
+import { AppError } from './errors'
+import { fileUrl, parseFileId } from './file-refs'
 
 /**
  * The exact column set every profile-returning endpoint exposes. Declared once
@@ -27,12 +27,12 @@ const PROFILE_COLUMNS = {
   email: users.email,
   avatarUrl: users.avatarUrl,
   locale: users.locale,
-} as const;
+} as const
 
 export async function me(userId: string) {
-  const [row] = await db.select(PROFILE_COLUMNS).from(users).where(eq(users.id, userId)).limit(1);
-  if (!row) throw new AppError("NOT_FOUND", "User not found");
-  return row;
+  const [row] = await db.select(PROFILE_COLUMNS).from(users).where(eq(users.id, userId)).limit(1)
+  if (!row) throw new AppError('NOT_FOUND', 'User not found')
+  return row
 }
 
 export async function updateProfile(userId: string, input: { name?: string; email?: string }) {
@@ -41,16 +41,16 @@ export async function updateProfile(userId: string, input: { name?: string; emai
       .select({ id: users.id })
       .from(users)
       .where(and(eq(users.email, input.email), ne(users.id, userId)))
-      .limit(1);
-    if (existing) throw new AppError("CONFLICT", "Email already in use");
+      .limit(1)
+    if (existing) throw new AppError('CONFLICT', 'Email already in use')
   }
 
-  const patch: { name?: string; email?: string; updatedAt: Date } = { updatedAt: new Date() };
-  if (input.name !== undefined) patch.name = input.name;
-  if (input.email !== undefined) patch.email = input.email;
+  const patch: { name?: string; email?: string; updatedAt: Date } = { updatedAt: new Date() }
+  if (input.name !== undefined) patch.name = input.name
+  if (input.email !== undefined) patch.email = input.email
 
-  const [updated] = await db.update(users).set(patch).where(eq(users.id, userId)).returning(PROFILE_COLUMNS);
-  return updated;
+  const [updated] = await db.update(users).set(patch).where(eq(users.id, userId)).returning(PROFILE_COLUMNS)
+  return updated
 }
 
 /**
@@ -59,15 +59,15 @@ export async function updateProfile(userId: string, input: { name?: string; emai
  * that still exists rather than at a deleted row.
  */
 export async function uploadAvatar(userId: string, input: { fileName: string; data: string }) {
-  const rl = checkRateLimit("auth.uploadAvatar", `user:${userId}`, { limit: 10, windowMs: 60_000 });
-  if (!rl.allowed) throw new AppError("TOO_MANY_REQUESTS", "Too many uploads, slow down");
+  const rl = checkRateLimit('auth.uploadAvatar', `user:${userId}`, { limit: 10, windowMs: 60_000 })
+  if (!rl.allowed) throw new AppError('TOO_MANY_REQUESTS', 'Too many uploads, slow down')
 
-  let decoded;
+  let decoded
   try {
-    decoded = decodeImageUpload(input.data);
+    decoded = decodeImageUpload(input.data)
   } catch (err) {
-    if (err instanceof UploadValidationError) throw new AppError("BAD_REQUEST", err.message);
-    throw err;
+    if (err instanceof UploadValidationError) throw new AppError('BAD_REQUEST', err.message)
+    throw err
   }
 
   const [file] = await db
@@ -75,54 +75,54 @@ export async function uploadAvatar(userId: string, input: { fileName: string; da
     .values({
       ownerId: userId,
       fileName: input.fileName,
-      mimeType: decoded.mime ?? "application/octet-stream",
+      mimeType: decoded.mime ?? 'application/octet-stream',
       sizeBytes: decoded.buffer.length,
       data: decoded.buffer,
     })
-    .returning({ id: files.id });
-  if (!file) throw new AppError("INTERNAL_SERVER_ERROR", "Failed to store avatar");
+    .returning({ id: files.id })
+  if (!file) throw new AppError('INTERNAL_SERVER_ERROR', 'Failed to store avatar')
 
-  const [prev] = await db.select({ avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, userId)).limit(1);
+  const [prev] = await db.select({ avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, userId)).limit(1)
 
   const [updated] = await db
     .update(users)
     .set({ avatarUrl: fileUrl(file.id), updatedAt: new Date() })
     .where(eq(users.id, userId))
-    .returning(PROFILE_COLUMNS);
+    .returning(PROFILE_COLUMNS)
 
-  await deleteOwnedFile(userId, prev?.avatarUrl ?? null);
-  return updated;
+  await deleteOwnedFile(userId, prev?.avatarUrl ?? null)
+  return updated
 }
 
 export async function removeAvatar(userId: string) {
-  const [prev] = await db.select({ avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, userId)).limit(1);
+  const [prev] = await db.select({ avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, userId)).limit(1)
 
   const [updated] = await db
     .update(users)
     .set({ avatarUrl: null, updatedAt: new Date() })
     .where(eq(users.id, userId))
-    .returning(PROFILE_COLUMNS);
+    .returning(PROFILE_COLUMNS)
 
-  await deleteOwnedFile(userId, prev?.avatarUrl ?? null);
-  return updated;
+  await deleteOwnedFile(userId, prev?.avatarUrl ?? null)
+  return updated
 }
 
 /**
  * Persist the user's UI language. Source of truth for supported codes is
  * src/i18n/config.ts — keep the caller's enum in sync when adding a language.
  */
-export async function setLocale(userId: string, locale: "en" | "es") {
+export async function setLocale(userId: string, locale: 'en' | 'es') {
   const [updated] = await db
     .update(users)
     .set({ locale, updatedAt: new Date() })
     .where(eq(users.id, userId))
-    .returning(PROFILE_COLUMNS);
-  return updated;
+    .returning(PROFILE_COLUMNS)
+  return updated
 }
 
 /** Drop a previously-referenced blob, ownership-gated. No-op for foreign URLs. */
 async function deleteOwnedFile(userId: string, url: string | null) {
-  const fileId = parseFileId(url);
-  if (!fileId) return;
-  await db.delete(files).where(and(eq(files.id, fileId), eq(files.ownerId, userId)));
+  const fileId = parseFileId(url)
+  if (!fileId) return
+  await db.delete(files).where(and(eq(files.id, fileId), eq(files.ownerId, userId)))
 }

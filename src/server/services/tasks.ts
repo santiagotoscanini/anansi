@@ -1,27 +1,27 @@
 // Task CRUD. Tasks have no user_id — ownership is inherited from the parent
 // goal, so every entry point here goes through assertOwnsGoal (or an explicit
 // join back to goals) before touching a row.
-import { and, eq } from "drizzle-orm";
-import { db } from "~/lib/data";
-import { goals, taskReferents, tasks, tasksToGroups } from "~/lib/data/schema";
-import type { CreateTask, UpdateTask } from "~/lib/api/types";
-import { AppError } from "./errors";
-import { assertOwnsGoal } from "./goals";
+import { and, eq } from 'drizzle-orm'
+import { db } from '~/lib/data'
+import { goals, taskReferents, tasks, tasksToGroups } from '~/lib/data/schema'
+import type { CreateTask, UpdateTask } from '~/lib/api/types'
+import { AppError } from './errors'
+import { assertOwnsGoal } from './goals'
 
 export async function create(userId: string, input: CreateTask & { goalId: string }) {
-  await assertOwnsGoal(userId, input.goalId);
+  await assertOwnsGoal(userId, input.goalId)
 
-  const { referentIds, groupIds, ...taskInput } = input;
-  const [created] = await db.insert(tasks).values(taskInput).returning();
-  if (!created) throw new AppError("INTERNAL_SERVER_ERROR", "Failed to create task");
+  const { referentIds, groupIds, ...taskInput } = input
+  const [created] = await db.insert(tasks).values(taskInput).returning()
+  if (!created) throw new AppError('INTERNAL_SERVER_ERROR', 'Failed to create task')
 
   if (referentIds?.length) {
-    await db.insert(taskReferents).values(referentIds.map((personId) => ({ taskId: created.id, personId })));
+    await db.insert(taskReferents).values(referentIds.map((personId) => ({ taskId: created.id, personId })))
   }
   if (groupIds?.length) {
-    await db.insert(tasksToGroups).values(groupIds.map((groupId) => ({ taskId: created.id, groupId })));
+    await db.insert(tasksToGroups).values(groupIds.map((groupId) => ({ taskId: created.id, groupId })))
   }
-  return created;
+  return created
 }
 
 /**
@@ -31,34 +31,34 @@ export async function create(userId: string, input: CreateTask & { goalId: strin
  * which omit the key when the user didn't open the picker.
  */
 export async function update(userId: string, input: UpdateTask & { goalId: string }) {
-  const { id, goalId, referentIds, groupIds, ...updateData } = input;
-  await assertOwnsGoal(userId, goalId);
+  const { id, goalId, referentIds, groupIds, ...updateData } = input
+  await assertOwnsGoal(userId, goalId)
 
   const [updated] = await db
     .update(tasks)
     .set({ ...updateData, updatedAt: new Date() })
     .where(and(eq(tasks.id, id), eq(tasks.goalId, goalId)))
-    .returning();
+    .returning()
 
   if (referentIds !== undefined) {
-    await db.delete(taskReferents).where(eq(taskReferents.taskId, id));
+    await db.delete(taskReferents).where(eq(taskReferents.taskId, id))
     if (referentIds.length > 0) {
-      await db.insert(taskReferents).values(referentIds.map((personId) => ({ taskId: id, personId })));
+      await db.insert(taskReferents).values(referentIds.map((personId) => ({ taskId: id, personId })))
     }
   }
   if (groupIds !== undefined) {
-    await db.delete(tasksToGroups).where(eq(tasksToGroups.taskId, id));
+    await db.delete(tasksToGroups).where(eq(tasksToGroups.taskId, id))
     if (groupIds.length > 0) {
-      await db.insert(tasksToGroups).values(groupIds.map((groupId) => ({ taskId: id, groupId })));
+      await db.insert(tasksToGroups).values(groupIds.map((groupId) => ({ taskId: id, groupId })))
     }
   }
-  return updated;
+  return updated
 }
 
 export async function remove(userId: string, input: { id: string; goalId: string }) {
-  await assertOwnsGoal(userId, input.goalId);
-  await db.delete(tasks).where(and(eq(tasks.id, input.id), eq(tasks.goalId, input.goalId)));
-  return { success: true };
+  await assertOwnsGoal(userId, input.goalId)
+  await db.delete(tasks).where(and(eq(tasks.id, input.id), eq(tasks.goalId, input.goalId)))
+  return { success: true }
 }
 
 /**
@@ -76,9 +76,9 @@ export async function setScheduled(userId: string, input: { id: string; schedule
     .from(tasks)
     .innerJoin(goals, eq(tasks.goalId, goals.id))
     .where(and(eq(tasks.id, input.id), eq(goals.userId, userId)))
-    .limit(1);
-  if (!owned) throw new AppError("NOT_FOUND", "Task not found or access denied");
+    .limit(1)
+  if (!owned) throw new AppError('NOT_FOUND', 'Task not found or access denied')
 
-  await db.update(tasks).set({ scheduledAt: input.scheduledAt, updatedAt: new Date() }).where(eq(tasks.id, input.id));
-  return { success: true };
+  await db.update(tasks).set({ scheduledAt: input.scheduledAt, updatedAt: new Date() }).where(eq(tasks.id, input.id))
+  return { success: true }
 }

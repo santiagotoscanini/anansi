@@ -1,30 +1,30 @@
-"use client";
+'use client'
 
-import { useState, useMemo } from "react";
-import Image from "next/image";
-import { X, Square, CheckSquare, Plus } from "lucide-react";
-import { useTranslation } from "react-i18next";
-import { useGoals } from "~/contexts/GoalsContext";
-import type { Task } from "~/lib/api/types";
-import { formatScheduledShort } from "~/lib/horizon-period";
-import toast from "react-hot-toast";
-import ValueSelectionModal from "./ValueSelectionModal";
-import EmojiPicker, { type EmojiClickData, Theme } from "emoji-picker-react";
-import { getRandomEmoji, isEmojiUrl } from "~/lib/emoji-utils";
-import { api } from "~/trpc/react";
-import Avatar from "./Avatar";
-import TaskModal from "./TaskModal";
+import { useState, useMemo } from 'react'
+import Image from 'next/image'
+import { X, Square, CheckSquare, Plus } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { useGoals } from '~/contexts/GoalsContext'
+import type { Task } from '~/lib/api/types'
+import { formatScheduledShort } from '~/lib/horizon-period'
+import toast from 'react-hot-toast'
+import ValueSelectionModal from './ValueSelectionModal'
+import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react'
+import { getRandomEmoji, isEmojiUrl } from '~/lib/emoji-utils'
+import { api } from '~/trpc/react'
+import Avatar from './Avatar'
+import TaskModal from './TaskModal'
 
 interface GoalModalProps {
-  goalId: string | null;
-  onClose: () => void;
+  goalId: string | null
+  onClose: () => void
 }
 
-type DifficultyKey = "goalModal.difficultyEasy" | "goalModal.difficultyMedium" | "goalModal.difficultyHard";
+type DifficultyKey = 'goalModal.difficultyEasy' | 'goalModal.difficultyMedium' | 'goalModal.difficultyHard'
 
 export default function GoalModal({ goalId, onClose }: GoalModalProps) {
-  const { t } = useTranslation();
-  const { goals, values, addGoal, updateGoal, deleteGoal, updateTask, getGoalCompletion } = useGoals();
+  const { t } = useTranslation()
+  const { goals, values, addGoal, updateGoal, deleteGoal, updateTask, getGoalCompletion } = useGoals()
 
   // Read-only count for the tracking-items hint at the bottom of the modal.
   // The sidebar TrackingItemsLibrary is the canonical surface for CRUD; the
@@ -34,49 +34,49 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
   const trackingItemsCountQuery = api.goals.trackingItems.list.useQuery(
     { goalId: goalId ?? undefined },
     { enabled: !!goalId },
-  );
-  const trackingItemCount = trackingItemsCountQuery.data?.length ?? 0;
+  )
+  const trackingItemCount = trackingItemsCountQuery.data?.length ?? 0
 
-  const existingGoal = goalId ? goals.find((g) => g.id === goalId) : null;
+  const existingGoal = goalId ? goals.find((g) => g.id === goalId) : null
 
-  const [title, setTitle] = useState(existingGoal?.title ?? "");
-  const [description, setDescription] = useState(existingGoal?.description ?? "");
-  const [emoji, setEmoji] = useState(existingGoal?.emoji ?? getRandomEmoji());
-  const [customEmojiUrl, setCustomEmojiUrl] = useState("");
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [valueIds, setValueIds] = useState<string[]>(existingGoal?.valueIds ?? []);
+  const [title, setTitle] = useState(existingGoal?.title ?? '')
+  const [description, setDescription] = useState(existingGoal?.description ?? '')
+  const [emoji, setEmoji] = useState(existingGoal?.emoji ?? getRandomEmoji())
+  const [customEmojiUrl, setCustomEmojiUrl] = useState('')
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [valueIds, setValueIds] = useState<string[]>(existingGoal?.valueIds ?? [])
   // All task editing/creation routes through TaskModal. The row stays
   // interactive only for the complete checkbox; everything else opens the
   // modal so there's a single way to do each thing. New goals must save
   // first before tasks can be added (same constraint as tracking items).
-  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
-  const [creatingTask, setCreatingTask] = useState(false);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+  const [creatingTask, setCreatingTask] = useState(false)
 
   // People + groups directories — used to render the read-only avatar/dot
   // summaries on task rows. The actual picker lives in TaskModal.
-  const peopleData = api.goals.people.getAll.useQuery({ includeArchived: false }).data;
+  const peopleData = api.goals.people.getAll.useQuery({ includeArchived: false }).data
   const peopleById = useMemo(() => {
-    const map = new Map<string, NonNullable<typeof peopleData>[number]>();
-    for (const p of peopleData ?? []) map.set(p.id, p);
-    return map;
-  }, [peopleData]);
+    const map = new Map<string, NonNullable<typeof peopleData>[number]>()
+    for (const p of peopleData ?? []) map.set(p.id, p)
+    return map
+  }, [peopleData])
 
-  const groupsData = api.goals.groups.getAll.useQuery().data;
+  const groupsData = api.goals.groups.getAll.useQuery().data
   const groupsById = useMemo(() => {
-    const map = new Map<string, NonNullable<typeof groupsData>[number]>();
-    for (const g of groupsData ?? []) map.set(g.id, g);
-    return map;
-  }, [groupsData]);
+    const map = new Map<string, NonNullable<typeof groupsData>[number]>()
+    for (const g of groupsData ?? []) map.set(g.id, g)
+    return map
+  }, [groupsData])
 
   // Value selection modal state
-  const [showValueModal, setShowValueModal] = useState(false);
+  const [showValueModal, setShowValueModal] = useState(false)
 
-  const completion = goalId ? getGoalCompletion(goalId) : 0;
+  const completion = goalId ? getGoalCompletion(goalId) : 0
 
   const handleSave = () => {
     if (!title.trim()) {
-      toast.error(t("goalModal.titleRequired"));
-      return;
+      toast.error(t('goalModal.titleRequired'))
+      return
     }
 
     if (goalId) {
@@ -86,8 +86,8 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
         description,
         emoji,
         valueIds,
-      });
-      toast.success(t("goalModal.goalUpdated"));
+      })
+      toast.success(t('goalModal.goalUpdated'))
     } else {
       // New goals start with no tasks — they can be added once saved.
       void addGoal({
@@ -97,78 +97,78 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
         valueIds,
         tasks: [],
         position: { x: 250, y: 250 },
-      });
-      toast.success(t("goalModal.goalCreated"));
+      })
+      toast.success(t('goalModal.goalCreated'))
     }
 
-    onClose();
-  };
+    onClose()
+  }
 
   const handleDelete = () => {
     if (goalId) {
-      void deleteGoal(goalId);
-      toast.success(t("goalModal.goalDeleted"));
-      onClose();
+      void deleteGoal(goalId)
+      toast.success(t('goalModal.goalDeleted'))
+      onClose()
     }
-  };
+  }
 
   const handleEmojiClick = (emojiData: EmojiClickData) => {
-    setEmoji(emojiData.emoji);
-    setShowEmojiPicker(false);
-    setCustomEmojiUrl(""); // Clear custom URL when selecting native emoji
-  };
+    setEmoji(emojiData.emoji)
+    setShowEmojiPicker(false)
+    setCustomEmojiUrl('') // Clear custom URL when selecting native emoji
+  }
 
   const handleCustomEmojiUrl = () => {
     if (customEmojiUrl.trim()) {
-      setEmoji(customEmojiUrl.trim());
-      setCustomEmojiUrl("");
-      toast.success(t("goalModal.customEmojiSet"));
+      setEmoji(customEmojiUrl.trim())
+      setCustomEmojiUrl('')
+      toast.success(t('goalModal.customEmojiSet'))
     }
-  };
+  }
 
   // Routes to the dedicated TaskModal — only valid once the goal exists.
   const openTaskEditor = (task: Task) => {
-    if (!goalId) return;
-    setOpenTaskId(task.id);
-  };
+    if (!goalId) return
+    setOpenTaskId(task.id)
+  }
 
   // For existing goals, tasks come from the live cache. New goals start
   // empty — tasks can only be added after the goal is saved.
-  const displayTasks: Task[] = goalId ? (goals.find((g) => g.id === goalId)?.tasks ?? []) : [];
+  const displayTasks: Task[] = goalId ? (goals.find((g) => g.id === goalId)?.tasks ?? []) : []
 
   const handleToggleTask = (taskId: string) => {
-    if (!goalId) return;
-    const task = displayTasks.find((t) => t.id === taskId);
+    if (!goalId) return
+    const task = displayTasks.find((t) => t.id === taskId)
     if (task) {
-      void updateTask(goalId, taskId, { completed: !task.completed });
+      void updateTask(goalId, taskId, { completed: !task.completed })
     }
-  };
+  }
 
   const getDifficultyKey = (difficulty: number): DifficultyKey => {
     switch (difficulty) {
       case 1:
-        return "goalModal.difficultyEasy";
+        return 'goalModal.difficultyEasy'
       case 2:
-        return "goalModal.difficultyMedium";
+        return 'goalModal.difficultyMedium'
       case 3:
-        return "goalModal.difficultyHard";
+        return 'goalModal.difficultyHard'
       default:
-        return "goalModal.difficultyMedium";
+        return 'goalModal.difficultyMedium'
     }
-  };
+  }
 
   const getDifficultyColor = (difficulty: number) => {
     switch (difficulty) {
       case 1:
-        return "text-[var(--moss)]";
+        return 'text-[var(--moss)]'
       case 2:
-        return "text-[var(--amber)]";
+        return 'text-[var(--amber)]'
       case 3:
-        return "text-[var(--rust)]";
+        return 'text-[var(--rust)]'
       default:
-        return "text-[var(--amber)]";
+        return 'text-[var(--amber)]'
     }
-  };
+  }
 
   return (
     <div
@@ -182,12 +182,12 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
         {/* Header — sticky so title + close stay reachable while scrolling */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--hairline)] bg-[var(--canvas)] px-6 py-4 backdrop-blur">
           <h2 className="text-lg font-medium tracking-tight">
-            {goalId ? t("goalModal.editTitle") : t("goalModal.createTitle")}
+            {goalId ? t('goalModal.editTitle') : t('goalModal.createTitle')}
           </h2>
           <button
             onClick={onClose}
             className="rounded-lg p-1.5 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
-            aria-label={t("common.close")}
+            aria-label={t('common.close')}
           >
             <X className="h-4 w-4" />
           </button>
@@ -199,7 +199,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
             {/* Title with Emoji */}
             <div>
               <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
-                {t("goalModal.title")}
+                {t('goalModal.title')}
               </label>
               <div className="relative flex gap-2">
                 {/* Emoji Button */}
@@ -207,7 +207,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                   type="button"
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] transition-all hover:border-[var(--hairline-2)] hover:bg-[var(--vellum)]"
-                  title={t("goalModal.clickToChooseEmoji")}
+                  title={t('goalModal.clickToChooseEmoji')}
                 >
                   {isEmojiUrl(emoji) ? (
                     <Image
@@ -228,7 +228,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder={t("goalModal.titlePlaceholder")}
+                  placeholder={t('goalModal.titlePlaceholder')}
                   className="h-10 flex-1 rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-4 text-[var(--ink)] outline-none transition-all focus:border-[var(--hairline-2)]"
                   autoFocus
                 />
@@ -241,22 +241,22 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                       width={350}
                       height={400}
                       theme={Theme.DARK}
-                      searchPlaceHolder={t("goalModal.searchEmoji")}
+                      searchPlaceHolder={t('goalModal.searchEmoji')}
                     />
 
                     {/* Custom Emoji URL Section */}
                     <div className="mt-3 space-y-2 border-t border-[var(--hairline)] pt-3">
-                      <label className="text-xs text-[var(--ink-2)]">{t("goalModal.customEmojiUrl")}</label>
+                      <label className="text-xs text-[var(--ink-2)]">{t('goalModal.customEmojiUrl')}</label>
                       <div className="flex gap-2">
                         <input
                           type="url"
                           value={customEmojiUrl}
                           onChange={(e) => setCustomEmojiUrl(e.target.value)}
                           onKeyDown={(e) => {
-                            e.stopPropagation();
-                            if (e.key === "Enter") handleCustomEmojiUrl();
+                            e.stopPropagation()
+                            if (e.key === 'Enter') handleCustomEmojiUrl()
                           }}
-                          placeholder={t("goalModal.emojiUrlPlaceholder")}
+                          placeholder={t('goalModal.emojiUrlPlaceholder')}
                           className="flex-1 rounded border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-1.5 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
                         />
                         <button
@@ -264,7 +264,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                           onClick={handleCustomEmojiUrl}
                           className="rounded border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-1.5 text-sm text-[var(--ink)] transition-all hover:bg-[var(--vellum)]"
                         >
-                          {t("goalModal.set")}
+                          {t('goalModal.set')}
                         </button>
                       </div>
                     </div>
@@ -276,12 +276,12 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
             {/* Description */}
             <div>
               <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
-                {t("goalModal.description")}
+                {t('goalModal.description')}
               </label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder={t("goalModal.descriptionPlaceholder")}
+                placeholder={t('goalModal.descriptionPlaceholder')}
                 rows={3}
                 className="w-full resize-none rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2.5 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"
               />
@@ -290,14 +290,14 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
             {/* Value Selection */}
             <div>
               <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
-                {t("goalModal.values")}
+                {t('goalModal.values')}
               </label>
 
               {/* Selected Values Pills */}
               <div className="flex flex-wrap items-center gap-1.5">
                 {valueIds.map((valueId) => {
-                  const value = values.find((v) => v.id === valueId);
-                  if (!value) return null;
+                  const value = values.find((v) => v.id === valueId)
+                  if (!value) return null
                   return (
                     <span
                       key={value.id}
@@ -308,12 +308,12 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                       <button
                         onClick={() => setValueIds(valueIds.filter((id) => id !== valueId))}
                         className="flex items-center justify-center rounded-full p-0.5 text-[var(--ink-2)] transition-all hover:bg-[var(--paper-deep)] hover:text-[var(--ink)]"
-                        aria-label={t("goalModal.removeValue", { name: value.name })}
+                        aria-label={t('goalModal.removeValue', { name: value.name })}
                       >
                         <X className="h-3 w-3" />
                       </button>
                     </span>
-                  );
+                  )
                 })}
                 {valueIds.length < values.length && (
                   <button
@@ -321,19 +321,19 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                     className="inline-flex items-center gap-1 rounded-full border border-dashed border-[var(--hairline)] px-2.5 py-0.5 text-xs text-[var(--ink-3)] transition-all hover:border-[var(--hairline-2)] hover:text-[var(--ink)]"
                   >
                     <Plus className="h-3 w-3" />
-                    {t("common.add")}
+                    {t('common.add')}
                   </button>
                 )}
               </div>
 
-              {values.length === 0 && <p className="mt-1 text-xs text-[var(--ink-4)]">{t("goalModal.noValuesYet")}</p>}
+              {values.length === 0 && <p className="mt-1 text-xs text-[var(--ink-4)]">{t('goalModal.noValuesYet')}</p>}
             </div>
 
             {/* Tasks Section */}
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <label className="text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
-                  {t("goalModal.tasks")}
+                  {t('goalModal.tasks')}
                 </label>
                 {goalId && <span className="text-xs text-[var(--ink-3)]">{Math.round(completion)}%</span>}
               </div>
@@ -345,11 +345,11 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                 type="button"
                 onClick={() => goalId && setCreatingTask(true)}
                 disabled={!goalId}
-                title={goalId ? t("goalModal.addTaskHint") : t("goalModal.saveGoalFirst")}
+                title={goalId ? t('goalModal.addTaskHint') : t('goalModal.saveGoalFirst')}
                 className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--hairline)] bg-transparent px-4 py-2 text-sm text-[var(--ink-2)] transition-all hover:border-[var(--hairline-2)] hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-[var(--hairline)] disabled:hover:bg-transparent disabled:hover:text-[var(--ink-2)]"
               >
                 <Plus className="h-3.5 w-3.5" />
-                {t("goalModal.addTask")}
+                {t('goalModal.addTask')}
               </button>
 
               {/* Tasks List — click any row to open the editor; only the
@@ -360,10 +360,10 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                 {displayTasks.map((task) => {
                   const referents = (task.referentIds ?? [])
                     .map((id) => peopleById.get(id))
-                    .filter((p): p is NonNullable<typeof p> => !!p);
+                    .filter((p): p is NonNullable<typeof p> => !!p)
                   const taskGroups = (task.groupIds ?? [])
                     .map((id) => groupsById.get(id))
-                    .filter((g): g is NonNullable<typeof g> => !!g);
+                    .filter((g): g is NonNullable<typeof g> => !!g)
                   return (
                     <div
                       key={task.id}
@@ -374,11 +374,11 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                           stopPropagation so it doesn't open the modal. */}
                       <button
                         onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleTask(task.id);
+                          e.stopPropagation()
+                          handleToggleTask(task.id)
                         }}
                         className="transition-all hover:scale-110"
-                        aria-label={task.completed ? t("goalModal.markIncomplete") : t("goalModal.markComplete")}
+                        aria-label={task.completed ? t('goalModal.markIncomplete') : t('goalModal.markComplete')}
                       >
                         {task.completed ? (
                           <CheckSquare className="h-4 w-4 text-[var(--moss)]" />
@@ -402,7 +402,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                       ) : null}
                       <span
                         className={`min-w-0 flex-1 truncate text-sm ${
-                          task.completed ? "text-[var(--ink-3)] line-through" : "text-[var(--ink)]"
+                          task.completed ? 'text-[var(--ink-3)] line-through' : 'text-[var(--ink)]'
                         }`}
                       >
                         {task.title}
@@ -459,12 +459,12 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                         </div>
                       )}
                     </div>
-                  );
+                  )
                 })}
 
                 {displayTasks.length === 0 && (
                   <div className="rounded-lg border border-dashed border-[var(--hairline)] bg-transparent p-4 text-center text-xs text-[var(--ink-4)]">
-                    {goalId ? t("goalModal.noTasksYet") : t("goalModal.saveFirstHint")}
+                    {goalId ? t('goalModal.noTasksYet') : t('goalModal.saveFirstHint')}
                   </div>
                 )}
               </div>
@@ -480,12 +480,12 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
-                      {t("goalModal.trackingItems")}
+                      {t('goalModal.trackingItems')}
                     </p>
                     <p className="mt-1 text-xs text-[var(--ink-3)]">
                       {trackingItemCount === 0
-                        ? t("goalModal.trackingEmpty")
-                        : t("goalModal.trackingCount", { count: trackingItemCount })}
+                        ? t('goalModal.trackingEmpty')
+                        : t('goalModal.trackingCount', { count: trackingItemCount })}
                     </p>
                   </div>
                   <span className="rounded-full bg-[var(--vellum)] px-2 py-0.5 text-[11px] tabular-nums text-[var(--ink-2)]">
@@ -503,7 +503,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                 onClick={handleDelete}
                 className="rounded-lg px-3 py-2 text-sm text-[var(--ink-3)] transition-all hover:bg-[var(--rust-soft)] hover:text-[var(--rust)]"
               >
-                {t("goalModal.deleteGoal")}
+                {t('goalModal.deleteGoal')}
               </button>
             ) : (
               <span />
@@ -513,13 +513,13 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                 onClick={onClose}
                 className="rounded-lg px-4 py-2 text-sm text-[var(--ink-2)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
               >
-                {t("common.cancel")}
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleSave}
                 className="rounded-lg bg-[var(--surface-inverse)] px-4 py-2 text-sm font-medium text-[var(--on-inverse)] transition-all hover:bg-[var(--surface-inverse)]"
               >
-                {goalId ? t("common.saveChanges") : t("goalModal.createGoal")}
+                {goalId ? t('common.saveChanges') : t('goalModal.createGoal')}
               </button>
             </div>
           </div>
@@ -546,5 +546,5 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
       {/* Task creator — opened from the "Add task" button. Same modal, no taskId. */}
       {goalId && creatingTask && <TaskModal goalId={goalId} taskId={null} onClose={() => setCreatingTask(false)} />}
     </div>
-  );
+  )
 }

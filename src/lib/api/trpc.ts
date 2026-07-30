@@ -1,8 +1,8 @@
-import { initTRPC, TRPCError } from "@trpc/server";
-import superjson from "superjson";
-import { ZodError } from "zod";
-import { auth } from "~/lib/auth";
-import { isAppError } from "~/server/services/errors";
+import { initTRPC, TRPCError } from '@trpc/server'
+import superjson from 'superjson'
+import { ZodError } from 'zod'
+import { auth } from '~/lib/auth'
+import { isAppError } from '~/server/services/errors'
 
 /**
  * 1. Context
@@ -19,10 +19,10 @@ import { isAppError } from "~/server/services/errors";
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  const session = await auth();
+  const session = await auth()
 
-  return { ...opts, user: { userId: session?.user?.id } };
-};
+  return { ...opts, user: { userId: session?.user?.id } }
+}
 
 /**
  * 2. Initialization
@@ -38,16 +38,16 @@ const trpcBuilder = initTRPC.context<typeof createTRPCContext>().create({
         ...shape.data,
         zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,
       },
-    };
+    }
   },
-});
+})
 
 /**
  * Create a server-side caller.
  *
  * @see https://trpc.io/docs/server/server-side-calls
  */
-export const createCallerFactory = trpcBuilder.createCallerFactory;
+export const createCallerFactory = trpcBuilder.createCallerFactory
 
 /**
  * 3. Router & Procedure
@@ -58,7 +58,7 @@ export const createCallerFactory = trpcBuilder.createCallerFactory;
  *
  * @see https://trpc.io/docs/router
  */
-export const createTRPCRouter = trpcBuilder.router;
+export const createTRPCRouter = trpcBuilder.router
 
 /**
  * Public (unauthenticated) procedure
@@ -67,7 +67,7 @@ export const createTRPCRouter = trpcBuilder.router;
  * guarantee that a user querying is authorized, but you can still access user session data if they
  * are logged in.
  */
-export const publicProcedure = trpcBuilder.procedure;
+export const publicProcedure = trpcBuilder.procedure
 
 /**
  * Translate a service-layer AppError into the TRPCError the clients already
@@ -87,13 +87,13 @@ const translateAppErrors = trpcBuilder.middleware(async ({ next }) => {
   // to INTERNAL_SERVER_ERROR and stashes the original on `.cause`. So a
   // try/catch around `next()` silently never fires, and every AppError would
   // surface as a 500. Inspect the result instead.
-  const result = await next();
+  const result = await next()
   if (!result.ok && isAppError(result.error.cause)) {
-    const appError = result.error.cause;
-    throw new TRPCError({ code: appError.code, message: appError.message, cause: appError });
+    const appError = result.error.cause
+    throw new TRPCError({ code: appError.code, message: appError.message, cause: appError })
   }
-  return result;
-});
+  return result
+})
 
 /**
  * Protected (authenticated) procedure
@@ -105,7 +105,7 @@ export const protectedProcedure = trpcBuilder.procedure.use(translateAppErrors).
     if (!ctx.user.userId) {
       // Surface a real 401 to the client so React Query can distinguish
       // "session ended, redirect to login" from "server error".
-      throw new TRPCError({ code: "UNAUTHORIZED" });
+      throw new TRPCError({ code: 'UNAUTHORIZED' })
     }
 
     return next({
@@ -113,6 +113,6 @@ export const protectedProcedure = trpcBuilder.procedure.use(translateAppErrors).
         ...ctx,
         user: ctx.user as { userId: string },
       },
-    });
+    })
   }),
-);
+)

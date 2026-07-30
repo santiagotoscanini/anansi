@@ -1,47 +1,47 @@
-"use client";
+'use client'
 
-import { useCallback, useState, useEffect } from "react";
-import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, getOutgoers } from "@xyflow/react";
-import type { Connection, Edge, Node } from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
-import { HelpCircle, Plus, Target } from "lucide-react";
-import { createId } from "@paralleldrive/cuid2";
-import { useTranslation } from "react-i18next";
-import { useGoals } from "~/contexts/GoalsContext";
-import type { Goal } from "~/lib/api/types";
-import GoalNodeComponent from "./GoalNode";
-import GoalModal from "./GoalModal";
-import EditableEdge from "./EditableEdge";
-import DeleteConfirmationModal from "./DeleteConfirmationModal";
-import GraphMathHelpModal from "./GraphMathHelpModal";
-import toast from "react-hot-toast";
+import { useCallback, useState, useEffect } from 'react'
+import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, getOutgoers } from '@xyflow/react'
+import type { Connection, Edge, Node } from '@xyflow/react'
+import '@xyflow/react/dist/style.css'
+import { HelpCircle, Plus, Target } from 'lucide-react'
+import { createId } from '@paralleldrive/cuid2'
+import { useTranslation } from 'react-i18next'
+import { useGoals } from '~/contexts/GoalsContext'
+import type { Goal } from '~/lib/api/types'
+import GoalNodeComponent from './GoalNode'
+import GoalModal from './GoalModal'
+import EditableEdge from './EditableEdge'
+import DeleteConfirmationModal from './DeleteConfirmationModal'
+import GraphMathHelpModal from './GraphMathHelpModal'
+import toast from 'react-hot-toast'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type GoalNode = Node<any>;
+type GoalNode = Node<any>
 
 const nodeTypes = {
   goalNode: GoalNodeComponent,
-};
+}
 
 const edgeTypes = {
   editableEdge: EditableEdge,
-};
+}
 
 export default function GoalsGraph() {
-  const { t } = useTranslation();
+  const { t } = useTranslation()
   const { goals, connections, updateGoal, addGoal, addConnection, deleteConnection, deleteGoal, getGoalProgress } =
-    useGoals();
+    useGoals()
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<GoalNode>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [selectedGoal, setSelectedGoal] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [copiedGoal, setCopiedGoal] = useState<Goal | null>(null);
-  const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
-  const [selectedEdges, setSelectedEdges] = useState<string[]>([]);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [goalsToDelete, setGoalsToDelete] = useState<Goal[]>([]);
-  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [nodes, setNodes, onNodesChange] = useNodesState<GoalNode>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
+  const [selectedGoal, setSelectedGoal] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [copiedGoal, setCopiedGoal] = useState<Goal | null>(null)
+  const [selectedNodes, setSelectedNodes] = useState<string[]>([])
+  const [selectedEdges, setSelectedEdges] = useState<string[]>([])
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [goalsToDelete, setGoalsToDelete] = useState<Goal[]>([])
+  const [isHelpOpen, setIsHelpOpen] = useState(false)
 
   // Map goals → nodes, preserving object identity for unchanged goals.
   //
@@ -57,41 +57,41 @@ export default function GoalsGraph() {
   // simple `_goalRef === goal` check is enough — no deep compare needed.
   useEffect(() => {
     setNodes((prev) => {
-      const prevById = new Map(prev.map((n) => [n.id, n]));
-      let allReused = goals.length === prev.length;
+      const prevById = new Map(prev.map((n) => [n.id, n]))
+      let allReused = goals.length === prev.length
 
       const next: GoalNode[] = goals.map((goal) => {
-        const existing = prevById.get(goal.id);
-        const wantSelected = selectedNodes.includes(goal.id);
+        const existing = prevById.get(goal.id)
+        const wantSelected = selectedNodes.includes(goal.id)
         if (
           existing &&
           (existing.data as { _goalRef?: Goal })._goalRef === goal &&
           existing.selected === wantSelected
         ) {
-          return existing;
+          return existing
         }
-        allReused = false;
+        allReused = false
         return {
           id: goal.id,
-          type: "goalNode",
+          type: 'goalNode',
           position: goal.position,
           selected: wantSelected,
           data: {
             ...goal,
             _goalRef: goal,
             onEdit: () => {
-              setSelectedGoal(goal.id);
-              setIsModalOpen(true);
+              setSelectedGoal(goal.id)
+              setIsModalOpen(true)
             },
           },
-        };
-      });
+        }
+      })
 
       // If every node is the same reference as before, return the previous
       // array so React Flow's internal node tracking stays put.
-      return allReused ? prev : next;
-    });
-  }, [goals, selectedNodes, setNodes]);
+      return allReused ? prev : next
+    })
+  }, [goals, selectedNodes, setNodes])
 
   // Convert connections to edges with selection styling
   useEffect(() => {
@@ -99,60 +99,60 @@ export default function GoalsGraph() {
       id: conn.id,
       source: conn.source,
       target: conn.target,
-      sourceHandle: "right",
-      targetHandle: "left",
+      sourceHandle: 'right',
+      targetHandle: 'left',
       animated: true,
       selected: selectedEdges.includes(conn.id),
       selectable: true,
       style: {
         strokeWidth: 2,
-        cursor: "pointer",
+        cursor: 'pointer',
       },
-      type: "editableEdge",
-    }));
-    setEdges(newEdges);
-  }, [connections, selectedEdges, setEdges]);
+      type: 'editableEdge',
+    }))
+    setEdges(newEdges)
+  }, [connections, selectedEdges, setEdges])
 
   // Validate connection to prevent cycles and duplicates
   const isValidConnection = useCallback(
     (connection: Connection | Edge) => {
       if (!connection.source || !connection.target) {
-        return false;
+        return false
       }
 
       // Prevent self-connections
       if (connection.source === connection.target) {
-        return false;
+        return false
       }
 
       // Check if connection already exists
-      const exists = edges.some((edge) => edge.source === connection.source && edge.target === connection.target);
+      const exists = edges.some((edge) => edge.source === connection.source && edge.target === connection.target)
       if (exists) {
-        return false;
+        return false
       }
 
       // Find the target node
-      const target = nodes.find((node) => node.id === connection.target);
-      if (!target) return false;
+      const target = nodes.find((node) => node.id === connection.target)
+      if (!target) return false
 
       // Cycle detection using DFS
       const hasCycle = (node: Node, visited = new Set<string>()) => {
-        if (visited.has(node.id)) return false;
+        if (visited.has(node.id)) return false
 
-        visited.add(node.id);
+        visited.add(node.id)
 
         for (const outgoer of getOutgoers(node, nodes, edges)) {
-          if (outgoer.id === connection.source) return true;
-          if (hasCycle(outgoer, visited)) return true;
+          if (outgoer.id === connection.source) return true
+          if (hasCycle(outgoer, visited)) return true
         }
 
-        return false;
-      };
+        return false
+      }
 
-      return !hasCycle(target);
+      return !hasCycle(target)
     },
     [nodes, edges],
-  );
+  )
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -161,12 +161,12 @@ export default function GoalsGraph() {
           source: params.source,
           target: params.target,
           weight: 1,
-        });
-        toast.success(t("goalsGraph.goalsConnected"));
+        })
+        toast.success(t('goalsGraph.goalsConnected'))
       }
     },
     [addConnection, t],
-  );
+  )
 
   // `_event` is typed as the DOM union rather than React.MouseEvent: React Flow
   // 12.9 widened OnNodeDrag to `MouseEvent | TouchEvent` so touch drags type
@@ -176,91 +176,91 @@ export default function GoalsGraph() {
       // If multiple nodes were dragged, update all of them
       if (nodes && nodes.length > 1) {
         // Filter to only selected nodes that were actually moved
-        const movedNodes = nodes.filter((n) => n.selected);
+        const movedNodes = nodes.filter((n) => n.selected)
 
         // Update all moved nodes' positions
         movedNodes.forEach((movedNode) => {
-          void updateGoal(movedNode.id, { position: movedNode.position });
-        });
+          void updateGoal(movedNode.id, { position: movedNode.position })
+        })
       } else {
         // Fallback: single node drag (existing behavior)
-        void updateGoal(node.id, { position: node.position });
+        void updateGoal(node.id, { position: node.position })
       }
     },
     [updateGoal],
-  );
+  )
 
   const onEdgeDelete = useCallback(
     (edges: Edge[]) => {
       edges.forEach((edge) => {
-        const connection = connections.find((c) => c.id === edge.id);
+        const connection = connections.find((c) => c.id === edge.id)
         if (connection) {
-          void deleteConnection(connection.id);
+          void deleteConnection(connection.id)
         }
-      });
+      })
     },
     [connections, deleteConnection],
-  );
+  )
 
   const onSelectionChange = useCallback((params: { nodes: Node[]; edges: Edge[] }) => {
-    setSelectedNodes(params.nodes.map((n) => n.id));
-    setSelectedEdges(params.edges.map((e) => e.id));
-  }, []);
+    setSelectedNodes(params.nodes.map((n) => n.id))
+    setSelectedEdges(params.edges.map((e) => e.id))
+  }, [])
 
   const handleAddGoal = () => {
-    setSelectedGoal(null);
-    setIsModalOpen(true);
-  };
+    setSelectedGoal(null)
+    setIsModalOpen(true)
+  }
 
   const handleModalClose = () => {
-    setIsModalOpen(false);
-    setSelectedGoal(null);
-  };
+    setIsModalOpen(false)
+    setSelectedGoal(null)
+  }
 
   const handleDeleteConfirm = async () => {
     try {
       for (const goal of goalsToDelete) {
-        await deleteGoal(goal.id);
+        await deleteGoal(goal.id)
       }
-      toast.success(t("goalsGraph.deletedGoals", { count: goalsToDelete.length }));
-      setSelectedNodes([]);
-      setGoalsToDelete([]);
-      setIsDeleteModalOpen(false);
+      toast.success(t('goalsGraph.deletedGoals', { count: goalsToDelete.length }))
+      setSelectedNodes([])
+      setGoalsToDelete([])
+      setIsDeleteModalOpen(false)
     } catch (error) {
-      toast.error(t("goalsGraph.deleteGoalsFailed"));
-      console.error(error);
+      toast.error(t('goalsGraph.deleteGoalsFailed'))
+      console.error(error)
     }
-  };
+  }
 
   const handleDeleteCancel = () => {
-    setIsDeleteModalOpen(false);
-    setGoalsToDelete([]);
-  };
+    setIsDeleteModalOpen(false)
+    setGoalsToDelete([])
+  }
 
   // Keyboard shortcuts for adding new goal, copy/paste, and delete
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl+G or Cmd+G for new goal
-      if ((e.ctrlKey || e.metaKey) && e.key === "g") {
-        e.preventDefault();
-        handleAddGoal();
+      if ((e.ctrlKey || e.metaKey) && e.key === 'g') {
+        e.preventDefault()
+        handleAddGoal()
       }
 
       // Ctrl+C or Cmd+C for copy
-      if ((e.ctrlKey || e.metaKey) && e.key === "c" && !isModalOpen) {
-        e.preventDefault();
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !isModalOpen) {
+        e.preventDefault()
         if (selectedNodes.length > 0) {
-          const goalToCopy = goals.find((g) => g.id === selectedNodes[0]);
+          const goalToCopy = goals.find((g) => g.id === selectedNodes[0])
           if (goalToCopy) {
-            setCopiedGoal(goalToCopy);
-            toast.success(t("goalsGraph.goalCopied"));
+            setCopiedGoal(goalToCopy)
+            toast.success(t('goalsGraph.goalCopied'))
           }
         }
       }
 
       // Ctrl+V or Cmd+V for paste
-      if ((e.ctrlKey || e.metaKey) && e.key === "v" && !isModalOpen && copiedGoal) {
-        e.preventDefault();
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && !isModalOpen && copiedGoal) {
+        e.preventDefault()
 
         // Generate fresh cuid2 ids for each pasted task. Sending the source
         // ids would cause a primary-key collision with the still-existing
@@ -273,10 +273,10 @@ export default function GoalsGraph() {
           id: createId(),
           referentIds: [],
           groupIds: [],
-        }));
+        }))
 
         const goalData = {
-          title: `${copiedGoal.title} ${t("goalsGraph.copySuffix")}`,
+          title: `${copiedGoal.title} ${t('goalsGraph.copySuffix')}`,
           description: copiedGoal.description,
           emoji: copiedGoal.emoji,
           valueIds: copiedGoal.valueIds,
@@ -286,37 +286,37 @@ export default function GoalsGraph() {
             x: copiedGoal.position.x + 50,
             y: copiedGoal.position.y + 50,
           },
-        };
-        void addGoal(goalData);
-        toast.success(t("goalsGraph.goalPasted"));
+        }
+        void addGoal(goalData)
+        toast.success(t('goalsGraph.goalPasted'))
       }
 
       // Delete or Backspace to delete selected nodes or edges
-      if ((e.key === "Delete" || e.key === "Backspace") && !isModalOpen && !isDeleteModalOpen) {
-        e.preventDefault();
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !isModalOpen && !isDeleteModalOpen) {
+        e.preventDefault()
 
         // Priority: Delete nodes if any are selected
         if (selectedNodes.length > 0) {
-          const nodesToDelete = goals.filter((g) => selectedNodes.includes(g.id));
-          setGoalsToDelete(nodesToDelete);
-          setIsDeleteModalOpen(true);
+          const nodesToDelete = goals.filter((g) => selectedNodes.includes(g.id))
+          setGoalsToDelete(nodesToDelete)
+          setIsDeleteModalOpen(true)
         }
         // Otherwise, delete edges
         else if (selectedEdges.length > 0) {
           selectedEdges.forEach((edgeId) => {
-            const connection = connections.find((c) => c.id === edgeId);
+            const connection = connections.find((c) => c.id === edgeId)
             if (connection) {
-              void deleteConnection(connection.id);
+              void deleteConnection(connection.id)
             }
-          });
-          toast.success(t("goalsGraph.deletedConnections", { count: selectedEdges.length }));
-          setSelectedEdges([]);
+          })
+          toast.success(t('goalsGraph.deletedConnections', { count: selectedEdges.length }))
+          setSelectedEdges([])
         }
       }
-    };
+    }
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
   }, [
     selectedNodes,
     selectedEdges,
@@ -328,51 +328,51 @@ export default function GoalsGraph() {
     addGoal,
     deleteConnection,
     t,
-  ]);
+  ])
 
   return (
-    <div className="flex h-full flex-col" style={{ background: "var(--paper)" }}>
+    <div className="flex h-full flex-col" style={{ background: 'var(--paper)' }}>
       {/* Warm ScreenHeader on top of the graph — matches the design's
           Objectives view. New Goal + How-it-works moved into the action
           row instead of floating chips on the canvas. */}
-      <header className="shrink-0 px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: "1px solid var(--hairline)" }}>
+      <header className="shrink-0 px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div
               style={{
-                fontFamily: "var(--font-mono)",
+                fontFamily: 'var(--font-mono)',
                 fontSize: 11,
-                letterSpacing: "0.08em",
-                color: "var(--ink-3)",
-                textTransform: "uppercase",
+                letterSpacing: '0.08em',
+                color: 'var(--ink-3)',
+                textTransform: 'uppercase',
                 marginBottom: 10,
               }}
             >
-              {t("goalsGraph.eyebrow")}
+              {t('goalsGraph.eyebrow')}
             </div>
             <h1
               style={{
-                fontFamily: "var(--font-display)",
+                fontFamily: 'var(--font-display)',
                 fontSize: 44,
                 lineHeight: 1.2,
-                letterSpacing: "-0.02em",
-                color: "var(--ink)",
+                letterSpacing: '-0.02em',
+                color: 'var(--ink)',
               }}
             >
-              {t("goalsGraph.titlePre")}
-              <span className="brand-em">{t("goalsGraph.titleEm")}</span>
+              {t('goalsGraph.titlePre')}
+              <span className="brand-em">{t('goalsGraph.titleEm')}</span>
             </h1>
             <p
               className="mt-3 max-w-2xl"
               style={{
-                fontFamily: "var(--font-text)",
-                fontStyle: "italic",
+                fontFamily: 'var(--font-text)',
+                fontStyle: 'italic',
                 fontSize: 17,
-                color: "var(--ink-2)",
+                color: 'var(--ink-2)',
                 lineHeight: 1.4,
               }}
             >
-              {t("goalsGraph.subtitle")}
+              {t('goalsGraph.subtitle')}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -380,28 +380,28 @@ export default function GoalsGraph() {
               onClick={() => setIsHelpOpen(true)}
               className="flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm transition-all"
               style={{
-                background: "var(--canvas)",
-                color: "var(--ink)",
-                border: "1px solid var(--hairline-2)",
-                boxShadow: "var(--shadow-sm)",
+                background: 'var(--canvas)',
+                color: 'var(--ink)',
+                border: '1px solid var(--hairline-2)',
+                boxShadow: 'var(--shadow-sm)',
               }}
-              title={t("goalsGraph.howItWorksTitle")}
+              title={t('goalsGraph.howItWorksTitle')}
             >
               <HelpCircle className="h-4 w-4" />
-              <span className="hidden sm:inline">{t("goalsGraph.howItWorks")}</span>
+              <span className="hidden sm:inline">{t('goalsGraph.howItWorks')}</span>
             </button>
             <button
               onClick={handleAddGoal}
               className="flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm transition-all"
               style={{
-                background: "var(--clay)",
-                color: "var(--paper)",
-                boxShadow: "var(--shadow-sm)",
+                background: 'var(--clay)',
+                color: 'var(--paper)',
+                boxShadow: 'var(--shadow-sm)',
               }}
-              title={t("goalsGraph.newGoalTitle")}
+              title={t('goalsGraph.newGoalTitle')}
             >
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">{t("goalsGraph.newGoal")}</span>
+              <span className="hidden sm:inline">{t('goalsGraph.newGoal')}</span>
             </button>
           </div>
         </div>
@@ -431,12 +431,12 @@ export default function GoalsGraph() {
           <MiniMap
             className="!hidden !border-[var(--hairline-2)] !bg-[var(--vellum)] md:!block"
             nodeColor={(node) => {
-              const goal = goals.find((g) => g.id === node.id);
-              if (!goal) return "oklch(0.72 0.012 65)";
-              const completion = getGoalProgress(goal.id).totalProgress;
-              if (completion < 33) return "oklch(0.55 0.14 28)"; // rust
-              if (completion < 67) return "oklch(0.72 0.13 75)"; // amber
-              return "oklch(0.55 0.09 135)"; // moss
+              const goal = goals.find((g) => g.id === node.id)
+              if (!goal) return 'oklch(0.72 0.012 65)'
+              const completion = getGoalProgress(goal.id).totalProgress
+              if (completion < 33) return 'oklch(0.55 0.14 28)' // rust
+              if (completion < 67) return 'oklch(0.72 0.13 75)' // amber
+              return 'oklch(0.55 0.09 135)' // moss
             }}
           />
           {/* Warm dot grid — uses a tinted ink color (~6% opacity) so it
@@ -449,8 +449,8 @@ export default function GoalsGraph() {
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
               <Target className="mx-auto h-16 w-16 opacity-30" />
-              <h3 className="mt-4 text-xl font-light">{t("goalsGraph.emptyTitle")}</h3>
-              <p className="mt-2 text-sm opacity-60">{t("goalsGraph.emptyHint")}</p>
+              <h3 className="mt-4 text-xl font-light">{t('goalsGraph.emptyTitle')}</h3>
+              <p className="mt-2 text-sm opacity-60">{t('goalsGraph.emptyHint')}</p>
             </div>
           </div>
         )}
@@ -467,5 +467,5 @@ export default function GoalsGraph() {
       {/* Help Modal — explains all the math on the graph */}
       {isHelpOpen && <GraphMathHelpModal onClose={() => setIsHelpOpen(false)} />}
     </div>
-  );
+  )
 }

@@ -1,15 +1,15 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { X, Tag, Check } from "lucide-react";
-import { useTranslation } from "react-i18next";
-import type { Value } from "~/lib/api/types";
+import { useState } from 'react'
+import { X, Tag, Check } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import type { Value } from '~/lib/api/types'
 
 interface ValueSelectionModalProps {
-  availableValues: Value[];
-  selectedValueIds: string[];
-  onConfirm: (selectedIds: string[]) => void;
-  onClose: () => void;
+  availableValues: Value[]
+  selectedValueIds: string[]
+  onConfirm: (selectedIds: string[]) => void
+  onClose: () => void
 }
 
 export default function ValueSelectionModal({
@@ -18,21 +18,21 @@ export default function ValueSelectionModal({
   onConfirm,
   onClose,
 }: ValueSelectionModalProps) {
-  const { t } = useTranslation();
-  const [tempSelectedIds, setTempSelectedIds] = useState<string[]>(selectedValueIds);
+  const { t } = useTranslation()
+  const [tempSelectedIds, setTempSelectedIds] = useState<string[]>(selectedValueIds)
 
   const handleToggleValue = (valueId: string) => {
     if (tempSelectedIds.includes(valueId)) {
-      setTempSelectedIds(tempSelectedIds.filter((id) => id !== valueId));
+      setTempSelectedIds(tempSelectedIds.filter((id) => id !== valueId))
     } else {
-      setTempSelectedIds([...tempSelectedIds, valueId]);
+      setTempSelectedIds([...tempSelectedIds, valueId])
     }
-  };
+  }
 
   const handleConfirm = () => {
-    onConfirm(tempSelectedIds);
-    onClose();
-  };
+    onConfirm(tempSelectedIds)
+    onClose()
+  }
 
   return (
     <div className="bg-[var(--ink)]/80 fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -42,11 +42,11 @@ export default function ValueSelectionModal({
       >
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-light">{t("valueSelection.title")}</h3>
+          <h3 className="text-lg font-light">{t('valueSelection.title')}</h3>
           <button
             onClick={onClose}
             className="rounded-lg p-2 transition-all hover:bg-[var(--vellum)]"
-            aria-label={t("common.close")}
+            aria-label={t('common.close')}
           >
             <X className="h-4 w-4" />
           </button>
@@ -55,18 +55,18 @@ export default function ValueSelectionModal({
         {/* Values List */}
         <div className="mb-6 max-h-[400px] space-y-1 overflow-y-auto">
           {availableValues.length === 0 ? (
-            <p className="py-4 text-center text-sm text-[var(--ink-3)]">{t("valueSelection.noValues")}</p>
+            <p className="py-4 text-center text-sm text-[var(--ink-3)]">{t('valueSelection.noValues')}</p>
           ) : (
             availableValues.map((value) => {
-              const isSelected = tempSelectedIds.includes(value.id);
+              const isSelected = tempSelectedIds.includes(value.id)
               return (
                 <div
                   key={value.id}
                   onClick={() => handleToggleValue(value.id)}
                   className={`flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 transition-all ${
                     isSelected
-                      ? "border border-[var(--hairline-2)] bg-[var(--vellum)]"
-                      : "border border-transparent hover:bg-[var(--vellum)]"
+                      ? 'border border-[var(--hairline-2)] bg-[var(--vellum)]'
+                      : 'border border-transparent hover:bg-[var(--vellum)]'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -75,7 +75,7 @@ export default function ValueSelectionModal({
                   </div>
                   {isSelected && <Check className="h-5 w-5 text-[var(--ink)]" />}
                 </div>
-              );
+              )
             })
           )}
         </div>
@@ -86,16 +86,16 @@ export default function ValueSelectionModal({
             onClick={onClose}
             className="flex-1 rounded-lg border border-[var(--hairline-2)] px-4 py-2 transition-all hover:bg-[var(--vellum)]"
           >
-            {t("common.cancel")}
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleConfirm}
             className="flex-1 rounded-lg border border-[var(--hairline-2)] bg-[var(--surface-inverse)] px-4 py-2 text-[var(--on-inverse)] transition-all hover:bg-[var(--surface-inverse)]"
           >
-            {t("valueSelection.ok")}
+            {t('valueSelection.ok')}
           </button>
         </div>
       </div>
     </div>
-  );
+  )
 }

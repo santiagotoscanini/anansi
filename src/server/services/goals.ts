@@ -1,11 +1,11 @@
 // Goal CRUD plus the shared ownership guard the task and connection services
 // also rely on.
-import { and, eq } from "drizzle-orm";
-import { db } from "~/lib/data";
-import { connections, goalValues, goals, taskReferents, tasks, tasksToGroups, trackingItems } from "~/lib/data/schema";
-import { loadGoalsForUser } from "~/lib/data/queries/load-goals";
-import type { CreateGoal, Goal, UpdateGoal } from "~/lib/api/types";
-import { AppError } from "./errors";
+import { and, eq } from 'drizzle-orm'
+import { db } from '~/lib/data'
+import { connections, goalValues, goals, taskReferents, tasks, tasksToGroups, trackingItems } from '~/lib/data/schema'
+import { loadGoalsForUser } from '~/lib/data/queries/load-goals'
+import type { CreateGoal, Goal, UpdateGoal } from '~/lib/api/types'
+import { AppError } from './errors'
 
 /**
  * Throws NOT_FOUND unless the goal exists and belongs to the user.
@@ -20,53 +20,53 @@ export async function assertOwnsGoal(userId: string, goalId: string) {
     .select({ id: goals.id })
     .from(goals)
     .where(and(eq(goals.id, goalId), eq(goals.userId, userId)))
-    .limit(1);
-  if (!row) throw new AppError("NOT_FOUND", "Goal not found or access denied");
+    .limit(1)
+  if (!row) throw new AppError('NOT_FOUND', 'Goal not found or access denied')
 }
 
 export async function list(userId: string): Promise<Goal[]> {
-  const { goals: rows } = await loadGoalsForUser(userId);
-  return rows;
+  const { goals: rows } = await loadGoalsForUser(userId)
+  return rows
 }
 
 export async function create(userId: string, input: CreateGoal) {
-  const { valueIds, tasks: inputTasks, position, ...goalData } = input;
+  const { valueIds, tasks: inputTasks, position, ...goalData } = input
 
   const [created] = await db
     .insert(goals)
     .values({ ...goalData, userId, positionX: position.x, positionY: position.y })
-    .returning();
-  if (!created) throw new AppError("INTERNAL_SERVER_ERROR", "Failed to create goal");
+    .returning()
+  if (!created) throw new AppError('INTERNAL_SERVER_ERROR', 'Failed to create goal')
 
   if (valueIds.length > 0) {
-    await db.insert(goalValues).values(valueIds.map((valueId) => ({ goalId: created.id, valueId })));
+    await db.insert(goalValues).values(valueIds.map((valueId) => ({ goalId: created.id, valueId })))
   }
 
   if (inputTasks.length > 0) {
     const insertedTasks = await db
       .insert(tasks)
       .values(inputTasks.map(({ referentIds: _r, groupIds: _g, ...rest }) => ({ ...rest, goalId: created.id })))
-      .returning();
+      .returning()
 
     // Zip the input's referent/group ids back onto the rows just inserted.
     // Relies on RETURNING preserving insert order, which Postgres does for a
     // single multi-row INSERT.
     const referentRows = inputTasks.flatMap((task, idx) => {
-      const inserted = insertedTasks[idx];
-      if (!inserted || !task.referentIds?.length) return [];
-      return task.referentIds.map((personId) => ({ taskId: inserted.id, personId }));
-    });
-    if (referentRows.length > 0) await db.insert(taskReferents).values(referentRows);
+      const inserted = insertedTasks[idx]
+      if (!inserted || !task.referentIds?.length) return []
+      return task.referentIds.map((personId) => ({ taskId: inserted.id, personId }))
+    })
+    if (referentRows.length > 0) await db.insert(taskReferents).values(referentRows)
 
     const groupRows = inputTasks.flatMap((task, idx) => {
-      const inserted = insertedTasks[idx];
-      if (!inserted || !task.groupIds?.length) return [];
-      return task.groupIds.map((groupId) => ({ taskId: inserted.id, groupId }));
-    });
-    if (groupRows.length > 0) await db.insert(tasksToGroups).values(groupRows);
+      const inserted = insertedTasks[idx]
+      if (!inserted || !task.groupIds?.length) return []
+      return task.groupIds.map((groupId) => ({ taskId: inserted.id, groupId }))
+    })
+    if (groupRows.length > 0) await db.insert(tasksToGroups).values(groupRows)
   }
 
-  return created;
+  return created
 }
 
 /**
@@ -76,29 +76,29 @@ export async function create(userId: string, input: CreateGoal) {
  * ids on every goal edit.
  */
 export async function update(userId: string, input: UpdateGoal) {
-  const { id, valueIds, position, ...goalData } = input;
+  const { id, valueIds, position, ...goalData } = input
 
   if (Object.keys(goalData).length > 0 || position) {
-    const updateData: Partial<typeof goals.$inferInsert> = { ...goalData, updatedAt: new Date() };
+    const updateData: Partial<typeof goals.$inferInsert> = { ...goalData, updatedAt: new Date() }
     if (position) {
-      updateData.positionX = position.x;
-      updateData.positionY = position.y;
+      updateData.positionX = position.x
+      updateData.positionY = position.y
     }
     await db
       .update(goals)
       .set(updateData)
-      .where(and(eq(goals.id, id), eq(goals.userId, userId)));
+      .where(and(eq(goals.id, id), eq(goals.userId, userId)))
   }
 
   if (valueIds !== undefined) {
-    await assertOwnsGoal(userId, id);
-    await db.delete(goalValues).where(eq(goalValues.goalId, id));
+    await assertOwnsGoal(userId, id)
+    await db.delete(goalValues).where(eq(goalValues.goalId, id))
     if (valueIds.length > 0) {
-      await db.insert(goalValues).values(valueIds.map((valueId) => ({ goalId: id, valueId })));
+      await db.insert(goalValues).values(valueIds.map((valueId) => ({ goalId: id, valueId })))
     }
   }
 
-  return { success: true };
+  return { success: true }
 }
 
 /**
@@ -113,17 +113,17 @@ export async function remove(userId: string, id: string) {
       .select({ id: goals.id })
       .from(goals)
       .where(and(eq(goals.id, id), eq(goals.userId, userId)))
-      .limit(1);
-    if (!owned) throw new AppError("NOT_FOUND", "Goal not found or access denied");
+      .limit(1)
+    if (!owned) throw new AppError('NOT_FOUND', 'Goal not found or access denied')
 
-    await tx.update(goals).set({ status: "archived", updatedAt: new Date() }).where(eq(goals.id, id));
-    await tx.delete(connections).where(eq(connections.source, id));
-    await tx.delete(connections).where(eq(connections.target, id));
+    await tx.update(goals).set({ status: 'archived', updatedAt: new Date() }).where(eq(goals.id, id))
+    await tx.delete(connections).where(eq(connections.source, id))
+    await tx.delete(connections).where(eq(connections.target, id))
     await tx
       .update(trackingItems)
-      .set({ status: "archived", updatedAt: new Date() })
-      .where(eq(trackingItems.goalId, id));
+      .set({ status: 'archived', updatedAt: new Date() })
+      .where(eq(trackingItems.goalId, id))
 
-    return { success: true };
-  });
+    return { success: true }
+  })
 }

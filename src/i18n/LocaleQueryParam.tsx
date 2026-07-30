@@ -1,10 +1,10 @@
-"use client";
+'use client'
 
-import { useEffect } from "react";
-import { useSearchParams } from "next/navigation";
-import { useTranslation } from "react-i18next";
+import { useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { useTranslation } from 'react-i18next'
 
-import { SUPPORTED_LOCALES } from "./config";
+import { SUPPORTED_LOCALES } from './config'
 
 // Honors `?locale=es` (or any other supported code) on any URL by calling
 // i18n.changeLanguage once when the param is present. Designed for shareable
@@ -19,17 +19,17 @@ import { SUPPORTED_LOCALES } from "./config";
 //     "preview" mode and a detector reconfiguration.
 //   - Renders nothing.
 export default function LocaleQueryParam() {
-  const params = useSearchParams();
-  const { i18n } = useTranslation();
-  const requested = params.get("locale");
+  const params = useSearchParams()
+  const { i18n } = useTranslation()
+  const requested = params.get('locale')
 
   useEffect(() => {
-    if (!requested) return;
-    const isSupported = SUPPORTED_LOCALES.some((l) => l.code === requested);
-    if (!isSupported) return;
-    if (requested === i18n.resolvedLanguage) return;
-    void i18n.changeLanguage(requested);
-  }, [requested, i18n]);
+    if (!requested) return
+    const isSupported = SUPPORTED_LOCALES.some((l) => l.code === requested)
+    if (!isSupported) return
+    if (requested === i18n.resolvedLanguage) return
+    void i18n.changeLanguage(requested)
+  }, [requested, i18n])
 
-  return null;
+  return null
 }

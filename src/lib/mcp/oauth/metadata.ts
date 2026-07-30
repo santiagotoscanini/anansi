@@ -1,4 +1,4 @@
-import { ALL_SCOPES } from "./scopes";
+import { ALL_SCOPES } from './scopes'
 
 // Resolve the public origin of the server from the request headers. We honor
 // the standard reverse-proxy headers (x-forwarded-{proto,host}) since Anansi
@@ -8,10 +8,10 @@ import { ALL_SCOPES } from "./scopes";
 // the MCP client must reach back at — if the issuer claim is wrong, Claude's
 // PKCE/state binding fails.
 export function resolveOrigin(req: Request): string {
-  const headers = req.headers;
-  const proto = headers.get("x-forwarded-proto") ?? new URL(req.url).protocol.replace(/:$/, "");
-  const host = headers.get("x-forwarded-host") ?? headers.get("host") ?? new URL(req.url).host;
-  return `${proto}://${host}`;
+  const headers = req.headers
+  const proto = headers.get('x-forwarded-proto') ?? new URL(req.url).protocol.replace(/:$/, '')
+  const host = headers.get('x-forwarded-host') ?? headers.get('host') ?? new URL(req.url).host
+  return `${proto}://${host}`
 }
 
 // RFC 8414 Authorization Server Metadata. The MCP client fetches this to learn
@@ -25,13 +25,13 @@ export function authorizationServerMetadata(origin: string) {
     token_endpoint: `${origin}/oauth/token`,
     registration_endpoint: `${origin}/oauth/register`,
     revocation_endpoint: `${origin}/oauth/revoke`,
-    response_types_supported: ["code"],
-    grant_types_supported: ["authorization_code", "refresh_token"],
-    code_challenge_methods_supported: ["S256"],
-    token_endpoint_auth_methods_supported: ["none"],
-    revocation_endpoint_auth_methods_supported: ["none"],
+    response_types_supported: ['code'],
+    grant_types_supported: ['authorization_code', 'refresh_token'],
+    code_challenge_methods_supported: ['S256'],
+    token_endpoint_auth_methods_supported: ['none'],
+    revocation_endpoint_auth_methods_supported: ['none'],
     scopes_supported: [...ALL_SCOPES],
-  } as const;
+  } as const
 }
 
 // RFC 9728 Protected Resource Metadata. The MCP server returns this from the
@@ -41,7 +41,7 @@ export function protectedResourceMetadata(origin: string) {
   return {
     resource: `${origin}/api/mcp`,
     authorization_servers: [origin],
-    bearer_methods_supported: ["header"],
+    bearer_methods_supported: ['header'],
     scopes_supported: [...ALL_SCOPES],
-  } as const;
+  } as const
 }

@@ -3,11 +3,11 @@
 // inherits currentColor and stays crisp at any pixel size.
 
 type MarkProps = {
-  size?: number;
-  strokeWidth?: number;
-  className?: string;
-  style?: React.CSSProperties;
-};
+  size?: number
+  strokeWidth?: number
+  className?: string
+  style?: React.CSSProperties
+}
 
 // 8 spokes + 2 nested octagons + a clay drop at the center. The drop is
 // the brand's signature element — it appears here AND on the wordmark's
@@ -15,7 +15,7 @@ type MarkProps = {
 export function AnansiMark({ size = 22, strokeWidth = 2, className, style }: MarkProps) {
   return (
     <svg
-      className={["anansi-mark", className].filter(Boolean).join(" ")}
+      className={['anansi-mark', className].filter(Boolean).join(' ')}
       width={size}
       height={size}
       viewBox="0 0 100 100"
@@ -36,7 +36,7 @@ export function AnansiMark({ size = 22, strokeWidth = 2, className, style }: Mar
       </g>
       <circle className="am-drop" cx="50" cy="50" r="4.2" />
     </svg>
-  );
+  )
 }
 
 // Lowercase italic "anansi" in Cormorant Garamond. The last letter is a
@@ -48,14 +48,14 @@ export function Wordmark({
   className,
   style,
 }: {
-  size?: number;
-  withDrop?: boolean;
-  className?: string;
-  style?: React.CSSProperties;
+  size?: number
+  withDrop?: boolean
+  className?: string
+  style?: React.CSSProperties
 }) {
   return (
     <span
-      className={["wordmark", size < 18 ? "wm-sm" : "", className].filter(Boolean).join(" ")}
+      className={['wordmark', size < 18 ? 'wm-sm' : '', className].filter(Boolean).join(' ')}
       style={{ fontSize: size, ...style }}
     >
       <span className="wm-text">
@@ -63,7 +63,7 @@ export function Wordmark({
         <span className="wm-i">ı{withDrop && <span className="wm-drop" />}</span>
       </span>
     </span>
-  );
+  )
 }
 
 // Full lockup — the mark + wordmark with a 12px gap. The wordmark
@@ -73,16 +73,16 @@ export function BrandLockup({
   className,
   style,
 }: {
-  size?: number;
-  className?: string;
-  style?: React.CSSProperties;
+  size?: number
+  className?: string
+  style?: React.CSSProperties
 }) {
   return (
-    <span className={["brand-lockup", className].filter(Boolean).join(" ")} style={style}>
+    <span className={['brand-lockup', className].filter(Boolean).join(' ')} style={style}>
       <span className="brand-mark">
         <AnansiMark size={size} />
       </span>
       <Wordmark size={size + 2} />
     </span>
-  );
+  )
 }

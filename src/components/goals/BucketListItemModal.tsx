@@ -1,51 +1,51 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { Trash2, X } from "lucide-react";
-import toast from "react-hot-toast";
-import { useTranslation } from "react-i18next";
-import { api } from "~/trpc/react";
-import type { BucketListItem } from "~/lib/api/types";
-import Avatar from "./Avatar";
+import { useState } from 'react'
+import { Trash2, X } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
+import { api } from '~/trpc/react'
+import type { BucketListItem } from '~/lib/api/types'
+import Avatar from './Avatar'
 
-const fieldLabel = "mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]";
+const fieldLabel = 'mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]'
 const inputClass =
-  "w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]";
-const textareaClass = `${inputClass} resize-none`;
+  'w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]'
+const textareaClass = `${inputClass} resize-none`
 
-type Mode = { kind: "create" } | { kind: "edit"; item: BucketListItem };
+type Mode = { kind: 'create' } | { kind: 'edit'; item: BucketListItem }
 
 interface BucketListItemModalProps {
-  mode: Mode;
-  onClose: () => void;
-  onSaved: () => void;
+  mode: Mode
+  onClose: () => void
+  onSaved: () => void
 }
 
 export default function BucketListItemModal({ mode, onClose, onSaved }: BucketListItemModalProps) {
-  const { t } = useTranslation();
-  const isEdit = mode.kind === "edit";
-  const item = isEdit ? mode.item : null;
+  const { t } = useTranslation()
+  const isEdit = mode.kind === 'edit'
+  const item = isEdit ? mode.item : null
 
-  const [content, setContent] = useState(item?.content ?? "");
-  const [description, setDescription] = useState(item?.description ?? "");
-  const [personIds, setPersonIds] = useState<string[]>(item?.personIds ?? []);
+  const [content, setContent] = useState(item?.content ?? '')
+  const [description, setDescription] = useState(item?.description ?? '')
+  const [personIds, setPersonIds] = useState<string[]>(item?.personIds ?? [])
 
-  const peopleQuery = api.goals.people.getAll.useQuery({ includeArchived: false });
-  const createMutation = api.goals.bucketList.create.useMutation();
-  const updateMutation = api.goals.bucketList.update.useMutation();
-  const deleteMutation = api.goals.bucketList.delete.useMutation();
+  const peopleQuery = api.goals.people.getAll.useQuery({ includeArchived: false })
+  const createMutation = api.goals.bucketList.create.useMutation()
+  const updateMutation = api.goals.bucketList.update.useMutation()
+  const deleteMutation = api.goals.bucketList.delete.useMutation()
 
-  const isSaving = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
+  const isSaving = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending
 
   const togglePerson = (id: string) => {
-    setPersonIds((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
-  };
+    setPersonIds((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]))
+  }
 
   const handleSave = async () => {
-    const trimmed = content.trim();
+    const trimmed = content.trim()
     if (!trimmed) {
-      toast.error(t("bucketItem.addName"));
-      return;
+      toast.error(t('bucketItem.addName'))
+      return
     }
     try {
       if (isEdit && item) {
@@ -54,38 +54,38 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
           content: trimmed,
           description: description.trim() || null,
           personIds,
-        });
-        toast.success(t("bucketItem.saved"));
+        })
+        toast.success(t('bucketItem.saved'))
       } else {
         await createMutation.mutateAsync({
           content: trimmed,
           description: description.trim() || null,
           personIds,
-        });
-        toast.success(t("bucketItem.added"));
+        })
+        toast.success(t('bucketItem.added'))
       }
-      onSaved();
-      onClose();
+      onSaved()
+      onClose()
     } catch {
-      toast.error(t("bucketItem.saveFailed"));
+      toast.error(t('bucketItem.saveFailed'))
     }
-  };
+  }
 
   const handleDelete = async () => {
-    if (!item) return;
-    if (!confirm(t("bucketItem.confirmDelete"))) return;
+    if (!item) return
+    if (!confirm(t('bucketItem.confirmDelete'))) return
     try {
-      await deleteMutation.mutateAsync({ id: item.id });
-      toast.success(t("bucketItem.deleted"));
-      onSaved();
-      onClose();
+      await deleteMutation.mutateAsync({ id: item.id })
+      toast.success(t('bucketItem.deleted'))
+      onSaved()
+      onClose()
     } catch {
-      toast.error(t("bucketItem.deleteFailed"));
+      toast.error(t('bucketItem.deleteFailed'))
     }
-  };
+  }
 
-  const people = peopleQuery.data ?? [];
-  const sortedPeople = [...people].sort((a, b) => a.name.localeCompare(b.name));
+  const people = peopleQuery.data ?? []
+  const sortedPeople = [...people].sort((a, b) => a.name.localeCompare(b.name))
 
   return (
     <div
@@ -99,12 +99,12 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
         {/* Sticky header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--hairline)] bg-[var(--canvas)] px-6 py-4 backdrop-blur">
           <h2 className="text-lg font-medium tracking-tight">
-            {isEdit ? t("bucketItem.editTitle") : t("bucketItem.addTitle")}
+            {isEdit ? t('bucketItem.editTitle') : t('bucketItem.addTitle')}
           </h2>
           <button
             onClick={onClose}
             className="rounded-lg p-1.5 text-[var(--ink-3)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
-            aria-label={t("common.close")}
+            aria-label={t('common.close')}
           >
             <X className="h-4 w-4" />
           </button>
@@ -113,18 +113,18 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
         <div className="space-y-5 px-6 pb-6 pt-5">
           {/* Content */}
           <div>
-            <label className={fieldLabel}>{t("bucketItem.thingToDo")}</label>
+            <label className={fieldLabel}>{t('bucketItem.thingToDo')}</label>
             <input
               type="text"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault();
-                  void handleSave();
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault()
+                  void handleSave()
                 }
               }}
-              placeholder={t("bucketItem.thingPlaceholder")}
+              placeholder={t('bucketItem.thingPlaceholder')}
               maxLength={500}
               autoFocus
               className={inputClass}
@@ -133,11 +133,11 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
 
           {/* Description */}
           <div>
-            <label className={fieldLabel}>{t("bucketItem.descriptionLabel")}</label>
+            <label className={fieldLabel}>{t('bucketItem.descriptionLabel')}</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder={t("bucketItem.descriptionPlaceholder")}
+              placeholder={t('bucketItem.descriptionPlaceholder')}
               rows={4}
               maxLength={2000}
               className={textareaClass}
@@ -146,13 +146,13 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
 
           {/* People to do it with */}
           <div>
-            <label className={fieldLabel}>{t("bucketItem.peopleLabel")}</label>
+            <label className={fieldLabel}>{t('bucketItem.peopleLabel')}</label>
             {sortedPeople.length === 0 ? (
-              <p className="text-xs text-[var(--ink-3)]">{t("bucketItem.noPeopleYet")}</p>
+              <p className="text-xs text-[var(--ink-3)]">{t('bucketItem.noPeopleYet')}</p>
             ) : (
               <div className="flex flex-wrap items-center gap-1.5">
                 {sortedPeople.map((p) => {
-                  const selected = personIds.includes(p.id);
+                  const selected = personIds.includes(p.id)
                   return (
                     <button
                       key={p.id}
@@ -160,14 +160,14 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
                       onClick={() => togglePerson(p.id)}
                       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-all ${
                         selected
-                          ? "border-[var(--hairline-2)] bg-[var(--vellum)] text-[var(--ink)]"
-                          : "border-[var(--hairline)] bg-[var(--vellum)] text-[var(--ink-2)] hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
+                          ? 'border-[var(--hairline-2)] bg-[var(--vellum)] text-[var(--ink)]'
+                          : 'border-[var(--hairline)] bg-[var(--vellum)] text-[var(--ink-2)] hover:bg-[var(--vellum)] hover:text-[var(--ink)]'
                       }`}
                     >
                       <Avatar name={p.name} emoji={p.emoji} size="xs" shape="circle" />
                       <span>{p.name}</span>
                     </button>
-                  );
+                  )
                 })}
               </div>
             )}
@@ -184,7 +184,7 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--rust)] bg-[var(--rust-soft)] px-3 py-1.5 text-xs text-[var(--rust)] transition-all hover:bg-[var(--rust-soft)] hover:text-[var(--rust)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              {t("common.delete")}
+              {t('common.delete')}
             </button>
           ) : (
             <span />
@@ -195,7 +195,7 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
               onClick={onClose}
               className="rounded-lg border border-[var(--hairline)] bg-transparent px-4 py-1.5 text-sm text-[var(--ink-2)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
             >
-              {t("common.cancel")}
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -203,11 +203,11 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
               disabled={isSaving || !content.trim()}
               className="rounded-lg border border-[var(--hairline-2)] bg-[var(--surface-inverse)] px-4 py-1.5 text-sm text-[var(--on-inverse)] transition-all hover:bg-[var(--surface-inverse)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {isEdit ? t("common.save") : t("common.add")}
+              {isEdit ? t('common.save') : t('common.add')}
             </button>
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }

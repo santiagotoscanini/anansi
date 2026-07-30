@@ -1,12 +1,16 @@
-// Profile reads/writes against the local users row.
+// The users row: profile reads/writes, plus the two credential operations that
+// are pure database work.
 //
-// Sign-in / sign-up / sign-out / password change are NOT here — they flow
-// through Auth.js server actions in src/app/auth/actions.ts. This file is only
-// the authenticated profile surface.
+// What is NOT here is anything that touches the session cookie. Sign-in and
+// sign-out are Auth.js's job (src/server/auth/actions.ts) — this file owns the
+// `users` row, they own the cookie, and `registerUser` below returns rather
+// than signing in so the seam stays clean and the whole thing stays callable
+// from a script.
 //
 // Avatar bytes live in the `files` table and are served by /api/files/[id];
 // users.avatarUrl holds a `/api/files/{id}` pointer, or null for the initials
 // fallback in Avatar.tsx.
+import bcrypt from 'bcryptjs'
 import { and, eq, ne } from 'drizzle-orm'
 import { db } from '~/lib/data'
 import { files, users } from '~/lib/data/schema'
@@ -28,6 +32,62 @@ const PROFILE_COLUMNS = {
   avatarUrl: users.avatarUrl,
   locale: users.locale,
 } as const
+
+/**
+ * The minimum password length, enforced at every write. 12 rather than a
+ * conventional 8 because there is no rate-limited login, no MFA and no password
+ * reset — the hash is the only thing standing between an email address and the
+ * account.
+ */
+const MIN_PASSWORD_LENGTH = 12
+
+/**
+ * Create the users row for a new signup. Does NOT sign anyone in — the caller
+ * follows up with Auth.js so this stays usable from a seed script.
+ *
+ * Email is lower-cased on the way in because `users.email` is UNIQUE and
+ * Postgres compares it case-sensitively; without this, Sam@x.com and sam@x.com
+ * are two accounts and only one of them can ever log in through a provider that
+ * normalises.
+ */
+export async function registerUser(input: { name: string; email: string; password: string }) {
+  const name = input.name.trim()
+  const email = input.email.trim().toLowerCase()
+
+  if (!name) throw new AppError('BAD_REQUEST', 'Name is required')
+  if (input.password.length < MIN_PASSWORD_LENGTH) {
+    throw new AppError('BAD_REQUEST', `Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+  }
+
+  const existing = await db.query.users.findFirst({ where: eq(users.email, email) })
+  if (existing) throw new AppError('CONFLICT', 'An account with this email already exists')
+
+  const passwordHash = await bcrypt.hash(input.password, 10)
+  const [created] = await db.insert(users).values({ name, email, passwordHash }).returning(PROFILE_COLUMNS)
+  if (!created) throw new AppError('INTERNAL_SERVER_ERROR', 'Failed to create account')
+
+  return { ...created, email }
+}
+
+/**
+ * Change the password of a signed-in user, re-authenticating with the current
+ * one first. That check is not redundant with the session: it is what stops a
+ * borrowed unlocked laptop from becoming a permanent account takeover.
+ */
+export async function changePassword(userId: string, input: { currentPassword: string; newPassword: string }) {
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
+  if (!user?.passwordHash) throw new AppError('BAD_REQUEST', 'No password set on this account.')
+
+  const ok = await bcrypt.compare(input.currentPassword, user.passwordHash)
+  if (!ok) throw new AppError('BAD_REQUEST', 'Current password is incorrect')
+
+  if (input.newPassword.length < MIN_PASSWORD_LENGTH) {
+    throw new AppError('BAD_REQUEST', `New password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+  }
+
+  const passwordHash = await bcrypt.hash(input.newPassword, 10)
+  await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, user.id))
+}
 
 export async function me(userId: string) {
   const [row] = await db.select(PROFILE_COLUMNS).from(users).where(eq(users.id, userId)).limit(1)

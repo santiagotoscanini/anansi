@@ -80,6 +80,57 @@ at every weight), while Start serves static per-weight files and reports the rea
 Session cookie **values** are deliberately not committed here; regenerate one with that
 two-request sequence when needed.
 
+### Resolved in 3.2 — cookie compatibility is proven, not assumed
+
+Both stacks were run side by side (Next :3100, Start :3001) against the same local
+Postgres and the same `AUTH_SECRET`, and cookies were passed between them.
+
+| Test | Next :3100 | Start :3001 |
+|---|---|---|
+| Read a **Next-issued** cookie | user id `ab89c55c…` | **same user id** |
+| Read a **Start-issued** cookie (minted by the `signIn` server fn) | **same user id** | same user id |
+| `x-forwarded-proto: https`, unprefixed cookie | `null` | `null` |
+| `x-forwarded-proto: https`, `__Secure-` name but http-derived salt | `null` | `null` |
+
+Rows 3 and 4 are the negative controls, and they earned their keep: **row 3 failed the
+first time**, on Start's `/api/auth/*` mount. `@auth/core` reads the protocol straight
+off `request.url` (`lib/init.js:69`), and Next quietly rebuilds `NextRequest.url` from
+the forwarded headers while Nitro passes the transport URL through untouched. So behind
+a TLS-terminating proxy — i.e. in production — that route would have looked for
+`authjs.session-token` while the browser held `__Secure-authjs.session-token`, reading
+as signed-out on every request, and a future Google callback would have written a
+non-`Secure` cookie. Fixed by rewriting the request origin in
+`src/routes/api.auth.$.ts`. Nothing about a plain login test would have surfaced this;
+the negative control did.
+
+Row 4 confirms finding B empirically: the right cookie name with the wrong salt still
+decrypts to nothing, because **the salt is the cookie name**.
+
+Two further checks, run behind simulated TLS termination
+(`x-forwarded-proto: https`), since that is the shape that actually ships:
+
+- Both stacks issue `__Host-authjs.csrf-token`, `__Secure-authjs.callback-url` and
+  `__Secure-authjs.session-token`, the last with `Secure`, and read it back.
+- `getServerSession()` — the path every page load uses, and the one with no Next
+  counterpart to compare against — resolves that production-shaped cookie, and
+  resolves to `null` without the forwarded header. The negative half matters: it
+  proves the protocol plumbing is live rather than passing by accident.
+
+The strongest single piece of evidence is the JWE header. Both stacks emit
+`{"alg":"dir","enc":"A256CBC-HS512","kid":"VhpO1XY3qm-qCCzXWURaN1F6FfMTvdNWyxcYCmHin-r1…"}`
+— an identical `kid`, which is a thumbprint **of the derived key**. Same key material,
+same salt, same HKDF. `@auth/core` is pinned to `0.41.3`, the exact version `next-auth`
+resolves, so pnpm gives both stacks one physical copy of that code rather than two that
+merely agree today.
+
+Error paths were checked at the same time, and none of them mints a cookie: bad password
+→ "Email or password is incorrect" (deliberately not saying which field, so the form is
+not an account-enumeration oracle), duplicate email → "An account with this email already
+exists", 5-character password → "Password must be at least 12 characters". Sign-out
+clears the cookie and the server agrees (`session: null`).
+
+Reproduce with `scripts/check-auth-compat.mjs` (needs both dev servers up).
+
 ## Screenshots — `screens/`
 
 29 full-page images: 12 app tabs × light/dark, plus the 5 public pages

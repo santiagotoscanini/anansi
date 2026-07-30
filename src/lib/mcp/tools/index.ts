@@ -1,6 +1,6 @@
 import "server-only";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { McpCaller } from "./types";
+import type { McpCtx } from "./types";
 import { registerGoalsTools } from "./goals";
 import { registerTasksTools } from "./tasks";
 import { registerValuesTools } from "./values";
@@ -14,15 +14,15 @@ import { registerSystemTools } from "./system";
 
 // Single entry point — one call per domain. New domains add a new file and
 // a one-line registration here.
-export function registerAllTools(server: McpServer, caller: McpCaller): void {
-  registerSystemTools(server, caller);
-  registerGoalsTools(server, caller);
-  registerTasksTools(server, caller);
-  registerValuesTools(server, caller);
-  registerPeopleTools(server, caller);
-  registerNextBidsTools(server, caller);
-  registerImportantDatesTools(server, caller);
-  registerGroupsTools(server, caller);
-  registerBucketListTools(server, caller);
-  registerSelfTools(server, caller);
+export function registerAllTools(server: McpServer, ctx: McpCtx): void {
+  registerSystemTools(server, ctx);
+  registerGoalsTools(server, ctx);
+  registerTasksTools(server, ctx);
+  registerValuesTools(server, ctx);
+  registerPeopleTools(server, ctx);
+  registerNextBidsTools(server, ctx);
+  registerImportantDatesTools(server, ctx);
+  registerGroupsTools(server, ctx);
+  registerBucketListTools(server, ctx);
+  registerSelfTools(server, ctx);
 }

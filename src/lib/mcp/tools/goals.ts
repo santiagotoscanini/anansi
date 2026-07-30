@@ -1,8 +1,9 @@
 import "server-only";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { McpCaller } from "./types";
+import type { McpCtx } from "./types";
 import { mcpErrorFromUnknown, mcpJsonResult } from "../errors";
+import * as goals from "~/server/services/goals";
 
 // Goals — the top-level container. A goal can have a parent (sub-goal), tags
 // (values), and tasks. The position is a {x,y} placement on the visual canvas
@@ -14,7 +15,7 @@ const emoji = z
   .regex(/^\S{1,8}$/u, "emoji glyph only — 1-8 non-whitespace characters")
   .optional();
 
-export function registerGoalsTools(server: McpServer, caller: McpCaller): void {
+export function registerGoalsTools(server: McpServer, ctx: McpCtx): void {
   server.registerTool(
     "list_goals",
     {
@@ -25,7 +26,7 @@ export function registerGoalsTools(server: McpServer, caller: McpCaller): void {
     },
     async () => {
       try {
-        return mcpJsonResult(await caller.goals.goals.getAll());
+        return mcpJsonResult(await goals.list(ctx.userId));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -57,7 +58,7 @@ export function registerGoalsTools(server: McpServer, caller: McpCaller): void {
         // handler doesn't actually need ids. We always send an empty array
         // and require the LLM to use create_task for follow-up tasks —
         // simpler mental model, avoids the typed-id confusion.
-        return mcpJsonResult(await caller.goals.goals.create({ ...args, tasks: [] }));
+        return mcpJsonResult(await goals.create(ctx.userId, { ...args, tasks: [] }));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -83,7 +84,7 @@ export function registerGoalsTools(server: McpServer, caller: McpCaller): void {
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.goals.update(args));
+        return mcpJsonResult(await goals.update(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -101,7 +102,7 @@ export function registerGoalsTools(server: McpServer, caller: McpCaller): void {
     },
     async ({ id }) => {
       try {
-        return mcpJsonResult(await caller.goals.goals.delete({ id }));
+        return mcpJsonResult(await goals.remove(ctx.userId, id));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }

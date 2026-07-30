@@ -1,8 +1,10 @@
 import "server-only";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { McpCaller } from "./types";
+import type { McpCtx } from "./types";
 import { mcpErrorFromUnknown, mcpJsonResult } from "../errors";
+import { createTaskSchema } from "~/lib/api/types";
+import * as tasks from "~/server/services/tasks";
 
 // Tasks are atomic actions under a goal. Each task has a single optional
 // deadline (`scheduledAt`) — the Horizons board buckets it into Month /
@@ -17,7 +19,7 @@ const emoji = z
   .optional();
 const difficulty = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 
-export function registerTasksTools(server: McpServer, caller: McpCaller): void {
+export function registerTasksTools(server: McpServer, ctx: McpCtx): void {
   server.registerTool(
     "create_task",
     {
@@ -39,7 +41,18 @@ export function registerTasksTools(server: McpServer, caller: McpCaller): void {
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.tasks.create(args));
+        // Parsed with the canonical schema before dispatch, not just handed
+        // through. The hand-written `inputSchema` above is what the LLM sees
+        // and is deliberately looser — it omits fields the schema supplies via
+        // `.default()` (ids arrays, order indices) so the model isn't asked to
+        // invent them. tRPC used to apply those defaults in `.input()`; calling
+        // the service directly skips that, so the parse has to happen here or
+        // the service receives `undefined` where it expects a value.
+        //
+        // goalId is carried alongside rather than through the schema, matching
+        // the router's `createTaskSchema.extend({ goalId })` — a task's parent
+        // is addressing, not payload.
+        return mcpJsonResult(await tasks.create(ctx.userId, { ...createTaskSchema.parse(args), goalId: args.goalId }));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -68,7 +81,7 @@ export function registerTasksTools(server: McpServer, caller: McpCaller): void {
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.tasks.update(args));
+        return mcpJsonResult(await tasks.update(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -88,7 +101,7 @@ export function registerTasksTools(server: McpServer, caller: McpCaller): void {
     },
     async ({ id, goalId }) => {
       try {
-        return mcpJsonResult(await caller.goals.tasks.delete({ id, goalId }));
+        return mcpJsonResult(await tasks.remove(ctx.userId, { id, goalId }));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -109,7 +122,7 @@ export function registerTasksTools(server: McpServer, caller: McpCaller): void {
     },
     async ({ id, scheduledAt }) => {
       try {
-        return mcpJsonResult(await caller.goals.tasks.setScheduled({ id, scheduledAt }));
+        return mcpJsonResult(await tasks.setScheduled(ctx.userId, { id, scheduledAt }));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }

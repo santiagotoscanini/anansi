@@ -1,13 +1,15 @@
 import "server-only";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { McpCaller } from "./types";
+import type { McpCtx } from "./types";
 import { mcpErrorFromUnknown, mcpJsonResult } from "../errors";
+import { createBucketListItemSchema } from "~/lib/api/types";
+import * as bucketList from "~/server/services/bucket-list";
 
 // Bucket list — things the user wants to do before dying. Flat list; each item
 // can link to multiple people ("people I want to do this with").
 
-export function registerBucketListTools(server: McpServer, caller: McpCaller): void {
+export function registerBucketListTools(server: McpServer, ctx: McpCtx): void {
   server.registerTool(
     "list_bucket_list",
     {
@@ -17,7 +19,7 @@ export function registerBucketListTools(server: McpServer, caller: McpCaller): v
     },
     async () => {
       try {
-        return mcpJsonResult(await caller.goals.bucketList.list());
+        return mcpJsonResult(await bucketList.list(ctx.userId));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -39,7 +41,14 @@ export function registerBucketListTools(server: McpServer, caller: McpCaller): v
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.bucketList.create(args));
+        // Parsed with the canonical schema before dispatch, not just handed
+        // through. The hand-written `inputSchema` above is what the LLM sees
+        // and is deliberately looser — it omits fields the schema supplies via
+        // `.default()` (ids arrays, order indices) so the model isn't asked to
+        // invent them. tRPC used to apply those defaults in `.input()`; calling
+        // the service directly skips that, so the parse has to happen here or
+        // the service receives `undefined` where it expects a value.
+        return mcpJsonResult(await bucketList.create(ctx.userId, createBucketListItemSchema.parse(args)));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -62,7 +71,7 @@ export function registerBucketListTools(server: McpServer, caller: McpCaller): v
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.bucketList.update(args));
+        return mcpJsonResult(await bucketList.update(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -82,7 +91,7 @@ export function registerBucketListTools(server: McpServer, caller: McpCaller): v
     },
     async ({ id, completed }) => {
       try {
-        return mcpJsonResult(await caller.goals.bucketList.toggleCompleted({ id, completed }));
+        return mcpJsonResult(await bucketList.toggleCompleted(ctx.userId, { id, completed }));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -99,7 +108,7 @@ export function registerBucketListTools(server: McpServer, caller: McpCaller): v
     },
     async ({ id }) => {
       try {
-        return mcpJsonResult(await caller.goals.bucketList.delete({ id }));
+        return mcpJsonResult(await bucketList.remove(ctx.userId, id));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }

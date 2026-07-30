@@ -3,7 +3,6 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { checkRateLimit, clientIpFromHeaders } from "~/lib/rate-limit";
 import { validateBearer } from "~/lib/mcp/oauth/tokens";
 import { resolveOrigin } from "~/lib/mcp/oauth/metadata";
-import { createMcpCaller } from "~/lib/mcp/caller";
 import { buildMcpServer } from "~/lib/mcp/server";
 
 // MCP server endpoint. Streamable HTTP transport (June 2025 spec) — single URL
@@ -58,12 +57,11 @@ async function handle(req: NextRequest): Promise<Response> {
   const auth = await validateBearer(bearer);
   if (!auth) return unauthorized(req);
 
-  // Build the per-request server + caller. Stateless transport with JSON
-  // responses (rather than SSE) keeps the proxy story simple; the MCP client
-  // upgrades to SSE only when the server holds the response open for
-  // long-running work, which we don't do for any current tool.
-  const caller = createMcpCaller(auth.userId);
-  const server = buildMcpServer(caller);
+  // Build the per-request server. Stateless transport with JSON responses
+  // (rather than SSE) keeps the proxy story simple; the MCP client upgrades
+  // to SSE only when the server holds the response open for long-running
+  // work, which we don't do for any current tool.
+  const server = buildMcpServer({ userId: auth.userId });
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
@@ -72,7 +70,7 @@ async function handle(req: NextRequest): Promise<Response> {
 
   // authInfo flows into tool handlers via the `extra` parameter — currently
   // unused by our tools (they get user identity from the closure-captured
-  // caller) but populated for spec compliance.
+  // McpCtx) but populated for spec compliance.
   const response = await transport.handleRequest(req, {
     authInfo: {
       token: bearer,

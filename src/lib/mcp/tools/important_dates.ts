@@ -1,14 +1,15 @@
 import "server-only";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { McpCaller } from "./types";
+import type { McpCtx } from "./types";
 import { mcpErrorFromUnknown, mcpJsonResult } from "../errors";
+import * as importantDates from "~/server/services/important-dates";
 
 // Important dates — yearly recurring per-person dates (birthday, anniversary,
 // graduation, …). Recurrence is implicit: month + day repeat every year.
 // Distinct from `next_bids.dueAt` which is a one-shot deadline.
 
-export function registerImportantDatesTools(server: McpServer, caller: McpCaller): void {
+export function registerImportantDatesTools(server: McpServer, ctx: McpCtx): void {
   server.registerTool(
     "list_important_dates",
     {
@@ -22,7 +23,7 @@ export function registerImportantDatesTools(server: McpServer, caller: McpCaller
         // Upstream input is `z.object({ personId }).optional()` — pass undefined
         // (not `{ personId: undefined }`) when the LLM omits the filter so
         // Zod takes the "list all" branch.
-        return mcpJsonResult(await caller.goals.importantDates.list(personId ? { personId } : undefined));
+        return mcpJsonResult(await importantDates.list(ctx.userId, personId ? { personId } : undefined));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -45,7 +46,7 @@ export function registerImportantDatesTools(server: McpServer, caller: McpCaller
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.importantDates.create(args));
+        return mcpJsonResult(await importantDates.create(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -68,7 +69,7 @@ export function registerImportantDatesTools(server: McpServer, caller: McpCaller
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.importantDates.update(args));
+        return mcpJsonResult(await importantDates.update(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -85,7 +86,7 @@ export function registerImportantDatesTools(server: McpServer, caller: McpCaller
     },
     async ({ id }) => {
       try {
-        return mcpJsonResult(await caller.goals.importantDates.delete({ id }));
+        return mcpJsonResult(await importantDates.remove(ctx.userId, id));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }

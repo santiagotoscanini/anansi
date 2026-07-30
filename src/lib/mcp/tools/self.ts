@@ -1,8 +1,10 @@
 import "server-only";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { McpCaller } from "./types";
+import type { McpCtx } from "./types";
 import { mcpErrorFromUnknown, mcpJsonResult } from "../errors";
+import * as self from "~/server/services/self";
+import * as selfListItems from "~/server/services/self-list-items";
 
 // The Self page is a "living portrait" — prose fields on user_self, plus list
 // buckets in self_list_items keyed by `kind`. Empty fields are intentional;
@@ -21,7 +23,7 @@ const selfListKind = z.enum([
 
 const patternCategory = z.enum(["relational", "self_pattern", "communication", "body_state", "choice"]);
 
-export function registerSelfTools(server: McpServer, caller: McpCaller): void {
+export function registerSelfTools(server: McpServer, ctx: McpCtx): void {
   server.registerTool(
     "get_self",
     {
@@ -31,7 +33,7 @@ export function registerSelfTools(server: McpServer, caller: McpCaller): void {
     },
     async () => {
       try {
-        return mcpJsonResult(await caller.goals.self.get());
+        return mcpJsonResult(await self.get(ctx.userId));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -65,7 +67,7 @@ export function registerSelfTools(server: McpServer, caller: McpCaller): void {
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.self.update(args));
+        return mcpJsonResult(await self.update(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -82,7 +84,7 @@ export function registerSelfTools(server: McpServer, caller: McpCaller): void {
     },
     async () => {
       try {
-        return mcpJsonResult(await caller.goals.selfListItems.list());
+        return mcpJsonResult(await selfListItems.list(ctx.userId));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -104,7 +106,7 @@ export function registerSelfTools(server: McpServer, caller: McpCaller): void {
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.selfListItems.create(args));
+        return mcpJsonResult(await selfListItems.create(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -125,7 +127,7 @@ export function registerSelfTools(server: McpServer, caller: McpCaller): void {
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.selfListItems.update(args));
+        return mcpJsonResult(await selfListItems.update(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -142,7 +144,7 @@ export function registerSelfTools(server: McpServer, caller: McpCaller): void {
     },
     async ({ id }) => {
       try {
-        return mcpJsonResult(await caller.goals.selfListItems.delete({ id }));
+        return mcpJsonResult(await selfListItems.remove(ctx.userId, id));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }

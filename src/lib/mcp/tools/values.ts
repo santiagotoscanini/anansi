@@ -1,14 +1,16 @@
 import "server-only";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { McpCaller } from "./types";
+import type { McpCtx } from "./types";
 import { mcpErrorFromUnknown, mcpJsonResult } from "../errors";
+import * as valueBehaviors from "~/server/services/value-behaviors";
+import * as values from "~/server/services/values";
 
 // Values are user-defined tags (Family, Health, Growth, …) that apply to goals.
 // Each value can have a list of "behaviors that confirm it" — concrete evidence
 // rows (e.g. Family → "Date night every Saturday") used during reflection.
 
-export function registerValuesTools(server: McpServer, caller: McpCaller): void {
+export function registerValuesTools(server: McpServer, ctx: McpCtx): void {
   server.registerTool(
     "list_values",
     {
@@ -19,7 +21,7 @@ export function registerValuesTools(server: McpServer, caller: McpCaller): void 
     },
     async () => {
       try {
-        return mcpJsonResult(await caller.goals.values.getAll());
+        return mcpJsonResult(await values.list(ctx.userId));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -39,7 +41,7 @@ export function registerValuesTools(server: McpServer, caller: McpCaller): void 
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.values.create(args));
+        return mcpJsonResult(await values.create(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -60,7 +62,7 @@ export function registerValuesTools(server: McpServer, caller: McpCaller): void 
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.values.update(args));
+        return mcpJsonResult(await values.update(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -77,7 +79,7 @@ export function registerValuesTools(server: McpServer, caller: McpCaller): void 
     },
     async ({ id }) => {
       try {
-        return mcpJsonResult(await caller.goals.values.delete({ id }));
+        return mcpJsonResult(await values.remove(ctx.userId, id));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -94,7 +96,7 @@ export function registerValuesTools(server: McpServer, caller: McpCaller): void 
     },
     async ({ valueId }) => {
       try {
-        return mcpJsonResult(await caller.goals.valueBehaviors.list({ valueId }));
+        return mcpJsonResult(await valueBehaviors.list(ctx.userId, valueId));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -114,7 +116,7 @@ export function registerValuesTools(server: McpServer, caller: McpCaller): void 
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.valueBehaviors.create(args));
+        return mcpJsonResult(await valueBehaviors.create(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -131,7 +133,7 @@ export function registerValuesTools(server: McpServer, caller: McpCaller): void 
     },
     async ({ id }) => {
       try {
-        return mcpJsonResult(await caller.goals.valueBehaviors.delete({ id }));
+        return mcpJsonResult(await valueBehaviors.remove(ctx.userId, id));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }

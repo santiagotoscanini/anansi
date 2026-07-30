@@ -1,8 +1,10 @@
 import "server-only";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { McpCaller } from "./types";
+import type { McpCtx } from "./types";
 import { mcpErrorFromUnknown, mcpJsonResult } from "../errors";
+import { createPersonSchema } from "~/lib/api/types";
+import * as people from "~/server/services/people";
 
 // People = personal CRM (a reflection surface, not a contact manager). Every
 // person has a `category` (board column) and a set of optional reflection
@@ -15,7 +17,7 @@ const emojiGlyph = z
   .optional();
 const category = z.enum(["to_process", "exploring", "long_term", "context_bound"]);
 
-export function registerPeopleTools(server: McpServer, caller: McpCaller): void {
+export function registerPeopleTools(server: McpServer, ctx: McpCtx): void {
   server.registerTool(
     "list_people",
     {
@@ -27,7 +29,7 @@ export function registerPeopleTools(server: McpServer, caller: McpCaller): void 
     },
     async ({ includeArchived }) => {
       try {
-        return mcpJsonResult(await caller.goals.people.getAll({ includeArchived }));
+        return mcpJsonResult(await people.list(ctx.userId, { includeArchived }));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -43,7 +45,7 @@ export function registerPeopleTools(server: McpServer, caller: McpCaller): void 
     },
     async ({ id }) => {
       try {
-        return mcpJsonResult(await caller.goals.people.getById({ id }));
+        return mcpJsonResult(await people.getById(ctx.userId, id));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -72,7 +74,14 @@ export function registerPeopleTools(server: McpServer, caller: McpCaller): void 
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.people.create(args));
+        // Parsed with the canonical schema before dispatch, not just handed
+        // through. The hand-written `inputSchema` above is what the LLM sees
+        // and is deliberately looser — it omits fields the schema supplies via
+        // `.default()` (ids arrays, order indices) so the model isn't asked to
+        // invent them. tRPC used to apply those defaults in `.input()`; calling
+        // the service directly skips that, so the parse has to happen here or
+        // the service receives `undefined` where it expects a value.
+        return mcpJsonResult(await people.create(ctx.userId, createPersonSchema.parse(args)));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -102,7 +111,7 @@ export function registerPeopleTools(server: McpServer, caller: McpCaller): void 
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.people.update(args));
+        return mcpJsonResult(await people.update(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -120,7 +129,7 @@ export function registerPeopleTools(server: McpServer, caller: McpCaller): void 
     },
     async ({ id }) => {
       try {
-        return mcpJsonResult(await caller.goals.people.archive({ id }));
+        return mcpJsonResult(await people.archive(ctx.userId, id));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -137,7 +146,7 @@ export function registerPeopleTools(server: McpServer, caller: McpCaller): void 
     },
     async ({ id }) => {
       try {
-        return mcpJsonResult(await caller.goals.people.unarchive({ id }));
+        return mcpJsonResult(await people.unarchive(ctx.userId, id));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -159,7 +168,7 @@ export function registerPeopleTools(server: McpServer, caller: McpCaller): void 
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.people.setCategory(args));
+        return mcpJsonResult(await people.setCategory(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -176,7 +185,7 @@ export function registerPeopleTools(server: McpServer, caller: McpCaller): void 
     },
     async ({ personId }) => {
       try {
-        return mcpJsonResult(await caller.goals.people.getTasksAsReferent({ personId }));
+        return mcpJsonResult(await people.getTasksAsReferent(ctx.userId, personId));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -192,7 +201,7 @@ export function registerPeopleTools(server: McpServer, caller: McpCaller): void 
     },
     async ({ personId }) => {
       try {
-        return mcpJsonResult(await caller.goals.people.getBucketListItemsAsParticipant({ personId }));
+        return mcpJsonResult(await people.getBucketListItemsAsParticipant(ctx.userId, personId));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }

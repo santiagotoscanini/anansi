@@ -1,14 +1,15 @@
 import "server-only";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { McpCaller } from "./types";
+import type { McpCtx } from "./types";
 import { mcpErrorFromUnknown, mcpJsonResult } from "../errors";
+import * as nextBids from "~/server/services/next-bids";
 
 // Next bids — actionable items toward a specific person (gift, gesture,
 // check-in, apology). Captured when noticed, not when needed. Completed bids
 // stay visible (struck-through) so the fulfilled trail is preserved.
 
-export function registerNextBidsTools(server: McpServer, caller: McpCaller): void {
+export function registerNextBidsTools(server: McpServer, ctx: McpCtx): void {
   server.registerTool(
     "list_next_bids",
     {
@@ -18,7 +19,7 @@ export function registerNextBidsTools(server: McpServer, caller: McpCaller): voi
     },
     async ({ personId }) => {
       try {
-        return mcpJsonResult(await caller.goals.nextBids.list({ personId }));
+        return mcpJsonResult(await nextBids.list(ctx.userId, personId));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -37,7 +38,7 @@ export function registerNextBidsTools(server: McpServer, caller: McpCaller): voi
     },
     async ({ withinDays }) => {
       try {
-        return mcpJsonResult(await caller.goals.nextBids.listUpcoming({ withinDays }));
+        return mcpJsonResult(await nextBids.listUpcoming(ctx.userId, { withinDays }));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -59,7 +60,7 @@ export function registerNextBidsTools(server: McpServer, caller: McpCaller): voi
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.nextBids.create(args));
+        return mcpJsonResult(await nextBids.create(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -80,7 +81,7 @@ export function registerNextBidsTools(server: McpServer, caller: McpCaller): voi
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.nextBids.update(args));
+        return mcpJsonResult(await nextBids.update(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -100,7 +101,7 @@ export function registerNextBidsTools(server: McpServer, caller: McpCaller): voi
     },
     async ({ id, completed }) => {
       try {
-        return mcpJsonResult(await caller.goals.nextBids.setCompleted({ id, completed }));
+        return mcpJsonResult(await nextBids.setCompleted(ctx.userId, { id, completed }));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -117,7 +118,7 @@ export function registerNextBidsTools(server: McpServer, caller: McpCaller): voi
     },
     async ({ id }) => {
       try {
-        return mcpJsonResult(await caller.goals.nextBids.delete({ id }));
+        return mcpJsonResult(await nextBids.remove(ctx.userId, id));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }

@@ -1,15 +1,17 @@
 import "server-only";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { McpCaller } from "./types";
+import type { McpCtx } from "./types";
 import { mcpErrorFromUnknown, mcpJsonResult } from "../errors";
+import { createPersonGroupSchema } from "~/lib/api/types";
+import * as groups from "~/server/services/groups";
 
 // Groups are cross-entity tags — the same group row tags BOTH people and tasks
 // (e.g. "Family" can hold both my partner and the "call mom" task). The DB
 // keeps the legacy `person_groups` table name; in the product it's just
 // "groups."
 
-export function registerGroupsTools(server: McpServer, caller: McpCaller): void {
+export function registerGroupsTools(server: McpServer, ctx: McpCtx): void {
   server.registerTool(
     "list_groups",
     {
@@ -19,7 +21,7 @@ export function registerGroupsTools(server: McpServer, caller: McpCaller): void 
     },
     async () => {
       try {
-        return mcpJsonResult(await caller.goals.groups.getAll());
+        return mcpJsonResult(await groups.list(ctx.userId));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -39,7 +41,14 @@ export function registerGroupsTools(server: McpServer, caller: McpCaller): void 
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.groups.create(args));
+        // Parsed with the canonical schema before dispatch, not just handed
+        // through. The hand-written `inputSchema` above is what the LLM sees
+        // and is deliberately looser — it omits fields the schema supplies via
+        // `.default()` (ids arrays, order indices) so the model isn't asked to
+        // invent them. tRPC used to apply those defaults in `.input()`; calling
+        // the service directly skips that, so the parse has to happen here or
+        // the service receives `undefined` where it expects a value.
+        return mcpJsonResult(await groups.create(ctx.userId, createPersonGroupSchema.parse(args)));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -61,7 +70,7 @@ export function registerGroupsTools(server: McpServer, caller: McpCaller): void 
     },
     async (args) => {
       try {
-        return mcpJsonResult(await caller.goals.groups.update(args));
+        return mcpJsonResult(await groups.update(ctx.userId, args));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -78,7 +87,7 @@ export function registerGroupsTools(server: McpServer, caller: McpCaller): void 
     },
     async ({ id }) => {
       try {
-        return mcpJsonResult(await caller.goals.groups.delete({ id }));
+        return mcpJsonResult(await groups.remove(ctx.userId, id));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }
@@ -94,7 +103,7 @@ export function registerGroupsTools(server: McpServer, caller: McpCaller): void 
     },
     async ({ groupId }) => {
       try {
-        return mcpJsonResult(await caller.goals.groups.getTasks({ groupId }));
+        return mcpJsonResult(await groups.getTasks(ctx.userId, groupId));
       } catch (e) {
         return mcpErrorFromUnknown(e);
       }

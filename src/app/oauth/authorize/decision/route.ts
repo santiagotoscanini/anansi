@@ -4,17 +4,11 @@ import { validateAuthorize, buildRedirect } from "~/lib/mcp/oauth/authorize-vali
 import { recordConsent } from "~/lib/mcp/oauth/consent";
 import { mintAuthCode } from "~/lib/mcp/oauth/codes";
 import { appendAudit } from "~/lib/mcp/oauth/audit";
+import { resolveOrigin } from "~/lib/mcp/oauth/metadata";
 import { clientIpFromHeaders } from "~/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-// Resolve the request origin from forwarded headers (mirrors metadata.ts).
-function resolveOrigin(req: NextRequest): string {
-  const proto = req.headers.get("x-forwarded-proto") ?? new URL(req.url).protocol.replace(/:$/, "");
-  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? new URL(req.url).host;
-  return `${proto}://${host}`;
-}
 
 // CSRF guard: the consent POST is a same-origin form submission, so any Origin
 // header other than our own means the form was posted from a third-party page.

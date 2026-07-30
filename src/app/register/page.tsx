@@ -6,14 +6,7 @@ import { GoalsProvider, useGoals } from '~/contexts/GoalsContext'
 import { RegisterScreen } from '~/components/auth/AuthScreens'
 import { Toaster } from 'react-hot-toast'
 import LegalFooter from '~/components/LegalFooter'
-
-// Same `?next=` sanitization as /login — only relative same-origin paths are
-// honored. Blocks `//evil` (protocol-relative) and absolute external URLs.
-function safeNext(next: string | null): string {
-  if (!next?.startsWith('/')) return '/app'
-  if (next.startsWith('//')) return '/app'
-  return next
-}
+import { safeNext } from '~/lib/safe-next'
 
 function RegisterPageInner() {
   const router = useRouter()

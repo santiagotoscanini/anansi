@@ -8,6 +8,17 @@ import i18next from 'eslint-plugin-i18next'
 import reactHooks from 'eslint-plugin-react-hooks'
 
 const config = [
+  {
+    ignores: [
+      // Generated from src/routes by the TanStack Router plugin. Not source,
+      // not gitignored-by-eslint-default, and it would report unused vars.
+      'src/routeTree.gen.ts',
+      '.next/**',
+      '.output/**',
+      '.nitro/**',
+      'dist/**',
+    ],
+  },
   ...next,
   ...tseslint.configs.recommendedTypeChecked.map((c) => ({
     ...c,
@@ -45,6 +56,25 @@ const config = [
       'react-hooks/set-state-in-effect': 'error',
     },
   },
+  // Router-agnostic components, rendered by BOTH src/app (Next) and
+  // src/routes (TanStack Start) while the two stacks coexist. They cannot
+  // import next/link — it would break the Start build — nor TanStack's Link,
+  // which would break the Next build. Plain <a> is the only spelling that
+  // works in both, so the full page load it causes is deliberate, and these
+  // are leaf pages where that costs nothing.
+  //
+  // Scoped to an explicit file list rather than a directory so a genuine
+  // accidental <a> anywhere else still errors. Delete this block in phase
+  // 3.6 along with eslint-config-next; the components switch to TanStack's
+  // Link at the same time.
+  {
+    files: [
+      'src/components/legal/PrivacyContent.tsx',
+      'src/components/legal/TermsContent.tsx',
+      'src/components/ScaffoldNotice.tsx',
+    ],
+    rules: { '@next/next/no-html-link-for-pages': 'off' },
+  },
   // i18n enforcement — every user-facing string in UI code must route through
   // `t(...)` or `<Trans>`. Plugin defaults already exclude <Trans>, ALL_CAPS,
   // punctuation/symbol-only strings, emoji, and common DOM attrs (className,
@@ -52,7 +82,7 @@ const config = [
   // i18next/no-literal-string */` at the top; each migration commit removes
   // its file's disable as the strings get extracted.
   {
-    files: ['src/components/**/*.tsx', 'src/app/**/*.tsx'],
+    files: ['src/components/**/*.tsx', 'src/app/**/*.tsx', 'src/routes/**/*.tsx'],
     plugins: { i18next },
     rules: {
       'i18next/no-literal-string': [

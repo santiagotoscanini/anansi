@@ -6,17 +6,7 @@ import { GoalsProvider, useGoals } from '~/contexts/GoalsContext'
 import { LoginScreen } from '~/components/auth/AuthScreens'
 import { Toaster } from 'react-hot-toast'
 import LegalFooter from '~/components/LegalFooter'
-
-// Sanitize the `?next=` redirect target so it can only point back into this
-// app (relative path, no scheme/host). Mirrors the same guard /auth/callback
-// uses — defence against an attacker dropping a /login?next=https://evil link.
-function safeNext(next: string | null): string {
-  if (!next?.startsWith('/')) return '/app'
-  // Block protocol-relative URLs (`//evil.com`) which browsers treat as
-  // absolute. Single-leading-slash + non-slash second char is safe.
-  if (next.startsWith('//')) return '/app'
-  return next
-}
+import { safeNext } from '~/lib/safe-next'
 
 function LoginPageInner() {
   const router = useRouter()

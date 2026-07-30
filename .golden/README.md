@@ -34,6 +34,34 @@ So use the **static `@fontsource/*`** packages, which declare exactly these fami
 Instrument Serif and Newsreader all need their **italic** subsets (`.wordmark` and
 `.brand-em` are `font-style: italic`).
 
+### Resolved in 3.1
+
+The package names are a trap in one more place than expected. **`@fontsource/geist-sans`
+declares the family as `"Geist Sans"`** — it is the obvious-looking package and it is
+wrong; it would have missed `--font-geist: "Geist"` and dropped the entire UI typeface to
+`system-ui`. The correct package is **`@fontsource/geist`**. Always read `metadata.json`'s
+`family` field rather than inferring from the package name.
+
+Verified by `scripts/check-fonts.mjs`, which renders a probe element per weight/style in
+each role's real font stack and asks Chrome which font it actually picked (CDP
+`CSS.getPlatformFontsForNode` — DevTools' "Rendered Fonts" panel). Checking the resolved
+`--font-*` value is **not** sufficient: `"Geist Sans"` contains `"Geist"`, so a substring
+comparison passes while nothing renders. Neither is `document.fonts.check()`, which
+interrogates the `@font-face` rules independently of whether any variable points at them.
+
+```bash
+node scripts/check-fonts.mjs http://localhost:3100/   # Next baseline: 25/25
+node scripts/check-fonts.mjs http://localhost:3001/   # Start dev:     25/25
+node scripts/check-fonts.mjs http://localhost:3002/   # Nitro build:   25/25
+```
+
+Chrome reports the **platform** font name, so the assertion is a prefix test: Next serves
+variable fonts and reports the default instance (`"Geist"`, `"Cormorant Garamond Light"`
+at every weight), while Start serves static per-weight files and reports the real weight
+(`"Geist Medium"`). Same family, same rendered weight, different file organisation — the
+`/privacy` and `/terms` pages come out pixel-identical in layout (same 1440×2623 height,
+0.28% of pixels differing on glyph antialiasing alone).
+
 ## Auth facts (verified locally, informs R1)
 
 - Local cookie name: **`authjs.session-token`** — unprefixed, because the dev origin is

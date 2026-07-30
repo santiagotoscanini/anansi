@@ -1,0 +1,95 @@
+/* ============================================================
+   ANANSI — self-hosted type stack (TanStack Start only)
+   ============================================================
+
+   Replaces `next/font/google` from src/app/layout.tsx. Next generated the
+   five `--font-*` custom properties onto a class it put on <html>; Vite has
+   no equivalent, so the @font-face rules and the variables both live here.
+
+   This file is imported ONLY by src/routes/__root.tsx. The Next layout never
+   sees it, so the two stacks cannot fight over the same custom properties
+   while they coexist — which also means a mistake here shows up as a font
+   regression under `pnpm dev:start` alone, never under `pnpm dev`.
+
+   ------------------------------------------------------------
+   Why the exact family strings below matter (migration risk R3)
+   ------------------------------------------------------------
+   src/styles/globals.css builds --font-brand/display/text/ui/mono out of
+   these five variables and terminates every stack in `Georgia, serif` or
+   `ui-sans-serif`. A wrong family string therefore does not error, does not
+   warn, and does not fail the build — the page simply renders in Georgia.
+
+   So the strings are not guessed. They were read out of each installed
+   package's own metadata.json `family` field and checked against
+   .golden/font-vars.txt, which captured what next/font emits today:
+
+     "Cormorant Garamond"  @fontsource/cormorant-garamond   ✓
+     "Instrument Serif"    @fontsource/instrument-serif     ✓
+     "Newsreader"          @fontsource/newsreader           ✓
+     "Geist"               @fontsource/geist                ✓
+     "Geist Mono"          @fontsource/geist-mono           ✓
+
+   Note the fourth one. @fontsource/geist-SANS is the obvious-looking package
+   and it is WRONG: it declares the family as "Geist Sans", which would miss
+   `--font-geist: "Geist"` and silently drop the entire UI typeface to
+   system-ui. @fontsource/geist declares "Geist". If you ever swap these
+   packages, re-read metadata.json rather than trusting the package name.
+
+   The same trap applies to @fontsource-variable/*: those declare
+   "X Variable" (and Instrument Serif has no variable build at all), which is
+   why this uses the static builds throughout.
+
+   ------------------------------------------------------------
+   Weights and styles
+   ------------------------------------------------------------
+   One import per weight/style, matching exactly what layout.tsx requested —
+   no more (bytes) and no less (a missing italic gets synthesised by the
+   browser as an oblique, which is visibly wrong on Cormorant's swash `i` in
+   the wordmark). All @fontsource CSS ships `font-display: swap`, matching
+   next/font's `display: 'swap'`. */
+
+/* brand — italic Cormorant Garamond: wordmark + inline accent */
+@import '@fontsource/cormorant-garamond/latin-400.css';
+@import '@fontsource/cormorant-garamond/latin-400-italic.css';
+@import '@fontsource/cormorant-garamond/latin-500.css';
+@import '@fontsource/cormorant-garamond/latin-500-italic.css';
+@import '@fontsource/cormorant-garamond/latin-600.css';
+@import '@fontsource/cormorant-garamond/latin-600-italic.css';
+@import '@fontsource/cormorant-garamond/latin-700.css';
+@import '@fontsource/cormorant-garamond/latin-700-italic.css';
+
+/* display — Instrument Serif: page headlines */
+@import '@fontsource/instrument-serif/latin-400.css';
+@import '@fontsource/instrument-serif/latin-400-italic.css';
+
+/* text — Newsreader: warm body serif for prose */
+@import '@fontsource/newsreader/latin-300.css';
+@import '@fontsource/newsreader/latin-300-italic.css';
+@import '@fontsource/newsreader/latin-400.css';
+@import '@fontsource/newsreader/latin-400-italic.css';
+@import '@fontsource/newsreader/latin-500.css';
+@import '@fontsource/newsreader/latin-500-italic.css';
+@import '@fontsource/newsreader/latin-600.css';
+@import '@fontsource/newsreader/latin-600-italic.css';
+
+/* ui — Geist: the sans-serif everywhere else (upright only) */
+@import '@fontsource/geist/latin-300.css';
+@import '@fontsource/geist/latin-400.css';
+@import '@fontsource/geist/latin-500.css';
+@import '@fontsource/geist/latin-600.css';
+@import '@fontsource/geist/latin-700.css';
+
+/* mono — Geist Mono: eyebrows, dates, quiet citations (upright only) */
+@import '@fontsource/geist-mono/latin-400.css';
+@import '@fontsource/geist-mono/latin-500.css';
+
+/* The five variables globals.css reads. Values are the family names verified
+   above; the fallback chains are next/font's, minus its generated
+   "X Fallback" metric-override faces, which have no self-hosted equivalent. */
+:root {
+  --font-cormorant: 'Cormorant Garamond';
+  --font-instrument-serif: 'Instrument Serif';
+  --font-newsreader: 'Newsreader';
+  --font-geist: 'Geist';
+  --font-geist-mono: 'Geist Mono';
+}

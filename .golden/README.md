@@ -131,6 +131,44 @@ clears the cookie and the server agrees (`session: null`).
 
 Reproduce with `scripts/check-auth-compat.mjs` (needs both dev servers up).
 
+## Server functions (settles R8 and the superjson→Seroval question, in 3.3)
+
+The 84 server functions were exercised from a real browser against the seeded data,
+through a throwaway `/scratch-fn` route (deleted before the commit). **A browser, not a
+server-side call**, because that is the only place two of these failures exist:
+
+- **R8 — a mis-registered server-function id.** The `.fn.ts` convention exists to prevent
+  it, and `vite build` passes either way; `vite dev` throws `Invalid server function ID`
+  at call time. A create + delete round trip through `values.fn.ts` returned 200s, so the
+  ids register.
+- **Auth.** Signed out, the first call threw `UNAUTHORIZED: Not signed in` with HTTP
+  **401** — the middleware, not a service, and not a 200 with an empty body.
+
+What the run proved, and what would otherwise have been guesswork:
+
+| Check | Result |
+|---|---|
+| `.default({})` validators called with **no argument** | `listPeople()` → 5, `listPeople({ includeArchived: true })` → 6 |
+| A `Date` sent **in** through a GET payload (the URL) | `getWeeklyRetrospectiveData` matched the seeded row — `sync=yes` |
+| `Date`s coming **back** | `weekDate` and `scheduledAt` both `instanceof Date` on the client |
+| `AppError` across the wire | HTTP 404 + `parseAppError` → `{ code: 'NOT_FOUND', message: 'Value not found or access denied' }` |
+
+The people row is the load-bearing one. The seed has exactly one archived person, so 5-vs-6
+is the difference between the default being applied and being silently dropped — and a
+dropped default reads as a working list, just with an archived person in it.
+
+Two things the run corrected:
+
+- **`getPerson` with a bogus id does not throw** — it returns `null`, which is the
+  pre-existing contract, so it is useless as an error probe. `createValueBehavior` with a
+  bad `valueId` is the one that throws NOT_FOUND.
+- A near-miss `weekStart` returns an **empty but valid** payload rather than an error, so
+  "it didn't throw" proves nothing about date fidelity. The seeded row is at
+  `2026-07-27T03:00:00Z` (local midnight Monday), and matching it exactly is the assertion.
+
+Client bundle after `pnpm build:start`: no `drizzle-orm`, `@auth/core`, `bcryptjs` or
+`postgres`, no `AUTH_SECRET`/`DATABASE_URL`, and no service-layer strings.
+
 ## Screenshots — `screens/`
 
 29 full-page images: 12 app tabs × light/dark, plus the 5 public pages

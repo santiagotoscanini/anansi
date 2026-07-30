@@ -1,5 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
-import { fetchSession } from '~/server/fn/auth.fn'
+import { fetchMe, fetchSession } from '~/server/fn/auth.fn'
 import { qk } from './keys'
 
 /**
@@ -19,8 +19,27 @@ import { qk } from './keys'
 export const sessionQueryOptions = () =>
   queryOptions({
     queryKey: qk.session,
-    queryFn: () => fetchSession(),
+    queryFn: ({ signal }) => fetchSession({ signal }),
     staleTime: Infinity,
   })
 
 export type SessionSummary = Awaited<ReturnType<typeof fetchSession>>
+
+/**
+ * The signed-in user's `users` row.
+ *
+ * Kept apart from the session for the reason above, and it is not just
+ * tidiness: `avatarUrl` and `locale` are not in the cookie at all, and the
+ * cookie's `name`/`email` are frozen at sign-in. ProfileModal writes here and
+ * invalidates this key; the session key is untouched by a profile edit.
+ *
+ * Nullable — the row is gone if the account was deleted mid-session, in which
+ * case the next server-fn 401 is what actually resolves it.
+ */
+export const meQueryOptions = () =>
+  queryOptions({
+    queryKey: qk.me,
+    queryFn: ({ signal }) => fetchMe({ signal }),
+  })
+
+export type Me = Awaited<ReturnType<typeof fetchMe>>

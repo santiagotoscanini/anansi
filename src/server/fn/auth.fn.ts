@@ -99,3 +99,62 @@ export const fetchSession = createServerFn({ method: 'GET' }).handler(async () =
     name: session.user?.name ?? null,
   }
 })
+
+// ── The users row ───────────────────────────────────────────────────────────
+// Everything below reads or writes `public.users` for the signed-in user, and
+// none of it touches the session cookie. That is the reason `me` exists next to
+// `fetchSession` rather than being folded into it: the cookie carries a name and
+// email frozen at sign-in time, while these are live. Edit your name in
+// ProfileModal and the cookie still says the old one until you sign in again.
+
+/** The live profile row: name, email, avatar, locale. */
+export const fetchMe = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .handler(({ context }) => authService.me(context.userId))
+
+/** Rejects an email already taken by another account (CONFLICT). */
+export const updateProfile = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .validator(
+    z.object({
+      name: z.string().min(1).max(100).optional(),
+      email: z.string().email().optional(),
+    }),
+  )
+  .handler(({ data, context }) => authService.updateProfile(context.userId, data))
+
+/**
+ * base64 in, `users.avatarUrl` pointed at the new `/api/files/{id}`.
+ *
+ * The previous blob is deleted only after the update lands, so a failure
+ * anywhere leaves the old avatar serving rather than a broken image.
+ */
+export const uploadAvatar = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .validator(
+    z.object({
+      fileName: z.string().min(1).max(255),
+      // `data:` prefix permitted but not required; size and magic bytes are
+      // validated inside the service.
+      data: z.string().min(1),
+    }),
+  )
+  .handler(({ data, context }) => authService.uploadAvatar(context.userId, data))
+
+/** Clears `avatarUrl` and deletes the blob — Avatar falls back to initials. */
+export const removeAvatar = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .handler(({ context }) => authService.removeAvatar(context.userId))
+
+/**
+ * Persist the user's language choice.
+ *
+ * This is the durable mirror, not the source of truth for the current render —
+ * that is the cookie `getInitialLocale` reads in locale.fn.ts. Both exist
+ * because the cookie is what SSR can see before any query resolves, and the
+ * column is what survives a new browser.
+ */
+export const setLocale = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .validator(z.object({ locale: z.enum(['en', 'es']) }))
+  .handler(({ data, context }) => authService.setLocale(context.userId, data.locale))

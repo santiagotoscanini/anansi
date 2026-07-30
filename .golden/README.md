@@ -52,16 +52,54 @@ Instrument Serif and Newsreader all need their **italic** subsets (`.wordmark` a
 Session cookie **values** are deliberately not committed here; regenerate one with that
 two-request sequence when needed.
 
-## Known gaps in this oracle
+## Screenshots — `screens/`
 
-- **No screenshots.** The Supabase project referenced by the old `DATABASE_URL` was
-  deleted (`XX000: tenant/user postgres.<ref> not found`), so local dev now runs against
-  an empty Postgres container and screenshots would capture empty states — a weak
-  regression signal. Playwright MCP additionally wants a Chrome install that isn't
-  present. Consequence: **the golden `tools/list` diff, `procedures.tsv`, and
-  typecheck/build carry the regression-detection weight** for Phase 3.4.
-- No production cookie/secret capture — dropped per the decision that a single
-  re-login is acceptable, which downgrades R1 from a deploy gate to a low risk.
+29 full-page images: 12 app tabs × light/dark, plus the 5 public pages
+(`landing`, `login`, `register`, `privacy`, `terms`). Captured against the dataset from
+`scripts/seed-dev-data.ts`, so every tab shows populated UI rather than an empty state.
+
+Regenerate the "after" side and diff:
+
+```bash
+env -u DATABASE_URL npx tsx scripts/seed-dev-data.ts   # same deterministic dataset
+scripts/capture-screens.sh /tmp/after 3100
+for f in .golden/screens/*.png; do
+  cmp -s "$f" "/tmp/after/$(basename "$f")" || echo "CHANGED: $(basename "$f")"
+done
+```
+
+Expect *some* pixel drift — font rasterisation after the `@fontsource` swap, and
+anti-aliasing on the React Flow canvas. Judge the images, don't trust `cmp` alone; it's
+a "look at this one" signal, not a pass/fail gate.
+
+**Browser: Chromium, not Chrome.** `npx playwright install chrome` needs sudo and
+fails here; `chromium` is installed and is equivalent for before/after comparison as
+long as both runs use it. `scripts/capture-screens.sh` pins `--browser chromium` so
+this can't drift between runs.
+
+Theme comes from the `anansi:theme` localStorage key injected via Playwright's
+storage state — **not** `--color-scheme`. The app toggles a `[data-theme]` attribute
+and uses zero Tailwind `dark:` variants, so the media query would have no effect.
+
+## What the seed deliberately exercises
+
+Written so each tab has something real to render, and so the edge cases that break in
+refactors are present: goal importance across all three bands (Low ≤33.3 / Medium /
+High ≥66.6) via the connection weights; a cross-link so the graph isn't a pure tree and
+the progress DFS's cycle guard is exercised; tasks in **every** horizon bucket (past,
+month, quarter, year, later, and `scheduledAt IS NULL` backlog); people in all four
+board categories plus one archived (so archived-exclusion is visible — People reads 5,
+not 6); groups tagging **both** people and tasks, the cross-entity property; an overdue
+next bid, a completed one, and one with no due date; an important date inside Pulse's
+30-day window with a `year` so the "turning N" math shows; two unscoped tracking items
+and one archived; a weekly sync with one **deliberately blank** item so the header
+reads `4/5 filled`; and Self list items across all 8 `kind`s including all 5
+`patternCategory` values.
+
+## Remaining gap
+
+No production cookie/secret capture — dropped per the decision that a single re-login
+is acceptable, which downgrades R1 from a deploy gate to a low risk.
 
 ## Local dev setup that produced this
 

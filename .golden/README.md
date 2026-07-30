@@ -72,6 +72,23 @@ Expect *some* pixel drift — font rasterisation after the `@fontsource` swap, a
 anti-aliasing on the React Flow canvas. Judge the images, don't trust `cmp` alone; it's
 a "look at this one" signal, not a pass/fail gate.
 
+**The stable floor is 27/29.** `objectives-light` and `objectives-dark` always differ:
+React Flow animates its dashed edges, so the dash phase is wherever it happened to be
+when the shot was taken. Any *other* file changing is worth opening. If a third file
+shows up, look at it before assuming it's noise.
+
+Pulse used to be a third permanent false positive. The seed anchored its relative dates
+to `Date.now()`, so re-seeding shifted every "in N days" label. The anchor is now rounded
+down to local midnight, which makes same-day re-seeds byte-identical while still letting
+the horizon buckets track real time across days. Two consequences worth knowing:
+
+- **Re-seeding on a later day legitimately changes the Pulse images.** Re-capture the
+  baseline (`scripts/capture-screens.sh .golden/screens 3100`) when that happens, rather
+  than reading the diff as a regression.
+- Pulse's greeting is clock-based (`Good morning` / `afternoon` / `evening`), so a
+  baseline captured in the morning won't match an afternoon run. That one is inherent;
+  ignore it, or re-capture in the same half of the day.
+
 **Browser: Chromium, not Chrome.** `npx playwright install chrome` needs sudo and
 fails here; `chromium` is installed and is equivalent for before/after comparison as
 long as both runs use it. `scripts/capture-screens.sh` pins `--browser chromium` so

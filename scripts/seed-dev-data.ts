@@ -49,7 +49,15 @@ if (process.env.NODE_ENV === "production") {
 // Buckets are computed at render time by src/lib/horizon-period.ts from the
 // current calendar, so these are expressed as offsets that land in a specific
 // bucket today and degrade gracefully later.
+//
+// The anchor is rounded down to local midnight rather than taken from the
+// wall clock. Two re-seeds on the same day then produce byte-identical rows,
+// which is what keeps the .golden/screens diff meaningful — anchoring to
+// Date.now() shifted every "in N days" label by an hour's worth of rounding
+// and lit up the Pulse screenshots as false positives. Buckets still track
+// real time across days, which is the property that matters.
 const now = new Date();
+now.setHours(0, 0, 0, 0);
 const at = (y: number, m: number, d: number) => new Date(y, m - 1, d, 12, 0, 0, 0);
 const daysFromNow = (n: number) => new Date(now.getTime() + n * 86_400_000);
 

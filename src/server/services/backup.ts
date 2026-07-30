@@ -13,6 +13,7 @@ import {
   files,
   goalValues,
   goals,
+  importantDates,
   nextBids,
   people,
   peopleToGroups,
@@ -119,6 +120,10 @@ export async function exportAll(userId: string) {
     ? await db.select().from(nextBids).where(inArray(nextBids.personId, personIds))
     : [];
 
+  const importantDateRows = personIds.length
+    ? await db.select().from(importantDates).where(inArray(importantDates.personId, personIds))
+    : [];
+
   const bucketListRows = await db.select().from(bucketListItems).where(eq(bucketListItems.userId, userId));
   const selfListItemRows = await db.select().from(selfListItems).where(eq(selfListItems.userId, userId));
 
@@ -204,6 +209,7 @@ export async function exportAll(userId: string) {
     peopleToGroups: peopleToGroupsRows,
     tasksToGroups: tasksToGroupsRows,
     nextBids: nextBidsRows,
+    importantDates: importantDateRows,
     bucketListItems: bucketListRows.map(stripUser),
     bucketListItemPeople: bucketListItemPeopleRows,
     selfListItems: selfListItemRows.map(stripUser),
@@ -336,6 +342,7 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
     if (b.peopleToGroups.length) await tx.insert(peopleToGroups).values(b.peopleToGroups);
     if (b.tasksToGroups.length) await tx.insert(tasksToGroups).values(b.tasksToGroups);
     if (b.nextBids.length) await tx.insert(nextBids).values(b.nextBids);
+    if (b.importantDates.length) await tx.insert(importantDates).values(b.importantDates);
     if (b.bucketListItems.length) {
       await tx.insert(bucketListItems).values(b.bucketListItems.map((it) => ({ ...it, userId })));
     }
@@ -373,6 +380,7 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       peopleToGroups: b.peopleToGroups.length,
       tasksToGroups: b.tasksToGroups.length,
       selfListItems: b.selfListItems.length,
+      importantDates: b.importantDates.length,
       // NOTE: nextBids, bucketListItems and bucketListItemPeople are imported
       // but deliberately absent from `counts` — that's the shipped shape and
       // the UI renders whatever keys it finds. Adding them is a UI change.

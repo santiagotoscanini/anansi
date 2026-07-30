@@ -643,6 +643,16 @@ export const backupNextBidSchema = z.object({
   createdAt: z.coerce.date(),
 });
 
+export const backupImportantDateSchema = z.object({
+  id: z.string(),
+  personId: z.string(),
+  label: z.string(),
+  month: z.number().int(),
+  day: z.number().int(),
+  year: z.number().int().nullable(),
+  createdAt: z.coerce.date(),
+});
+
 export const backupBucketListItemSchema = z.object({
   id: z.string(),
   content: z.string(),
@@ -718,6 +728,11 @@ export const backupSchema = z.object({
   peopleToGroups: z.array(backupPeopleToGroupSchema),
   tasksToGroups: z.array(backupTasksToGroupSchema),
   nextBids: z.array(backupNextBidSchema),
+  // Added after v1 shipped without it, which made export→import silently drop
+  // every important date. `.default([])` keeps backup files written before the
+  // fix importable — they simply restore no dates, which is what they hold.
+  // Not a version bump: v1 files stay valid in both directions.
+  importantDates: z.array(backupImportantDateSchema).default([]),
   bucketListItems: z.array(backupBucketListItemSchema),
   bucketListItemPeople: z.array(backupBucketListItemPeopleSchema),
   selfListItems: z.array(backupSelfListItemSchema),

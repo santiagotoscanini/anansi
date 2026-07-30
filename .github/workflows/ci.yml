@@ -48,5 +48,13 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # The build needs these present but not real. src/lib/env.ts validates at
+      # import time, and the build imports the server graph while collecting
+      # page data, so an unset DATABASE_URL fails the build rather than
+      # deferring to runtime. Nothing connects to a database here; the values
+      # only have to satisfy the schema (AUTH_SECRET has a 32-char minimum).
       - name: Build
         run: pnpm build
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          AUTH_SECRET: ci-placeholder-secret-not-used-for-anything-real

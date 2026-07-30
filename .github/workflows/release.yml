@@ -36,11 +36,20 @@ jobs:
 
       - name: Build image
         run: |
+          META=(
+            "org.opencontainers.image.title=anansi"
+            "org.opencontainers.image.description=Personal operating system for goals, relationships, and values."
+            "org.opencontainers.image.source=https://github.com/${{ github.repository }}"
+            "org.opencontainers.image.url=https://github.com/${{ github.repository }}"
+            "org.opencontainers.image.vendor=Santiago Toscanini"
+            "org.opencontainers.image.licenses=UNLICENSED"
+            "org.opencontainers.image.revision=${{ github.sha }}"
+          )
+          ARGS=()
+          for m in "${META[@]}"; do ARGS+=(--annotation "$m" --label "$m"); done
           podman build \
             --layers --cache-to "$CACHE" --cache-from "$CACHE" \
-            --label "org.opencontainers.image.title=anansi" \
-            --label "org.opencontainers.image.description=Personal operating system for goals, relationships, and values." \
-            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            "${ARGS[@]}" \
             --tag "$IMAGE:latest" \
             .
 

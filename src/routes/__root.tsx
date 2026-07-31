@@ -4,8 +4,10 @@ import { Toaster } from 'react-hot-toast'
 import { z } from 'zod'
 
 import ThemeSync from '~/components/ThemeSync'
+import LocaleQueryParam from '~/i18n/LocaleQueryParam'
 import I18nProvider from '~/i18n/Provider'
-import { FALLBACK_LOCALE, SUPPORTED_LOCALES } from '~/i18n/constants'
+import { FALLBACK_LOCALE, SUPPORTED_LOCALES, coerceLocale } from '~/i18n/constants'
+import { ensureLocaleLoaded } from '~/i18n/resources'
 import { getInitialLocale } from '~/server/fn/locale.fn'
 
 // Order matters: fonts.css declares the five --font-* variables that
@@ -29,7 +31,22 @@ const rootSearchSchema = z.object({
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   validateSearch: rootSearchSchema,
-  loader: () => getInitialLocale(),
+  // `?locale=` participates in the loader so the SERVER renders the requested
+  // language. Without this the param was applied only after hydration, which
+  // meant a shared /?locale=es link server-rendered English, hydrated English,
+  // then re-rendered Spanish — a hydration mismatch React repairs by
+  // regenerating the tree, and a page crawlers only ever see in English.
+  loaderDeps: ({ search }) => ({ locale: search.locale }),
+  // Translations are code-split per language, so the bundle has to be in the
+  // i18next store before anything calls t(). On the server this loader is that
+  // guarantee; on the client the same guarantee is src/client.tsx, which awaits
+  // the chunk before hydrateRoot (this loader does not re-run on hydration).
+  loader: async ({ deps }) => {
+    // Query param beats cookie: it is the more specific, more recent intent.
+    const initialLocale = coerceLocale(deps.locale) ?? (await getInitialLocale())
+    await ensureLocaleLoaded(initialLocale ?? FALLBACK_LOCALE)
+    return initialLocale
+  },
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
@@ -62,13 +79,31 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     // this phase changes nothing visible. Phase 4c fixes it properly with a
     // theme cookie, which is only possible now that the shell can read
     // request headers.
-    <html className="h-full" lang={initialLocale ?? FALLBACK_LOCALE} data-theme="light" suppressHydrationWarning>
+    // `data-locale-explicit` distinguishes "the server was told which language
+    // to use" (?locale= or a cookie) from "the server fell back to en". They
+    // both render lang="en" when English, so the attribute is the only way
+    // src/client.tsx can tell whether it is free to apply a stored localStorage
+    // preference — applying it in the explicit case would silently override the
+    // link the visitor just followed.
+    <html
+      className="h-full"
+      lang={initialLocale ?? FALLBACK_LOCALE}
+      data-locale-explicit={initialLocale ? '' : undefined}
+      data-theme="light"
+      suppressHydrationWarning
+    >
       <head>
         <HeadContent />
       </head>
       <body className="h-full">
         <ThemeSync />
         <I18nProvider initialLocale={initialLocale}>
+          {/* Applies `?locale=es` on any URL. Must be INSIDE I18nProvider —
+              it reaches i18next through useTranslation. Under Next this
+              needed a <Suspense> wrapper because it read useSearchParams;
+              here `locale` is a typed search param on this route, so it
+              reads from the router and needs no boundary. */}
+          <LocaleQueryParam />
           {children}
           {/* Mounted once for the whole app. Under Next this was repeated in
               three separate page files; a single root-level Toaster is the

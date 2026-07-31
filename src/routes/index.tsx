@@ -176,10 +176,14 @@ function LandingPage() {
   const loginHref = isAuthenticated ? '/app' : '/login'
   const loginLabel = isAuthenticated ? t('landing.nav.goToApp') : t('landing.nav.logIn')
 
-  // Manifesto isn't list — `returnObjects` resolves the JSON array. Fall
-  // back to an empty array if the locale entry isn't an array (defensive
-  // against a half-edited locale file).
-  const isntRows = t('landing.manifesto.isnt', { returnObjects: true }) as unknown as IsntEntry[]
+  // Manifesto isn't list — `returnObjects` resolves the JSON array. Fall back
+  // to an empty array if the locale entry isn't an array: a half-edited locale
+  // file is one way that happens, and an unresolved key is the other. i18next
+  // answers a miss with the key path (a string), so without this guard the
+  // whole page dies on `.map` — which is exactly what it did when translations
+  // became code-split and something rendered a frame too early.
+  const isntRaw = t('landing.manifesto.isnt', { returnObjects: true }) as unknown
+  const isntRows: IsntEntry[] = Array.isArray(isntRaw) ? (isntRaw as IsntEntry[]) : []
 
   return (
     <div style={{ background: 'var(--paper)', color: 'var(--ink)', minHeight: '100vh' }}>

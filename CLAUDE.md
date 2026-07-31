@@ -47,6 +47,7 @@ src/
   routes/                    # file routes; routeTree.gen.ts is generated + gitignored
   router.tsx                 # QueryClient (staleTime 30s) + setupRouterSsrQueryIntegration
   start.ts                   # createStart → global request middleware (security headers)
+  client.tsx                 # client entry — awaits the locale chunk BEFORE hydrateRoot
 
   server/                    # ── never imported by the client ──
     services/                # plain async (userId, input) fns. NO @tanstack imports.
@@ -82,7 +83,7 @@ src/
       Self.tsx BucketListItemModal.tsx TabError.tsx
       ColorPicker.tsx DatePicker.tsx Avatar.tsx EmojiPickerLazy.tsx
     auth/AuthScreens.tsx
-  i18n/                      # config, Provider, en.json + es.json, useLocale
+  i18n/                      # config, Provider, resources (lazy), en.json + es.json, useLocale
   styles/globals.css         # Tailwind v4 entry + ~70 design tokens
 
 public/                      # icon.svg, icon.png, apple-icon.png
@@ -472,6 +473,51 @@ In Claude Code, run `/mcp` and pick `anansi` → it walks DCR + browser OAuth au
 - Rate limits: 5/min/IP on `/oauth/register`, 20/min/IP on `/oauth/token`, 300/min/IP on `/api/mcp`.
 - DCR is unauthenticated and publicly accessible — acceptable for a single-user personal app. For multi-tenant deployment, add an admin allow-list before exposing.
 - Audit log captures every OAuth state change (never tool calls — too noisy). Token hashes / raw codes are never logged.
+
+## i18n
+
+EN + ES via i18next. **Translation bundles are code-split per language** — they
+were ~55 KB gzipped of eagerly-loaded JSON on every page including the marketing
+landing, to display one of the two. Now one locale loads per visit (~18 KB gz).
+
+The load is invisible to the build and loud at runtime, because i18next answers a
+missing bundle with the raw key path rather than an error. Three rules keep that
+from ever reaching a user:
+
+1. **Never call `i18n.changeLanguage` directly — call `switchLocale(locale)`** from
+   `src/i18n/resources.ts`. It loads the chunk first. Switching first renders
+   `landing.nav.philosophy` until the fetch lands.
+2. **Both render entries await the bundle before rendering.** The server does it in
+   `__root`'s loader; the client does it in `src/client.tsx` before `hydrateRoot`
+   (the root loader does *not* re-run on hydration, so the client entry is the only
+   place that can). **`src/client.tsx` exists for that one await** — delete it and
+   hydration paints key paths over correct HTML.
+3. **`i18n.init()` is async, and `addResourceBundle` before it settles is silently
+   discarded.** `ensureLocaleLoaded` awaits the exported `i18nReady` for this reason.
+
+**The server clones the i18next instance per request** (`Provider.tsx`). i18next's
+default export is a module singleton and `changeLanguage` mutates it, so on a
+shared server one request's language leaked into the next — a visitor with no
+cookie was served `lang="en"` wrapped around Spanish body text. `cloneInstance`
+shares the resource store (bundles still load once) and gives each render its own
+language. **The client keeps the singleton**: it is what `useTranslation()` hands
+to `useLocale` / `LocaleQueryParam`, so cloning there disconnects the picker.
+
+Locale precedence is `?locale=` → cookie → i18next detector (localStorage, then
+navigator). The first two are resolved **server-side** in the root loader, so a
+shared `/?locale=es` link is server-rendered Spanish. The shell marks that with
+`data-locale-explicit` on `<html>`; `src/client.tsx` reads it to know whether it
+may apply a stored localStorage preference, which must not override a link the
+visitor just followed.
+
+Adding a language: see the checklist at the top of `src/i18n/constants.ts`. The
+`loaders` map in `resources.ts` is typed by `Locale`, so step 2 fails the build
+until step 3 is done.
+
+Verify with `node scripts/check-i18n.mjs <base-url>` — asserts the rendered
+language, zero key paths in the DOM, zero hydration errors, and **exactly one
+locale bundle on the wire**. Run it against `pnpm dev` and the built server;
+the client entry differs between them.
 
 ## Styling (Tailwind v4)
 

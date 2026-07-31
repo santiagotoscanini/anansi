@@ -2,7 +2,8 @@ import { useEffect } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
-import { SUPPORTED_LOCALES } from './config'
+import { SUPPORTED_LOCALES, type Locale } from './config'
+import { switchLocale } from './resources'
 
 // Honors `?locale=es` (or any other supported code) on any URL by calling
 // i18n.changeLanguage once when the param is present. Designed for shareable
@@ -28,7 +29,10 @@ export default function LocaleQueryParam() {
     const isSupported = SUPPORTED_LOCALES.some((l) => l.code === requested)
     if (!isSupported) return
     if (requested === i18n.resolvedLanguage) return
-    void i18n.changeLanguage(requested)
+    // switchLocale, not changeLanguage: the requested language's bundle is
+    // code-split and may not be loaded — switching first would render key paths
+    // until the chunk arrives.
+    void switchLocale(requested as Locale)
   }, [requested, i18n])
 
   return null

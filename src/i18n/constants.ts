@@ -4,8 +4,10 @@
 // To add a new language:
 //   1. Drop `src/i18n/locales/<code>.json` mirroring en.json's shape.
 //   2. Add the code + label to SUPPORTED_LOCALES below.
-//   3. Import the JSON in src/i18n/config.ts and add it to `resources`.
-//   4. Bump the Zod enum in src/lib/api/routers/auth.ts:setLocale.
+//   3. Add a `import('./locales/<code>.json')` entry to the `loaders` map in
+//      src/i18n/resources.ts — it is typed by Locale, so step 2 breaks the
+//      build until you do.
+//   4. Bump the Zod enum on setLocale in src/lib/api/types.ts.
 
 export const SUPPORTED_LOCALES = [
   { code: 'en', label: 'English' },

@@ -6,6 +6,7 @@ import { qk } from '~/lib/queries/keys'
 import { meQueryOptions, type Me } from '~/lib/queries/session'
 import { setLocale as setLocaleFn } from '~/server/fn/auth.fn'
 import { FALLBACK_LOCALE, SUPPORTED_LOCALES, type Locale } from './config'
+import { switchLocale } from './resources'
 
 // Locale storage rules:
 //   - localStorage (`anansi:locale`) is the source of truth for unauthenticated
@@ -59,13 +60,16 @@ export function useLocale() {
     const isSupported = SUPPORTED_LOCALES.some((l) => l.code === dbLocale)
     if (!isSupported) return
     if (dbLocale !== i18n.resolvedLanguage) {
-      void i18n.changeLanguage(dbLocale)
+      void switchLocale(dbLocale as Locale)
     }
     lastAppliedFromDb.current = dbLocale
   }, [me?.locale, i18n])
 
   const setLocale = (next: Locale) => {
-    void i18n.changeLanguage(next)
+    // Loads the language's chunk before switching. On a cold switch this makes
+    // the picker's effect land one network round-trip later than it used to;
+    // the alternative is rendering raw key paths in the interim.
+    void switchLocale(next)
     // For authenticated users, write through to the DB. The mutation's
     // onSuccess updates the query cache, which keeps the ref guard in sync
     // and prevents the DB→client effect from firing again on the same value.

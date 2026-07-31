@@ -37,11 +37,29 @@ const DEFAULT_EMOJIS = [
 ]
 
 /**
- * Get a random emoji from the default emoji list
+ * Pick a default emoji deterministically from `seed`.
+ *
+ * Deterministic rather than random because the goal editor is server-rendered
+ * now (`/app/objectives?goal=…` deep-links it). `Math.random()` in a useState
+ * initializer runs once on the server and again on the client, producing two
+ * different emoji for the same render — a guaranteed hydration mismatch that
+ * React repairs by regenerating the subtree. It was invisible while the modal
+ * could only be opened by a click.
+ *
+ * Seeding on the goal id also means a given goal always suggests the same
+ * emoji, so the default stops shuffling every time the modal is reopened.
+ *
+ * FNV-1a: tiny, no dependency, and well-spread over short ASCII keys like a
+ * cuid2 — which matters, since a weak hash would bias every goal toward the
+ * same few emoji.
  */
-export function getRandomEmoji(): string {
-  const randomIndex = Math.floor(Math.random() * DEFAULT_EMOJIS.length)
-  return DEFAULT_EMOJIS[randomIndex]!
+export function pickDefaultEmoji(seed: string): string {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193) >>> 0
+  }
+  return DEFAULT_EMOJIS[hash % DEFAULT_EMOJIS.length]!
 }
 
 /**

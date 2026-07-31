@@ -8,7 +8,7 @@ import LocaleQueryParam from '~/i18n/LocaleQueryParam'
 import I18nProvider from '~/i18n/Provider'
 import { FALLBACK_LOCALE, SUPPORTED_LOCALES, coerceLocale } from '~/i18n/constants'
 import { ensureLocaleLoaded } from '~/i18n/resources'
-import { getInitialLocale } from '~/server/fn/locale.fn'
+import { getShellPrefs } from '~/server/fn/shell.fn'
 
 // Order matters: fonts.css declares the five --font-* variables that
 // globals.css immediately reads to build --font-brand/display/text/ui/mono.
@@ -42,10 +42,11 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   // guarantee; on the client the same guarantee is src/client.tsx, which awaits
   // the chunk before hydrateRoot (this loader does not re-run on hydration).
   loader: async ({ deps }) => {
+    const prefs = await getShellPrefs()
     // Query param beats cookie: it is the more specific, more recent intent.
-    const initialLocale = coerceLocale(deps.locale) ?? (await getInitialLocale())
+    const initialLocale = coerceLocale(deps.locale) ?? prefs.locale
     await ensureLocaleLoaded(initialLocale ?? FALLBACK_LOCALE)
-    return initialLocale
+    return { initialLocale, initialTheme: prefs.theme, initialSidebar: prefs.sidebar }
   },
   head: () => ({
     meta: [
@@ -69,16 +70,16 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-  const initialLocale = Route.useLoaderData()
+  const { initialLocale, initialTheme } = Route.useLoaderData()
 
   return (
-    // `data-theme="light"` is the SSR default; ThemeSync flips it after
-    // hydration from localStorage / prefers-color-scheme. That means dark-mode
-    // users still see a brief light flash on first paint — the same known
-    // defect documented in src/app/layout.tsx, carried over deliberately so
-    // this phase changes nothing visible. Phase 4c fixes it properly with a
-    // theme cookie, which is only possible now that the shell can read
-    // request headers.
+    // `data-theme` comes from the `anansi:theme-resolved` cookie that ThemeSync
+    // writes on every theme change, so a returning dark-mode visitor is served
+    // dark markup and never sees the warm-cream → coffee-dark flash. Falls back
+    // to light only when there is no cookie to read — a first visit, or the
+    // first load after the OS theme changed while they were away. ThemeSync
+    // corrects those on the same paint and leaves a cookie for next time.
+    //
     // `data-locale-explicit` distinguishes "the server was told which language
     // to use" (?locale= or a cookie) from "the server fell back to en". They
     // both render lang="en" when English, so the attribute is the only way
@@ -89,7 +90,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       className="h-full"
       lang={initialLocale ?? FALLBACK_LOCALE}
       data-locale-explicit={initialLocale ? '' : undefined}
-      data-theme="light"
+      data-theme={initialTheme ?? 'light'}
       suppressHydrationWarning
     >
       <head>

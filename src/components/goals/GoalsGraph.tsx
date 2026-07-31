@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect } from 'react'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, getOutgoers } from '@xyflow/react'
 import type { Connection, Edge, Node } from '@xyflow/react'
 import { HelpCircle, Plus, Target } from 'lucide-react'
@@ -53,8 +54,32 @@ export default function GoalsGraph() {
 
   const [nodes, setNodes, onNodesChange] = useNodesState<GoalNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
-  const [selectedGoal, setSelectedGoal] = useState<string | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  // The goal editor's open/closed state lives in the URL (`?goal=new` to
+  // create, `?goal=<id>` to edit) rather than in useState, so a goal is
+  // linkable and the modal survives a reload.
+  //
+  // `openGoal` is memoised on `navigate` because it is captured by the node
+  // reconciliation effect below. That effect deliberately preserves object
+  // identity for unchanged nodes — an unstable callback in its dependency list
+  // would rebuild every node on every render, which is exactly the churn that
+  // triggers React Flow error #015 mid-drag.
+  //
+  // Read with the ROUTE-AGNOSTIC hooks, not a bound `Route.useSearch()`: this
+  // component is the component for both `/app` and `/app/objectives`, and a
+  // hook bound to one of them throws "Invariant failed" when rendered under the
+  // other. Both routes declare `goal` in validateSearch, so the value is typed
+  // and preserved either way.
+  const goalParam = useSearch({ strict: false, select: (s) => (s as { goal?: string }).goal })
+  const navigate = useNavigate()
+  const openGoal = useCallback(
+    // `to: '.'` keeps the current route (either /app or /app/objectives) and is
+    // what lets the untyped navigate resolve a search reducer at all.
+    (id: string | undefined) =>
+      void navigate({ to: '.', search: (prev: Record<string, unknown>) => ({ ...prev, goal: id }) }),
+    [navigate],
+  )
+  const isModalOpen = goalParam !== undefined
+  const selectedGoal = goalParam && goalParam !== 'new' ? goalParam : null
   const [copiedGoal, setCopiedGoal] = useState<Goal | null>(null)
   const [selectedNodes, setSelectedNodes] = useState<string[]>([])
   const [selectedEdges, setSelectedEdges] = useState<string[]>([])
@@ -98,10 +123,7 @@ export default function GoalsGraph() {
           data: {
             ...goal,
             _goalRef: goal,
-            onEdit: () => {
-              setSelectedGoal(goal.id)
-              setIsModalOpen(true)
-            },
+            onEdit: () => openGoal(goal.id),
           },
         }
       })
@@ -110,7 +132,7 @@ export default function GoalsGraph() {
       // array so React Flow's internal node tracking stays put.
       return allReused ? prev : next
     })
-  }, [goals, selectedNodes, setNodes])
+  }, [goals, selectedNodes, setNodes, openGoal])
 
   // Convert connections to edges with selection styling
   useEffect(() => {
@@ -226,15 +248,11 @@ export default function GoalsGraph() {
     setSelectedEdges(params.edges.map((e) => e.id))
   }, [])
 
-  const handleAddGoal = () => {
-    setSelectedGoal(null)
-    setIsModalOpen(true)
-  }
+  // useCallback so the Cmd+G keyboard effect below can list it as a dependency
+  // without re-registering its listener on every render.
+  const handleAddGoal = useCallback(() => openGoal('new'), [openGoal])
 
-  const handleModalClose = () => {
-    setIsModalOpen(false)
-    setSelectedGoal(null)
-  }
+  const handleModalClose = () => openGoal(undefined)
 
   const handleDeleteConfirm = async () => {
     try {
@@ -346,6 +364,7 @@ export default function GoalsGraph() {
     connections,
     addGoalFn,
     deleteConnectionFn,
+    handleAddGoal,
     t,
   ])
 

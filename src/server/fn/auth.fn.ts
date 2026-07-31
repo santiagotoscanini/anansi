@@ -150,7 +150,7 @@ export const removeAvatar = createServerFn({ method: 'POST' })
  * Persist the user's language choice.
  *
  * This is the durable mirror, not the source of truth for the current render —
- * that is the cookie `getInitialLocale` reads in locale.fn.ts. Both exist
+ * that is the cookie `getShellPrefs` reads in shell.fn.ts. Both exist
  * because the cookie is what SSR can see before any query resolves, and the
  * column is what survives a new browser.
  */

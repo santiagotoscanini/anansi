@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import type { BucketListItem } from '~/lib/api/types'
 import { useCreateBucketListItem, useToggleBucketListItem } from '~/lib/mutations/people'
 import { bucketListQueryOptions, peopleQueryOptions } from '~/lib/queries/people'
+import { Route } from '~/routes/app.bucket'
 import Avatar from './Avatar'
 import BucketListItemModal from './BucketListItemModal'
 
@@ -157,8 +158,17 @@ export default function BucketList() {
   const toggleMutation = useToggleBucketListItem()
 
   const [newContent, setNewContent] = useState('')
-  // Modal state: null = closed; "create" = quick-add via modal; { item } = editing.
-  const [modalState, setModalState] = useState<null | { kind: 'create' } | { kind: 'edit'; item: BucketListItem }>(null)
+
+  // Modal state lives in the URL (`?item=new` to create, `?item=<id>` to edit)
+  // rather than in useState, so an item's editor is linkable and survives a
+  // reload — the same treatment the task and person modals already had.
+  //
+  // Derived, not mirrored into state: an id that no longer resolves (a deleted
+  // item, a hand-typed URL) simply yields null and the modal stays shut, with
+  // no effect needed to notice and no stale copy to keep in sync.
+  const { item: itemParam } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const openItem = (id: string | undefined) => void navigate({ search: (prev) => ({ ...prev, item: id }) })
 
   const handleQuickAdd = async () => {
     const content = newContent.trim()
@@ -180,6 +190,13 @@ export default function BucketList() {
   }
 
   const items = listData as BucketListItem[]
+
+  // Resolved against the live list, so an item edited in another tab shows the
+  // fresh copy and a deleted one closes the modal rather than editing a ghost.
+  const editing = itemParam && itemParam !== 'new' ? items.find((i) => i.id === itemParam) : undefined
+  const modalState: null | { kind: 'create' } | { kind: 'edit'; item: BucketListItem } =
+    itemParam === 'new' ? { kind: 'create' } : editing ? { kind: 'edit', item: editing } : null
+
   const peopleById = useMemo(() => {
     const m = new Map<string, PersonLite>()
     for (const p of people) m.set(p.id, { id: p.id, name: p.name, emoji: p.emoji })
@@ -262,7 +279,7 @@ export default function BucketList() {
           </button>
           <button
             type="button"
-            onClick={() => setModalState({ kind: 'create' })}
+            onClick={() => openItem('new')}
             className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 text-sm text-[var(--ink-2)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
             title={t('bucketList.addDetails')}
           >
@@ -290,7 +307,7 @@ export default function BucketList() {
                   item={item}
                   peopleById={peopleById}
                   onToggle={() => void handleToggle(item)}
-                  onOpen={() => setModalState({ kind: 'edit', item })}
+                  onOpen={() => openItem(item.id)}
                   busy={busy}
                 />
               ))}
@@ -313,7 +330,7 @@ export default function BucketList() {
                   item={item}
                   peopleById={peopleById}
                   onToggle={() => void handleToggle(item)}
-                  onOpen={() => setModalState({ kind: 'edit', item })}
+                  onOpen={() => openItem(item.id)}
                   busy={busy}
                 />
               ))}
@@ -322,7 +339,7 @@ export default function BucketList() {
         )}
       </div>
 
-      {modalState && <BucketListItemModal mode={modalState} onClose={() => setModalState(null)} />}
+      {modalState && <BucketListItemModal mode={modalState} onClose={() => openItem(undefined)} />}
     </div>
   )
 }

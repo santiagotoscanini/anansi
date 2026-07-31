@@ -12,7 +12,7 @@ import { trackingItemsQueryOptions } from '~/lib/queries/sync'
 import toast from 'react-hot-toast'
 import ValueSelectionModal from './ValueSelectionModal'
 import EmojiPickerLazy, { type EmojiClickData } from './EmojiPickerLazy'
-import { getRandomEmoji, isEmojiUrl } from '~/lib/emoji-utils'
+import { pickDefaultEmoji, isEmojiUrl } from '~/lib/emoji-utils'
 import Avatar from './Avatar'
 import TaskModal from './TaskModal'
 
@@ -49,7 +49,10 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
 
   const [title, setTitle] = useState(existingGoal?.title ?? '')
   const [description, setDescription] = useState(existingGoal?.description ?? '')
-  const [emoji, setEmoji] = useState(existingGoal?.emoji ?? getRandomEmoji())
+  // Seeded on the goal id when editing, and on the goal count when creating, so
+  // the suggestion still varies between goals but is identical on the server and
+  // the client. See pickDefaultEmoji for why that matters.
+  const [emoji, setEmoji] = useState(existingGoal?.emoji ?? pickDefaultEmoji(goalId ?? String(goals.length)))
   const [customEmojiUrl, setCustomEmojiUrl] = useState('')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [valueIds, setValueIds] = useState<string[]>(existingGoal?.valueIds ?? [])

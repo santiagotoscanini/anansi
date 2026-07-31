@@ -101,10 +101,11 @@ index.tsx           /                       login.tsx  /login  { next? }
 privacy.tsx  terms.tsx                      register.tsx  /register  { next? }
 
 app.tsx             /app LAYOUT — beforeLoad auth guard, { modal?: 'profile'|'import' }
-app.index.tsx       /app renders the graph directly (NOT a redirect to /app/objectives)
+app.index.tsx       /app { goal? } renders the graph directly (NOT a redirect to /app/objectives)
 app.objectives.tsx { goal? }      app.horizons.tsx { task?, goal? }
 app.tasks.tsx      { task?, goal? }  app.sync.tsx { week? }
 app.people.tsx     { filter?, groupId?, person? }   app.bucket.tsx { item? }
+                    (`goal`/`item`/`task` accept an id, or the literal `new` to open the create form)
 app.pulse.tsx  app.tracking-items.tsx  app.self.tsx  app.values.tsx
 app.progress.tsx  app.relationships.tsx
 app.$.tsx           /app/* → redirect to /app (preserves the old silent slug fallback)
@@ -116,6 +117,9 @@ oauth.{register,token,revoke}.ts  oauth.authorize.tsx  oauth.authorize.decision.
 ```
 
 `[.]` is TanStack Router's escape for a literal dot in a filename, which is why the `.well-known` docs are served directly instead of through a rewrite.
+
+> **A component rendered by more than one route must read search params with the route-agnostic hooks.**
+> `GoalsGraph` is the component for both `/app` and `/app/objectives`. A bound `Route.useSearch()` / `Route.useNavigate()` throws `Invariant failed` when the component renders under the route it was *not* bound to — and the build is clean, so it only appears when someone opens that URL. Use `useSearch({ strict: false })` + `useNavigate()` with `to: '.'`, and declare the param in `validateSearch` on **every** route that renders the component, or the undeclared one silently strips it.
 
 > **Write `validateSearch` as an inline function literal, never as a call to a generic helper.**
 > A route file is circular with `routeTree.gen.ts`. TypeScript resolves that circularity for a function literal but bails for a generic call expression, falling back to `AnySchema` — so the route's search type silently becomes `{}`, `useSearch()` returns nothing, and every `navigate()` to it stops type-checking its params. The error surfaces at the *navigation site*, not at the route that caused it. Related: `z.catch()` makes a schema's input `unknown`, which intersects away every param in the navigation type. An inline function is tolerant of bad input for free — just coerce and default.
@@ -518,6 +522,45 @@ Verify with `node scripts/check-i18n.mjs <base-url>` — asserts the rendered
 language, zero key paths in the DOM, zero hydration errors, and **exactly one
 locale bundle on the wire**. Run it against `pnpm dev` and the built server;
 the client entry differs between them.
+
+## SSR shell preferences (theme, sidebar)
+
+Two cookies exist purely so the **server** can render the first paint correctly.
+Both store the *resolved* value, not the preference, because the inputs they
+depend on — `prefers-color-scheme`, `window.innerWidth` — do not exist on the
+server. Storing the answer is what makes it renderable; storing the question
+would not help.
+
+| cookie | holds | written by |
+|---|---|---|
+| `anansi:theme-resolved` | `light` / `dark` | `applyTheme` in `src/lib/theme.ts`, on every resolution change |
+| `anansi:sidebar` | `<0\|1>:<width>` | the effect in `AppShell`, on every effective-geometry change |
+
+`getShellPrefs` (`src/server/fn/shell.fn.ts`) reads both plus the locale in **one**
+server fn — a route loader runs on the client too, so `getRequestHeader` cannot be
+called from a loader body, and two fns would mean two sequential round trips.
+
+The preference itself still lives in `localStorage` (`anansi:theme` holds
+`light|dark|system`). The cookie is the render hint; the localStorage key is the
+user's choice. They are deliberately different keys holding different things.
+
+Residual: a first-ever visit, or the first load after the OS theme changed while
+the user was away, still paints one default frame before the client corrects it
+and writes a fresh cookie. A blocking inline `<script>` would close that too, but
+that is exactly what was removed from the Next layout — React 19 warns about any
+`<script>` in the rendered tree.
+
+> **Never read `localStorage` or `window.*` in a `useState` initializer.** That is
+> what made the sidebar jump and the theme flash: the server cannot run it, so SSR
+> renders one thing and the client immediately renders another. Seed from a cookie
+> the server also saw, and reconcile the genuinely client-only part (viewport
+> width) in an effect. `Math.random()` in an initializer is the same bug — it cost
+> a hydration mismatch in `GoalModal` the moment the modal became deep-linkable,
+> which is why `pickDefaultEmoji` is seeded rather than random.
+
+Verify with `node scripts/check-shell.mjs <base-url>`, which asserts what the
+server sent by reading the raw HTML — a check that runs after the page settles
+would pass either way, since the client always converges.
 
 ## Styling (Tailwind v4)
 

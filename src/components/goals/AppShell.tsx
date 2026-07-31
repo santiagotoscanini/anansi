@@ -21,7 +21,7 @@ import {
   Hourglass,
   UserCircle2,
 } from 'lucide-react'
-import { useNavigate, useRouterState } from '@tanstack/react-router'
+import { getRouteApi, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast'
@@ -30,6 +30,15 @@ import { useCreateGroup } from '~/lib/mutations/people'
 import { useGoalsData } from '~/lib/queries/goals'
 import { groupsQueryOptions, peopleQueryOptions } from '~/lib/queries/people'
 import { meQueryOptions } from '~/lib/queries/session'
+import {
+  SIDEBAR_AUTOCOLLAPSE_PX,
+  SIDEBAR_COLLAPSED_PX,
+  SIDEBAR_COLLAPSE_THRESHOLD_PX,
+  SIDEBAR_DEFAULT_GEOMETRY,
+  SIDEBAR_DEFAULT_PX,
+  clampSidebarWidth,
+  writeSidebarCookie,
+} from '~/lib/sidebar'
 import BackupImportModal from './BackupImportModal'
 import ColorPicker from './ColorPicker'
 import ProfileModal from './ProfileModal'
@@ -140,6 +149,12 @@ const relationshipsNavItem: NavItem = {
 // having to redeclare the tab's schema.
 type PeopleSearch = { filter?: string; groupId?: string }
 
+// The sidebar geometry is resolved in the ROOT loader (it comes from a cookie
+// the document shell also needs), so it is read through the root route's API
+// rather than a typed `Route.useLoaderData()` — AppShell is a component under
+// /app, not a route module of its own.
+const rootRoute = getRouteApi('__root__')
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -157,44 +172,50 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   //     main canvas doesn't get crushed on small screens
   //   - expandedWidth: user-chosen width when expanded (drag-to-resize handle on
   //     the right edge). Persisted across sessions.
-  // Effective width = collapsed ? COLLAPSED_PX : expandedWidth.
-  const SIDEBAR_AUTOCOLLAPSE_PX = 1100
-  const COLLAPSED_PX = 56
-  const SIDEBAR_MIN_PX = 180
-  const SIDEBAR_MAX_PX = 400
-  const SIDEBAR_DEFAULT_PX = 224
-  const COLLAPSE_THRESHOLD_PX = 110 // dragging below this snaps to collapsed
-  const [userPrefCollapsed, setUserPrefCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem('sidebarCollapsed') === '1'
-  })
-  const [expandedWidth, setExpandedWidth] = useState(() => {
-    if (typeof window === 'undefined') return SIDEBAR_DEFAULT_PX
-    const raw = localStorage.getItem('sidebarExpandedWidth')
-    const parsed = raw ? parseInt(raw, 10) : NaN
-    if (Number.isFinite(parsed)) {
-      return Math.min(SIDEBAR_MAX_PX, Math.max(SIDEBAR_MIN_PX, parsed))
-    }
-    return SIDEBAR_DEFAULT_PX
-  })
-  const [viewportTooNarrow, setViewportTooNarrow] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return window.innerWidth < SIDEBAR_AUTOCOLLAPSE_PX
-  })
+  // Effective width = collapsed ? SIDEBAR_COLLAPSED_PX : expandedWidth.
+  //
+  // All three are seeded from the `anansi:sidebar` cookie, resolved server-side
+  // in the root loader. They used to be read from localStorage and
+  // window.innerWidth inside these useState initializers, which the server
+  // cannot do — so SSR always emitted a 224px expanded sidebar and the client
+  // corrected it on the first commit. That was a hydration mismatch and a
+  // visible width jump for anyone who had collapsed or resized the sidebar.
+  // Seeding from a value the server also saw makes both renders agree.
+  const initial = rootRoute.useLoaderData().initialSidebar ?? SIDEBAR_DEFAULT_GEOMETRY
+  const [userPrefCollapsed, setUserPrefCollapsed] = useState(initial.collapsed)
+  const [expandedWidth, setExpandedWidth] = useState(initial.width)
+  const [viewportTooNarrow, setViewportTooNarrow] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
+
+  // NOTE: the pre-cookie `sidebarCollapsed` / `sidebarExpandedWidth`
+  // localStorage keys are deliberately NOT migrated. Every way to carry them
+  // over either reads localStorage in the useState initializer — reintroducing
+  // the exact hydration mismatch this change removes — or sets state from an
+  // effect, which `react-hooks/set-state-in-effect` rejects for good reason.
+  // The cost of not migrating is that the sidebar resets to 224px expanded once,
+  // and one drag restores it permanently. That is a better trade than either
+  // workaround, and the stale keys are harmless.
   useEffect(() => {
+    // Runs on mount as well as on resize, which is what reconciles the cookie's
+    // remembered state with the actual viewport — the one input the server
+    // genuinely cannot know.
     const onResize = () => setViewportTooNarrow(window.innerWidth < SIDEBAR_AUTOCOLLAPSE_PX)
+    onResize()
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
-  useEffect(() => {
-    localStorage.setItem('sidebarCollapsed', userPrefCollapsed ? '1' : '0')
-  }, [userPrefCollapsed])
-  useEffect(() => {
-    localStorage.setItem('sidebarExpandedWidth', String(expandedWidth))
-  }, [expandedWidth])
+
   const collapsed = userPrefCollapsed || viewportTooNarrow
-  const sidebarWidth = collapsed ? COLLAPSED_PX : expandedWidth
+  const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_PX : expandedWidth
+
+  // Persist the EFFECTIVE geometry, not the preference: `collapsed` folds in
+  // viewportTooNarrow, and it is the rendered result the next SSR pass needs to
+  // reproduce. Skipped mid-drag so a resize writes one cookie on mouse-up
+  // instead of one per mousemove.
+  useEffect(() => {
+    if (isResizing) return
+    writeSidebarCookie({ collapsed, width: expandedWidth })
+  }, [collapsed, expandedWidth, isResizing])
   const setCollapsed = (next: boolean | ((prev: boolean) => boolean)) => {
     setUserPrefCollapsed((prev) => (typeof next === 'function' ? next(prev) : next))
   }
@@ -202,19 +223,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Drag-to-resize. The handle is a 4px hot-zone on the right edge of the
   // sidebar; while dragging we attach mousemove/mouseup to document so the
   // drag survives crossing into the main pane. Dragging below
-  // COLLAPSE_THRESHOLD_PX snaps to collapsed; dragging back out auto-expands.
+  // SIDEBAR_COLLAPSE_THRESHOLD_PX snaps to collapsed; dragging back out auto-expands.
   const handleResizeMouseDown = (e: React.MouseEvent) => {
     if (viewportTooNarrow) return // forced-collapse: don't allow drag
     e.preventDefault()
     setIsResizing(true)
     const onMove = (ev: MouseEvent) => {
       const x = ev.clientX
-      if (x < COLLAPSE_THRESHOLD_PX) {
+      if (x < SIDEBAR_COLLAPSE_THRESHOLD_PX) {
         setUserPrefCollapsed(true)
         return
       }
       setUserPrefCollapsed(false)
-      setExpandedWidth(Math.min(SIDEBAR_MAX_PX, Math.max(SIDEBAR_MIN_PX, x)))
+      setExpandedWidth(clampSidebarWidth(x))
     }
     const onUp = () => {
       setIsResizing(false)
@@ -327,7 +348,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const renderSidebar = (isCollapsed: boolean, opts?: { resizable?: boolean; widthPx?: number }) => {
     const resizable = opts?.resizable ?? false
-    const widthPx = opts?.widthPx ?? (isCollapsed ? COLLAPSED_PX : expandedWidth)
+    const widthPx = opts?.widthPx ?? (isCollapsed ? SIDEBAR_COLLAPSED_PX : expandedWidth)
     return (
       <aside
         style={{

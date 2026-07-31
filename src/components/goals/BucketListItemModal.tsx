@@ -1,11 +1,11 @@
-'use client'
-
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Trash2, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
-import { api } from '~/trpc/react'
 import type { BucketListItem } from '~/lib/api/types'
+import { useCreateBucketListItem, useDeleteBucketListItem, useUpdateBucketListItem } from '~/lib/mutations/people'
+import { peopleQueryOptions } from '~/lib/queries/people'
 import Avatar from './Avatar'
 
 const fieldLabel = 'mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]'
@@ -15,13 +15,14 @@ const textareaClass = `${inputClass} resize-none`
 
 type Mode = { kind: 'create' } | { kind: 'edit'; item: BucketListItem }
 
+// No `onSaved` callback: every mutation in here invalidates the bucket-list
+// and people keys itself, so the parent has nothing to do after a save.
 interface BucketListItemModalProps {
   mode: Mode
   onClose: () => void
-  onSaved: () => void
 }
 
-export default function BucketListItemModal({ mode, onClose, onSaved }: BucketListItemModalProps) {
+export default function BucketListItemModal({ mode, onClose }: BucketListItemModalProps) {
   const { t } = useTranslation()
   const isEdit = mode.kind === 'edit'
   const item = isEdit ? mode.item : null
@@ -30,10 +31,10 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
   const [description, setDescription] = useState(item?.description ?? '')
   const [personIds, setPersonIds] = useState<string[]>(item?.personIds ?? [])
 
-  const peopleQuery = api.goals.people.getAll.useQuery({ includeArchived: false })
-  const createMutation = api.goals.bucketList.create.useMutation()
-  const updateMutation = api.goals.bucketList.update.useMutation()
-  const deleteMutation = api.goals.bucketList.delete.useMutation()
+  const { data: people } = useSuspenseQuery(peopleQueryOptions(false))
+  const createMutation = useCreateBucketListItem()
+  const updateMutation = useUpdateBucketListItem()
+  const deleteMutation = useDeleteBucketListItem()
 
   const isSaving = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending
 
@@ -64,7 +65,6 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
         })
         toast.success(t('bucketItem.added'))
       }
-      onSaved()
       onClose()
     } catch {
       toast.error(t('bucketItem.saveFailed'))
@@ -75,16 +75,14 @@ export default function BucketListItemModal({ mode, onClose, onSaved }: BucketLi
     if (!item) return
     if (!confirm(t('bucketItem.confirmDelete'))) return
     try {
-      await deleteMutation.mutateAsync({ id: item.id })
+      await deleteMutation.mutateAsync(item.id)
       toast.success(t('bucketItem.deleted'))
-      onSaved()
       onClose()
     } catch {
       toast.error(t('bucketItem.deleteFailed'))
     }
   }
 
-  const people = peopleQuery.data ?? []
   const sortedPeople = [...people].sort((a, b) => a.name.localeCompare(b.name))
 
   return (

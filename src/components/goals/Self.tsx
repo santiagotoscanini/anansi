@@ -1,10 +1,17 @@
-'use client'
-
+import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Plus, Trash2, Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { api } from '~/trpc/react'
-import { useGoals } from '~/contexts/GoalsContext'
+import {
+  useCreateSelfListItem,
+  useDeleteSelfListItem,
+  useUpdateSelf,
+  useUpdateSelfListItem,
+} from '~/lib/mutations/self'
+import { qk } from '~/lib/queries/keys'
+import { selfListItemsQueryOptions, selfQueryOptions, type SelfRow } from '~/lib/queries/self'
+import { meQueryOptions } from '~/lib/queries/session'
+import { valuesQueryOptions } from '~/lib/queries/values'
 import Avatar from './Avatar'
 import type { SelfListKind, SelfPatternCategory } from '~/lib/api/types'
 
@@ -358,11 +365,11 @@ type ListItem = { id: string; content: string }
 
 export default function Self() {
   const { t } = useTranslation()
-  const utils = api.useUtils()
-  const { values } = useGoals()
-  const meQuery = api.auth.me.useQuery()
-  const selfQuery = api.goals.self.get.useQuery()
-  const itemsQuery = api.goals.selfListItems.list.useQuery()
+  const queryClient = useQueryClient()
+  const { data: values } = useSuspenseQuery(valuesQueryOptions())
+  const { data: me } = useSuspenseQuery(meQueryOptions())
+  const { data: self } = useSuspenseQuery(selfQueryOptions())
+  const { data: items } = useSuspenseQuery(selfListItemsQueryOptions())
 
   const ATTACHMENT_STYLES: Reference[] = [
     { name: t('self.attachmentSecure'), description: t('self.attachmentSecureDesc') },
@@ -402,62 +409,12 @@ export default function Self() {
     { name: t('self.stressFawnName'), description: t('self.stressFawnDesc') },
   ]
 
-  const updateSelf = api.goals.self.update.useMutation({
-    onSettled: () => void utils.goals.self.get.invalidate(),
-  })
-  const createItem = api.goals.selfListItems.create.useMutation({
-    onMutate: async (input) => {
-      await utils.goals.selfListItems.list.cancel()
-      const prev = utils.goals.selfListItems.list.getData()
-      const sameKindCount = (prev ?? []).filter((i) => i.kind === input.kind).length
-      const optimistic = {
-        id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        userId: '',
-        kind: input.kind,
-        patternCategory: input.kind === 'pattern' ? (input.patternCategory ?? null) : null,
-        content: input.content,
-        orderIdx: sameKindCount,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }
-      utils.goals.selfListItems.list.setData(undefined, (old) => [...(old ?? []), optimistic])
-      return { prev }
-    },
-    onError: (_e, _i, ctx) => {
-      if (ctx?.prev) utils.goals.selfListItems.list.setData(undefined, ctx.prev)
-    },
-    onSettled: () => void utils.goals.selfListItems.list.invalidate(),
-  })
-  const updateItemMut = api.goals.selfListItems.update.useMutation({
-    onMutate: async (input) => {
-      await utils.goals.selfListItems.list.cancel()
-      const prev = utils.goals.selfListItems.list.getData()
-      utils.goals.selfListItems.list.setData(undefined, (old) =>
-        (old ?? []).map((it) => (it.id === input.id ? { ...it, ...input, updatedAt: new Date() } : it)),
-      )
-      return { prev }
-    },
-    onError: (_e, _i, ctx) => {
-      if (ctx?.prev) utils.goals.selfListItems.list.setData(undefined, ctx.prev)
-    },
-    onSettled: () => void utils.goals.selfListItems.list.invalidate(),
-  })
-  const deleteItemMut = api.goals.selfListItems.delete.useMutation({
-    onMutate: async (input) => {
-      await utils.goals.selfListItems.list.cancel()
-      const prev = utils.goals.selfListItems.list.getData()
-      utils.goals.selfListItems.list.setData(undefined, (old) => (old ?? []).filter((it) => it.id !== input.id))
-      return { prev }
-    },
-    onError: (_e, _i, ctx) => {
-      if (ctx?.prev) utils.goals.selfListItems.list.setData(undefined, ctx.prev)
-    },
-    onSettled: () => void utils.goals.selfListItems.list.invalidate(),
-  })
-
-  const me = meQuery.data
-  const self = selfQuery.data
-  const items = useMemo(() => itemsQuery.data ?? [], [itemsQuery.data])
+  // The three list mutations are optimistic; that logic lives in
+  // lib/mutations/self.ts so it sits next to the other optimistic writes.
+  const updateSelf = useUpdateSelf()
+  const createItem = useCreateSelfListItem()
+  const updateItemMut = useUpdateSelfListItem()
+  const deleteItemMut = useDeleteSelfListItem()
 
   // Group items by kind once per data change. Patterns live in their own map
   // keyed by category so the UI can render five subgroups.
@@ -487,7 +444,7 @@ export default function Self() {
   // Optimistic helper for prose-field saves. Patches the cache so the read
   // model stays in sync between commit and invalidate, avoiding a flash.
   const saveSelfField = (patch: Record<string, string | number | null>) => {
-    utils.goals.self.get.setData(undefined, (prev) => (prev ? { ...prev, ...patch } : prev))
+    queryClient.setQueryData<SelfRow>(qk.self, (prev) => (prev ? { ...prev, ...patch } : prev))
     updateSelf.mutate(patch)
   }
 
@@ -506,7 +463,7 @@ export default function Self() {
     createItem.mutate({ kind, content, patternCategory: patternCategory ?? null })
   }
   const onItemUpdate = (id: string, content: string) => updateItemMut.mutate({ id, content })
-  const onItemDelete = (id: string) => deleteItemMut.mutate({ id })
+  const onItemDelete = (id: string) => deleteItemMut.mutate(id)
 
   return (
     <div className="h-full overflow-y-auto px-6 py-10 md:px-8" style={{ background: 'var(--paper)' }}>

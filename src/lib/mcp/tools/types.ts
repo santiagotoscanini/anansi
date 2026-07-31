@@ -1,5 +1,3 @@
-import 'server-only'
-
 /**
  * Everything a tool needs to act on the caller's behalf.
  *

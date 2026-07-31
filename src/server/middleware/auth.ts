@@ -31,7 +31,10 @@ export const authMiddleware = createMiddleware({ type: 'function' }).server(asyn
     // `_meta.trpc_code` stays exact.
     if (err instanceof AppError) {
       setResponseStatus(err.status)
-      throw new Error(`${err.code}: ${err.message}`)
+      // `cause` keeps the original AppError reachable in a server-side stack
+      // trace. It does not cross the wire — Seroval drops it along with the
+      // subclass — which is exactly why the code is duplicated into the message.
+      throw new Error(`${err.code}: ${err.message}`, { cause: err })
     }
     throw err
   }

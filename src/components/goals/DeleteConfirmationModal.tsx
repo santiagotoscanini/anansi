@@ -1,5 +1,3 @@
-'use client'
-
 import { X, AlertTriangle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Goal } from '~/lib/api/types'

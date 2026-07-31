@@ -11,11 +11,17 @@ export const trackingItemsQueryOptions = (goalId?: string) =>
     queryFn: ({ signal }) => listTrackingItems({ data: { goalId }, signal }),
   })
 
+/** One library row, hydrated with its goal's title for the "Unscoped" pill. */
+export type TrackingItemRow = Awaited<ReturnType<typeof listTrackingItems>>[number]
+
 export const syncTemplatesQueryOptions = () =>
   queryOptions({
     queryKey: qk.syncTemplates,
     queryFn: ({ signal }) => listSyncTemplates({ signal }),
   })
+
+/** A template with its ordered items — what the default-sync editor renders. */
+export type SyncTemplateRow = Awaited<ReturnType<typeof listSyncTemplates>>[number]
 
 /** Just the sync row for a week — null if the user hasn't started one. */
 export const weeklySyncQueryOptions = (weekStart: Date) =>
@@ -38,3 +44,13 @@ export const weeklyRetrospectiveQueryOptions = (weekStart: Date) =>
     queryKey: qk.weeklyRetrospectiveFor(weekStart),
     queryFn: ({ signal }) => getWeeklyRetrospectiveData({ data: { weekStart }, signal }),
   })
+
+export type WeeklyRetrospectiveData = Awaited<ReturnType<typeof getWeeklyRetrospectiveData>>
+
+/**
+ * One item on a sync: its text, its attachments, and the library row behind it.
+ *
+ * Read off `unscopedItems` rather than off a goal group because the two are the
+ * same row shape and this one needs no index into `goals`.
+ */
+export type SyncItem = WeeklyRetrospectiveData['unscopedItems'][number]

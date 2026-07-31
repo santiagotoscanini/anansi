@@ -1,9 +1,9 @@
-/* eslint-disable i18next/no-literal-string -- OAuth consent screen renders as a server component, which the project's i18next client-runtime can't reach yet. English-only for v1; revisit when the consent UX moves through the i18n migration alongside the legal pages. */
+/* eslint-disable i18next/no-literal-string -- the OAuth consent screen is English-only for v1; revisit when the consent UX moves through the i18n migration alongside the legal pages. */
 
-// Consent UI used by /oauth/authorize/page.tsx. Server-rendered with the
-// page; this component is intentionally NOT marked "use client" since the
-// only interactivity is two submit buttons inside a regular <form>. No
-// useState / useEffect / event handlers — just HTML.
+// Consent UI for the /oauth/authorize route. Plain HTML: the only
+// interactivity is two submit buttons inside a regular <form>, so there is no
+// useState, no useEffect and no event handler anywhere in it. That is what
+// lets the whole consent step work with JavaScript disabled.
 //
 // Both buttons submit the SAME form to /oauth/authorize/decision, with the
 // difference encoded in the `decision` button's `value` attribute. Cookie

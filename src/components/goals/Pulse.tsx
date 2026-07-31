@@ -1,7 +1,5 @@
-'use client'
-
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useMemo, useRef, useState } from 'react'
-import NextImage from 'next/image'
 import {
   CalendarDays,
   ChevronDown,
@@ -16,13 +14,20 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
-import { useGoals } from '~/contexts/GoalsContext'
-import { api, type RouterOutputs } from '~/trpc/react'
 import { bucketForDate, formatScheduledShort } from '~/lib/horizon-period'
+import {
+  useCreateWeeklySync,
+  useDeleteAttachment,
+  useSetSyncItemText,
+  useUploadSyncAttachment,
+  useAddSyncItem,
+} from '~/lib/mutations/weekly-sync'
+import { useGoalsData } from '~/lib/queries/goals'
+import { importantDatesQueryOptions, peopleQueryOptions, upcomingNextBidsQueryOptions } from '~/lib/queries/people'
+import { weeklyRetrospectiveQueryOptions, type WeeklyRetrospectiveData as WeeklyRetroData } from '~/lib/queries/sync'
+import { weekStartOf } from '~/lib/week'
 import Avatar from './Avatar'
 import { Btn, Card, Eyebrow, SecLabel } from './ui'
-
-type WeeklyRetroData = RouterOutputs['goals']['weeklySync']['getWeeklyRetrospectiveData']
 
 // "Pulse" — the warm daily landing. Header reads as a journal entry
 // (eyebrow + display headline with inline italic clay accent), body is
@@ -30,24 +35,22 @@ type WeeklyRetroData = RouterOutputs['goals']['weeklySync']['getWeeklyRetrospect
 // the Sync tab.
 export default function Pulse() {
   const { t } = useTranslation()
-  const {
-    goals,
-    getWeekStartDate,
-    getWeeklyRetrospectiveData,
-    createWeeklySync,
-    saveTextFile,
-    uploadWeeklySyncFile,
-    deleteWeeklySyncFile,
-    refreshWeeklyRetrospectiveData,
-  } = useGoals()
-
-  const peopleQuery = api.goals.people.getAll.useQuery()
-  const importantDatesQuery = api.goals.importantDates.list.useQuery()
-  const upcomingBidsQuery = api.goals.nextBids.listUpcoming.useQuery()
+  const { goals } = useGoalsData()
+  const { data: people } = useSuspenseQuery(peopleQueryOptions(false))
+  const { data: importantDates } = useSuspenseQuery(importantDatesQueryOptions())
+  const { data: upcomingBids } = useSuspenseQuery(upcomingNextBidsQueryOptions())
   const [showYearlySection, setShowYearlySection] = useState(false)
 
-  const [weekStart] = useState<Date>(() => getWeekStartDate(new Date()))
-  const query = getWeeklyRetrospectiveData(weekStart)
+  const createWeeklySync = useCreateWeeklySync()
+  const addSyncItem = useAddSyncItem()
+  const setItemText = useSetSyncItemText()
+  const uploadAttachment = useUploadSyncAttachment()
+  const deleteAttachment = useDeleteAttachment()
+
+  // Pinned on mount so the week doesn't shift under the user at midnight.
+  // Not prefetched by the route loader — see the timezone note in app.pulse.tsx.
+  const [weekStart] = useState<Date>(() => weekStartOf(new Date()))
+  const query = useQuery(weeklyRetrospectiveQueryOptions(weekStart))
   const data: WeeklyRetroData | undefined = query.data
   const weeklySync = data?.weeklySync
 
@@ -108,7 +111,7 @@ export default function Pulse() {
   }, [goals])
 
   // People needing attention — same logic as before, just colored warm.
-  const peopleRows = peopleQuery.data ?? []
+  const peopleRows = people
   type AttentionReason =
     | { kind: 'overdue'; daysOverdue: number; decideBy: Date }
     | { kind: 'due-soon'; daysUntil: number; decideBy: Date }
@@ -162,7 +165,7 @@ export default function Pulse() {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const personById = new Map(peopleRows.map((p) => [p.id, p]))
-  const upcomingDates = (importantDatesQuery.data ?? [])
+  const upcomingDates = importantDates
     .map((d) => {
       const thisYear = new Date(today.getFullYear(), d.month - 1, d.day)
       const next =
@@ -198,7 +201,7 @@ export default function Pulse() {
       turning: d.turning,
     })
   }
-  for (const b of upcomingBidsQuery.data ?? []) {
+  for (const b of upcomingBids) {
     if (!b.dueAt) continue
     const due = new Date(b.dueAt)
     const daysUntil = Math.round((due.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
@@ -216,7 +219,7 @@ export default function Pulse() {
 
   const handleStart = async () => {
     try {
-      await createWeeklySync(weekStart)
+      await createWeeklySync.mutateAsync({ weekDate: weekStart })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('pulse.startFailed'))
     }
@@ -357,11 +360,15 @@ export default function Pulse() {
                   key={it.id}
                   item={it}
                   weeklySyncId={weeklySync.id}
-                  onSaveText={(content) =>
-                    saveTextFile(content, weeklySync.id, it.trackingItemId).then(() => {
-                      /* refresh handled by debounced caller */
+                  onSaveText={async (content) => {
+                    // addSyncItem is idempotent — the row already exists here,
+                    // since `items` is built from rows that are on the sync.
+                    const row = await addSyncItem.mutateAsync({
+                      weeklySyncId: weeklySync.id,
+                      trackingItemId: it.trackingItemId,
                     })
-                  }
+                    await setItemText.mutateAsync({ weeklySyncItemId: row.id, textContent: content })
+                  }}
                   onUploadImages={async (files) => {
                     for (const file of Array.from(files)) {
                       const reader = new FileReader()
@@ -370,14 +377,16 @@ export default function Pulse() {
                         reader.onerror = reject
                         reader.readAsDataURL(file)
                       })
-                      await uploadWeeklySyncFile(data, weeklySync.id, it.trackingItemId, file.name, 'image', false)
+                      await uploadAttachment.mutateAsync({
+                        weeklySyncId: weeklySync.id,
+                        trackingItemId: it.trackingItemId,
+                        fileName: file.name,
+                        fileType: 'image',
+                        data,
+                      })
                     }
-                    await refreshWeeklyRetrospectiveData()
                   }}
-                  onDeleteAttachment={async (id) => {
-                    await deleteWeeklySyncFile(id)
-                    await refreshWeeklyRetrospectiveData()
-                  }}
+                  onDeleteAttachment={(id) => deleteAttachment.mutateAsync(id).then(() => undefined)}
                 />
               ))}
             </ul>
@@ -766,7 +775,10 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
                 className="group relative h-12 w-12 overflow-hidden rounded-md"
                 style={{ border: '1px solid var(--hairline-2)' }}
               >
-                <NextImage src={a.url} alt={a.fileName} fill sizes="48px" className="object-cover" unoptimized />
+                {/* `fill` + `sizes` were next/image's way of saying "stretch to
+                    the positioned parent". On a plain <img> that is
+                    absolute inset-0 with full width and height. */}
+                <img src={a.url} alt={a.fileName} className="absolute inset-0 h-full w-full object-cover" />
                 <button
                   onClick={() => void onDeleteAttachment(a.id)}
                   className="absolute right-0.5 top-0.5 rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100"

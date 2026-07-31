@@ -1,12 +1,7 @@
-'use client'
-
 import { useRef, useState } from 'react'
-import NextImage from 'next/image'
 import { FileText, Image as ImageIcon, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { RouterOutputs } from '~/trpc/react'
-
-type SyncItem = RouterOutputs['goals']['weeklySync']['getWeeklyRetrospectiveData']['unscopedItems'][number]
+import type { SyncItem } from '~/lib/queries/sync'
 
 interface Props {
   item: SyncItem
@@ -232,13 +227,14 @@ export default function WeeklySyncItemRow({
                   const isDeleting = deletingFileIds.has(file.id)
                   return (
                     <div key={file.id} className="group relative h-16 w-full">
-                      <NextImage
+                      {/* Was next/image with `fill`; on a plain <img> that is
+                          absolute inset-0 against the sized parent. */}
+                      <img
                         src={file.url}
                         alt={t('weeklySyncRow.savedAlt', { index: index + 1 })}
-                        fill
-                        sizes="(max-width: 768px) 25vw, 128px"
-                        unoptimized
-                        className={`rounded object-cover transition-opacity ${isDeleting ? 'opacity-50' : ''}`}
+                        className={`absolute inset-0 h-full w-full rounded object-cover transition-opacity ${
+                          isDeleting ? 'opacity-50' : ''
+                        }`}
                       />
 
                       {!isDeleting && index < 3 && (

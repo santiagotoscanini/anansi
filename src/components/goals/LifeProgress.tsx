@@ -1,14 +1,14 @@
-'use client'
-
 import { useCallback, useMemo, useState } from 'react'
 import { Trophy, Target, TrendingUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useGoals } from '~/contexts/GoalsContext'
+import { useGoalProgress } from '~/lib/computation/use-goal-progress'
+import { useGoalsData } from '~/lib/queries/goals'
 import GoalModal from './GoalModal'
 
 export default function LifeProgress() {
   const { t } = useTranslation()
-  const { goals, connections, values, getGoalProgress } = useGoals()
+  const { goals, connections, values } = useGoalsData()
+  const { getGoalProgress } = useGoalProgress(goals, connections)
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 

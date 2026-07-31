@@ -1,19 +1,19 @@
-'use client'
-
+import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Check, CheckSquare, Pencil, Plus, Search, Square, Trash2, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
-import { api } from '~/trpc/react'
 import type { PersonCategory } from '~/lib/api/types'
+import { useDeleteGroup, useUpdateGroup } from '~/lib/mutations/people'
+import { qk } from '~/lib/queries/keys'
+import { groupTasksQueryOptions, groupsQueryOptions, peopleQueryOptions } from '~/lib/queries/people'
+import { Route } from '~/routes/app.people'
 import PersonModal, { type PersonRow } from './PersonModal'
 import Avatar from './Avatar'
 import ColorPicker from './ColorPicker'
 import GoalModal from './GoalModal'
 import { isEmojiUrl } from '~/lib/emoji-utils'
 import { formatScheduledShort } from '~/lib/horizon-period'
-
-export type PeopleFilter = { kind: 'all' } | { kind: 'uncategorized' } | { kind: 'group'; groupId: string }
 
 type CategoryLabelKey =
   | 'peopleDirectory.categoryToProcess'
@@ -37,22 +37,24 @@ function CategoryPill({ category }: { category: PersonCategory }) {
   )
 }
 
-interface PeopleDirectoryProps {
-  filter?: PeopleFilter
-  onFilterChange?: (filter: PeopleFilter) => void
-}
-
-export default function PeopleDirectory({ filter = { kind: 'all' }, onFilterChange }: PeopleDirectoryProps) {
+// The filter arrives as search params rather than props: the sidebar, which
+// sits above this route, is what sets it. `groupId` is only meaningful when
+// `filter === 'group'`; the discriminated union that used to encode that could
+// not survive a query string, so the two are validated independently.
+export default function PeopleDirectory() {
   const { t } = useTranslation()
-  const peopleQuery = api.goals.people.getAll.useQuery({ includeArchived: false })
-  const groupsQuery = api.goals.groups.getAll.useQuery()
-  const groupTasksQuery = api.goals.groups.getTasks.useQuery(
-    { groupId: filter.kind === 'group' ? filter.groupId : '' },
-    { enabled: filter.kind === 'group' },
-  )
-  const updateGroupMutation = api.goals.groups.update.useMutation()
-  const deleteGroupMutation = api.goals.groups.delete.useMutation()
-  const utils = api.useUtils()
+  const { filter, groupId } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const queryClient = useQueryClient()
+
+  const { data: people } = useSuspenseQuery(peopleQueryOptions(false))
+  const { data: groups } = useSuspenseQuery(groupsQueryOptions())
+  const groupTasksQuery = useQuery({
+    ...groupTasksQueryOptions(groupId ?? ''),
+    enabled: filter === 'group' && !!groupId,
+  })
+  const updateGroupMutation = useUpdateGroup()
+  const deleteGroupMutation = useDeleteGroup()
   const [search, setSearch] = useState('')
   const [editingPerson, setEditingPerson] = useState<PersonRow | null>(null)
   const [creating, setCreating] = useState(false)
@@ -62,45 +64,44 @@ export default function PeopleDirectory({ filter = { kind: 'all' }, onFilterChan
   const [openGoalId, setOpenGoalId] = useState<string | null>(null)
 
   const refetchPeople = () => {
-    void utils.goals.people.getAll.invalidate()
+    void queryClient.invalidateQueries({ queryKey: qk.people })
   }
 
   const groupsById = useMemo(() => {
-    const groups = groupsQuery.data ?? []
     const m = new Map<string, (typeof groups)[number]>()
     for (const g of groups) m.set(g.id, g)
     return m
-  }, [groupsQuery.data])
+  }, [groups])
 
   const filtered = useMemo(() => {
-    const rows = (peopleQuery.data ?? []) as PersonRow[]
+    const rows = people as PersonRow[]
     const q = search.trim().toLowerCase()
 
     const afterFilter = rows.filter((p) => {
-      if (filter.kind === 'all') return true
-      if (filter.kind === 'uncategorized') return !p.groupIds || p.groupIds.length === 0
-      return p.groupIds?.includes(filter.groupId) ?? false
+      if (filter === 'all') return true
+      if (filter === 'uncategorized') return !p.groupIds || p.groupIds.length === 0
+      return groupId ? (p.groupIds?.includes(groupId) ?? false) : false
     })
 
     const list = q ? afterFilter.filter((p) => p.name.toLowerCase().includes(q)) : afterFilter
     return [...list].sort((a, b) => a.name.localeCompare(b.name))
-  }, [peopleQuery.data, search, filter])
+  }, [people, search, filter, groupId])
 
   const headerTitle =
-    filter.kind === 'all'
+    filter === 'all'
       ? t('peopleDirectory.headerAll')
-      : filter.kind === 'uncategorized'
+      : filter === 'uncategorized'
         ? t('peopleDirectory.headerUncategorized')
-        : (groupsById.get(filter.groupId)?.name ?? t('peopleDirectory.headerAll'))
+        : (groupsById.get(groupId ?? '')?.name ?? t('peopleDirectory.headerAll'))
 
   const headerHint =
-    filter.kind === 'all'
+    filter === 'all'
       ? t('peopleDirectory.hintAll')
-      : filter.kind === 'uncategorized'
+      : filter === 'uncategorized'
         ? t('peopleDirectory.hintUncategorized')
         : t('peopleDirectory.hintGroup')
 
-  const activeGroup = filter.kind === 'group' ? groupsById.get(filter.groupId) : undefined
+  const activeGroup = filter === 'group' && groupId ? groupsById.get(groupId) : undefined
   const editingGroup = activeGroup ? editingGroupId === activeGroup.id : false
 
   const startEditGroup = () => {
@@ -120,7 +121,6 @@ export default function PeopleDirectory({ filter = { kind: 'all' }, onFilterChan
         name: editGroupName.trim(),
         color: editGroupColor,
       })
-      await utils.goals.groups.getAll.invalidate()
       setEditingGroupId(null)
       toast.success(t('peopleDirectory.groupUpdated'))
     } catch {
@@ -133,9 +133,10 @@ export default function PeopleDirectory({ filter = { kind: 'all' }, onFilterChan
     if (!confirm(t('peopleDirectory.confirmDeleteGroup', { name: activeGroup.name }))) return
     const id = activeGroup.id
     try {
-      await deleteGroupMutation.mutateAsync({ id })
-      await Promise.all([utils.goals.groups.getAll.invalidate(), utils.goals.people.getAll.invalidate()])
-      onFilterChange?.({ kind: 'all' })
+      await deleteGroupMutation.mutateAsync(id)
+      // The group this view was filtered to is gone, so the URL has to move
+      // with it or the tab renders an empty list under a dead groupId.
+      await navigate({ search: { filter: 'all', groupId: undefined } })
       toast.success(t('peopleDirectory.groupDeleted'))
     } catch {
       toast.error(t('peopleDirectory.groupDeleteFailed'))
@@ -251,14 +252,14 @@ export default function PeopleDirectory({ filter = { kind: 'all' }, onFilterChan
             reflection-surface treatment: avatar lockup at top, italic
             "what I'd write about them" note, and a per-row category pill
             + group tags at the bottom for filtering context. */}
-        {peopleQuery.isLoading ? (
-          <p className="text-sm text-[var(--ink-3)]">{t('peopleDirectory.loading')}</p>
-        ) : filtered.length === 0 ? (
+        {/* No loading branch: the /app layout prefetches the people list, so by
+            the time this renders the data is already in cache. */}
+        {filtered.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[var(--hairline)] bg-[var(--vellum)] p-10 text-center">
             <p className="text-[var(--ink-3)]">
               {search
                 ? t('peopleDirectory.noMatches')
-                : filter.kind === 'all'
+                : filter === 'all'
                   ? t('peopleDirectory.noPeopleAll')
                   : t('peopleDirectory.noPeopleFilter')}
             </p>
@@ -354,7 +355,7 @@ export default function PeopleDirectory({ filter = { kind: 'all' }, onFilterChan
         {/* Tasks tagged with this group — only on the group filter view.
             Sits below the people list so the group page is "everything in
             this group, in one place." Click a task to open its parent goal. */}
-        {filter.kind === 'group' && (
+        {filter === 'group' && (
           <div className="space-y-2 pt-2">
             <div className="flex items-baseline justify-between px-1">
               <h3 className="text-sm font-medium text-[var(--ink)]">{t('peopleDirectory.tasksTitle')}</h3>

@@ -1,15 +1,13 @@
-'use client'
-
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Plus, Trash2, Edit2, Check, X, ChevronDown, ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useGoals } from '~/contexts/GoalsContext'
 import type { Value } from '~/lib/api/types'
-import { api, type RouterOutputs } from '~/trpc/react'
+import { useCreateValue, useDeleteValue, useUpdateValue } from '~/lib/mutations/goals-data'
+import { useCreateValueBehavior, useDeleteValueBehavior } from '~/lib/mutations/self'
+import { valueBehaviorsAllQueryOptions, valuesQueryOptions } from '~/lib/queries/values'
 import toast from 'react-hot-toast'
 import { COLOR_PALETTE as DEFAULT_COLORS } from '~/lib/color-palette'
-
-type Behavior = RouterOutputs['goals']['valueBehaviors']['listAll'][number]
 
 // Compact, click-to-expand list of the user's values. Each row collapses to
 // {color dot, name, behavior count}; expanding reveals an inline editor for
@@ -17,16 +15,17 @@ type Behavior = RouterOutputs['goals']['valueBehaviors']['listAll'][number]
 // are stored in their own table (value_behaviors) — atomic add/delete/reorder.
 export default function ValuesManager() {
   const { t } = useTranslation()
-  const { values, addValue, updateValue, deleteValue } = useGoals()
 
-  const utils = api.useUtils()
-  const behaviorsQuery = api.goals.valueBehaviors.listAll.useQuery()
-  const createBehavior = api.goals.valueBehaviors.create.useMutation({
-    onSuccess: () => utils.goals.valueBehaviors.listAll.invalidate(),
-  })
-  const deleteBehavior = api.goals.valueBehaviors.delete.useMutation({
-    onSuccess: () => utils.goals.valueBehaviors.listAll.invalidate(),
-  })
+  // Both prefetched by the /app/values loader, so neither suspends on arrival.
+  const { data: values } = useSuspenseQuery(valuesQueryOptions())
+  const { data: allBehaviors } = useSuspenseQuery(valueBehaviorsAllQueryOptions())
+  type Behavior = (typeof allBehaviors)[number]
+
+  const addValue = useCreateValue()
+  const updateValue = useUpdateValue()
+  const deleteValue = useDeleteValue()
+  const createBehavior = useCreateValueBehavior()
+  const deleteBehavior = useDeleteValueBehavior()
 
   const [newValueName, setNewValueName] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -37,23 +36,30 @@ export default function ValuesManager() {
 
   const behaviorsByValueId = useMemo(() => {
     const m = new Map<string, Behavior[]>()
-    for (const b of behaviorsQuery.data ?? []) {
+    for (const b of allBehaviors) {
       const arr = m.get(b.valueId) ?? []
       arr.push(b)
       m.set(b.valueId, arr)
     }
     return m
-  }, [behaviorsQuery.data])
+  }, [allBehaviors])
 
   const getRandomColor = () => DEFAULT_COLORS[Math.floor(Math.random() * DEFAULT_COLORS.length)]!
 
-  const handleAdd = () => {
+  // These now report failures. Under GoalsContext every one of them swallowed
+  // the error into a console.error and resolved, so a value that failed to save
+  // looked exactly like one that saved.
+  const handleAdd = async () => {
     if (!newValueName.trim()) {
       toast.error(t('valuesManager.nameRequired'))
       return
     }
-    void addValue({ name: newValueName.trim(), color: getRandomColor() })
-    setNewValueName('')
+    try {
+      await addValue.mutateAsync({ name: newValueName.trim(), color: getRandomColor() })
+      setNewValueName('')
+    } catch {
+      toast.error(t('common.saveFailed'))
+    }
   }
 
   const beginEdit = (value: Value) => {
@@ -67,20 +73,27 @@ export default function ValuesManager() {
     setShowColorPicker(false)
   }
 
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     if (!editValue.name.trim()) {
       toast.error(t('valuesManager.nameRequired'))
       return
     }
-    if (editingId) {
-      void updateValue(editingId, { name: editValue.name.trim(), color: editValue.color })
+    if (!editingId) return
+    try {
+      await updateValue.mutateAsync({ id: editingId, name: editValue.name.trim(), color: editValue.color })
       cancelEdit()
+    } catch {
+      toast.error(t('common.saveFailed'))
     }
   }
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     if (!confirm(t('valuesManager.confirmDelete', { name }))) return
-    void deleteValue(id)
+    try {
+      await deleteValue.mutateAsync(id)
+    } catch {
+      toast.error(t('common.deleteFailed'))
+    }
   }
 
   const toggleExpand = (id: string) => {
@@ -101,7 +114,7 @@ export default function ValuesManager() {
 
   const handleDeleteBehavior = async (id: string) => {
     try {
-      await deleteBehavior.mutateAsync({ id })
+      await deleteBehavior.mutateAsync(id)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('valuesManager.deleteBehaviorFailed'))
     }
@@ -157,12 +170,12 @@ export default function ValuesManager() {
             type="text"
             value={newValueName}
             onChange={(e) => setNewValueName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+            onKeyDown={(e) => e.key === 'Enter' && void handleAdd()}
             placeholder={t('valuesManager.addPlaceholder')}
             className="flex-1 rounded-md border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 text-sm outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"
           />
           <button
-            onClick={handleAdd}
+            onClick={() => void handleAdd()}
             className="flex items-center gap-1 rounded-md px-3 py-2 text-sm transition-all"
             style={{ background: 'var(--clay)', color: 'var(--paper)', boxShadow: 'var(--shadow-sm)' }}
           >
@@ -209,7 +222,7 @@ export default function ValuesManager() {
                       <Edit2 className="h-3.5 w-3.5" />
                     </button>
                     <button
-                      onClick={() => handleDelete(value.id, value.name)}
+                      onClick={() => void handleDelete(value.id, value.name)}
                       className="rounded p-1.5 text-[var(--ink-3)] hover:bg-[var(--rust-soft)] hover:text-[var(--rust)]"
                       aria-label={t('valuesManager.deleteValue')}
                     >
@@ -235,14 +248,14 @@ export default function ValuesManager() {
                             value={editValue.name}
                             onChange={(e) => setEditValue({ ...editValue, name: e.target.value })}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleUpdate()
+                              if (e.key === 'Enter') void handleUpdate()
                               if (e.key === 'Escape') cancelEdit()
                             }}
                             className="flex-1 rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-2 py-1.5 text-sm outline-none focus:border-[var(--hairline-2)]"
                             autoFocus
                           />
                           <button
-                            onClick={handleUpdate}
+                            onClick={() => void handleUpdate()}
                             className="rounded p-1.5 text-[var(--moss)] hover:bg-[var(--moss-soft)]"
                             aria-label={t('common.save')}
                           >

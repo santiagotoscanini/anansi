@@ -20,6 +20,9 @@ export const peopleQueryOptions = (includeArchived = false) =>
     queryFn: ({ signal }) => listPeople({ data: { includeArchived }, signal }),
   })
 
+/** One row of the people list, as the UI sees it — hydrated with `groupIds`. */
+export type PersonRow = Awaited<ReturnType<typeof listPeople>>[number]
+
 export const personQueryOptions = (id: string) =>
   queryOptions({
     queryKey: qk.personDetail(id),

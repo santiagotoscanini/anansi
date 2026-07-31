@@ -1,10 +1,10 @@
-'use client'
-
+import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { CheckSquare, HelpCircle, Square, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
-import { api } from '~/trpc/react'
+import { useCreateNextBid, useDeleteNextBid, useSetNextBidCompleted, useUpdateNextBid } from '~/lib/mutations/people'
+import { nextBidsQueryOptions } from '~/lib/queries/people'
 import DatePicker from './DatePicker'
 
 // Shared with PersonModal — kept inline rather than imported to avoid coupling
@@ -21,14 +21,14 @@ const inputClass =
 export default function PersonBidsSection({ personId }: { personId: string | null | undefined }) {
   const { t } = useTranslation()
   const enabled = !!personId
-  const utils = api.useUtils()
-  const invalidate = () => void utils.goals.nextBids.list.invalidate({ personId: personId ?? '' })
 
-  const query = api.goals.nextBids.list.useQuery({ personId: personId ?? '' }, { enabled })
-  const create = api.goals.nextBids.create.useMutation({ onSuccess: invalidate })
-  const update = api.goals.nextBids.update.useMutation({ onSuccess: invalidate })
-  const setCompleted = api.goals.nextBids.setCompleted.useMutation({ onSuccess: invalidate })
-  const remove = api.goals.nextBids.delete.useMutation({ onSuccess: invalidate })
+  // `useQuery` with `enabled`, not suspense: an unsaved person has no id to
+  // query by, and the section renders a "save first" note instead.
+  const query = useQuery({ ...nextBidsQueryOptions(personId ?? ''), enabled })
+  const create = useCreateNextBid()
+  const update = useUpdateNextBid()
+  const setCompleted = useSetNextBidCompleted()
+  const remove = useDeleteNextBid()
 
   const [draft, setDraft] = useState('')
   const [draftDue, setDraftDue] = useState<Date | null>(null)
@@ -114,7 +114,7 @@ export default function PersonBidsSection({ personId }: { personId: string | nul
                   }}
                   onDelete={async () => {
                     try {
-                      await remove.mutateAsync({ id: bid.id })
+                      await remove.mutateAsync(bid.id)
                     } catch {
                       toast.error(t('personBids.removeFailed'))
                     }

@@ -1,4 +1,4 @@
-import { queryOptions } from '@tanstack/react-query'
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { listConnections } from '~/server/fn/connections.fn'
 import { fetchGoalsData } from '~/server/fn/data.fn'
 import { listGoals } from '~/server/fn/goals.fn'
@@ -33,3 +33,23 @@ export const connectionsQueryOptions = () =>
     queryKey: qk.connections,
     queryFn: ({ signal }) => listConnections({ signal }),
   })
+
+export type GoalsData = Awaited<ReturnType<typeof fetchGoalsData>>
+
+/**
+ * The graph payload, for components rather than loaders.
+ *
+ * Suspense rather than `useQuery` because every route that renders one of these
+ * components already calls `ensureQueryData(goalsDataQueryOptions())` in its
+ * loader, so the data is in the cache before the component mounts and this
+ * never actually suspends on first paint. That is what replaced the
+ * `isDataLoading` spinner the dashboard used to render — with the loader
+ * prefetch there is no loading state left to show.
+ *
+ * A component that reaches this without its route having loaded it will
+ * suspend, not crash. Fixing that means adding the query to the route's loader,
+ * not adding a fallback here.
+ */
+export function useGoalsData(): GoalsData {
+  return useSuspenseQuery(goalsDataQueryOptions()).data
+}

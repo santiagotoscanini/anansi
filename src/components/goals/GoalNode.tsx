@@ -1,15 +1,14 @@
-'use client'
-
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { memo, useMemo } from 'react'
-import Image from 'next/image'
 import { Handle, Position } from '@xyflow/react'
 import { Target, CheckCircle, Pencil } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useGoals } from '~/contexts/GoalsContext'
 import type { Goal } from '~/lib/api/types'
+import { useGoalProgress } from '~/lib/computation/use-goal-progress'
 import { isEmojiUrl } from '~/lib/emoji-utils'
 import { bucketForDate } from '~/lib/horizon-period'
-import { api } from '~/trpc/react'
+import { useGoalsData } from '~/lib/queries/goals'
+import { peopleQueryOptions } from '~/lib/queries/people'
 import Avatar from './Avatar'
 
 interface GoalNodeProps {
@@ -28,22 +27,23 @@ const IMPORTANCE_LABEL_KEY: Record<'High' | 'Medium' | 'Low', ImportanceLabelKey
 
 const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
   const { t } = useTranslation()
-  const { values, getGoalProgress, connections } = useGoals()
+  const { values, goals, connections } = useGoalsData()
+  const { getGoalProgress } = useGoalProgress(goals, connections)
   const associatedValues = values.filter((v) => data.valueIds?.includes(v.id))
 
   // Collect unique referent people across all tasks on this goal. Shown as a
   // stacked avatar cluster at the bottom of the node — mirrors the values
   // hover pattern at the top.
-  const peopleQuery = api.goals.people.getAll.useQuery({ includeArchived: false })
+  const { data: people } = useSuspenseQuery(peopleQueryOptions(false))
   const referentPeople = useMemo(() => {
     const ids = new Set<string>()
     for (const t of data.tasks) for (const id of t.referentIds ?? []) ids.add(id)
     if (ids.size === 0) return []
-    const byId = new Map((peopleQuery.data ?? []).map((p) => [p.id, p]))
+    const byId = new Map(people.map((p) => [p.id, p]))
     return Array.from(ids)
       .map((id) => byId.get(id))
       .filter((p): p is NonNullable<typeof p> => !!p)
-  }, [data.tasks, peopleQuery.data])
+  }, [data.tasks, people])
 
   // Get all progress data from single source
   const progress = getGoalProgress(data.id)
@@ -217,12 +217,11 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
           {/* Emoji Display */}
           {data.emoji ? (
             isEmojiUrl(data.emoji) ? (
-              <Image
+              <img
                 src={data.emoji}
                 alt={t('goalNode.emojiAlt')}
                 width={20}
                 height={20}
-                unoptimized
                 className="h-5 w-5 object-contain"
               />
             ) : (

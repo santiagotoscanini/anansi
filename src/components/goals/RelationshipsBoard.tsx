@@ -1,5 +1,3 @@
-'use client'
-
 import { useMemo, useState } from 'react'
 import {
   DndContext,
@@ -13,10 +11,13 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
+import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
-import { api } from '~/trpc/react'
 import type { PersonCategory } from '~/lib/api/types'
+import { useSetPersonCategory } from '~/lib/mutations/people'
+import { qk } from '~/lib/queries/keys'
+import { peopleQueryOptions } from '~/lib/queries/people'
 import PersonModal, { type PersonRow } from './PersonModal'
 import Avatar from './Avatar'
 
@@ -154,31 +155,11 @@ function DroppableColumn({
 
 export default function RelationshipsBoard() {
   const { t } = useTranslation()
-  const utils = api.useUtils()
-  const getAllInput = { includeArchived: false }
-  const peopleQuery = api.goals.people.getAll.useQuery(getAllInput)
-  const setCategoryMutation = api.goals.people.setCategory.useMutation({
-    // Optimistic update — avoids the post-drop flash where the card snaps back to
-    // its source column while waiting for the mutation to resolve.
-    onMutate: async (vars) => {
-      await utils.goals.people.getAll.cancel(getAllInput)
-      const prev = utils.goals.people.getAll.getData(getAllInput)
-      utils.goals.people.getAll.setData(getAllInput, (old) => {
-        if (!old) return old
-        return old.map((p) =>
-          p.id === vars.id ? { ...p, category: vars.category, boardOrder: vars.boardOrder ?? 0 } : p,
-        )
-      })
-      return { prev }
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) utils.goals.people.getAll.setData(getAllInput, ctx.prev)
-      toast.error(t('relationships.moveFailed'))
-    },
-    onSettled: () => {
-      void utils.goals.people.getAll.invalidate()
-    },
-  })
+  const queryClient = useQueryClient()
+  const { data: people } = useSuspenseQuery(peopleQueryOptions(false))
+  // The optimistic patch this declared inline now lives in the hook, so the
+  // board only supplies the message for a failed drop.
+  const setCategoryMutation = useSetPersonCategory({ onError: () => toast.error(t('relationships.moveFailed')) })
 
   const [activeId, setActiveId] = useState<string | null>(null)
   const [editingPerson, setEditingPerson] = useState<PersonRow | null>(null)
@@ -189,7 +170,7 @@ export default function RelationshipsBoard() {
   )
 
   const { byColumn, flatById } = useMemo(() => {
-    const rows = (peopleQuery.data ?? []) as PersonRow[]
+    const rows = people as PersonRow[]
     const byColumn: Record<Column['id'], PersonRow[]> = {
       to_process: [],
       exploring: [],
@@ -205,7 +186,7 @@ export default function RelationshipsBoard() {
       byColumn[col].sort((a, b) => a.boardOrder - b.boardOrder || a.name.localeCompare(b.name))
     }
     return { byColumn, flatById }
-  }, [peopleQuery.data])
+  }, [people])
 
   const activePerson = activeId ? flatById[activeId] : null
 
@@ -226,7 +207,7 @@ export default function RelationshipsBoard() {
   }
 
   const refetch = () => {
-    void utils.goals.people.getAll.invalidate()
+    void queryClient.invalidateQueries({ queryKey: qk.people })
   }
 
   return (
@@ -272,7 +253,13 @@ export default function RelationshipsBoard() {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        {/* An explicit `id` is required for SSR. dnd-kit derives
+              `aria-describedby="DndDescribedBy-N"` from a module-level counter,
+              which starts at a different value on a long-lived server process
+              than it does in a fresh browser tab — so the server rendered
+              `-0` and the client expected `-1`, and React reported a hydration
+              mismatch on every draggable. A fixed id makes both sides agree. */}
+        <DndContext id="relationships-board" sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div className="grid grid-cols-1 gap-4 px-6 pb-8 pt-6 sm:grid-cols-2 md:px-8 xl:grid-cols-4">
             {COLUMNS.map((col) => (
               <DroppableColumn key={col.id} column={col} people={byColumn[col.id]} onCardClick={setEditingPerson} />

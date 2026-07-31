@@ -14,7 +14,9 @@
     "search": "Buscar",
     "yes": "Sí",
     "no": "No",
-    "untitled": "Sin título"
+    "untitled": "Sin título",
+    "saveFailed": "No se pudo guardar. Inténtalo de nuevo.",
+    "deleteFailed": "No se pudo eliminar. Inténtalo de nuevo."
   },
   "profile": {
     "title": "Perfil",

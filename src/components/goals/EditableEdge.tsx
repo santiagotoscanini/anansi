@@ -1,8 +1,7 @@
-'use client'
-
 import React, { useState, useRef, useEffect } from 'react'
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from '@xyflow/react'
-import { useGoals } from '~/contexts/GoalsContext'
+import { useUpdateConnection } from '~/lib/mutations/goals-data'
+import { useGoalsData } from '~/lib/queries/goals'
 import type { Connection } from '~/lib/api/types'
 
 const DEFAULT_WEIGHT = 1
@@ -50,7 +49,8 @@ export default function EditableEdge({
     targetPosition,
   })
 
-  const { updateConnection, connections } = useGoals()
+  const { connections } = useGoalsData()
+  const updateConnection = useUpdateConnection()
   const connection = connections.find((conn) => conn.id === id)
 
   // Calculate validation color based on target percentage sum
@@ -80,7 +80,7 @@ export default function EditableEdge({
 
   const handleInputSubmit = () => {
     if (!isNaN(editValue) && connection) {
-      void updateConnection(connection.id, { weight: editValue })
+      updateConnection.mutate({ id: connection.id, weight: editValue })
     }
     setIsEditing(false)
   }

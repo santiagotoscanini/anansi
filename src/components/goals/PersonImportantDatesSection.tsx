@@ -1,10 +1,10 @@
-'use client'
-
+import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { CalendarDays, HelpCircle, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
-import { api } from '~/trpc/react'
+import { useCreateImportantDate, useDeleteImportantDate, useUpdateImportantDate } from '~/lib/mutations/people'
+import { importantDatesQueryOptions } from '~/lib/queries/people'
 import DatePicker from './DatePicker'
 
 const fieldHelper = 'mt-1.5 text-xs text-[var(--ink-3)]'
@@ -19,13 +19,13 @@ const inputClass =
 export default function PersonImportantDatesSection({ personId }: { personId: string | null | undefined }) {
   const { t } = useTranslation()
   const enabled = !!personId
-  const utils = api.useUtils()
-  const invalidate = () => void utils.goals.importantDates.list.invalidate({ personId: personId ?? '' })
 
-  const query = api.goals.importantDates.list.useQuery({ personId: personId ?? '' }, { enabled })
-  const create = api.goals.importantDates.create.useMutation({ onSuccess: invalidate })
-  const update = api.goals.importantDates.update.useMutation({ onSuccess: invalidate })
-  const remove = api.goals.importantDates.delete.useMutation({ onSuccess: invalidate })
+  // See PersonBidsSection: gated on a saved parent row, so `enabled` rather
+  // than suspense.
+  const query = useQuery({ ...importantDatesQueryOptions(personId ?? ''), enabled })
+  const create = useCreateImportantDate()
+  const update = useUpdateImportantDate()
+  const remove = useDeleteImportantDate()
 
   const [labelDraft, setLabelDraft] = useState('')
   const [dateDraft, setDateDraft] = useState<Date | null>(null)
@@ -117,7 +117,7 @@ export default function PersonImportantDatesSection({ personId }: { personId: st
                   }}
                   onDelete={async () => {
                     try {
-                      await remove.mutateAsync({ id: date.id })
+                      await remove.mutateAsync(date.id)
                     } catch {
                       toast.error(t('personDates.removeFailed'))
                     }

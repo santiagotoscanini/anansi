@@ -1,13 +1,21 @@
-'use client'
-
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { CheckSquare, HelpCircle, Loader2, Mountain, Square, Target, Upload, X } from 'lucide-react'
-import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
-import { api } from '~/trpc/react'
 import type { PersonCategory } from '~/lib/api/types'
+import {
+  useArchivePerson,
+  useCreateGroup,
+  useCreatePerson,
+  useDeletePerson,
+  useUnarchivePerson,
+  useUpdatePerson,
+  useUploadPersonImage,
+} from '~/lib/mutations/people'
+import { groupsQueryOptions, personBucketListQueryOptions, personTasksQueryOptions } from '~/lib/queries/people'
 import Avatar from './Avatar'
+import EmojiPickerLazy, { type EmojiClickData } from './EmojiPickerLazy'
 import ColorPicker from './ColorPicker'
 import DatePicker from './DatePicker'
 import PersonBidsSection from './PersonBidsSection'
@@ -111,30 +119,29 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupColor, setNewGroupColor] = useState('#60a5fa')
 
-  const groupsQuery = api.goals.groups.getAll.useQuery()
-  const createGroupMutation = api.goals.groups.create.useMutation()
-  const utils = api.useUtils()
+  const { data: groups } = useSuspenseQuery(groupsQueryOptions())
+  const createGroupMutation = useCreateGroup()
   const [selfReflection, setSelfReflection] = useState(person?.selfReflection ?? '')
   const [decideBy, setDecideBy] = useState<Date | null>(
     person?.decideBy ?? (category === 'exploring' && !isEdit ? sixMonthsFromNow() : null),
   )
 
-  const createMutation = api.goals.people.create.useMutation()
-  const updateMutation = api.goals.people.update.useMutation()
-  const archiveMutation = api.goals.people.archive.useMutation()
-  const unarchiveMutation = api.goals.people.unarchive.useMutation()
-  const deleteMutation = api.goals.people.delete.useMutation()
-  const uploadImageMutation = api.goals.people.uploadImage.useMutation()
+  const createMutation = useCreatePerson()
+  const updateMutation = useUpdatePerson()
+  const archiveMutation = useArchivePerson()
+  const unarchiveMutation = useUnarchivePerson()
+  const deleteMutation = useDeletePerson()
+  const uploadImageMutation = useUploadPersonImage()
 
-  const referentTasksQuery = api.goals.people.getTasksAsReferent.useQuery(
-    { personId: person?.id ?? '' },
-    { enabled: !!person?.id },
-  )
-
-  const bucketListItemsQuery = api.goals.people.getBucketListItemsAsParticipant.useQuery(
-    { personId: person?.id ?? '' },
-    { enabled: !!person?.id },
-  )
+  // Both gated on a saved person: in create mode there is no id to query by.
+  const referentTasksQuery = useQuery({
+    ...personTasksQueryOptions(person?.id ?? ''),
+    enabled: !!person?.id,
+  })
+  const bucketListItemsQuery = useQuery({
+    ...personBucketListQueryOptions(person?.id ?? ''),
+    enabled: !!person?.id,
+  })
 
   // Bids and important-dates sections were extracted to standalone components
   // (H2). The section owns its own queries + mutations + composer state — all
@@ -189,10 +196,10 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
     if (!person) return
     try {
       if (person.archivedAt) {
-        await unarchiveMutation.mutateAsync({ id: person.id })
+        await unarchiveMutation.mutateAsync(person.id)
         toast.success(t('personModal.unarchived'))
       } else {
-        await archiveMutation.mutateAsync({ id: person.id })
+        await archiveMutation.mutateAsync(person.id)
         toast.success(t('personModal.archived'))
       }
       onSaved()
@@ -206,7 +213,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
     if (!person) return
     if (!confirm(t('personModal.confirmDelete', { name: person.name }))) return
     try {
-      await deleteMutation.mutateAsync({ id: person.id })
+      await deleteMutation.mutateAsync(person.id)
       toast.success(t('personModal.deleted'))
       onSaved()
       onClose()
@@ -242,7 +249,6 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
 
   const referentTasks = referentTasksQuery.data ?? []
   const bucketListItems = bucketListItemsQuery.data ?? []
-  const groups = groupsQuery.data ?? []
 
   const activeCategoryHint = CATEGORY_OPTIONS.find((c) => c.value === category)?.hintKey
 
@@ -293,13 +299,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                 />
                 {showEmojiPicker && (
                   <div className="absolute left-0 top-full z-50 mt-2 rounded-xl border border-[var(--hairline)] bg-[var(--canvas)] p-2 shadow-2xl">
-                    <EmojiPicker
-                      onEmojiClick={handleEmojiClick}
-                      width={350}
-                      height={400}
-                      theme={Theme.DARK}
-                      searchPlaceHolder={t('personModal.searchEmoji')}
-                    />
+                    <EmojiPickerLazy onEmojiClick={handleEmojiClick} searchPlaceHolder={t('personModal.searchEmoji')} />
                     <div className="mt-2 space-y-2 border-t border-[var(--hairline)] pt-2">
                       <label className="block text-[10px] uppercase tracking-wider text-[var(--ink-3)]">
                         {t('personModal.uploadPicture')}
@@ -403,7 +403,6 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                             color: newGroupColor,
                             orderIdx: 0,
                           })
-                          await utils.goals.groups.getAll.invalidate()
                           if (g) setGroupIds((prev) => [...prev, g.id])
                           setNewGroupName('')
                           setCreatingGroup(false)

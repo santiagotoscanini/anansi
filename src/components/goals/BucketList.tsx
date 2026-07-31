@@ -1,11 +1,11 @@
-'use client'
-
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Check, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
-import { api } from '~/trpc/react'
 import type { BucketListItem } from '~/lib/api/types'
+import { useCreateBucketListItem, useToggleBucketListItem } from '~/lib/mutations/people'
+import { bucketListQueryOptions, peopleQueryOptions } from '~/lib/queries/people'
 import Avatar from './Avatar'
 import BucketListItemModal from './BucketListItemModal'
 
@@ -150,16 +150,11 @@ function ItemRow({
 
 export default function BucketList() {
   const { t } = useTranslation()
-  const utils = api.useUtils()
-  const listQuery = api.goals.bucketList.list.useQuery()
-  const peopleQuery = api.goals.people.getAll.useQuery({ includeArchived: false })
+  const { data: listData } = useSuspenseQuery(bucketListQueryOptions())
+  const { data: people } = useSuspenseQuery(peopleQueryOptions(false))
 
-  const invalidate = () => {
-    void utils.goals.bucketList.list.invalidate()
-  }
-
-  const createMutation = api.goals.bucketList.create.useMutation({ onSuccess: invalidate })
-  const toggleMutation = api.goals.bucketList.toggleCompleted.useMutation({ onSuccess: invalidate })
+  const createMutation = useCreateBucketListItem()
+  const toggleMutation = useToggleBucketListItem()
 
   const [newContent, setNewContent] = useState('')
   // Modal state: null = closed; "create" = quick-add via modal; { item } = editing.
@@ -184,12 +179,12 @@ export default function BucketList() {
     }
   }
 
-  const items = (listQuery.data ?? []) as BucketListItem[]
+  const items = listData as BucketListItem[]
   const peopleById = useMemo(() => {
     const m = new Map<string, PersonLite>()
-    for (const p of peopleQuery.data ?? []) m.set(p.id, { id: p.id, name: p.name, emoji: p.emoji })
+    for (const p of people) m.set(p.id, { id: p.id, name: p.name, emoji: p.emoji })
     return m
-  }, [peopleQuery.data])
+  }, [people])
 
   const pending = items.filter((i) => !i.completedAt).sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
   const done = items.filter((i) => i.completedAt).sort((a, b) => +new Date(b.completedAt!) - +new Date(a.completedAt!))
@@ -282,9 +277,8 @@ export default function BucketList() {
               {t('bucketList.toDoLabel')} <span className="text-[var(--ink-4)]">({pending.length})</span>
             </h3>
           </div>
-          {listQuery.isLoading ? (
-            <p className="text-xs text-[var(--ink-3)]">{t('common.loading')}</p>
-          ) : pending.length === 0 ? (
+          {/* Loader-prefetched, so there is no loading state to render. */}
+          {pending.length === 0 ? (
             <div className="rounded-lg border border-dashed border-[var(--hairline)] bg-[var(--vellum)] p-6 text-center text-sm text-[var(--ink-3)]">
               {t('bucketList.nothingYet')}
             </div>
@@ -328,7 +322,7 @@ export default function BucketList() {
         )}
       </div>
 
-      {modalState && <BucketListItemModal mode={modalState} onClose={() => setModalState(null)} onSaved={invalidate} />}
+      {modalState && <BucketListItemModal mode={modalState} onClose={() => setModalState(null)} />}
     </div>
   )
 }

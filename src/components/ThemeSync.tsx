@@ -1,5 +1,3 @@
-'use client'
-
 import { useTheme } from '~/lib/theme'
 
 // Mount this once at the top of the tree to keep `data-theme` in sync

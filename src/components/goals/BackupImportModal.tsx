@@ -1,12 +1,10 @@
-'use client'
-
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, useRef } from 'react'
 import { X, AlertTriangle, Upload } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Trans, useTranslation } from 'react-i18next'
-import { useGoals } from '~/contexts/GoalsContext'
-import { api } from '~/trpc/react'
 import { backupSchema, type Backup } from '~/lib/api/types'
+import { importBackup } from '~/server/fn/backup.fn'
 
 interface BackupImportModalProps {
   onClose: () => void
@@ -19,8 +17,10 @@ interface ParsedBackup {
 
 export default function BackupImportModal({ onClose }: BackupImportModalProps) {
   const { t } = useTranslation()
-  const { refreshData } = useGoals()
-  const importMutation = api.goals.backup.import.useMutation()
+  const queryClient = useQueryClient()
+  const importMutation = useMutation({
+    mutationFn: (backup: Backup) => importBackup({ data: { backup, confirmReplace: true } }),
+  })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [parsed, setParsed] = useState<ParsedBackup | null>(null)
   const [parseError, setParseError] = useState<string | null>(null)
@@ -57,8 +57,11 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
     if (!parsed) return
     toast.loading(t('backupImport.restoringToast'), { id: 'backup-import' })
     try {
-      const res = await importMutation.mutateAsync({ backup: parsed.backup, confirmReplace: true })
-      await refreshData()
+      const res = await importMutation.mutateAsync(parsed.backup)
+      // An import replaces the account wholesale, so nothing in the cache
+      // survives it — reset rather than invalidate, or every screen renders the
+      // pre-import data until its own refetch lands.
+      await queryClient.resetQueries()
       const msg = res.fileFailures.length
         ? t('backupImport.restoredWithFailures', { count: res.fileFailures.length })
         : t('backupImport.restoredOk')

@@ -1,13 +1,12 @@
-'use client'
-
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
-import Image from 'next/image'
 import { CheckSquare, Search, Square } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useGoals } from '~/contexts/GoalsContext'
 import { isEmojiUrl } from '~/lib/emoji-utils'
 import { formatScheduledShort } from '~/lib/horizon-period'
-import { api } from '~/trpc/react'
+import { useGoalsData } from '~/lib/queries/goals'
+import { groupsQueryOptions, peopleQueryOptions } from '~/lib/queries/people'
+import { Route } from '~/routes/app.tasks'
 import TaskModal from './TaskModal'
 import Avatar from './Avatar'
 
@@ -25,26 +24,34 @@ const FILTER_LABEL_KEYS: Record<FilterMode, FilterLabelKey> = {
 // a user just wants to scan and tweak tasks across many goals. This tab gives
 // a flat searchable list, grouped by goal, that opens the same TaskModal on
 // click for full-fidelity editing (description, emoji, deadline, referents,
-// groups). Read-side data flows through the existing GoalsContext (no new
-// router); the modal handles the mutation.
+// groups). Read-side data is the shared goals payload; the modal handles the
+// mutation.
 export default function Tasks() {
   const { t } = useTranslation()
-  const { goals } = useGoals()
+  const { goals } = useGoalsData()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterMode>('open')
-  const [open, setOpen] = useState<{ goalId: string; taskId: string } | null>(null)
 
-  const peopleData = api.goals.people.getAll.useQuery({ includeArchived: false }).data
+  // Which task is open lives in the URL rather than in state, so a specific
+  // task is linkable and survives a reload. Both halves are needed: the editor
+  // is scoped to a goal, and this list spans all of them.
+  const { task: openTaskId, goal: openGoalId } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const openTask = (goalId: string, taskId: string) =>
+    void navigate({ search: (prev) => ({ ...prev, goal: goalId, task: taskId }) })
+  const closeTask = () => void navigate({ search: (prev) => ({ ...prev, goal: undefined, task: undefined }) })
+
+  const { data: peopleData } = useSuspenseQuery(peopleQueryOptions(false))
   const peopleById = useMemo(() => {
-    const m = new Map<string, NonNullable<typeof peopleData>[number]>()
-    for (const p of peopleData ?? []) m.set(p.id, p)
+    const m = new Map<string, (typeof peopleData)[number]>()
+    for (const p of peopleData) m.set(p.id, p)
     return m
   }, [peopleData])
 
-  const groupsData = api.goals.groups.getAll.useQuery().data
+  const { data: groupsData } = useSuspenseQuery(groupsQueryOptions())
   const groupsById = useMemo(() => {
-    const m = new Map<string, NonNullable<typeof groupsData>[number]>()
-    for (const g of groupsData ?? []) m.set(g.id, g)
+    const m = new Map<string, (typeof groupsData)[number]>()
+    for (const g of groupsData) m.set(g.id, g)
     return m
   }, [groupsData])
 
@@ -179,14 +186,7 @@ export default function Tasks() {
                 <div className="mb-2 flex items-baseline gap-2 px-1">
                   {goal.emoji ? (
                     isEmojiUrl(goal.emoji) ? (
-                      <Image
-                        src={goal.emoji}
-                        alt=""
-                        width={16}
-                        height={16}
-                        unoptimized
-                        className="h-4 w-4 shrink-0 object-contain"
-                      />
+                      <img src={goal.emoji} alt="" width={16} height={16} className="h-4 w-4 shrink-0 object-contain" />
                     ) : (
                       <span className="text-base leading-none">{goal.emoji}</span>
                     )
@@ -205,7 +205,7 @@ export default function Tasks() {
                     return (
                       <li key={task.id}>
                         <button
-                          onClick={() => setOpen({ goalId: goal.id, taskId: task.id })}
+                          onClick={() => openTask(goal.id, task.id)}
                           className="flex w-full items-center gap-3 px-4 py-3 text-left transition-all hover:bg-[var(--vellum)]"
                         >
                           {task.completed ? (
@@ -217,12 +217,11 @@ export default function Tasks() {
                           {/* Task emoji — distinct from the goal's */}
                           {task.emoji ? (
                             isEmojiUrl(task.emoji) ? (
-                              <Image
+                              <img
                                 src={task.emoji}
                                 alt=""
                                 width={16}
                                 height={16}
-                                unoptimized
                                 className="h-4 w-4 shrink-0 object-contain"
                               />
                             ) : (
@@ -303,7 +302,9 @@ export default function Tasks() {
         )}
       </div>
 
-      {open && <TaskModal key={open.taskId} goalId={open.goalId} taskId={open.taskId} onClose={() => setOpen(null)} />}
+      {openTaskId && openGoalId && (
+        <TaskModal key={openTaskId} goalId={openGoalId} taskId={openTaskId} onClose={closeTask} />
+      )}
     </div>
   )
 }

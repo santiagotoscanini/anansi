@@ -1,5 +1,3 @@
-'use client'
-
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Trash2, GripVertical, X, Check } from 'lucide-react'
 import {
@@ -19,11 +17,16 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { api, type RouterOutputs } from '~/trpc/react'
+import { useCreateSyncTemplate, useSetSyncTemplateItems } from '~/lib/mutations/tracking-items'
+import {
+  syncTemplatesQueryOptions,
+  trackingItemsQueryOptions,
+  type SyncTemplateRow,
+  type TrackingItemRow as LibraryItem,
+} from '~/lib/queries/sync'
 import toast from 'react-hot-toast'
-
-type LibraryItem = RouterOutputs['goals']['trackingItems']['list'][number]
 
 interface SyncDefaultEditorProps {
   onClose: () => void
@@ -36,19 +39,11 @@ interface SyncDefaultEditorProps {
 // schema migration. For now this UI manages a single row.
 export default function SyncDefaultEditor({ onClose }: SyncDefaultEditorProps) {
   const { t } = useTranslation()
-  const utils = api.useUtils()
-  const templatesQuery = api.goals.syncTemplates.list.useQuery()
-  const itemsQuery = api.goals.trackingItems.list.useQuery({})
+  const { data: templates } = useSuspenseQuery(syncTemplatesQueryOptions())
+  const { data: allItems } = useSuspenseQuery(trackingItemsQueryOptions())
 
-  const createMutation = api.goals.syncTemplates.create.useMutation({
-    onSuccess: () => utils.goals.syncTemplates.list.invalidate(),
-  })
-  const setItemsMutation = api.goals.syncTemplates.setItems.useMutation({
-    onSuccess: () => utils.goals.syncTemplates.list.invalidate(),
-  })
-
-  const allItems = useMemo(() => itemsQuery.data ?? [], [itemsQuery.data])
-  const templates = useMemo(() => templatesQuery.data ?? [], [templatesQuery.data])
+  const createMutation = useCreateSyncTemplate()
+  const setItemsMutation = useSetSyncTemplateItems()
 
   // Resolve the user's single default. If the user has any rows, pick the one
   // marked is_default (or the first as a safety fallback). If none, autocreate.
@@ -60,11 +55,11 @@ export default function SyncDefaultEditor({ onClose }: SyncDefaultEditorProps) {
   const autoCreatedRef = useRef(false)
   const defaultName = t('syncDefault.defaultName')
   useEffect(() => {
-    if (!templatesQuery.isLoading && templates.length === 0 && !autoCreatedRef.current && !createMutation.isPending) {
+    if (templates.length === 0 && !autoCreatedRef.current && !createMutation.isPending) {
       autoCreatedRef.current = true
       createMutation.mutate({ name: defaultName, isDefault: true })
     }
-  }, [templatesQuery.isLoading, templates.length, createMutation, defaultName])
+  }, [templates.length, createMutation, defaultName])
 
   return (
     <div className="bg-[var(--ink)]/70 fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -98,9 +93,7 @@ export default function SyncDefaultEditor({ onClose }: SyncDefaultEditorProps) {
           />
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-[var(--ink-3)]">
-            {templatesQuery.isLoading || createMutation.isPending
-              ? t('syncDefault.loading')
-              : t('syncDefault.settingUp')}
+            {createMutation.isPending ? t('syncDefault.loading') : t('syncDefault.settingUp')}
           </div>
         )}
       </div>
@@ -109,7 +102,7 @@ export default function SyncDefaultEditor({ onClose }: SyncDefaultEditorProps) {
 }
 
 interface DefaultEditorProps {
-  template: NonNullable<RouterOutputs['goals']['syncTemplates']['list'][number]>
+  template: SyncTemplateRow
   allItems: LibraryItem[]
   onSetItems: (items: { trackingItemId: string; orderIdx: number }[]) => Promise<void>
 }
@@ -203,7 +196,12 @@ function DefaultEditor({ template, allItems, onSetItems }: DefaultEditorProps) {
             {t('syncDefault.emptyPost')}
           </div>
         ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <DndContext
+            id="sync-default-editor"
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
             <SortableContext items={orderedItemIds} strategy={verticalListSortingStrategy}>
               <ul className="space-y-1">
                 {orderedItemIds.map((id) => {

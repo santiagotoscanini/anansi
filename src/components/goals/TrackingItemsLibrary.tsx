@@ -1,13 +1,12 @@
-'use client'
-
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Plus, Pencil, Trash2, Check, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { api, type RouterOutputs } from '~/trpc/react'
+import type { Goal } from '~/lib/api/types'
+import { useCreateTrackingItem, useDeleteTrackingItem, useUpdateTrackingItem } from '~/lib/mutations/tracking-items'
+import { useGoalsData } from '~/lib/queries/goals'
+import { trackingItemsQueryOptions, type TrackingItemRow } from '~/lib/queries/sync'
 import toast from 'react-hot-toast'
-
-type TrackingItemRow = RouterOutputs['goals']['trackingItems']['list'][number]
-type GoalRow = RouterOutputs['goals']['data']['getAll']['goals'][number]
 
 // User's library of items they want to track on weekly syncs. Items are
 // user-owned and may or may not be linked to a goal — `goalId IS NULL` items
@@ -16,18 +15,11 @@ type GoalRow = RouterOutputs['goals']['data']['getAll']['goals'][number]
 // a relationship intention) that aren't anchored to an active objective.
 export default function TrackingItemsLibrary() {
   const { t } = useTranslation()
-  const utils = api.useUtils()
-  const itemsQuery = api.goals.trackingItems.list.useQuery({})
-  const goalsQuery = api.goals.data.getAll.useQuery()
-  const createMutation = api.goals.trackingItems.create.useMutation({
-    onSuccess: () => utils.goals.trackingItems.list.invalidate(),
-  })
-  const updateMutation = api.goals.trackingItems.update.useMutation({
-    onSuccess: () => utils.goals.trackingItems.list.invalidate(),
-  })
-  const deleteMutation = api.goals.trackingItems.delete.useMutation({
-    onSuccess: () => utils.goals.trackingItems.list.invalidate(),
-  })
+  const { data: items } = useSuspenseQuery(trackingItemsQueryOptions())
+  const { goals } = useGoalsData()
+  const createMutation = useCreateTrackingItem()
+  const updateMutation = useUpdateTrackingItem()
+  const deleteMutation = useDeleteTrackingItem()
 
   const [creatingOpen, setCreatingOpen] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
@@ -39,12 +31,10 @@ export default function TrackingItemsLibrary() {
   const [editGoalId, setEditGoalId] = useState<string>('')
 
   const goalsById = useMemo(() => {
-    const map = new Map<string, GoalRow>()
-    for (const g of goalsQuery.data?.goals ?? []) map.set(g.id, g)
+    const map = new Map<string, Goal>()
+    for (const g of goals) map.set(g.id, g)
     return map
-  }, [goalsQuery.data])
-
-  const items = itemsQuery.data ?? []
+  }, [goals])
 
   const beginEdit = (item: TrackingItemRow) => {
     setEditingId(item.id)
@@ -110,7 +100,7 @@ export default function TrackingItemsLibrary() {
   const handleDelete = async (item: TrackingItemRow) => {
     if (!confirm(t('trackingItems.confirmDelete', { title: item.title }))) return
     try {
-      const result = await deleteMutation.mutateAsync({ id: item.id })
+      const result = await deleteMutation.mutateAsync(item.id)
       toast.success(result.type === 'soft_delete' ? t('trackingItems.archivedSoft') : t('trackingItems.deleted'))
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('trackingItems.deleteFailed'))
@@ -225,9 +215,8 @@ export default function TrackingItemsLibrary() {
           </div>
         )}
 
-        {itemsQuery.isLoading ? (
-          <div className="text-sm text-[var(--ink-2)]">{t('trackingItems.loading')}</div>
-        ) : items.length === 0 ? (
+        {/* Loader-prefetched — no loading state to render. */}
+        {items.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[var(--hairline)] p-8 text-center text-[var(--ink-2)]">
             {t('trackingItems.emptyPre')}
             <span className="font-medium text-[var(--ink)]">{t('trackingItems.emptyEm')}</span>

@@ -1,7 +1,5 @@
-'use client'
-
 import { useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { SUPPORTED_LOCALES } from './config'
@@ -19,9 +17,11 @@ import { SUPPORTED_LOCALES } from './config'
 //     "preview" mode and a detector reconfiguration.
 //   - Renders nothing.
 export default function LocaleQueryParam() {
-  const params = useSearchParams()
+  // `locale` is declared on the root route's validateSearch, so it is a typed
+  // param on every route in the tree — no Suspense boundary needed around this
+  // component the way `useSearchParams` required under Next.
+  const requested = useRouterState({ select: (s) => (s.location.search as { locale?: string }).locale })
   const { i18n } = useTranslation()
-  const requested = params.get('locale')
 
   useEffect(() => {
     if (!requested) return

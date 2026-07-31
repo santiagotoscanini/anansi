@@ -1,5 +1,3 @@
-'use client'
-
 import { useMemo, useState } from 'react'
 import {
   DndContext,
@@ -13,14 +11,14 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import Image from 'next/image'
 import { Check, Clock, Inbox, Square } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
-import { useGoals } from '~/contexts/GoalsContext'
-import { api } from '~/trpc/react'
 import { isEmojiUrl } from '~/lib/emoji-utils'
 import { bucketForDate, endOfCurrentBucket, formatScheduledShort, labelForBucket } from '~/lib/horizon-period'
+import { useSetTaskScheduled, useUpdateTask } from '~/lib/mutations/goals-data'
+import { useGoalsData } from '~/lib/queries/goals'
+import { Route } from '~/routes/app.horizons'
 import GoalModal from './GoalModal'
 
 // Time-bound objectives. Columns are COMPUTED from each task's scheduledAt
@@ -95,14 +93,7 @@ function TaskCard({
           <span className="flex min-w-0 items-center gap-1 rounded-full border border-[var(--hairline)] bg-[var(--vellum)] px-2 py-0.5 text-[10px] text-[var(--ink-2)]">
             {task.goalEmoji ? (
               isEmojiUrl(task.goalEmoji) ? (
-                <Image
-                  src={task.goalEmoji}
-                  alt=""
-                  width={10}
-                  height={10}
-                  unoptimized
-                  className="h-2.5 w-2.5 object-contain"
-                />
+                <img src={task.goalEmoji} alt="" width={10} height={10} className="h-2.5 w-2.5 object-contain" />
               ) : (
                 <span className="leading-none">{task.goalEmoji}</span>
               )
@@ -216,38 +207,20 @@ function DroppableColumn({
 
 export default function Horizons() {
   const { t } = useTranslation()
-  const { goals, updateTask } = useGoals()
-  const utils = api.useUtils()
-
-  // Optimistic setScheduled. The cache to update is `goals.data.getAll`,
-  // since GoalsContext hydrates `goals` from there.
-  const setScheduledMutation = api.goals.tasks.setScheduled.useMutation({
-    onMutate: async (vars) => {
-      await utils.goals.data.getAll.cancel()
-      const prev = utils.goals.data.getAll.getData()
-      utils.goals.data.getAll.setData(undefined, (old) => {
-        if (!old) return old
-        return {
-          ...old,
-          goals: old.goals.map((g) => ({
-            ...g,
-            tasks: g.tasks.map((task) => (task.id === vars.id ? { ...task, scheduledAt: vars.scheduledAt } : task)),
-          })),
-        }
-      })
-      return { prev }
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) utils.goals.data.getAll.setData(undefined, ctx.prev)
-      toast.error(t('horizons.moveFailed'))
-    },
-    onSettled: () => {
-      void utils.goals.data.getAll.invalidate()
-    },
-  })
+  const { goals } = useGoalsData()
+  const updateTask = useUpdateTask()
+  // The optimistic cache patch this used to declare inline now lives in
+  // useSetTaskScheduled — it is the same shape the two other optimistic
+  // mutations use, and it belongs next to them.
+  const setScheduledMutation = useSetTaskScheduled({ onError: () => toast.error(t('horizons.moveFailed')) })
 
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [openGoalId, setOpenGoalId] = useState<string | null>(null)
+
+  // The open goal is a search param, so a goal opened from a horizon card is
+  // linkable and survives a reload.
+  const { goal: openGoalId } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const setOpenGoalId = (goalId: string | undefined) => void navigate({ search: (prev) => ({ ...prev, goal: goalId }) })
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -312,7 +285,7 @@ export default function Horizons() {
 
     // Backlog → null. Bucket targets → end of that bucket. Past/Later
     // are read-only computed lanes (no drop target rendered for them).
-    let nextScheduled: Date | null = null
+    let nextScheduled: Date | null
     if (target === 'backlog') {
       nextScheduled = null
     } else if (target === 'month' || target === 'quarter' || target === 'year') {
@@ -332,7 +305,7 @@ export default function Horizons() {
   }
 
   const handleToggleComplete = (task: FlatTask) => {
-    void updateTask(task.goalId, task.id, { completed: !task.completed })
+    updateTask.mutate({ id: task.id, goalId: task.goalId, completed: !task.completed })
   }
 
   // Header counts — total open + scheduled across all buckets.
@@ -402,7 +375,8 @@ export default function Horizons() {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        {/* Explicit `id` for SSR — see RelationshipsBoard for why. */}
+        <DndContext id="horizons" sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           {/* Past — overdue, only when populated. Read-only placement; the
               user must reschedule via the card or open the goal to fix it. */}
           {byColumn.past.length > 0 && (
@@ -494,7 +468,7 @@ export default function Horizons() {
         </DndContext>
       </div>
 
-      {openGoalId && <GoalModal goalId={openGoalId} onClose={() => setOpenGoalId(null)} />}
+      {openGoalId && <GoalModal goalId={openGoalId} onClose={() => setOpenGoalId(undefined)} />}
     </div>
   )
 }

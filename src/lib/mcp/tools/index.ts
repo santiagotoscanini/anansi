@@ -1,4 +1,9 @@
-import 'server-only'
+// No `import 'server-only'` here, deliberately. That package throws under
+// Vite: its exports map the `react-server` condition to an empty module and
+// everything else to a bare `throw`, and Vite's SSR pass does not apply that
+// condition — so the guard fires on the server it was meant to protect.
+// `vite build` tolerates it; `vite dev` 500s on the first request. The boundary
+// is enforced by the `no-restricted-imports` rule in eslint.config.mjs instead.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
 import { registerGoalsTools } from './goals'

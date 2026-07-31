@@ -14,7 +14,9 @@
     "search": "Search",
     "yes": "Yes",
     "no": "No",
-    "untitled": "Untitled"
+    "untitled": "Untitled",
+    "saveFailed": "Couldn't save that. Try again.",
+    "deleteFailed": "Couldn't delete that. Try again."
   },
   "profile": {
     "title": "Profile",

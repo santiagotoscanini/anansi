@@ -1,5 +1,4 @@
-'use client'
-
+import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { useRef, useState, useSyncExternalStore } from 'react'
 import {
   Camera,
@@ -17,8 +16,15 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
-import { api } from '~/trpc/react'
-import { changePasswordAction } from '~/app/auth/actions'
+import { qk } from '~/lib/queries/keys'
+import { meQueryOptions } from '~/lib/queries/session'
+import {
+  changePassword,
+  removeAvatar as removeAvatarFn,
+  updateProfile as updateProfileFn,
+  uploadAvatar as uploadAvatarFn,
+} from '~/server/fn/auth.fn'
+import { exportBackup } from '~/server/fn/backup.fn'
 import Avatar from './Avatar'
 import { useTheme, type ThemePref } from '~/lib/theme'
 import { useLocale } from '~/i18n/useLocale'
@@ -77,14 +83,16 @@ function CodeSnippet({ code, ariaLabel }: { code: string; ariaLabel: string }) {
 
 export default function ProfileModal({ onClose, onImportBackup }: ProfileModalProps) {
   const { t } = useTranslation()
-  const utils = api.useUtils()
-  const meQuery = api.auth.me.useQuery()
-  const updateProfile = api.auth.updateProfile.useMutation()
-  const uploadAvatar = api.auth.uploadAvatar.useMutation()
-  const removeAvatar = api.auth.removeAvatar.useMutation()
+  const queryClient = useQueryClient()
+  const { data: me } = useSuspenseQuery(meQueryOptions())
+  const updateProfile = useMutation({
+    mutationFn: (data: { name?: string; email?: string }) => updateProfileFn({ data }),
+  })
+  const uploadAvatar = useMutation({
+    mutationFn: (data: { fileName: string; data: string }) => uploadAvatarFn({ data }),
+  })
+  const removeAvatar = useMutation({ mutationFn: () => removeAvatarFn() })
   const [changingPassword, setChangingPassword] = useState(false)
-
-  const me = meQuery.data
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const { pref: themePref, setPref: setThemePref } = useTheme()
   const { locale, setLocale, supported: supportedLocales } = useLocale()
@@ -130,8 +138,11 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
 
   const dirty = me && (name !== me.name || email !== me.email)
 
+  // These three mutations are declared inline rather than in lib/mutations:
+  // they are used by exactly this modal, and each is a single call plus this
+  // one invalidation.
   const refreshMe = () => {
-    void utils.auth.me.invalidate()
+    void queryClient.invalidateQueries({ queryKey: qk.me })
   }
 
   const handleSaveProfile = async () => {
@@ -164,7 +175,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
       // changePasswordAction re-authenticates with the current password
       // (Supabase's updateUser doesn't ask for it natively) then updates.
       // Runs server-side so no browser Supabase client is needed.
-      const result = await changePasswordAction(currentPassword, newPassword)
+      const result = await changePassword({ data: { currentPassword, newPassword } })
       if (!result.ok) {
         toast.error(result.error)
         return
@@ -222,7 +233,9 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
     setIsExporting(true)
     toast.loading(t('profile.preparingBackup'), { id: 'backup-export' })
     try {
-      const backup = await utils.goals.backup.export.fetch()
+      // Called directly, not through the query cache: a full account export
+      // including file bytes has no business being pinned in memory.
+      const backup = await exportBackup()
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')

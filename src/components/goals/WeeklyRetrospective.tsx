@@ -1,5 +1,4 @@
-'use client'
-
+import { useQuery } from '@tanstack/react-query'
 import { useState, useCallback } from 'react'
 import {
   Calendar,
@@ -13,14 +12,21 @@ import {
   Settings,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useGoals } from '~/contexts/GoalsContext'
-import { api, type RouterOutputs } from '~/trpc/react'
+import {
+  useCreateWeeklySync,
+  useDeleteAttachment,
+  useRemoveSyncItem,
+  useSetSyncItemText,
+  useUploadSyncAttachment,
+  useAddSyncItem,
+} from '~/lib/mutations/weekly-sync'
+import { weeklyRetrospectiveQueryOptions, type SyncItem, type WeeklyRetrospectiveData } from '~/lib/queries/sync'
+import { weekStartOf } from '~/lib/week'
+import { Route } from '~/routes/app.sync'
 import toast from 'react-hot-toast'
 import SyncDefaultEditor from './SyncDefaultEditor'
 import WeeklySyncItemRow from './WeeklySyncItemRow'
 
-type WeeklyRetrospectiveData = RouterOutputs['goals']['weeklySync']['getWeeklyRetrospectiveData']
-type SyncItem = WeeklyRetrospectiveData['unscopedItems'][number]
 type GoalGroup = WeeklyRetrospectiveData['goals'][number]
 
 type ImportanceKey = 'weeklySync.importanceLow' | 'weeklySync.importanceMedium' | 'weeklySync.importanceHigh'
@@ -67,25 +73,28 @@ const getFileType = (fileName: string): 'image' | 'document' | 'video' | 'audio'
 
 export default function WeeklyRetrospective() {
   const { t } = useTranslation()
-  const {
-    createWeeklySync,
-    getWeekStartDate,
-    uploadWeeklySyncFile,
-    createWeeklySyncItem,
-    deleteWeeklySyncFile,
-    getWeeklyRetrospectiveData,
-    refreshWeeklyRetrospectiveData,
-  } = useGoals()
+  const createWeeklySync = useCreateWeeklySync()
+  const addSyncItem = useAddSyncItem()
+  const removeSyncItemMutation = useRemoveSyncItem()
+  const setItemTextMutation = useSetSyncItemText()
+  const uploadAttachment = useUploadSyncAttachment()
+  const deleteAttachment = useDeleteAttachment()
 
-  const removeSyncItemMutation = api.goals.weeklySync.removeItem.useMutation()
-  const setItemTextMutation = api.goals.weeklySync.setItemText.useMutation()
+  // `?week=YYYY-MM-DD` when the user has navigated; otherwise the current week,
+  // resolved here rather than in the route loader. `weekStartOf` works in LOCAL
+  // time, and a loader also runs on the server — see app.pulse.tsx.
+  const { week } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const selectedWeek = week ? weekStartOf(new Date(`${week}T00:00:00`)) : weekStartOf(new Date())
+  const setSelectedWeek = (next: Date) => {
+    const iso = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`
+    void navigate({ search: { week: iso } })
+  }
 
-  const [selectedWeek, setSelectedWeek] = useState(() => {
-    const now = new Date()
-    return getWeekStartDate(now)
-  })
-
-  const weeklyRetrospectiveQuery = getWeeklyRetrospectiveData(selectedWeek)
+  // `useQuery`, not suspense: the week is not known until this component runs,
+  // so there is nothing for a loader to have prefetched, and the screen already
+  // renders a loading state and an error banner of its own.
+  const weeklyRetrospectiveQuery = useQuery(weeklyRetrospectiveQueryOptions(selectedWeek))
   const retrospectiveData: WeeklyRetrospectiveData | undefined = weeklyRetrospectiveQuery.data
   const weeklySync = retrospectiveData?.weeklySync
   const isLoading = weeklyRetrospectiveQuery.isLoading
@@ -131,14 +140,9 @@ export default function WeeklyRetrospective() {
     return `${formatDate(weekStart)} - ${formatDate(weekEnd)}, ${weekStart.getFullYear()}`
   }, [])
 
-  const isCurrentWeek = useCallback(
-    (weekStart: Date) => {
-      const now = new Date()
-      const currentWeekStart = getWeekStartDate(now)
-      return weekStart.getTime() === currentWeekStart.getTime()
-    },
-    [getWeekStartDate],
-  )
+  const isCurrentWeek = useCallback((weekStart: Date) => {
+    return weekStart.getTime() === weekStartOf(new Date()).getTime()
+  }, [])
 
   const handleWeekChange = (direction: 'prev' | 'next') => {
     const newWeek = new Date(selectedWeek)
@@ -157,8 +161,7 @@ export default function WeeklyRetrospective() {
     }
 
     try {
-      await createWeeklySync(selectedWeek)
-      await refreshWeeklyRetrospectiveData()
+      await createWeeklySync.mutateAsync({ weekDate: selectedWeek })
       toast.success(t('weeklySync.syncStarted'))
     } catch (error) {
       toast.error(t('weeklySync.startFailed'))
@@ -179,28 +182,26 @@ export default function WeeklyRetrospective() {
     async (item: SyncItem, content: string) => {
       try {
         await setItemTextMutation.mutateAsync({ weeklySyncItemId: item.id, textContent: content })
-        await refreshWeeklyRetrospectiveData()
       } catch (error) {
         console.error('Failed to auto-save text:', error)
         toast.error(t('weeklySync.saveTextFailed'))
         throw error
       }
     },
-    [setItemTextMutation, refreshWeeklyRetrospectiveData, t],
+    [setItemTextMutation, t],
   )
 
   const clearItemText = useCallback(
     async (item: SyncItem) => {
       try {
         await setItemTextMutation.mutateAsync({ weeklySyncItemId: item.id, textContent: '' })
-        await refreshWeeklyRetrospectiveData()
         toast.success(t('weeklySync.notesCleared'))
       } catch (error) {
         console.error('Failed to clear text:', error)
         toast.error(t('weeklySync.clearNotesFailed'))
       }
     },
-    [setItemTextMutation, refreshWeeklyRetrospectiveData, t],
+    [setItemTextMutation, t],
   )
 
   const uploadItemFiles = async (item: SyncItem, files: FileList) => {
@@ -219,14 +220,13 @@ export default function WeeklyRetrospective() {
               void (async () => {
                 try {
                   if (!reader.result) throw new Error(t('weeklySync.noFileData'))
-                  await uploadWeeklySyncFile(
-                    reader.result as string,
-                    weeklySync.id,
-                    item.trackingItemId,
-                    file.name,
-                    getFileType(file.name),
-                    false,
-                  )
+                  await uploadAttachment.mutateAsync({
+                    weeklySyncId: weeklySync.id,
+                    trackingItemId: item.trackingItemId,
+                    fileName: file.name,
+                    fileType: getFileType(file.name),
+                    data: reader.result as string,
+                  })
                   resolve()
                 } catch (err) {
                   reject(err instanceof Error ? err : new Error(String(err)))
@@ -238,7 +238,6 @@ export default function WeeklyRetrospective() {
           }),
       )
       await Promise.all(uploads)
-      await refreshWeeklyRetrospectiveData()
       toast.success(t('weeklySync.imagesUploaded', { count: files.length }), { id: 'image-upload' })
     } catch (error) {
       console.error('Failed to upload images:', error)
@@ -261,9 +260,8 @@ export default function WeeklyRetrospective() {
     setDeletingFiles((prev) => new Set(prev).add(fileId))
 
     try {
-      await deleteWeeklySyncFile(fileId)
+      await deleteAttachment.mutateAsync(fileId)
       toast.success(t('weeklySync.fileDeleted', { name: fileName }))
-      await refreshWeeklyRetrospectiveData()
     } catch (error) {
       console.error('Failed to delete file:', error)
       toast.error(t('weeklySync.fileDeleteFailed', { name: fileName }))
@@ -301,8 +299,7 @@ export default function WeeklyRetrospective() {
   const handleAddItemToSync = async (trackingItemId: string) => {
     if (!weeklySync) return
     try {
-      await createWeeklySyncItem(weeklySync.id, trackingItemId)
-      await refreshWeeklyRetrospectiveData()
+      await addSyncItem.mutateAsync({ weeklySyncId: weeklySync.id, trackingItemId })
       toast.success(t('weeklySync.addedToSync'))
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('weeklySync.addToSyncFailed'))
@@ -313,7 +310,6 @@ export default function WeeklyRetrospective() {
     if (!confirm(t('weeklySync.confirmRemove', { title }))) return
     try {
       await removeSyncItemMutation.mutateAsync({ weeklySyncItemId })
-      await refreshWeeklyRetrospectiveData()
       toast.success(t('weeklySync.removedFromSync'))
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('weeklySync.removeFromSyncFailed'))

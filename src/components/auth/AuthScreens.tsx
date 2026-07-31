@@ -1,5 +1,3 @@
-'use client'
-
 // Login + Register screens — the two public auth surfaces. Both render
 // full-screen 2-pane layouts, route-driven (not state-driven). Each one
 // is invoked by its own route page; auth success redirects to /app via
@@ -8,10 +6,10 @@
 // replace, or stay.
 
 import { useState, type FormEvent } from 'react'
-import Link from 'next/link'
+import { Link } from '@tanstack/react-router'
 import { ArrowRight, Check, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useGoals } from '~/contexts/GoalsContext'
+import { useSignIn, useSignUp } from '~/lib/mutations/auth'
 import { AnansiMark, BrandLockup, Wordmark } from '~/components/goals/Brand'
 import toast from 'react-hot-toast'
 
@@ -20,7 +18,7 @@ import toast from 'react-hot-toast'
 function HomeLockup({ size = 22 }: { size?: number }) {
   const { t } = useTranslation()
   return (
-    <Link href="/" aria-label={t('auth.homeAria')} style={{ display: 'inline-block', textDecoration: 'none' }}>
+    <Link to="/" aria-label={t('auth.homeAria')} style={{ display: 'inline-block', textDecoration: 'none' }}>
       <BrandLockup size={size} />
     </Link>
   )
@@ -61,7 +59,7 @@ export function LoginScreen({
   onSwitchToRegister: () => void
   onSuccess?: () => void
 }) {
-  const { signInWithPassword } = useGoals()
+  const signInWithPassword = useSignIn()
   const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -75,15 +73,15 @@ export function LoginScreen({
       return
     }
     setSubmitting(true)
-    const { ok, error: errMsg } = await signInWithPassword(email, password)
+    const result = await signInWithPassword(email, password)
     setSubmitting(false)
-    if (ok) {
+    if (result.ok) {
       toast.success(t('auth.login.welcomeBack'))
       setError(false)
       onSuccess?.()
     } else {
       setError(true)
-      toast.error(errMsg ?? t('auth.login.credentialsRejected'))
+      toast.error(result.error || t('auth.login.credentialsRejected'))
       setPassword('')
     }
   }
@@ -287,7 +285,7 @@ export function RegisterScreen({
   onSwitchToLogin: () => void
   onSuccess?: () => void
 }) {
-  const { signUp } = useGoals()
+  const signUp = useSignUp()
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -317,9 +315,9 @@ export function RegisterScreen({
     setSubmitting(true)
     try {
       const normalizedEmail = email.trim().toLowerCase()
-      const { ok, error: errMsg } = await signUp(name.trim(), normalizedEmail, password)
-      if (!ok) {
-        toast.error(errMsg ?? t('auth.register.emailTaken'))
+      const result = await signUp(name.trim(), normalizedEmail, password)
+      if (!result.ok) {
+        toast.error(result.error || t('auth.register.emailTaken'))
         return
       }
       toast.success(t('auth.register.welcomeNamed', { name: name.split(' ')[0] }))

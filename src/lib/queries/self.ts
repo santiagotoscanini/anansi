@@ -16,6 +16,9 @@ export const selfQueryOptions = () =>
     queryFn: ({ signal }) => getSelf({ signal }),
   })
 
+/** The `user_self` row, or null. Nullable is the normal state, not an error. */
+export type SelfRow = Awaited<ReturnType<typeof getSelf>>
+
 /**
  * The list half: every kind in one call, ordered by kind then position.
  *

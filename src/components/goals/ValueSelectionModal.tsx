@@ -1,5 +1,3 @@
-'use client'
-
 import { useState } from 'react'
 import { X, Tag, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'

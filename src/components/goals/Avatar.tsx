@@ -1,6 +1,3 @@
-'use client'
-
-import Image from 'next/image'
 import { isEmojiUrl } from '~/lib/emoji-utils'
 
 // Deterministic pastel-on-dark palette for initial-avatars. Hash the name so
@@ -59,13 +56,13 @@ export default function Avatar({ name, emoji, size = 'md', shape = 'square', cla
           className={`flex ${s.box} ${radius} shrink-0 items-center justify-center overflow-hidden border border-[var(--hairline)] bg-[var(--vellum)] ${className}`}
         >
           {/*
-           * unoptimized: avatars / people photos come from Supabase Storage
-           * (public bucket → direct CDN URL) and attachment images come
-           * from short-lived signed URLs. Skipping the optimizer keeps
-           * signed URLs single-use'd at the right host and avoids the
-           * remotePatterns config dance for a few tiny per-user images.
+           * A plain <img>. Every image in this app is a per-user upload served
+           * by our own /api/files/{id} route behind a session check — there is
+           * no CDN to point an optimizer at and no third-party host to
+           * allow-list. next/image was already carrying `unoptimized` at every
+           * one of these call sites for exactly that reason.
            */}
-          <Image src={emoji} alt="" width={s.img} height={s.img} unoptimized className="h-full w-full object-cover" />
+          <img src={emoji} alt="" width={s.img} height={s.img} className="h-full w-full object-cover" />
         </div>
       )
     }

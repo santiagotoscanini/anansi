@@ -1,16 +1,15 @@
-'use client'
-
-import { useMemo, useState } from 'react'
-import Image from 'next/image'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { CheckSquare, Square, Trash2, X } from 'lucide-react'
-import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
-import { useGoals } from '~/contexts/GoalsContext'
 import { isEmojiUrl } from '~/lib/emoji-utils'
-import { api } from '~/trpc/react'
+import { useCreateTask, useDeleteTask, useUpdateTask } from '~/lib/mutations/goals-data'
+import { useGoalsData } from '~/lib/queries/goals'
+import { groupsQueryOptions, peopleQueryOptions } from '~/lib/queries/people'
 import DatePicker from './DatePicker'
 import Avatar from './Avatar'
+import EmojiPickerLazy, { type EmojiClickData } from './EmojiPickerLazy'
 
 interface TaskModalProps {
   goalId: string
@@ -27,7 +26,10 @@ interface TaskModalProps {
 // to avoid having two ways to do the same thing.
 export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
   const { t } = useTranslation()
-  const { goals, addTask, updateTask, deleteTask } = useGoals()
+  const { goals } = useGoalsData()
+  const addTask = useCreateTask()
+  const updateTask = useUpdateTask()
+  const deleteTask = useDeleteTask()
 
   const isCreate = !taskId
   const goal = goals.find((g) => g.id === goalId)
@@ -47,10 +49,8 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
   // user navigates to a different task — that resets the useState initializers
   // above. We deliberately avoid useState+useEffect-sync to dodge stale flash.
 
-  const peopleQuery = api.goals.people.getAll.useQuery({ includeArchived: false })
-  const people = useMemo(() => peopleQuery.data ?? [], [peopleQuery.data])
-  const groupsQuery = api.goals.groups.getAll.useQuery()
-  const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data])
+  const { data: people } = useSuspenseQuery(peopleQueryOptions(false))
+  const { data: groups } = useSuspenseQuery(groupsQueryOptions())
 
   if (!goal || (!isCreate && !task)) {
     return (
@@ -90,40 +90,41 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
       toast.error(t('taskModal.titleRequired'))
       return
     }
-    if (isCreate) {
-      await addTask(goalId, {
-        title: title.trim(),
-        description: description.trim() ? description.trim() : null,
-        emoji: emoji || null,
-        difficulty,
-        completed,
-        scheduledAt,
-        referentIds,
-        groupIds,
-      })
-      toast.success(t('taskModal.taskCreated'))
-    } else if (taskId) {
-      await updateTask(goalId, taskId, {
-        title: title.trim(),
-        description: description.trim() ? description.trim() : null,
-        emoji: emoji || null,
-        difficulty,
-        completed,
-        scheduledAt,
-        referentIds,
-        groupIds,
-      })
-      toast.success(t('taskModal.taskUpdated'))
+    const fields = {
+      title: title.trim(),
+      description: description.trim() ? description.trim() : null,
+      emoji: emoji || null,
+      difficulty,
+      completed,
+      scheduledAt,
+      referentIds,
+      groupIds,
     }
-    onClose()
+    try {
+      if (isCreate) {
+        await addTask.mutateAsync({ goalId, ...fields })
+        toast.success(t('taskModal.taskCreated'))
+      } else if (taskId) {
+        await updateTask.mutateAsync({ id: taskId, goalId, ...fields })
+        toast.success(t('taskModal.taskUpdated'))
+      }
+      onClose()
+    } catch {
+      // Stay open so the edits are still there to retry with.
+      toast.error(t('common.saveFailed'))
+    }
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!taskId) return
     if (!confirm(t('taskModal.confirmDelete'))) return
-    void deleteTask(goalId, taskId)
-    toast.success(t('taskModal.taskDeleted'))
-    onClose()
+    try {
+      await deleteTask.mutateAsync({ id: taskId, goalId })
+      toast.success(t('taskModal.taskDeleted'))
+      onClose()
+    } catch {
+      toast.error(t('common.deleteFailed'))
+    }
   }
 
   return (
@@ -168,14 +169,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                 >
                   {emoji ? (
                     isEmojiUrl(emoji) ? (
-                      <Image
-                        src={emoji}
-                        alt="emoji"
-                        width={24}
-                        height={24}
-                        unoptimized
-                        className="h-6 w-6 object-contain"
-                      />
+                      <img src={emoji} alt="emoji" width={24} height={24} className="h-6 w-6 object-contain" />
                     ) : (
                       <span className="text-2xl leading-none">{emoji}</span>
                     )
@@ -195,13 +189,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
 
                 {showEmojiPicker && (
                   <div className="absolute left-0 top-full z-50 mt-2 rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] p-2 shadow-xl">
-                    <EmojiPicker
-                      onEmojiClick={handleEmojiClick}
-                      width={350}
-                      height={400}
-                      theme={Theme.DARK}
-                      searchPlaceHolder={t('taskModal.searchEmoji')}
-                    />
+                    <EmojiPickerLazy onEmojiClick={handleEmojiClick} searchPlaceHolder={t('taskModal.searchEmoji')} />
                     <div className="mt-3 space-y-2 border-t border-[var(--hairline)] pt-3">
                       <label className="text-xs text-[var(--ink-2)]">{t('taskModal.customEmojiUrl')}</label>
                       <div className="flex gap-2">
@@ -376,7 +364,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
               <span />
             ) : (
               <button
-                onClick={handleDelete}
+                onClick={() => void handleDelete()}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-[var(--ink-3)] transition-all hover:bg-[var(--rust-soft)] hover:text-[var(--rust)]"
               >
                 <Trash2 className="h-3.5 w-3.5" />

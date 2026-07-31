@@ -1,16 +1,17 @@
-'use client'
-
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { api } from '~/trpc/react'
+import { qk } from '~/lib/queries/keys'
+import { meQueryOptions, type Me } from '~/lib/queries/session'
+import { setLocale as setLocaleFn } from '~/server/fn/auth.fn'
 import { FALLBACK_LOCALE, SUPPORTED_LOCALES, type Locale } from './config'
 
 // Locale storage rules:
 //   - localStorage (`anansi:locale`) is the source of truth for unauthenticated
 //     users and is what the i18next browser detector reads on first render.
 //   - When the user is authenticated, the DB column `users.locale` becomes
-//     authoritative: on every auth.me success we mirror the DB value into
+//     authoritative: on every `me` success we mirror the DB value into
 //     i18next (and thus into localStorage), and on user-initiated changes we
 //     write through to the DB so the choice follows them across devices.
 //
@@ -21,32 +22,38 @@ import { FALLBACK_LOCALE, SUPPORTED_LOCALES, type Locale } from './config'
 //   1. i18n.changeLanguage(next)   — language updates, all useTranslation
 //                                    subscribers re-render
 //   2. effect re-runs (deps changed via `current`)
-//   3. effect reads the still-cached meQuery.data.locale (the OLD value) and
-//      reverts the language back to it
+//   3. effect reads the still-cached me.locale (the OLD value) and reverts
+//      the language back to it
 // The user reported this as "clicking does nothing": the flip happens but
-// is immediately clobbered a few ms later. Gating the effect on
-// `meQuery.data?.locale` only — combined with optimistically updating the
-// query cache from the mutation — means DB→client only fires when the DB
-// value actually changes, never as a side effect of a local change.
+// is immediately clobbered a few ms later. Gating the effect on `me?.locale`
+// only — combined with optimistically updating the query cache from the
+// mutation — means DB→client only fires when the DB value actually changes,
+// never as a side effect of a local change.
 export function useLocale() {
   const { i18n } = useTranslation()
   const current = (i18n.resolvedLanguage ?? i18n.language ?? FALLBACK_LOCALE) as Locale
-  const utils = api.useUtils()
+  const queryClient = useQueryClient()
 
-  const meQuery = api.auth.me.useQuery(undefined, { retry: false })
-  const setLocaleMutation = api.auth.setLocale.useMutation({
+  // `useQuery`, not `useSuspenseQuery`: the language picker renders on the
+  // public pages too, where nobody is signed in and this 401s. `retry: false`
+  // so an anonymous visitor doesn't burn three requests discovering that.
+  const { data: me } = useQuery({ ...meQueryOptions(), retry: false })
+
+  const setLocaleMutation = useMutation({
+    mutationFn: (locale: Locale) => setLocaleFn({ data: { locale } }),
     onSuccess: (updated) => {
-      // Prime the auth.me cache with the new locale so the DB→client mirror
-      // sees the value it just wrote and doesn't try to apply a stale "old"
-      // value on its next pass.
-      utils.auth.me.setData(undefined, (old) => (old ? { ...old, ...updated } : old))
+      // Prime the `me` cache with the new locale so the DB→client mirror sees
+      // the value it just wrote and doesn't try to apply a stale "old" value
+      // on its next pass.
+      queryClient.setQueryData<Me>(qk.me, (old) => (old ? { ...old, ...updated } : old))
     },
   })
+
   // Guard against re-applying the same DB value across query refetches.
   const lastAppliedFromDb = useRef<string | null>(null)
 
   useEffect(() => {
-    const dbLocale = meQuery.data?.locale
+    const dbLocale = me?.locale
     if (!dbLocale) return
     if (dbLocale === lastAppliedFromDb.current) return
     const isSupported = SUPPORTED_LOCALES.some((l) => l.code === dbLocale)
@@ -55,16 +62,16 @@ export function useLocale() {
       void i18n.changeLanguage(dbLocale)
     }
     lastAppliedFromDb.current = dbLocale
-  }, [meQuery.data?.locale, i18n])
+  }, [me?.locale, i18n])
 
   const setLocale = (next: Locale) => {
     void i18n.changeLanguage(next)
     // For authenticated users, write through to the DB. The mutation's
     // onSuccess updates the query cache, which keeps the ref guard in sync
     // and prevents the DB→client effect from firing again on the same value.
-    if (meQuery.data) {
+    if (me) {
       lastAppliedFromDb.current = next
-      setLocaleMutation.mutate({ locale: next })
+      setLocaleMutation.mutate(next)
     }
   }
 

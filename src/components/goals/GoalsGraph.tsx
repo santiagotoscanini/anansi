@@ -1,5 +1,3 @@
-'use client'
-
 import { useCallback, useState, useEffect } from 'react'
 import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, getOutgoers } from '@xyflow/react'
 import type { Connection, Edge, Node } from '@xyflow/react'
@@ -7,7 +5,15 @@ import '@xyflow/react/dist/style.css'
 import { HelpCircle, Plus, Target } from 'lucide-react'
 import { createId } from '@paralleldrive/cuid2'
 import { useTranslation } from 'react-i18next'
-import { useGoals } from '~/contexts/GoalsContext'
+import { useGoalProgress } from '~/lib/computation/use-goal-progress'
+import {
+  useCreateConnection,
+  useCreateGoal,
+  useDeleteConnection,
+  useDeleteGoal,
+  useUpdateGoal,
+} from '~/lib/mutations/goals-data'
+import { useGoalsData } from '~/lib/queries/goals'
 import type { Goal } from '~/lib/api/types'
 import GoalNodeComponent from './GoalNode'
 import GoalModal from './GoalModal'
@@ -29,8 +35,22 @@ const edgeTypes = {
 
 export default function GoalsGraph() {
   const { t } = useTranslation()
-  const { goals, connections, updateGoal, addGoal, addConnection, deleteConnection, deleteGoal, getGoalProgress } =
-    useGoals()
+  const { goals, connections } = useGoalsData()
+  const { getGoalProgress } = useGoalProgress(goals, connections)
+  const updateGoal = useUpdateGoal()
+  const addGoal = useCreateGoal()
+  const addConnection = useCreateConnection()
+  const deleteConnection = useDeleteConnection()
+  const deleteGoal = useDeleteGoal()
+
+  // `.mutate` is read off each hook so the keyboard/drag callbacks below can
+  // depend on a stable function instead of on the mutation object, which is a
+  // fresh reference every render and would re-register the keydown listener
+  // on each one.
+  const addConnectionFn = addConnection.mutate
+  const deleteConnectionFn = deleteConnection.mutate
+  const updateGoalFn = updateGoal.mutate
+  const addGoalFn = addGoal.mutate
 
   const [nodes, setNodes, onNodesChange] = useNodesState<GoalNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
@@ -157,7 +177,7 @@ export default function GoalsGraph() {
   const onConnect = useCallback(
     (params: Connection) => {
       if (params.source && params.target) {
-        void addConnection({
+        addConnectionFn({
           source: params.source,
           target: params.target,
           weight: 1,
@@ -165,7 +185,7 @@ export default function GoalsGraph() {
         toast.success(t('goalsGraph.goalsConnected'))
       }
     },
-    [addConnection, t],
+    [addConnectionFn, t],
   )
 
   // `_event` is typed as the DOM union rather than React.MouseEvent: React Flow
@@ -180,14 +200,14 @@ export default function GoalsGraph() {
 
         // Update all moved nodes' positions
         movedNodes.forEach((movedNode) => {
-          void updateGoal(movedNode.id, { position: movedNode.position })
+          updateGoalFn({ id: movedNode.id, position: movedNode.position })
         })
       } else {
         // Fallback: single node drag (existing behavior)
-        void updateGoal(node.id, { position: node.position })
+        updateGoalFn({ id: node.id, position: node.position })
       }
     },
-    [updateGoal],
+    [updateGoalFn],
   )
 
   const onEdgeDelete = useCallback(
@@ -195,11 +215,11 @@ export default function GoalsGraph() {
       edges.forEach((edge) => {
         const connection = connections.find((c) => c.id === edge.id)
         if (connection) {
-          void deleteConnection(connection.id)
+          deleteConnectionFn(connection.id)
         }
       })
     },
-    [connections, deleteConnection],
+    [connections, deleteConnectionFn],
   )
 
   const onSelectionChange = useCallback((params: { nodes: Node[]; edges: Edge[] }) => {
@@ -220,7 +240,7 @@ export default function GoalsGraph() {
   const handleDeleteConfirm = async () => {
     try {
       for (const goal of goalsToDelete) {
-        await deleteGoal(goal.id)
+        await deleteGoal.mutateAsync(goal.id)
       }
       toast.success(t('goalsGraph.deletedGoals', { count: goalsToDelete.length }))
       setSelectedNodes([])
@@ -287,7 +307,7 @@ export default function GoalsGraph() {
             y: copiedGoal.position.y + 50,
           },
         }
-        void addGoal(goalData)
+        addGoalFn(goalData)
         toast.success(t('goalsGraph.goalPasted'))
       }
 
@@ -306,7 +326,7 @@ export default function GoalsGraph() {
           selectedEdges.forEach((edgeId) => {
             const connection = connections.find((c) => c.id === edgeId)
             if (connection) {
-              void deleteConnection(connection.id)
+              deleteConnectionFn(connection.id)
             }
           })
           toast.success(t('goalsGraph.deletedConnections', { count: selectedEdges.length }))
@@ -325,8 +345,8 @@ export default function GoalsGraph() {
     isDeleteModalOpen,
     goals,
     connections,
-    addGoal,
-    deleteConnection,
+    addGoalFn,
+    deleteConnectionFn,
     t,
   ])
 

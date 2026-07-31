@@ -249,3 +249,50 @@ both silently kept hitting the dead Supabase host. Prefix commands with
 `env -u DATABASE_URL` so `.env` wins. `drizzle-kit migrate` also exits 1 while
 swallowing the underlying error, which made this hard to see; the drizzle-orm migrator
 (the code path `start.mjs` uses) reports it properly.
+
+---
+
+## The cutover (3.4 + 3.5): what the browser found that the build did not
+
+Every check below ran against `pnpm dev` (Vite), signed in as the test user. That
+matters: **`vite build` passed cleanly through two of the three defects here.** A green
+build is not evidence that this app runs.
+
+| Check | Result |
+|---|---|
+| 14 URLs hard-reloaded (12 tabs + `/app` + an unknown slug) | 200 each, sidebar present, zero console errors |
+| 10 tabs reached by **client-side** navigation | no `Invalid server function ID` — settles R8 for the read path |
+| 6 writes through the UI (values, groups, bucket list, tracking items, self items, task deep-link) | all persisted; 21 server-fn calls, zero 5xx |
+| `/app` signed out | **307 to `/login?next=%2Fapp` in the HTTP response** — the client-side auth flash is gone |
+| `.well-known/oauth-authorization-server`, `.well-known/oauth-protected-resource`, `POST /api/mcp` 401 body | byte-identical to the Phase 0 capture, modulo origin |
+| `/oauth/register` | 201, then **429 after 5** — rate limit intact |
+| `/oauth/authorize` with no session | 307 to `/login?next=<the full authorize url>` |
+| `/oauth/authorize` with an unknown client | **200 inline error, no redirect** — the open-redirect guard holds |
+
+### Three defects, all invisible to `vite build`
+
+**1. `import "server-only"` (R2, predicted).** 13 files under `src/lib/mcp/`. The build
+tolerated it; `vite dev` returned **500 on every single request** —
+`"This module cannot be imported from a Client Component module"`, thrown on the server
+it was meant to protect. Its package exports map the `react-server` condition to an
+empty module and everything else to a bare `throw`, and Vite's SSR pass does not apply
+that condition. Replaced by a `no-restricted-imports` rule in `eslint.config.mjs`.
+
+**2. dnd-kit hydration mismatch (R9-class, not predicted).** `<DndContext>` derives
+`aria-describedby="DndDescribedBy-N"` from a **module-level counter**. A long-lived
+server process and a fresh browser tab do not agree on `N`, so React reported a
+mismatch on every draggable card on `/app/relationships`. Never visible under Next
+because that board was never server-rendered. Fixed with an explicit `id` on all three
+`DndContext` instances.
+
+**3. A generic helper silently erased every search param.** Wrapping zod in a
+`tolerantSearch<T extends z.ZodType>(...)` helper made TanStack's
+`ResolveSearchValidatorInputFn` fall through to `AnySchema` (`{}`), so `useSearch()` and
+every `navigate()` to those routes lost their params. The error surfaces at the
+*navigation site*, not at the route that broke it. Two contributing causes, and the
+second is the one that matters: zod's `.catch()` makes the schema input `unknown`
+(which alone breaks it), and a route file that both defines a validator and calls
+`Route.useSearch()` is circular with `routeTree.gen.ts` — TypeScript resolves that for
+an **inline function literal** but bails for a **generic call expression**. All five
+search validators are now hand-written inline functions, which is also tolerant for
+free.

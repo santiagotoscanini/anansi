@@ -1,17 +1,18 @@
-'use client'
-
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { useState, useMemo } from 'react'
-import Image from 'next/image'
 import { X, Square, CheckSquare, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useGoals } from '~/contexts/GoalsContext'
 import type { Task } from '~/lib/api/types'
+import { useGoalProgress } from '~/lib/computation/use-goal-progress'
 import { formatScheduledShort } from '~/lib/horizon-period'
+import { useCreateGoal, useDeleteGoal, useUpdateGoal, useUpdateTask } from '~/lib/mutations/goals-data'
+import { useGoalsData } from '~/lib/queries/goals'
+import { groupsQueryOptions, peopleQueryOptions } from '~/lib/queries/people'
+import { trackingItemsQueryOptions } from '~/lib/queries/sync'
 import toast from 'react-hot-toast'
 import ValueSelectionModal from './ValueSelectionModal'
-import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react'
+import EmojiPickerLazy, { type EmojiClickData } from './EmojiPickerLazy'
 import { getRandomEmoji, isEmojiUrl } from '~/lib/emoji-utils'
-import { api } from '~/trpc/react'
 import Avatar from './Avatar'
 import TaskModal from './TaskModal'
 
@@ -24,18 +25,25 @@ type DifficultyKey = 'goalModal.difficultyEasy' | 'goalModal.difficultyMedium' |
 
 export default function GoalModal({ goalId, onClose }: GoalModalProps) {
   const { t } = useTranslation()
-  const { goals, values, addGoal, updateGoal, deleteGoal, updateTask, getGoalCompletion } = useGoals()
+  const { goals, values, connections } = useGoalsData()
+  const { getGoalCompletion } = useGoalProgress(goals, connections)
+  const addGoal = useCreateGoal()
+  const updateGoal = useUpdateGoal()
+  const deleteGoal = useDeleteGoal()
+  const updateTask = useUpdateTask()
 
   // Read-only count for the tracking-items hint at the bottom of the modal.
   // The sidebar TrackingItemsLibrary is the canonical surface for CRUD; the
   // modal used to embed a duplicate add/edit list, which created two ways to
   // do the same thing and ~150 LOC of state. H2 dropped that — we just show
   // a count + a pointer.
-  const trackingItemsCountQuery = api.goals.trackingItems.list.useQuery(
-    { goalId: goalId ?? undefined },
-    { enabled: !!goalId },
-  )
-  const trackingItemCount = trackingItemsCountQuery.data?.length ?? 0
+  //
+  // Fetched unconditionally rather than with an `enabled` flag: with no goalId
+  // this asks for the whole library, which the modal then ignores. That is one
+  // wasted query on the create path, in exchange for not having a hook whose
+  // result is conditionally undefined.
+  const { data: trackingItems } = useSuspenseQuery(trackingItemsQueryOptions(goalId ?? undefined))
+  const trackingItemCount = goalId ? trackingItems.length : 0
 
   const existingGoal = goalId ? goals.find((g) => g.id === goalId) : null
 
@@ -54,17 +62,17 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
 
   // People + groups directories — used to render the read-only avatar/dot
   // summaries on task rows. The actual picker lives in TaskModal.
-  const peopleData = api.goals.people.getAll.useQuery({ includeArchived: false }).data
+  const { data: peopleData } = useSuspenseQuery(peopleQueryOptions(false))
   const peopleById = useMemo(() => {
-    const map = new Map<string, NonNullable<typeof peopleData>[number]>()
-    for (const p of peopleData ?? []) map.set(p.id, p)
+    const map = new Map<string, (typeof peopleData)[number]>()
+    for (const p of peopleData) map.set(p.id, p)
     return map
   }, [peopleData])
 
-  const groupsData = api.goals.groups.getAll.useQuery().data
+  const { data: groupsData } = useSuspenseQuery(groupsQueryOptions())
   const groupsById = useMemo(() => {
-    const map = new Map<string, NonNullable<typeof groupsData>[number]>()
-    for (const g of groupsData ?? []) map.set(g.id, g)
+    const map = new Map<string, (typeof groupsData)[number]>()
+    for (const g of groupsData) map.set(g.id, g)
     return map
   }, [groupsData])
 
@@ -73,42 +81,44 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
 
   const completion = goalId ? getGoalCompletion(goalId) : 0
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) {
       toast.error(t('goalModal.titleRequired'))
       return
     }
 
-    if (goalId) {
-      // For existing goals, don't update tasks here (they're managed separately)
-      void updateGoal(goalId, {
-        title,
-        description,
-        emoji,
-        valueIds,
-      })
-      toast.success(t('goalModal.goalUpdated'))
-    } else {
-      // New goals start with no tasks — they can be added once saved.
-      void addGoal({
-        title,
-        description,
-        emoji,
-        valueIds,
-        tasks: [],
-        position: { x: 250, y: 250 },
-      })
-      toast.success(t('goalModal.goalCreated'))
+    try {
+      if (goalId) {
+        // For existing goals, don't update tasks here (they're managed separately)
+        await updateGoal.mutateAsync({ id: goalId, title, description, emoji, valueIds })
+        toast.success(t('goalModal.goalUpdated'))
+      } else {
+        // New goals start with no tasks — they can be added once saved.
+        await addGoal.mutateAsync({
+          title,
+          description,
+          emoji,
+          valueIds,
+          tasks: [],
+          position: { x: 250, y: 250 },
+        })
+        toast.success(t('goalModal.goalCreated'))
+      }
+      onClose()
+    } catch {
+      // Stay open on failure so the user's typing isn't thrown away.
+      toast.error(t('common.saveFailed'))
     }
-
-    onClose()
   }
 
-  const handleDelete = () => {
-    if (goalId) {
-      void deleteGoal(goalId)
+  const handleDelete = async () => {
+    if (!goalId) return
+    try {
+      await deleteGoal.mutateAsync(goalId)
       toast.success(t('goalModal.goalDeleted'))
       onClose()
+    } catch {
+      toast.error(t('common.deleteFailed'))
     }
   }
 
@@ -140,7 +150,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
     if (!goalId) return
     const task = displayTasks.find((t) => t.id === taskId)
     if (task) {
-      void updateTask(goalId, taskId, { completed: !task.completed })
+      updateTask.mutate({ id: taskId, goalId, completed: !task.completed })
     }
   }
 
@@ -210,14 +220,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                   title={t('goalModal.clickToChooseEmoji')}
                 >
                   {isEmojiUrl(emoji) ? (
-                    <Image
-                      src={emoji}
-                      alt="emoji"
-                      width={24}
-                      height={24}
-                      unoptimized
-                      className="h-6 w-6 object-contain"
-                    />
+                    <img src={emoji} alt="emoji" width={24} height={24} className="h-6 w-6 object-contain" />
                   ) : (
                     <span className="text-2xl leading-none">{emoji}</span>
                   )}
@@ -236,13 +239,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                 {/* Emoji Picker Dropdown */}
                 {showEmojiPicker && (
                   <div className="absolute left-0 top-full z-50 mt-2 rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] p-2 shadow-xl">
-                    <EmojiPicker
-                      onEmojiClick={handleEmojiClick}
-                      width={350}
-                      height={400}
-                      theme={Theme.DARK}
-                      searchPlaceHolder={t('goalModal.searchEmoji')}
-                    />
+                    <EmojiPickerLazy onEmojiClick={handleEmojiClick} searchPlaceHolder={t('goalModal.searchEmoji')} />
 
                     {/* Custom Emoji URL Section */}
                     <div className="mt-3 space-y-2 border-t border-[var(--hairline)] pt-3">
@@ -388,11 +385,10 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                       </button>
                       {task.emoji ? (
                         isEmojiUrl(task.emoji) ? (
-                          <Image
+                          <img
                             src={task.emoji}
                             alt=""
                             width={16}
-                            unoptimized
                             height={16}
                             className="h-4 w-4 shrink-0 object-contain"
                           />
@@ -500,7 +496,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
           <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-between gap-3 border-t border-[var(--hairline)] bg-[var(--canvas)] px-6 py-4 backdrop-blur">
             {goalId ? (
               <button
-                onClick={handleDelete}
+                onClick={() => void handleDelete()}
                 className="rounded-lg px-3 py-2 text-sm text-[var(--ink-3)] transition-all hover:bg-[var(--rust-soft)] hover:text-[var(--rust)]"
               >
                 {t('goalModal.deleteGoal')}
@@ -516,7 +512,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                 {t('common.cancel')}
               </button>
               <button
-                onClick={handleSave}
+                onClick={() => void handleSave()}
                 className="rounded-lg bg-[var(--surface-inverse)] px-4 py-2 text-sm font-medium text-[var(--on-inverse)] transition-all hover:bg-[var(--surface-inverse)]"
               >
                 {goalId ? t('common.saveChanges') : t('goalModal.createGoal')}

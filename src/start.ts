@@ -17,10 +17,13 @@ import { applySecurityHeaders } from '~/lib/security-headers'
 // Not Nitro `routeRules` either: those only exist in the built output, so the
 // headers would silently vanish under `vite dev` and any local `curl -I` check
 // would be testing something the production image doesn't do (or vice versa).
+//
+// The returned `response` is what Start sends, so handing back a replacement is
+// supported — and necessary: applySecurityHeaders cannot always mutate in place
+// (see its doc comment on `Response.redirect`'s immutable headers).
 const securityHeadersMiddleware = createMiddleware({ type: 'request' }).server(async ({ next }) => {
   const result = await next()
-  applySecurityHeaders(result.response)
-  return result
+  return { ...result, response: applySecurityHeaders(result.response) }
 })
 
 export const startInstance = createStart(() => ({

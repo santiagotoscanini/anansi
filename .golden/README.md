@@ -361,3 +361,72 @@ package nobody chose. Fixed with an `overrides:` pin to 5.24.3, and the comment 
 describes both enforcement points. Note the ordering trap: the policy check runs
 *before* resolution, so adding the pin needs one install with the cooldown commented out
 before it can take effect.
+
+## The end-to-end MCP + OAuth run
+
+The one gate the migration plan named that a build, a curl sweep and a browser sweep
+all *cannot* reach: an actual OAuth 2.1 client walking DCR → consent → PKCE code →
+token → tool calls. It was left until last, and it is the step that found the worst
+defect of the whole migration.
+
+`.golden/verify-mcp-tools.sh <token> 5173` → **OK: 51 tools, identical to golden.**
+Zero drift after the entire dispatch layer moved from tRPC's `createCaller` to direct
+in-process service calls.
+
+Results, all green: 19 OAuth checks (DCR public-client shape, consent screen contents,
+cross-origin decision POST → 403, approve → 303, PKCE S256 enforced, prior consent
+auto-approving on the second round, 1h access token, rotating refresh, single-use
+codes) and 46 MCP checks (one read + one write across all 10 domains, the
+`create_person` URL-emoji gate that exists only at the MCP layer, `_meta.trpc_code`
+still exactly `NOT_FOUND`, refresh rotation invalidating the prior access token,
+revoke → 401).
+
+### The defect: `Response.redirect()` headers are immutable
+
+**Every OAuth consent decision 500'd** — approve, deny, and the no-session bounce, i.e.
+the whole path by which any MCP client obtains a token. The app was, in the state
+committed as "phase 3.6 complete", impossible to connect a client to.
+
+The cause was in the security-headers work from that same commit. `Response.redirect()`
+returns a response whose headers guard is **immutable** per spec, so `headers.set()` on
+one throws `TypeError: immutable`. Since the headers are applied by *global* request
+middleware, that TypeError became a 500 on three routes that were themselves correct.
+
+What makes it worth recording is the shape of its hiding place. It survived
+`pnpm build`, `pnpm lint`, `pnpm typecheck`, a 29-screenshot visual diff, a 14-URL tab
+sweep, a 21-call server-fn write sweep, and an explicit "are the 6 headers present?"
+check run against pages, server routes, redirects, 404s and `_serverFn` responses in
+both dev and the container. **All of those passed because none of them hit a route that
+builds its response with `Response.redirect()`** — the three that do are all in
+`oauth.authorize.decision.ts`, reachable only by completing a consent form. The header
+check even covered "redirects", but those were router redirects, which Start builds
+itself with mutable headers. Close enough to look covered; not the same code path.
+
+Fixed at the middleware layer rather than at the three call sites, because the property
+belongs to the middleware: `applySecurityHeaders` now returns the response, mutating in
+place when it can and rebuilding it when the guard forbids that. A response returned
+straight from `fetch()` carries the same immutable guard, so a future proxy route would
+otherwise have rediscovered this the same expensive way. The rebuilt 303 is asserted to
+carry both its `Location` and all 6 headers.
+
+### Two expectations in the plan that were wrong about the app
+
+Both were checked against pre-migration git history rather than "fixed", and both turned
+out to be behaviour the migration had preserved exactly:
+
+- **`get_person` with a bogus id returns `null`, it does not throw `NOT_FOUND`.** The
+  original router had `if (!row) return null`. The plan's error-path check was pointed
+  at the wrong tool; `add_value_behavior` with a bad `valueId` is the one that throws.
+  Both are now asserted, so a future "helpful" change to make `get_person` throw shows
+  up as the wire-contract break it would be.
+- **`delete_goal` is a soft archive.** It flips `status` to `archived`, hard-deletes
+  connections and archives tracking items. The row survives and reads filter it out.
+  Identical to the original tRPC procedure. CLAUDE.md's `goals` table entry had omitted
+  the `status` column entirely, which is what made the leftover rows look like a bug;
+  fixed there.
+
+A third finding that is purely a property of the server, worth stating because it looks
+like a failure the first time you hit it: **a failed PKCE verification burns the auth
+code.** `consumeAuthCode` consumes atomically *before* checking the challenge, which is
+what denies an attacker a brute-force window against a live code. A test that probes a
+wrong verifier therefore needs its own authorization round.

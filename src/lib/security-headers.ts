@@ -47,16 +47,41 @@ export const SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
 ]
 
 /**
- * Set every header on `response`, in place.
+ * Return `response` carrying every security header — mutated in place when its
+ * headers allow it, rebuilt when they don't. **Use the return value**; it is not
+ * always the object you passed in.
  *
- * `Headers` is mutable for any Response we construct or that Start hands back,
- * so this is a plain loop. It deliberately does not overwrite a header that a
- * route already set — nothing does today, but a route that wants a narrower
- * `X-Frame-Options` should win over the blanket default rather than silently
- * lose to middleware that runs after it.
+ * It deliberately does not overwrite a header a route already set. Nothing does
+ * today, but a route wanting a narrower `X-Frame-Options` should win over the
+ * blanket default rather than silently lose to middleware that runs later.
+ *
+ * The rebuild branch is not defensive padding. `Response.redirect()` returns a
+ * response whose headers guard is *immutable* per spec, so `headers.set()` on
+ * one throws `TypeError: immutable` — and since this runs in global middleware,
+ * that TypeError becomes a 500 on a route that was otherwise correct. The three
+ * `Response.redirect()` calls in `oauth.authorize.decision.ts` hit exactly that:
+ * approve, deny and the no-session bounce all 500'd, which took down the entire
+ * MCP consent flow while every page, server fn and server route kept working.
+ * Responses returned straight from `fetch()` carry the same guard, so a future
+ * proxy route would have rediscovered this the same expensive way.
  */
-export function applySecurityHeaders(response: Response): void {
-  for (const [key, value] of SECURITY_HEADERS) {
-    if (!response.headers.has(key)) response.headers.set(key, value)
+export function applySecurityHeaders(response: Response): Response {
+  const missing = SECURITY_HEADERS.filter(([key]) => !response.headers.has(key))
+  if (missing.length === 0) return response
+
+  try {
+    for (const [key, value] of missing) response.headers.set(key, value)
+    return response
+  } catch {
+    // Immutable guard. Copy into a fresh Headers, which is always mutable, and
+    // re-wrap the same body — the body is a stream reference, not a copy, so
+    // this stays O(1) regardless of payload size.
+    const headers = new Headers(response.headers)
+    for (const [key, value] of missing) headers.set(key, value)
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    })
   }
 }

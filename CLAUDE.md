@@ -212,7 +212,8 @@ Image, document, and other binary uploads on weekly-sync items; built-in inline 
 - `name`, `color`, `userId`
 
 ### goals
-- `title`, `description`, `parentId` (nullable, self-FK), `positionX`, `positionY` (real, canvas position), `userId`
+- `title`, `description`, `emoji` (nullable), `parentId` (nullable, self-FK **ON DELETE SET NULL** — deleting a parent orphans its children rather than silently wiping a sub-tree), `positionX`, `positionY` (real, canvas position), `userId`
+- `status` (enum `active|archived`, NOT NULL, default `active`). **"Deleting" a goal archives it** — `goals.remove` flips `status` to `archived`, hard-deletes its connections, and archives its tracking items, all in one tx. The row survives; every read filters on `status = 'active'`. So a goal id stays resolvable after a delete, and a hard `DELETE FROM goals` is a manual operation with no service behind it.
 
 ### tasks
 - `goalId`, `title`, `description` (nullable — surfaces in Tasks tab + TaskModal; row only shows title), `emoji` (nullable, **Unicode glyph only** — `tasks.emoji` rejects URLs at the zod layer; tasks have no upload affordance), `difficulty` (1–3), `completed` (boolean), `scheduledAt` (timestamp, nullable — single deadline; null = Backlog; bucket computed at render, not stored).
@@ -303,7 +304,8 @@ One file per domain in `src/server/services/`, one thin `.fn.ts` wrapper per fil
 `session` and `me` are deliberately **separate queries**: the cookie carries name/email but a stale `avatarUrl` and no `locale`. `sessionQueryOptions` is cookie-only, `staleTime: Infinity`, and drives the route guard; `meQueryOptions` reads the live row and drives ProfileModal, Avatar and `useLocale`.
 
 ### goals
-- `getAll`, `create`, `update`, `delete` — full CRUD with tasks + value associations + cascading
+- `getAll`, `create`, `update` — with tasks + value associations
+- `remove` — **soft**: archives the goal, deletes its connections, archives its tracking items (see the `goals` table above). Exposed as `delete_goal` / the `deleteGoal` server fn; both return `{ success: true }`.
 
 ### values
 - `getAll`, `create`, `update`, `delete` — value CRUD; deletion removes goal associations

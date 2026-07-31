@@ -908,9 +908,14 @@ function LandingPage() {
                     <Link
                       to="/login"
                       className="inline-flex h-[52px] items-center gap-2.5 rounded-full px-7 text-sm font-medium transition-colors"
+                      // Both values come from --on-inverse, because this button
+                      // sits on --surface-inverse. --paper is the PAGE background
+                      // and flips to near-black in dark mode, which rendered this
+                      // label invisible against the slab. Same class of bug the
+                      // WhisperCard rgba hardcode had.
                       style={{
-                        border: '1px solid rgba(255,253,247,0.18)',
-                        color: 'var(--paper)',
+                        border: '1px solid color-mix(in oklch, var(--on-inverse) 18%, transparent)',
+                        color: 'var(--on-inverse)',
                       }}
                     >
                       {t('landing.coda.haveAccount')}

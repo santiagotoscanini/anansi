@@ -899,6 +899,14 @@
       "passwordPlaceholderShort": "••••••••",
       "passwordPlaceholderLong": "••••••••••••"
     },
+    "oidc": {
+      "errorKicker": "Inicio de sesión",
+      "errorTitle": "Eso no salió",
+      "errorBody": "anansi no pudo terminar de iniciar tu sesión con {{provider}}. Suele ser una cuenta que todavía no tiene acceso, o un intento que esperó demasiado y caducó.",
+      "errorCode": "Código: {{code}}",
+      "retry": "Intentar de nuevo",
+      "providerFallback": "tu proveedor de identidad"
+    },
     "login": {
       "kicker": "Iniciar sesión",
       "heroTitle": "Bienvenido de nuevo",

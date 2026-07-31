@@ -1,6 +1,22 @@
 import { queryOptions } from '@tanstack/react-query'
-import { fetchMe, fetchSession } from '~/server/fn/auth.fn'
+import { fetchAuthMode, fetchMe, fetchSession } from '~/server/fn/auth.fn'
 import { qk } from './keys'
+
+/**
+ * Whether this deployment signs in through an IdP or through a password form.
+ *
+ * Decided by the presence of the OIDC_* env vars on the server, so it cannot
+ * change without a restart — hence `staleTime: Infinity` and no invalidation
+ * site anywhere. `/login` and `/register` await it in `beforeLoad`, which makes
+ * it one in-process call during SSR and one cached value for the rest of the
+ * browser session.
+ */
+export const authModeQueryOptions = () =>
+  queryOptions({
+    queryKey: qk.authMode,
+    queryFn: ({ signal }) => fetchAuthMode({ signal }),
+    staleTime: Infinity,
+  })
 
 /**
  * Is anyone signed in, and who.

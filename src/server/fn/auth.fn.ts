@@ -1,7 +1,9 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
+import { env, oidcEnabled } from '~/lib/env'
+import { safeNext } from '~/lib/safe-next'
 import { authMiddleware } from '~/server/middleware/auth'
-import { signInWithCredentials, signOutSession } from '~/server/auth/actions'
+import { signInWithCredentials, signOutSession, startOidcSignIn as startOidcSignInAction } from '~/server/auth/actions'
 import { getServerSession } from '~/server/auth/session'
 import * as authService from '~/server/services/auth'
 import { AppError } from '~/server/services/errors'
@@ -27,6 +29,48 @@ function toResult(err: unknown): Result {
   if (err instanceof AppError) return { ok: false, error: err.message }
   throw err
 }
+
+/**
+ * Which front door this deployment has: single sign-on, or email + password.
+ *
+ * The client cannot answer this for itself. `oidcEnabled` lives in `~/lib/env`,
+ * which is server-only — importing it from a route file would pull dotenv into
+ * the browser bundle and throw on first access — so the answer has to cross the
+ * wire, and this is the crossing. `/login` and `/register` both read it in
+ * `beforeLoad`, where it decides whether a form renders at all.
+ *
+ * Constant for the lifetime of the process, which is why the query that wraps
+ * it is `staleTime: Infinity`: one fetch per browser session, and every
+ * subsequent client-side navigation to /login answers from cache.
+ */
+export const fetchAuthMode = createServerFn({ method: 'GET' }).handler(() => ({
+  oidcEnabled,
+  // Named on the sign-in error screen ("anansi couldn't finish with Pocket ID").
+  // Null rather than a default when SSO is off, so a caller cannot render a
+  // provider name for a provider that does not exist.
+  providerName: oidcEnabled ? (env.OIDC_PROVIDER_NAME ?? 'Pocket ID') : null,
+}))
+
+/**
+ * Mint the IdP authorize URL for the browser to navigate to.
+ *
+ * POST, not GET, because it is a write: the underlying action sets the `state`
+ * and PKCE cookies that the callback is validated against, and those must land
+ * on a response no cache will ever replay.
+ *
+ * The caller does a FULL-PAGE navigation to the returned URL
+ * (`window.location.href`, or a router redirect with an absolute `href`, which
+ * TanStack turns into one). A router push cannot work — it is a different
+ * origin.
+ */
+export const startOidcSignIn = createServerFn({ method: 'POST' })
+  .validator(z.object({ next: z.string().optional() }))
+  .handler(async ({ data }) => {
+    // safeNext again here even though /login's validator already ran it: this
+    // value ends up in a cookie that Auth.js redirects to after the callback,
+    // and a server fn is callable directly, not only through that route.
+    return { url: await startOidcSignInAction(safeNext(data.next)) }
+  })
 
 export const signIn = createServerFn({ method: 'POST' })
   .validator(z.object({ email: z.string(), password: z.string() }))

@@ -16,9 +16,16 @@ Postgres comes from `.env` → `DATABASE_URL` (local docker, RDS, a Supabase ses
 
 > **`env -u DATABASE_URL` is often needed in front of these commands.** A stale ambient `DATABASE_URL` in the shell beats `.env`, and the failure looks like an unrelated connection error rather than a config problem.
 
-Auth is **Auth.js v5 core** (`@auth/core`) with the **Credentials provider** — email + password only, no magic links, no email confirmation, no password reset. The JWT session cookie is signed with `AUTH_SECRET` (generate with `openssl rand -base64 32`).
+Auth is **Auth.js v5 core** (`@auth/core`) with **exactly one provider active at a time**, chosen by whether an IdP is configured:
 
-The conventional test user for automated flows (Playwright, manual smoke testing) is:
+| | provider | where |
+|---|---|---|
+| `OIDC_*` set | Pocket ID (OIDC) | production — SSO is the only door, `/register` is gated off |
+| `OIDC_*` absent | Credentials (email + password) | `pnpm dev`, Playwright, `scripts/capture-screens.sh` |
+
+The switch is the **presence of the env vars**, never `NODE_ENV` — see "Single sign-on" below. Either way the JWT session cookie is the same cookie, signed with `AUTH_SECRET` (generate with `openssl rand -base64 32`). No magic links, no email confirmation, no password reset in either mode.
+
+Everything below in this section describes local dev, where the password path is the whole of sign-in. The conventional test user for automated flows (Playwright, manual smoke testing) is:
 
 - **Email:** `santi@test.local`
 - **Password:** `devpassword12345` (AuthScreens enforces 12)
@@ -134,7 +141,7 @@ Real file routes, one per tab. `/app/<slug>` URLs are unchanged from the Next er
 
 ```
 __root.tsx          validateSearch { locale? } · head + shellComponent · <Toaster/> mounted once
-index.tsx           /                       login.tsx  /login  { next? }
+index.tsx           /                       login.tsx  /login  { next?, error? }
 privacy.tsx  terms.tsx                      register.tsx  /register  { next? }
 
 app.tsx             /app LAYOUT — beforeLoad auth guard, { modal?: 'profile'|'import' }
@@ -216,16 +223,54 @@ User-owned tracking-items library (goal optional → "Unscoped"), reusable sync 
 - **Self page** — "living portrait": prose fields on `user_self` + list buckets in `self_list_items` (energizers, drainers, just-for-me, proud, patterns by category, triggers, released, year-ahead). Empty fields = clean page, not unfinished form.
 
 ### Auth & multi-user
-**`@auth/core` directly** (no `next-auth` wrapper) with the Credentials provider handles signup + sign-in via email/password. JWT session strategy: the session token is a signed cookie (`AUTH_SECRET`), no `sessions` table. Google is scaffolded (commented out) in `src/server/auth/config.ts`; uncomment + add `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` to enable. Browser-initiated flows go through the server functions in `src/server/fn/auth.fn.ts` (`signIn`, `signUp`, `signOut`, `changePassword`), which return `{ ok: true } | { ok: false, error }`. The browser bundle contains no auth SDK.
+**`@auth/core` directly** (no `next-auth` wrapper), with one provider active at a time — Pocket ID (OIDC) where an IdP is configured, Credentials (email + password) where one isn't. JWT session strategy either way: the session token is a signed cookie (`AUTH_SECRET`), no `sessions` table. Browser-initiated flows go through the server functions in `src/server/fn/auth.fn.ts` (`signIn`, `signUp`, `signOut`, `changePassword`, `startOidcSignIn`); the first four return `{ ok: true } | { ok: false, error }`. The browser bundle contains no auth SDK.
 
 No email-dependent flows in v1: no email confirmation, no magic links, no password reset. Adding any of those means wiring an email transport and switching the providers list in `src/server/auth/config.ts`.
 
+#### Single sign-on (OIDC)
+
+Configured entirely by env — the app ships one code path and picks a door at boot.
+
+| var | example | notes |
+|---|---|---|
+| `OIDC_ISSUER_URL` | `https://id.toscanini.me` | discovery root; **must stay lazy** |
+| `OIDC_CLIENT_ID` | `anansi` | |
+| `OIDC_CLIENT_SECRET` | 40 chars | from a sops-encrypted env file |
+| `OIDC_REDIRECT_URI` | `https://anansi.toscanini.me/api/auth/callback/pocket-id` | registered at the IdP; **its last path segment IS the provider id** |
+| `OIDC_PROVIDER_ID` | `pocket-id` | fallback when the redirect URI is unset |
+| `OIDC_PROVIDER_NAME` | `Pocket ID` | shown on the sign-in error screen |
+| `OIDC_SCOPES` | `openid profile email groups` | |
+
+`oidcEnabled` in `src/lib/env.ts` is true only when the **first four** are all present, and it is the single flag everything branches on. Deliberately not `NODE_ENV`: a half-configured IdP falls back to the password form instead of producing a broken redirect, and a dev container pointed at a real IdP behaves exactly like production.
+
+> **The provider `id` is not a free choice — it is half of the redirect URI registered at the IdP.** Auth.js builds its callback as `${basePath}/callback/${provider.id}`, so `pocket-id` is what makes the callback land where Pocket ID is registered to send it. `config.ts` derives it from `OIDC_REDIRECT_URI`'s last path segment rather than restating the literal, so the two cannot drift. Get it wrong and the IdP answers `invalid redirect_uri`, which reads like an IdP outage rather than a typo here.
+
+> **Discovery must stay lazy.** Passing `issuer` (not a hand-written `authorization`/`token`/`userinfo` triple) makes @auth/core fetch `/.well-known/openid-configuration` on the first authorize request. An app that reaches the IdP at module import crash-loops on a cold boot whenever the IdP comes up second.
+
+`allowDangerousEmailAccountLinking: true` links the OIDC identity onto the **pre-existing `users` row with the same email** instead of creating a second, empty account — that is what carries an existing user's data across the cutover. It is safe *only* because Pocket ID is the sole provider on that deployment and verifies the address itself. **Adding a second provider means revisiting that line first**, and the tell that it stopped working is a second `users` row with a duplicate email.
+
+**Starting the flow** — `startOidcSignIn` in `src/server/auth/actions.ts`. Credentials is the one provider with no external hop, so its sign-in starts and finishes in-process; OIDC cannot, so this runs Auth.js far enough (`raw` + `skipCSRFCheck`) to produce the authorize URL and hands it back for a **full-page** navigation. `/login`'s `beforeLoad` throws `redirect({ href: url })` — an absolute href, which TanStack turns into `window.location.href` rather than a router push, as it must: different origin.
+
+> **`applyCookies` is load-bearing.** Auth.js emits the `state` and PKCE `code_verifier` cookies as part of building that URL, and the callback validates the IdP's response against them. Drop the replay and the callback fails with a state mismatch that surfaces under the IdP's name and looks like an IdP problem. They survive the redirect on both paths: Start merges the request's `set-cookie` headers into any non-2xx response (`mergeEventResponseHeaders` in start-server-core), and on a client-side navigation they land on the server function's own 200 before the navigation happens.
+
+The callback needs **no new route** — `src/routes/api.auth.$.ts` already serves `/api/auth/callback/*`, and its `withForwardedOrigin` rewrite is exactly what makes it work behind a TLS-terminating proxy: the request reaches Nitro over plain http, and without the rewrite both the `__Secure-` cookie name and the callback origin would be wrong.
+
+**Route behaviour under SSO:**
+- `/login` redirects to the IdP from `beforeLoad`, after the existing already-signed-in check and preserving `?next=`. **Unless `?error=` is present** — @auth/core sends every failed sign-in to `pages.signIn` (= `/login`) with the error type in the query string, so without that guard an account the IdP refuses (one outside the `admins` group) loops between the two hosts forever. It renders `SignInErrorScreen` with a "try again" instead.
+- `/register` redirects to `/login` — self-registration is the IdP's job, and an open register page on a publicly-exposed app is a liability. Gated at the route, not by hiding the link. `signUp` / `registerUser` stay in the codebase for dev and seeding.
+- Sign-out is **unchanged and deliberately local**: `signOutSession()` clears our cookie and leaves the Pocket ID session alone (24h), which is what keeps SSO across the other apps silent. Redirecting to `end_session_endpoint` would be a global logout — a different feature, not a fix.
+- The `/oauth/*` MCP surface is unaffected: it authorizes against whatever session exists, and the session cookie is byte-identical either way.
+
+The client cannot read `oidcEnabled` for itself — `~/lib/env` is server-only, and importing it from a route would drag dotenv into the browser bundle. It crosses the wire through `fetchAuthMode` / `authModeQueryOptions` (`staleTime: Infinity`, no invalidation site: it cannot change without a restart).
+
+**No migration was needed for any of this.** `users.email` is already unique, `users.name` already NOT NULL, and `accounts` already mirrors `AdapterAccount` — it was created for exactly this and had been empty since. `passwordHash` and `changePassword` are untouched; the column simply goes dormant under SSO.
+
 Identity flow:
 - **`src/server/auth/session.ts`** — `getServerSession()` is a port of `next-auth/lib/index.js`'s session read: it builds a Request to `createActionURL('session', …)` and calls `Auth(request, config)`, memoized per Request in a WeakMap. Chosen over hand-decoding with `@auth/core/jwt` because the JWE **salt defaults to the cookie name** and the name is `__Secure-`-prefixed under HTTPS — so a hand-rolled decode silently returns `null` in production while passing locally. Going through the session action derives the name, the prefix and the salt from the same code that wrote them, and runs the `session` callback that produces `session.user.id`.
-- **`src/routes/api.auth.$.ts`** mounts `@auth/core` at `/api/auth/*`. Nothing in the UI hits it (sign-in runs in-process), but it preserves the public contract and is the landing pad for a social provider. **It rewrites the request origin from `x-forwarded-{proto,host}`** — `@auth/core` reads the protocol straight off `request.url`, Next used to rebuild that from the forwarded headers, and Nitro does not. Without the rewrite, everything behind a TLS-terminating proxy reads as signed-out.
+- **`src/routes/api.auth.$.ts`** mounts `@auth/core` at `/api/auth/*`. No UI form posts to it (credentials sign-in runs in-process), but it preserves the public contract and it is where the OIDC callback lands — an OAuth callback has to be a real URL the IdP can redirect a browser to, and no server function can be that. **It rewrites the request origin from `x-forwarded-{proto,host}`** — `@auth/core` reads the protocol straight off `request.url`, Next used to rebuild that from the forwarded headers, and Nitro does not. Without the rewrite, everything behind a TLS-terminating proxy reads as signed-out.
 - **`basePath: '/api/auth'` must stay set explicitly.** `@auth/core` defaults to `/auth`; only `next-auth` forced `/api/auth`.
 - Do **not** set `cookies`, `useSecureCookies`, `jwt.encode`/`jwt.decode`, or `session.maxAge` in the config. Each one changes the cookie name, the salt, or the key derivation, and the failure mode is a silent `null` — i.e. everyone logged out.
-- `public.users.id` is `uuid` with `defaultRandom()`, generated locally. No FK to any external auth table. The `accounts` table exists (required by `@auth/drizzle-adapter`) but is empty until a social provider is enabled.
+- `public.users.id` is `uuid` with `defaultRandom()`, generated locally. No FK to any external auth table. The `accounts` table exists (required by `@auth/drizzle-adapter`) and stays empty until an OIDC provider is configured.
 - **`src/server/middleware/auth.ts`** is the replacement for tRPC's `protectedProcedure`: it resolves the session once and hands `{ userId }` to the handler as typed context.
 
 The `/app` route's `beforeLoad` guard redirects to `/login?next=…` **in the HTTP response** — a real 307, not the `useEffect` bounce the Next version used, so there is no flash of the shell before the redirect.
@@ -246,7 +291,7 @@ Image, document, and other binary uploads on weekly-sync items; built-in inline 
 - `name`, `email` (UNIQUE), `passwordHash` (nullable — bcrypt-hashed by the `signUp` / `changePassword` server fns), `emailVerified` (timestamp, nullable — unused in v1; Auth.js adapter type compatibility), `image` (text, nullable — Auth.js adapter compatibility, unused), `avatarUrl` (text, nullable — `/api/files/{id}` pointer; null = `Avatar.tsx` initial fallback), `locale` (BCP-47 code, nullable)
 
 ### accounts (Auth.js)
-- Created by `@auth/drizzle-adapter`. Empty in v1 (Credentials provider doesn't write here). Required so the adapter's assertions succeed and the table is ready the day a social provider lands.
+- Created by `@auth/drizzle-adapter`. Empty under the Credentials provider (it doesn't write here); one row per user under OIDC, linking `provider`/`provider_account_id` to the existing `users.id`. **Two `users` rows with the same email means `allowDangerousEmailAccountLinking` didn't take.**
 
 ### files
 - Generic binary blob store. One row per uploaded file (avatars, person photos, sync attachments). Bytes live in `data` (bytea); served by `/api/files/$id`, which auth-gates by session cookie + owner match.

@@ -899,6 +899,14 @@
       "passwordPlaceholderShort": "••••••••",
       "passwordPlaceholderLong": "••••••••••••"
     },
+    "oidc": {
+      "errorKicker": "Sign-in",
+      "errorTitle": "That didn't go through",
+      "errorBody": "anansi couldn't finish signing you in with {{provider}}. Usually that means an account that isn't allowed in yet, or an attempt that sat too long and expired.",
+      "errorCode": "Code: {{code}}",
+      "retry": "Try again",
+      "providerFallback": "your identity provider"
+    },
     "login": {
       "kicker": "Log in",
       "heroTitle": "Welcome back",

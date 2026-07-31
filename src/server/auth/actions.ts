@@ -1,6 +1,6 @@
 import { Auth, createActionURL, raw, skipCSRFCheck } from '@auth/core'
 import { getRequest, setCookie } from '@tanstack/react-start/server'
-import { authConfig } from './config'
+import { authConfig, oidcProviderId } from './config'
 
 // Sign-in / sign-out, ported from next-auth/lib/actions.js (lines 6-56 and
 // 58-71). Same mechanism as the server actions in src/app/auth/actions.ts:
@@ -72,6 +72,54 @@ export async function signInWithCredentials(email: string, password: string): Pr
   })
 
   applyCookies(response)
+}
+
+/**
+ * Begin the OIDC flow: returns the IdP's authorize URL for the browser to go to.
+ *
+ * Same in-process mechanism as `signInWithCredentials`, and it has to be — but
+ * the shape differs in one way that matters. Credentials is the one provider
+ * with no external hop, so its sign-in both starts and finishes inside this
+ * function. OIDC does not: the flow can only complete with the BROWSER at
+ * `https://id.…/authorize`, so all this can do is run Auth.js far enough to
+ * produce that URL and hand it back for a full-page navigation.
+ *
+ * `applyCookies` is LOAD-BEARING here, more so than anywhere else in this file.
+ * Auth.js emits the `state` and PKCE `code_verifier` cookies as part of building
+ * the authorize URL, and the callback matches the IdP's response against them.
+ * Drop the replay and the callback fails with a state mismatch — an error that
+ * surfaces on the IdP's name and reads like an IdP problem.
+ *
+ * Cookies survive the redirect the caller then throws: Start merges the
+ * request's accumulated `set-cookie` headers into any non-2xx response
+ * (start-server-core's `mergeEventResponseHeaders`), and on the client-side path
+ * they land on this server function's own 200 before the navigation happens.
+ *
+ * `callbackUrl` is where Auth.js sends the browser after the callback
+ * completes. Must be app-relative — sanitize with safeNext at the call site.
+ */
+export async function startOidcSignIn(callbackUrl: string): Promise<string> {
+  const request = getRequest()
+  const headers = authRequestHeaders(request)
+  const protocol = new URL(request.url).protocol
+
+  const url = createActionURL('signin', protocol, headers, process.env, authConfig)
+  url.pathname += `/${oidcProviderId}`
+
+  const body = new URLSearchParams({ callbackUrl })
+  const response = await Auth(new Request(url, { method: 'POST', headers, body }), {
+    ...authConfig,
+    raw,
+    skipCSRFCheck,
+  })
+
+  applyCookies(response)
+
+  // Absent only if the provider is missing or discovery produced no
+  // authorization endpoint. Throwing beats returning '' — the caller renders a
+  // sign-in error page, where a silent empty redirect would be a blank tab.
+  if (!response.redirect) throw new Error('OIDC sign-in produced no authorize URL')
+  return response.redirect
 }
 
 export async function signOutSession(): Promise<void> {

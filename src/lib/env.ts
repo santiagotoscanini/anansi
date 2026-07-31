@@ -41,6 +41,24 @@ export const env = createEnv({
     // encryption key, so a short one weakens every session. Generate with
     // `openssl rand -base64 32`.
     AUTH_SECRET: z.string().min(32, 'AUTH_SECRET must be at least 32 chars — use `openssl rand -base64 32`'),
+
+    // ── Pocket ID (OIDC) ────────────────────────────────────────────────────
+    //
+    // All optional, and all absent in local dev. That ABSENCE is the signal to
+    // fall back to email + password — see `oidcEnabled` below. Deliberately not
+    // NODE_ENV: a production build without an IdP still has a way in, and a dev
+    // container pointed at one behaves exactly like production.
+    OIDC_ISSUER_URL: z.string().url('OIDC_ISSUER_URL must be a valid https:// URL').optional(),
+    OIDC_CLIENT_ID: z.string().optional(),
+    OIDC_CLIENT_SECRET: z.string().optional(),
+    // Registered AT THE IDP and not changeable from here. Auth.js builds its own
+    // callback URL from the request origin + basePath + `/callback/<provider
+    // id>`, so this is not passed through to the wire — it is the value the
+    // provider id is checked against, so the two cannot drift. See config.ts.
+    OIDC_REDIRECT_URI: z.string().url('OIDC_REDIRECT_URI must be a valid absolute URL').optional(),
+    OIDC_PROVIDER_ID: z.string().optional(),
+    OIDC_PROVIDER_NAME: z.string().optional(),
+    OIDC_SCOPES: z.string().optional(),
   },
   runtimeEnv: process.env,
   // An unset var and a var set to "" should behave identically; without this,
@@ -48,3 +66,24 @@ export const env = createEnv({
   // uselessly-signed cookie.
   emptyStringAsUndefined: true,
 })
+
+/**
+ * Is single sign-on configured on this deployment?
+ *
+ * The one flag everything else branches on: which provider Auth.js is built
+ * with, whether `/login` renders a form or bounces to the IdP, and whether
+ * `/register` exists at all. True only when the four vars that make an OIDC
+ * round trip possible are ALL present — a half-configured IdP falls back to
+ * password login rather than producing a broken redirect.
+ *
+ * `emptyStringAsUndefined` above means a var set to "" reads as absent here,
+ * so blanking one in the env file is a valid way to turn SSO off.
+ *
+ * Server-side only, like everything else in this module. Client code that
+ * needs the answer reads it through the `authMode` server function — importing
+ * this file from a route or component would drag dotenv into the browser
+ * bundle and throw on the first access.
+ */
+export const oidcEnabled = Boolean(
+  env.OIDC_ISSUER_URL && env.OIDC_CLIENT_ID && env.OIDC_CLIENT_SECRET && env.OIDC_REDIRECT_URI,
+)

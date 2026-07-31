@@ -20,6 +20,8 @@ export const qk = {
   session: ['session'] as const,
   /** The live `users` row: name, email, avatar, locale. */
   me: ['me'] as const,
+  /** SSO or password form. Fixed by server env, so nothing ever invalidates it. */
+  authMode: ['auth-mode'] as const,
 
   /** values + goals + connections in one payload — what the graph boots from. */
   goalsData: ['goals-data'] as const,

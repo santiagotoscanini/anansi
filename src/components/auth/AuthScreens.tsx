@@ -52,11 +52,105 @@ const fieldError = {
   color: 'var(--rust)',
 } as const
 
+/**
+ * Shown when the identity provider bounced the sign-in back with an error.
+ *
+ * Its reason for existing is the loop: Auth.js sends every failed sign-in to
+ * `pages.signIn` (= /login) with `?error=`, and /login's job under SSO is to
+ * redirect to the IdP — so without a branch that renders instead of bouncing,
+ * an account the IdP refuses spins between the two forever. `onRetry` is the
+ * deliberate, user-initiated way back into that redirect.
+ *
+ * The code is surfaced verbatim rather than mapped to a friendlier sentence:
+ * it is the only handle on what actually happened, and the two likely causes
+ * (not in the allowed group, expired attempt) are already in the body copy.
+ */
+export function SignInErrorScreen({
+  code,
+  providerName,
+  onRetry,
+}: {
+  code: string
+  /** Null only if SSO is off, in which case this screen is unreachable. */
+  providerName: string | null
+  onRetry: () => void
+}) {
+  const { t } = useTranslation()
+  const provider = providerName ?? t('auth.oidc.providerFallback')
+
+  return (
+    <div
+      className="flex min-h-screen flex-col justify-between"
+      style={{ background: 'var(--paper)', padding: '48px 32px' }}
+    >
+      <HomeLockup size={22} />
+
+      <div className="mx-auto w-full" style={{ maxWidth: 460 }}>
+        <div
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            letterSpacing: '0.1em',
+            color: 'var(--ink-3)',
+            textTransform: 'uppercase',
+            marginBottom: 12,
+          }}
+        >
+          {t('auth.oidc.errorKicker')}
+        </div>
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 36,
+            lineHeight: 1.1,
+            marginBottom: 16,
+            color: 'var(--ink)',
+          }}
+        >
+          {t('auth.oidc.errorTitle')}
+        </h1>
+        <p style={{ fontFamily: 'var(--font-text)', fontSize: 16, lineHeight: 1.55, color: 'var(--ink-2)' }}>
+          {t('auth.oidc.errorBody', { provider })}
+        </p>
+        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)', marginTop: 20 }}>
+          {t('auth.oidc.errorCode', { code })}
+        </p>
+
+        <button
+          type="button"
+          onClick={onRetry}
+          style={{
+            marginTop: 32,
+            height: 48,
+            padding: '0 28px',
+            background: 'var(--clay)',
+            color: 'var(--paper)',
+            border: 0,
+            borderRadius: 999,
+            fontSize: 14,
+            fontWeight: 500,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
+          {t('auth.oidc.retry')} <ArrowRight size={14} />
+        </button>
+      </div>
+
+      {/* Spacer twin of the lockup — keeps the message optically centred
+          without a second absolutely-positioned element. */}
+      <div aria-hidden style={{ height: 22 }} />
+    </div>
+  )
+}
+
 export function LoginScreen({
   onSwitchToRegister,
   onSuccess,
 }: {
-  onSwitchToRegister: () => void
+  /** Omitted where self-registration is the IdP's job — see /login's route. */
+  onSwitchToRegister?: () => void
   onSuccess?: () => void
 }) {
   const signInWithPassword = useSignIn()
@@ -247,31 +341,35 @@ export function LoginScreen({
             )}
           </button>
 
-          <p
-            style={{
-              fontFamily: 'var(--font-text)',
-              fontSize: 13,
-              color: 'var(--ink-3)',
-              marginTop: 28,
-              textAlign: 'center',
-            }}
-          >
-            {t('auth.login.newHere')}{' '}
-            <button
-              type="button"
-              onClick={onSwitchToRegister}
+          {/* Absent under SSO: /register is gated off there, so an invitation
+              to it would be a link to a redirect. */}
+          {onSwitchToRegister && (
+            <p
               style={{
-                color: 'var(--clay-deep)',
-                background: 'transparent',
-                border: 0,
+                fontFamily: 'var(--font-text)',
                 fontSize: 13,
-                fontWeight: 500,
-                cursor: 'pointer',
+                color: 'var(--ink-3)',
+                marginTop: 28,
+                textAlign: 'center',
               }}
             >
-              {t('auth.login.beginAYear')}
-            </button>
-          </p>
+              {t('auth.login.newHere')}{' '}
+              <button
+                type="button"
+                onClick={onSwitchToRegister}
+                style={{
+                  color: 'var(--clay-deep)',
+                  background: 'transparent',
+                  border: 0,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                {t('auth.login.beginAYear')}
+              </button>
+            </p>
+          )}
         </form>
       </div>
     </div>

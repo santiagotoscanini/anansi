@@ -1,7 +1,6 @@
 import { useCallback, useState, useEffect } from 'react'
 import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, getOutgoers } from '@xyflow/react'
 import type { Connection, Edge, Node } from '@xyflow/react'
-import '@xyflow/react/dist/style.css'
 import { HelpCircle, Plus, Target } from 'lucide-react'
 import { createId } from '@paralleldrive/cuid2'
 import { useTranslation } from 'react-i18next'
@@ -355,7 +354,7 @@ export default function GoalsGraph() {
       {/* Warm ScreenHeader on top of the graph — matches the design's
           Objectives view. New Goal + How-it-works moved into the action
           row instead of floating chips on the canvas. */}
-      <header className="shrink-0 px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
+      <header className="shrink-0 px-6 pt-10 pb-7 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div
@@ -446,7 +445,7 @@ export default function GoalsGraph() {
           proOptions={{ hideAttribution: true }}
           className="bg-[var(--paper)]"
         >
-          <Controls className="!rounded-lg !border-[var(--hairline-2)] !bg-[var(--canvas)] !shadow-sm [&>button:hover]:!bg-[var(--vellum)] [&>button>svg]:!fill-[var(--ink-2)] [&>button]:!border-b [&>button]:!border-[var(--hairline)] [&>button]:!bg-[var(--canvas)] [&>button]:!text-[var(--ink)]" />
+          <Controls className="!rounded-lg !border-[var(--hairline-2)] !bg-[var(--canvas)] !shadow-sm [&>button]:!border-b [&>button]:!border-[var(--hairline)] [&>button]:!bg-[var(--canvas)] [&>button]:!text-[var(--ink)] [&>button:hover]:!bg-[var(--vellum)] [&>button>svg]:!fill-[var(--ink-2)]" />
           {/* MiniMap is dead weight on a phone — hide on small screens to free real estate. */}
           <MiniMap
             className="!hidden !border-[var(--hairline-2)] !bg-[var(--vellum)] md:!block"

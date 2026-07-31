@@ -58,3 +58,26 @@ jobs:
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
           AUTH_SECRET: ci-placeholder-secret-not-used-for-anything-real
+
+      # The client/server boundary, checked against the artefact rather than
+      # the source. `import "server-only"` used to enforce this and had to go
+      # (it throws under Vite); the ESLint no-restricted-imports rule catches
+      # the direct case, but only this catches a leak that arrives through a
+      # transitive import. If any of these strings is in a browser chunk, a
+      # server module got bundled — and with it, potentially, a secret.
+      #
+      # The env names are checked as VALUES: the placeholders above are what
+      # would have been inlined, so a hit means the build baked an env var
+      # into client JS.
+      - name: Check client bundle for server-only code
+        run: |
+          set -euo pipefail
+          if grep -rlE 'drizzle-orm|@auth/core|bcryptjs|postgres:' .output/public/; then
+            echo "::error::server-only module leaked into the client bundle"
+            exit 1
+          fi
+          if grep -rlE 'ci-placeholder-secret|postgresql://ci' .output/public/; then
+            echo "::error::an environment secret was inlined into the client bundle"
+            exit 1
+          fi
+          echo "client bundle is clean"

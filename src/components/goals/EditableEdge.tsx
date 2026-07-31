@@ -128,7 +128,7 @@ export default function EditableEdge({
               onChange={handleInputChange}
               onKeyDown={handleInputKeyDown}
               onBlur={handleInputBlur}
-              className="h-6 w-12 rounded border border-[var(--hairline-2)] bg-[var(--canvas)] text-center text-xs text-[var(--ink)] focus:border-[var(--hairline-2)] focus:outline-none"
+              className="h-6 w-12 rounded border border-[var(--hairline-2)] bg-[var(--canvas)] text-center text-xs text-[var(--ink)] focus:border-[var(--hairline-2)] focus:outline-hidden"
             />
           ) : (
             <div

@@ -296,3 +296,68 @@ second is the one that matters: zod's `.catch()` makes the schema input `unknown
 an **inline function literal** but bails for a **generic call expression**. All five
 search validators are now hand-written inline functions, which is also tolerant for
 free.
+
+## The flip (3.6)
+
+Next, tRPC, superjson, `server-only`, `eslint-config-next` and Tailwind v3 are
+uninstalled. The app builds and runs on Vite + Nitro alone, and the image is deployable.
+
+| Check | Result |
+|---|---|
+| `pnpm format` / `lint` / `typecheck` / `build` | clean; zero warnings |
+| 29 screenshots vs the Phase 0 Next baseline | **27 at ≤0.82% of pixels differing**; `objectives-*` at ~5.5% (the documented React Flow dash-phase false positive). Every image identical in dimensions, including the 7837px landing page. |
+| `.output/public/` grep for `drizzle-orm\|@auth/core\|bcryptjs\|postgres` | empty |
+| `.output/public/` grep for the build-time env placeholders | empty |
+| 6 security headers on `/`, `/login`, `/api/healthz`, `POST /api/mcp`, a 404, a 307 | 6/6 each |
+| 6 security headers on real `_serverFn` responses (browser, client-side nav) | 6/6 each |
+| MCP 401 body + `WWW-Authenticate` | byte-identical to `mcp-401.txt` modulo origin |
+| both `.well-known` docs **from inside the container** | identical modulo origin |
+| `/oauth/register` ×7 | 201 ×5 then **429** |
+| container: `/api/healthz`, `/login`, `/app` signed out, `icon.png`, `apple-icon.png` | `{"status":"ok"}`, 200, **307 → `/login?next=%2Fapp`**, 200 (70 KB), 200 (8 KB) |
+| container `HEALTHCHECK` | `healthy`, failing streak 0 |
+| container user | `uid=1001(anansi)` — non-root |
+| `MIGRATE_ONLY=1` | exit 0, no listener |
+| missing `DATABASE_URL` / `AUTH_SECRET` | exit 1 each, before any connection |
+
+### Tailwind v4: what actually changed
+
+The catastrophic failure mode (`@source` omitted → the utility layer silently empties
+while the build still passes) did not happen; the emitted CSS is 63 KB and contains
+`xl:grid-cols-4`, `line-clamp-2`, `md:px-12` and friends, all of which exist only in
+`src/components` and `src/routes`. But four real behaviour changes were found by
+grepping the **built** stylesheet rather than by reading the upgrade guide:
+
+- **`flex-shrink-0` emits nothing in v4.** Not renamed-with-an-alias — absent. Three
+  call sites were silently dead until renamed to `shrink-0`.
+- **`backdrop-blur-sm` is 8px in v4, 4px in v3.** The whole `-sm`/`-xs` scale shifted, so
+  the old name keeps working and quietly doubles. Three modals; renamed to
+  `backdrop-blur-xs`.
+- **v4's preflight dropped `button { cursor: pointer }`.** 164 buttons, 8 with an
+  explicit `cursor-pointer` — so ~156 buttons would have stopped looking clickable.
+  Restored in `@layer base`.
+- **`::placeholder` went from gray-400 to `currentColor` at 50%.** 55 placeholders, 19
+  with an explicit colour. Set once to `--ink-4`, which is what the token ladder has
+  always said placeholders should be — so this ends up more consistent than v3 was.
+
+`outline-none` (33 sites) was renamed to `outline-hidden`: v4 redefined `outline-none`
+as `outline-style: none`, and `outline-hidden` is the spelling that preserves v3's
+transparent-outline behaviour, which is the one that keeps focus visible in
+forced-colors mode.
+
+Also verified: bare `border` in v4 inherits `currentColor` where v3 defaulted to
+gray-200. 11 className strings use a border width with no static colour — **all 11 supply
+it through an interpolated expression**, so nothing regressed. Worth re-checking if
+someone adds a plain `border` later.
+
+### One defect found, in the supply chain rather than the code
+
+Restoring `minimumReleaseAge` after the dependency swap failed:
+`enhanced-resolve@5.24.4` (a transitive dep of `@tailwindcss/vite`, published 3 days
+earlier) was inside the cooldown window. **The pre-existing comment in
+`pnpm-workspace.yaml` claimed `--frozen-lockfile` was unaffected by the policy — that is
+wrong.** pnpm 11 re-verifies every lockfile entry on every install, so this would have
+broken CI and the Docker build on the first run after merge, with an error naming a
+package nobody chose. Fixed with an `overrides:` pin to 5.24.3, and the comment now
+describes both enforcement points. Note the ordering trap: the policy check runs
+*before* resolution, so adding the pin needs one install with the cooldown commented out
+before it can take effect.

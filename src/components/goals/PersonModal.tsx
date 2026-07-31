@@ -78,7 +78,7 @@ function sixMonthsFromNow(): Date {
 // label class is still used here.
 const fieldLabel = 'mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]'
 const inputClass =
-  'w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]'
+  'w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] outline-hidden transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]'
 const textareaClass = `${inputClass} resize-none`
 
 // Field label with an optional hint surfaced via a hover tooltip on a small `?` icon —
@@ -86,13 +86,13 @@ const textareaClass = `${inputClass} resize-none`
 function FieldLabel({ children, hint }: { children: React.ReactNode; hint?: React.ReactNode }) {
   return (
     <div className="mb-1.5 flex items-center gap-1.5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">{children}</span>
+      <span className="text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">{children}</span>
       {hint && (
         <span className="group relative inline-flex">
           <HelpCircle className="h-3 w-3 cursor-help text-[var(--ink-4)] transition-colors hover:text-[var(--ink-2)]" />
           <span
             role="tooltip"
-            className="pointer-events-none invisible absolute left-0 top-full z-30 mt-1.5 w-64 rounded-md border border-[var(--hairline)] bg-[var(--canvas)] p-2.5 text-xs leading-relaxed text-[var(--ink-2)] opacity-0 shadow-2xl transition-opacity group-hover:visible group-hover:opacity-100"
+            className="pointer-events-none invisible absolute top-full left-0 z-30 mt-1.5 w-64 rounded-md border border-[var(--hairline)] bg-[var(--canvas)] p-2.5 text-xs leading-relaxed text-[var(--ink-2)] opacity-0 shadow-2xl transition-opacity group-hover:visible group-hover:opacity-100"
           >
             {hint}
           </span>
@@ -254,7 +254,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
 
   return (
     <div
-      className="bg-[var(--ink)]/80 fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/80 p-4 backdrop-blur-xs"
       onClick={onClose}
     >
       <div
@@ -275,7 +275,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
           </button>
         </div>
 
-        <div className="px-6 pb-6 pt-5">
+        <div className="px-6 pt-5 pb-6">
           <div className="space-y-5">
             {/* Name + Avatar */}
             <div>
@@ -294,14 +294,14 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={t('personModal.namePlaceholder')}
-                  className={`h-10 flex-1 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]`}
+                  className={`h-10 flex-1 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 text-sm text-[var(--ink)] outline-hidden transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]`}
                   autoFocus
                 />
                 {showEmojiPicker && (
-                  <div className="absolute left-0 top-full z-50 mt-2 rounded-xl border border-[var(--hairline)] bg-[var(--canvas)] p-2 shadow-2xl">
+                  <div className="absolute top-full left-0 z-50 mt-2 rounded-xl border border-[var(--hairline)] bg-[var(--canvas)] p-2 shadow-2xl">
                     <EmojiPickerLazy onEmojiClick={handleEmojiClick} searchPlaceHolder={t('personModal.searchEmoji')} />
                     <div className="mt-2 space-y-2 border-t border-[var(--hairline)] pt-2">
-                      <label className="block text-[10px] uppercase tracking-wider text-[var(--ink-3)]">
+                      <label className="block text-[10px] tracking-wider text-[var(--ink-3)] uppercase">
                         {t('personModal.uploadPicture')}
                       </label>
                       <button
@@ -413,7 +413,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                         }
                       }}
                       placeholder={t('personModal.groupNamePlaceholder')}
-                      className="w-28 bg-transparent text-xs text-[var(--ink)] outline-none placeholder:text-[var(--ink-3)]"
+                      className="w-28 bg-transparent text-xs text-[var(--ink)] outline-hidden placeholder:text-[var(--ink-3)]"
                       autoFocus
                     />
                   </div>
@@ -441,7 +441,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
             <div className="pt-2">
               <div className="mb-4 flex items-center gap-3">
                 <div className="h-px flex-1 bg-[var(--vellum)]" />
-                <span className="text-[10px] uppercase tracking-widest text-[var(--ink-4)]">
+                <span className="text-[10px] tracking-widest text-[var(--ink-4)] uppercase">
                   {t('personModal.reflection')}
                 </span>
                 <div className="h-px flex-1 bg-[var(--vellum)]" />
@@ -505,7 +505,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
               <div className="pt-2">
                 <div className="mb-3 flex items-center gap-3">
                   <div className="h-px flex-1 bg-[var(--vellum)]" />
-                  <span className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-[var(--ink-4)]">
+                  <span className="flex items-center gap-1 text-[10px] tracking-widest text-[var(--ink-4)] uppercase">
                     <Target className="h-3 w-3" />
                     {t('personModal.tasksReferentSection')}
                   </span>
@@ -551,7 +551,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
               <div className="pt-2">
                 <div className="mb-3 flex items-center gap-3">
                   <div className="h-px flex-1 bg-[var(--vellum)]" />
-                  <span className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-[var(--ink-4)]">
+                  <span className="flex items-center gap-1 text-[10px] tracking-widest text-[var(--ink-4)] uppercase">
                     <Mountain className="h-3 w-3" />
                     {t('personModal.bucketTogetherSection')}
                   </span>

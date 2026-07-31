@@ -10,7 +10,7 @@ import Avatar from './Avatar'
 
 const fieldLabel = 'mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]'
 const inputClass =
-  'w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]'
+  'w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] outline-hidden transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]'
 const textareaClass = `${inputClass} resize-none`
 
 type Mode = { kind: 'create' } | { kind: 'edit'; item: BucketListItem }
@@ -87,7 +87,7 @@ export default function BucketListItemModal({ mode, onClose }: BucketListItemMod
 
   return (
     <div
-      className="bg-[var(--ink)]/80 fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/80 p-4 backdrop-blur-xs"
       onClick={onClose}
     >
       <div
@@ -108,7 +108,7 @@ export default function BucketListItemModal({ mode, onClose }: BucketListItemMod
           </button>
         </div>
 
-        <div className="space-y-5 px-6 pb-6 pt-5">
+        <div className="space-y-5 px-6 pt-5 pb-6">
           {/* Content */}
           <div>
             <label className={fieldLabel}>{t('bucketItem.thingToDo')}</label>

@@ -244,7 +244,7 @@ export default function DatePicker({
             </div>
             {mode === 'day' ? (
               <>
-                <div className="mb-1 grid grid-cols-7 gap-0.5 text-center text-[10px] uppercase tracking-wider text-[var(--ink-3)]">
+                <div className="mb-1 grid grid-cols-7 gap-0.5 text-center text-[10px] tracking-wider text-[var(--ink-3)] uppercase">
                   {weekdayShortNames.map((w) => (
                     <span key={w}>{w}</span>
                   ))}

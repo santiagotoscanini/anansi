@@ -26,7 +26,7 @@ export function TabError({ error, reset }: ErrorComponentProps) {
         </div>
         <h2 className="mb-2 text-lg font-semibold text-[var(--ink)]">{t('errorBoundary.title')}</h2>
         <p className="mb-4 text-sm text-[var(--ink-2)]">{t('errorBoundary.body')}</p>
-        <p className="mb-4 break-words font-mono text-xs text-[var(--rust)]">{message}</p>
+        <p className="mb-4 font-mono text-xs break-words text-[var(--rust)]">{message}</p>
         <button
           onClick={reset}
           className="inline-flex items-center gap-2 rounded-lg bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] transition hover:bg-[var(--vellum)]"

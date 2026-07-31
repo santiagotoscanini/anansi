@@ -31,7 +31,7 @@ const CATEGORY_LABEL_KEYS: Record<PersonCategory, CategoryLabelKey> = {
 function CategoryPill({ category }: { category: PersonCategory }) {
   const { t } = useTranslation()
   return (
-    <span className="rounded-full border border-[var(--hairline)] bg-[var(--vellum)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--ink-2)]">
+    <span className="rounded-full border border-[var(--hairline)] bg-[var(--vellum)] px-2 py-0.5 text-[10px] tracking-wide text-[var(--ink-2)] uppercase">
       {t(CATEGORY_LABEL_KEYS[category])}
     </span>
   )
@@ -165,7 +165,7 @@ export default function PeopleDirectory() {
                     if (e.key === 'Enter') void submitEditGroup()
                     if (e.key === 'Escape') cancelEditGroup()
                   }}
-                  className="min-w-0 max-w-xs border-b border-[var(--hairline-2)] bg-transparent pb-0.5 text-2xl font-light text-[var(--ink)] outline-none focus:border-[var(--hairline-2)]"
+                  className="max-w-xs min-w-0 border-b border-[var(--hairline-2)] bg-transparent pb-0.5 text-2xl font-light text-[var(--ink)] outline-hidden focus:border-[var(--hairline-2)]"
                   autoFocus
                 />
               ) : (
@@ -238,13 +238,13 @@ export default function PeopleDirectory() {
 
         {/* Search */}
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--ink-3)]" />
+          <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[var(--ink-3)]" />
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('peopleDirectory.searchPlaceholder')}
-            className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] py-2 pl-10 pr-4 text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
+            className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] py-2 pr-4 pl-10 text-[var(--ink)] outline-hidden transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
           />
         </div>
 

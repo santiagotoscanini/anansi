@@ -4,16 +4,28 @@ Personal operating system for goals, relationships, and values. Named after Anan
 
 Feature surface: visual goal hierarchies with weighted connections, weekly progress retrospectives, a Personal CRM for reflecting on relationships, user-defined values that tag goals, and custom groups that span both people and tasks (e.g. "Family" can hold both my partner and the "call mom" task).
 
-## Local dev credentials
+## Local dev
 
-Local dev runs against any Postgres (Supabase Session Pooler, local docker, RDS, …) configured via `.env` → `DATABASE_URL`. Auth is handled by **Auth.js v5** (`next-auth`) with the **Credentials provider** — email + password only, no magic links, no email confirmation, no password reset. The JWT session cookie is signed with `AUTH_SECRET` (generate with `openssl rand -base64 32`).
+```bash
+pnpm install           # pnpm 11, Node 24+ (engineStrict)
+pnpm dev               # vite dev on :5173
+pnpm build && pnpm start   # nitro bundle in .output/, served on :3000
+```
+
+Postgres comes from `.env` → `DATABASE_URL` (local docker, RDS, a Supabase session-pooler URL — anything). The migrations in `src/lib/data/db/migrations/` create the whole schema, Auth.js's `accounts` table included.
+
+> **`env -u DATABASE_URL` is often needed in front of these commands.** A stale ambient `DATABASE_URL` in the shell beats `.env`, and the failure looks like an unrelated connection error rather than a config problem.
+
+Auth is **Auth.js v5 core** (`@auth/core`) with the **Credentials provider** — email + password only, no magic links, no email confirmation, no password reset. The JWT session cookie is signed with `AUTH_SECRET` (generate with `openssl rand -base64 32`).
 
 The conventional test user for automated flows (Playwright, manual smoke testing) is:
 
 - **Email:** `santi@test.local`
 - **Password:** `devpassword12345` (AuthScreens enforces 12)
 
-Create it via the UI: open `http://localhost:3000/register`, fill in name + email + password, submit. The server action bcrypts the password, inserts the user row, and signs you in — no confirmation email, no second step.
+Create it via the UI: open `http://localhost:5173/register`, fill in name + email + password, submit. The `signUp` server fn bcrypts the password, inserts the user row, and signs you in — no confirmation email, no second step. `scripts/seed-dev-data.ts` then fills every tab with a deterministic dataset.
+
+Signing in without a browser (useful in scripts) is a two-request sequence: `GET /api/auth/csrf`, then `POST /api/auth/callback/credentials` with the token. `scripts/capture-screens.sh` does exactly this.
 
 If you lock yourself out: there's no password reset flow yet. Either re-register with a different email or wipe the user row from the DB and re-register.
 
@@ -21,45 +33,117 @@ Local dev DB only — do not reuse credentials in production.
 
 ## Stack
 
-- **Frontend:** Next.js 16 (app dir), React 19, TypeScript, Tailwind, React Flow (`@xyflow/react`), Framer Motion, Lucide, dnd-kit
-- **Backend:** tRPC v11, Next.js API routes, Auth.js v5 (`next-auth` + `@auth/drizzle-adapter`), bcryptjs, Zod
+- **Framework:** TanStack Start (Vite 8 + Nitro), TanStack Router file routes, React 19, TypeScript
+- **Data:** TanStack Query + `createServerFn` server functions. **No tRPC** — see "Data flow".
+- **UI:** Tailwind **v4** (`@tailwindcss/vite`, no PostCSS step), React Flow (`@xyflow/react`), Lucide, dnd-kit, react-hot-toast, i18next
+- **Backend:** Auth.js v5 core (`@auth/core` + `@auth/drizzle-adapter`), bcryptjs, Zod 3
 - **Database:** PostgreSQL + Drizzle ORM + Drizzle Kit
-- **State:** React Context + TanStack Query (via tRPC) + IDB Keyval
+- **Tooling:** pnpm 11 (with a supply-chain cooldown), ESLint flat config, Prettier (single quotes, no semicolons), `@t3-oss/env-core`
 
 ## Project Structure
 
 ```
 src/
-  app/
-    api/trpc/[trpc]/         # tRPC API endpoints
-    privacy/, terms/         # Public legal pages (EN-only starter content; Spanish translation TBD)
-    layout.tsx, page.tsx     # Root layout + main page
-  components/goals/          # All feature components
-    GoalsDashboard.tsx       # Top-level shell with sidebar nav
-    GoalsGraph.tsx           # React Flow goal network
-    GoalNode.tsx             # Goal card on canvas (with referent avatar cluster)
-    GoalModal.tsx            # Goal create/edit
-    TaskModal.tsx            # Per-task editor (title, emoji, description, deadline, difficulty, referents, groups, completion)
-    Tasks.tsx                # Cross-goal Tasks tab — search + tasks grouped by goal
-    EditableEdge.tsx         # Connection weight editor
-    ValuesManager.tsx        # Values + behaviors
-    WeeklyRetrospective.tsx  # Weekly sync interface
-    LifeProgress.tsx         # Progress dashboard
-    PeopleManager.tsx, PersonModal.tsx, RelationshipsBoard.tsx
-    Self.tsx                 # "Living portrait" page
-    BucketListItemModal.tsx
-    ColorPicker.tsx, DatePicker.tsx, Avatar.tsx  # Shared inputs
-  contexts/GoalsContext.tsx  # Global state
-  lib/
-    api/                     # tRPC config + routers (auth.ts, goals.ts, root.ts, trpc.ts)
-    data/                    # schema.ts, db connection, migrations/
-    horizon-period.ts        # Task scheduling bucket math
-    auth-client.ts, auth-server.ts, image-upload.ts
-  trpc/react.tsx
-  styles/
+  routes/                    # file routes; routeTree.gen.ts is generated + gitignored
+  router.tsx                 # QueryClient (staleTime 30s) + setupRouterSsrQueryIntegration
+  start.ts                   # createStart → global request middleware (security headers)
 
-uploads/{userId}/...         # File storage (outside src/)
+  server/                    # ── never imported by the client ──
+    services/                # plain async (userId, input) fns. NO @tanstack imports.
+      errors.ts              #   the AppError taxonomy
+      auth.ts values.ts value-behaviors.ts goals.ts tasks.ts connections.ts data.ts
+      tracking-items.ts sync-templates.ts weekly-sync.ts attachments.ts file-refs.ts
+      people.ts groups.ts next-bids.ts important-dates.ts bucket-list.ts
+      self.ts self-list-items.ts backup.ts
+    fn/                      # createServerFn wrappers. EXPORT ONLY SERVER FNS (see below).
+      values.fn.ts goals.fn.ts … + auth.fn.ts + locale.fn.ts + oauth.fn.ts
+    middleware/auth.ts       # createMiddleware — a runtime value, so NOT in fn/
+    auth/{config,session,actions}.ts
+
+  lib/
+    queries/                 # queryOptions factories + the qk key registry. Client-safe.
+    mutations/               # useMutation hooks, grouped by surface
+    computation/
+      use-goal-progress.ts   # the memoized progress DFS (was GoalsContext's core)
+      importance.ts
+    api/types.ts             # ~726 lines of zod schemas, shared by services + fns + MCP
+    data/                    # schema.ts, db connection, migrations/
+    mcp/                     # MCP server + 51 tools + the OAuth 2.1 provider
+    env.ts security-headers.ts horizon-period.ts week.ts image-upload.ts
+    theme.ts color-palette.ts emoji-utils.ts
+
+  components/
+    goals/                   # feature components
+      AppShell.tsx           # sidebar + mobile drawer + user menu + global modals
+      GoalsGraph.tsx GoalNode.tsx GoalModal.tsx EditableEdge.tsx
+      TaskModal.tsx Tasks.tsx Horizons.tsx
+      ValuesManager.tsx WeeklyRetrospective.tsx LifeProgress.tsx
+      PeopleManager.tsx PersonModal.tsx RelationshipsBoard.tsx
+      Self.tsx BucketListItemModal.tsx TabError.tsx
+      ColorPicker.tsx DatePicker.tsx Avatar.tsx EmojiPickerLazy.tsx
+    auth/AuthScreens.tsx
+  i18n/                      # config, Provider, en.json + es.json, useLocale
+  styles/globals.css         # Tailwind v4 entry + ~70 design tokens
+
+public/                      # icon.svg, icon.png, apple-icon.png
 ```
+
+There is **no `uploads/` directory**. Every uploaded byte lives in the `files` Postgres table — see "File storage".
+
+## Routing
+
+Real file routes, one per tab. `/app/<slug>` URLs are unchanged from the Next era.
+
+```
+__root.tsx          validateSearch { locale? } · head + shellComponent · <Toaster/> mounted once
+index.tsx           /                       login.tsx  /login  { next? }
+privacy.tsx  terms.tsx                      register.tsx  /register  { next? }
+
+app.tsx             /app LAYOUT — beforeLoad auth guard, { modal?: 'profile'|'import' }
+app.index.tsx       /app renders the graph directly (NOT a redirect to /app/objectives)
+app.objectives.tsx { goal? }      app.horizons.tsx { task?, goal? }
+app.tasks.tsx      { task?, goal? }  app.sync.tsx { week? }
+app.people.tsx     { filter?, groupId?, person? }   app.bucket.tsx { item? }
+app.pulse.tsx  app.tracking-items.tsx  app.self.tsx  app.values.tsx
+app.progress.tsx  app.relationships.tsx
+app.$.tsx           /app/* → redirect to /app (preserves the old silent slug fallback)
+
+api.auth.$.ts  api.mcp.ts  api.files.$id.ts  api.healthz.ts
+oauth.{register,token,revoke}.ts  oauth.authorize.tsx  oauth.authorize.decision.ts
+[.]well-known.oauth-authorization-server.ts   → /.well-known/oauth-authorization-server
+[.]well-known.oauth-protected-resource.ts     → /.well-known/oauth-protected-resource
+```
+
+`[.]` is TanStack Router's escape for a literal dot in a filename, which is why the `.well-known` docs are served directly instead of through a rewrite.
+
+> **Write `validateSearch` as an inline function literal, never as a call to a generic helper.**
+> A route file is circular with `routeTree.gen.ts`. TypeScript resolves that circularity for a function literal but bails for a generic call expression, falling back to `AnySchema` — so the route's search type silently becomes `{}`, `useSearch()` returns nothing, and every `navigate()` to it stops type-checking its params. The error surfaces at the *navigation site*, not at the route that caused it. Related: `z.catch()` makes a schema's input `unknown`, which intersects away every param in the navigation type. An inline function is tolerant of bad input for free — just coerce and default.
+
+## Data flow
+
+There is no tRPC. The chain is:
+
+```
+component  →  lib/queries/*.ts (queryOptions)  →  server/fn/*.fn.ts (createServerFn)
+                                                       ↓ authMiddleware
+                                                  server/services/*.ts  →  db
+MCP tool  ────────────────────────────────────────────↗  (direct, in-process)
+```
+
+- **`server/services/*.ts`** holds all business logic as plain `(userId, input)` async functions. It imports `db`, the zod schemas and `AppError`, and nothing from `@tanstack/*`. That is what lets the 51 MCP tools call it directly: the MCP graph never touches the Start compiler, so there is no function-id registration, no CSRF, no Seroval, no HTTP hop.
+- Services **re-parse their input** with the shared zod schema. Two entry points means two independent validators; parsing inside the service is the only guarantee that covers both, and it makes each service callable from a script without ceremony.
+- **`server/fn/*.fn.ts`** wraps services for the browser. Every route loader prefetches with `queryClient.ensureQueryData(...)` and components read with `useSuspenseQuery`, so tab data is server-rendered and hydrated — there is no loading spinner to reintroduce.
+- **`lib/queries/keys.ts`** owns every query key (`qk.*`), replacing tRPC's `utils.*.invalidate()`. Invalidate by key **root** (`qk.people`), not by leaf — prefix matching covers the leaves.
+
+> **A `.fn.ts` module must export ONLY server functions.** Exporting any plain runtime value makes the Start compiler treat the module as mixed and mis-register its function ids. `vite build` tolerates it; **`vite dev` throws `Invalid server function ID` at call time** — so it hides until someone clicks the thing. This is why `server/middleware/auth.ts` lives outside `fn/`: `createMiddleware` returns a runtime value.
+
+> **Never `import 'server-only'`.** That package's exports map the `react-server` condition to an empty module and everything else to a bare `throw`, and Vite's SSR pass does not apply that condition — so the guard fires on the server it exists to protect and 500s every request. `vite build` does not catch it. The boundary is enforced by the `no-restricted-imports` rule in `eslint.config.mjs` (client-reachable directories may not import `~/server/**` or `~/lib/mcp/**`) plus a CI grep over `.output/public/`.
+
+**Errors across the wire.** Services throw `AppError`. `authMiddleware` converts it to an HTTP status plus a `CODE: message` string, because Seroval does not reconstruct an `Error` subclass on the client — so don't rely on `instanceof AppError` there; `lib/queries/errors.ts` parses the code back out of the message. The MCP path loses nothing: it calls services in-process, where `instanceof` holds and `_meta.trpc_code` stays exact.
+
+**Mutations reject.** Under the old `GoalsContext` a failed write was swallowed into `console.error` and looked identical to a success. The hooks in `lib/mutations/` reject, and call sites toast. Optimistic paths (goal position, task scheduling, person category, the Self lists) snapshot, patch, and roll back.
+
+**Week-keyed queries are never prefetched in a loader.** `weekStartOf` works in local time and a loader also runs on the server, so a server in UTC and a browser in UTC−3 would key differently and refetch on hydration. Pulse and WeeklyRetrospective use plain `useQuery` and compute the week client-side.
 
 ## Features
 
@@ -77,7 +161,7 @@ uploads/{userId}/...         # File storage (outside src/)
 Sync items + unified Upcoming feed (next bids + important dates) + On the Horizon (Month/Quarter/Year, year collapsed by default).
 
 ### Weekly retrospectives
-User-owned tracking-items library (goal optional → "Unscoped"), reusable sync templates (one default per user auto-snapshots into each new sync), inline `text_content` per sync item, and binary attachments under `uploads/{userId}/attachments/`.
+User-owned tracking-items library (goal optional → "Unscoped"), reusable sync templates (one default per user auto-snapshots into each new sync), inline `text_content` per sync item, and binary attachments (rows in `attachments`, bytes in `files`).
 
 ### Personal CRM (People + Self)
 - People are a **reflection surface**, not a contact manager — phone/email/birthday/last-contact/vCard import were intentionally removed.
@@ -90,34 +174,38 @@ User-owned tracking-items library (goal optional → "Unscoped"), reusable sync 
 - **Self page** — "living portrait": prose fields on `user_self` + list buckets in `self_list_items` (energizers, drainers, just-for-me, proud, patterns by category, triggers, released, year-ahead). Empty fields = clean page, not unfinished form.
 
 ### Auth & multi-user
-**Auth.js v5** (`next-auth`, server-only) with the Credentials provider handles signup + sign-in via email/password. JWT session strategy: the session token is a signed cookie (`AUTH_SECRET`), no `sessions` table. Google is scaffolded (commented out) in `src/lib/auth/index.ts`; uncomment + add `AUTH_GOOGLE_ID/AUTH_GOOGLE_SECRET` to enable. **Browser-initiated flows run through server actions in `src/app/auth/actions.ts`** (`signInWithPasswordAction`, `signUpAction`, `signOutAction`, `changePasswordAction`). The browser bundle contains no auth SDK — everything stays server-side.
+**`@auth/core` directly** (no `next-auth` wrapper) with the Credentials provider handles signup + sign-in via email/password. JWT session strategy: the session token is a signed cookie (`AUTH_SECRET`), no `sessions` table. Google is scaffolded (commented out) in `src/server/auth/config.ts`; uncomment + add `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` to enable. Browser-initiated flows go through the server functions in `src/server/fn/auth.fn.ts` (`signIn`, `signUp`, `signOut`, `changePassword`), which return `{ ok: true } | { ok: false, error }`. The browser bundle contains no auth SDK.
 
-No email-dependent flows in v1: no email confirmation, no magic links, no password reset. Adding any of those means wiring an email transport and switching the providers list in `src/lib/auth/index.ts`.
+No email-dependent flows in v1: no email confirmation, no magic links, no password reset. Adding any of those means wiring an email transport and switching the providers list in `src/server/auth/config.ts`.
 
 Identity flow:
-- Sessions live in HttpOnly cookies issued by Auth.js's edge middleware (`middleware.ts` re-exports `auth as middleware`). JWT strategy means there's no token refresh round-trip.
-- `/api/auth/[...nextauth]/route.ts` handles all NextAuth callbacks (sign-in, sign-out, session reads).
-- `public.users.id` is `uuid` with `defaultRandom()` — generated locally on user creation. No FK to an external auth table. The `accounts` table exists (required by `@auth/drizzle-adapter`) but is empty until Google is enabled.
-- The tRPC context (`src/lib/api/trpc.ts`) resolves the current user via `await auth()` (server helper) and exposes the same `{ userId, userName }` shape every router already reads.
+- **`src/server/auth/session.ts`** — `getServerSession()` is a port of `next-auth/lib/index.js`'s session read: it builds a Request to `createActionURL('session', …)` and calls `Auth(request, config)`, memoized per Request in a WeakMap. Chosen over hand-decoding with `@auth/core/jwt` because the JWE **salt defaults to the cookie name** and the name is `__Secure-`-prefixed under HTTPS — so a hand-rolled decode silently returns `null` in production while passing locally. Going through the session action derives the name, the prefix and the salt from the same code that wrote them, and runs the `session` callback that produces `session.user.id`.
+- **`src/routes/api.auth.$.ts`** mounts `@auth/core` at `/api/auth/*`. Nothing in the UI hits it (sign-in runs in-process), but it preserves the public contract and is the landing pad for a social provider. **It rewrites the request origin from `x-forwarded-{proto,host}`** — `@auth/core` reads the protocol straight off `request.url`, Next used to rebuild that from the forwarded headers, and Nitro does not. Without the rewrite, everything behind a TLS-terminating proxy reads as signed-out.
+- **`basePath: '/api/auth'` must stay set explicitly.** `@auth/core` defaults to `/auth`; only `next-auth` forced `/api/auth`.
+- Do **not** set `cookies`, `useSecureCookies`, `jwt.encode`/`jwt.decode`, or `session.maxAge` in the config. Each one changes the cookie name, the salt, or the key derivation, and the failure mode is a silent `null` — i.e. everyone logged out.
+- `public.users.id` is `uuid` with `defaultRandom()`, generated locally. No FK to any external auth table. The `accounts` table exists (required by `@auth/drizzle-adapter`) but is empty until a social provider is enabled.
+- **`src/server/middleware/auth.ts`** is the replacement for tRPC's `protectedProcedure`: it resolves the session once and hands `{ userId }` to the handler as typed context.
 
-Full per-user data isolation via cascade FKs. Profile page (`ProfileModal`) handles name/email edit, avatar upload, and password change. Password change calls `changePasswordAction` which bcrypt-compares the current password before writing the new hash — preserves the "verify current first" UX guarantee.
+The `/app` route's `beforeLoad` guard redirects to `/login?next=…` **in the HTTP response** — a real 307, not the `useEffect` bounce the Next version used, so there is no flash of the shell before the redirect.
+
+Full per-user data isolation via cascade FKs. `ProfileModal` handles name/email edit, avatar upload, and password change; `changePassword` bcrypt-compares the current password before writing the new hash, preserving the "verify current first" guarantee.
 
 ### File management
 Image, document, and other binary uploads on weekly-sync items; built-in inline text editor for sync notes (DB-only, no filesystem).
 
 ## Database Structure
 
-**Conventions for every table:** `id` (text, primary key, cuid2), `createdAt` and `updatedAt` (timestamp, audit). Listed only when notable. All user-scoped tables cascade-delete on `users.id`. **Exception:** `users.id` itself is a `uuid` matching `auth.users(id)` (Supabase Auth's primary key) and every `user_id` FK column is also `uuid` — no cuid2 on the user identity boundary.
+**Conventions for every table:** `id` (text, primary key, cuid2), `createdAt` and `updatedAt` (timestamp, audit). Listed only when notable. All user-scoped tables cascade-delete on `users.id`. **Exception:** `users.id` itself is a `uuid` and every `user_id` FK column is also `uuid` — no cuid2 on the user identity boundary. (The uuid is a leftover from the Supabase Auth era, kept because the column type is load-bearing across every FK; it is now generated locally.)
 
 ### users
 - `id` (uuid, PK, `defaultRandom()` — generated locally on user creation; no external auth-table FK)
-- `name`, `email` (UNIQUE), `passwordHash` (nullable — bcrypt-hashed by `signUpAction`/`changePasswordAction`), `emailVerified` (timestamp, nullable — unused in v1; Auth.js adapter type compatibility), `image` (text, nullable — Auth.js adapter compatibility, unused), `avatarUrl` (text, nullable — `/api/files/{id}` pointer; null = `Avatar.tsx` initial fallback), `locale` (BCP-47 code, nullable)
+- `name`, `email` (UNIQUE), `passwordHash` (nullable — bcrypt-hashed by the `signUp` / `changePassword` server fns), `emailVerified` (timestamp, nullable — unused in v1; Auth.js adapter type compatibility), `image` (text, nullable — Auth.js adapter compatibility, unused), `avatarUrl` (text, nullable — `/api/files/{id}` pointer; null = `Avatar.tsx` initial fallback), `locale` (BCP-47 code, nullable)
 
 ### accounts (Auth.js)
 - Created by `@auth/drizzle-adapter`. Empty in v1 (Credentials provider doesn't write here). Required so the adapter's assertions succeed and the table is ready the day a social provider lands.
 
 ### files
-- Generic binary blob store — replaces Supabase Storage. One row per uploaded file (avatars, person photos, sync attachments). Bytes live in `data` (bytea); served by `/api/files/[id]` which auth-gates by session cookie + owner match.
+- Generic binary blob store. One row per uploaded file (avatars, person photos, sync attachments). Bytes live in `data` (bytea); served by `/api/files/$id`, which auth-gates by session cookie + owner match.
 - `id` (cuid2, PK), `ownerId` (uuid, FK → users.id, cascade), `fileName`, `mimeType`, `sizeBytes` (int), `data` (bytea), `createdAt`
 
 ### values
@@ -201,83 +289,87 @@ One table for every list-shaped Self section. Server enforces `patternCategory` 
 - **Horizon bucket per task** — computed from `scheduledAt` + current calendar in `horizon-period.ts` (`bucketForDate`, `currentMonthRange`, `endOfCurrentBucket`, `formatScheduledShort`).
 - **Current week sync existence**, **per-tracking-item attachment counts**.
 
-## Backend endpoints (tRPC)
+## Service layer
+
+One file per domain in `src/server/services/`, one thin `.fn.ts` wrapper per file in `src/server/fn/`, one `queryOptions` factory per read in `src/lib/queries/`. The names below are the **service exports**; the server fn of the same name is a one-line delegate. Grouped by their old tRPC namespace so the mapping stays legible.
 
 ### auth
-Signup/sign-in/sign-out/password-change are **server actions** (`src/app/auth/actions.ts`); `GoalsContext.tsx` exposes thin wrappers (`signInWithPassword`, `signUp`, `logout`) that call the actions and invalidate the `auth.me` tRPC query. The tRPC router only covers authenticated profile reads/writes against the local users row:
-- `me` — returns `{ id, name, email, avatarUrl, locale }` from `public.users`
-- `updateProfile` (rejects email collisions; writes directly to `public.users`)
-- `uploadAvatar` (base64 → `files` table, sets `users.avatarUrl` to `/api/files/{id}`; previous avatar's blob deleted after the update), `removeAvatar` (clears `users.avatarUrl` + deletes the blob)
+`signIn` / `signUp` / `signOut` / `changePassword` are server fns in `auth.fn.ts` returning `{ ok: true } | { ok: false, error }`; the first three are pre-auth by definition, `changePassword` runs behind `authMiddleware` and bcrypt-compares the current password first. The rest are ordinary profile reads/writes against the local users row:
+- `me` — `{ id, name, email, avatarUrl, locale }` from `public.users`
+- `updateProfile` (rejects email collisions)
+- `uploadAvatar` (base64 → `files` table, sets `users.avatarUrl` to `/api/files/{id}`; previous avatar's blob deleted after the update), `removeAvatar` (clears the pointer + deletes the blob)
 - `setLocale` (persists the BCP-47 locale code)
 
-Password change while logged in: server action `changePasswordAction` (bcrypt-compares current, then writes new hash). No tRPC procedure.
+`session` and `me` are deliberately **separate queries**: the cookie carries name/email but a stale `avatarUrl` and no `locale`. `sessionQueryOptions` is cookie-only, `staleTime: Infinity`, and drives the route guard; `meQueryOptions` reads the live row and drives ProfileModal, Avatar and `useLocale`.
 
-### goals.goals
+### goals
 - `getAll`, `create`, `update`, `delete` — full CRUD with tasks + value associations + cascading
 
-### goals.values
+### values
 - `getAll`, `create`, `update`, `delete` — value CRUD; deletion removes goal associations
 
-### goals.tasks
+### tasks
 - `create({ goalId, ...fields, referentIds?, groupIds? })` — referent/group sets at create time
 - `update` — replace-set semantics on `referentIds[]`/`groupIds[]` (omit to leave unchanged); accepts `scheduledAt`
 - `delete`
 - `setScheduled({ id, scheduledAt })` — drag-drop endpoint for Horizons; only persists the date, bucket is client-computed
 - (Pulse uses `nextBids.listUpcoming` + `importantDates.list`, see below)
 
-### goals.connections
+### connections
 - `getAll`, `create`, `update`, `delete` (weight is the only mutable field)
 
-### goals.trackingItems (replaces old `getAll`)
+### trackingItems
 - `list({ goalId? })`, `create({ title, description?, goalId?, order? })`, `update`, `delete` (soft when referenced by a sync, hard otherwise)
 
-### goals.syncTemplates
+### syncTemplates
 - `list`, `create({ name, isDefault? })` (clears existing default in same tx if `isDefault: true`), `update`, `delete`, `setItems({ templateId, items })` (replace-set with orderIdx)
 
-### goals.weeklySync
+### weeklySync
 - `getByWeek({ weekStart })`, `getWeeklyRetrospectiveData({ weekStart })` (hydrates everything: sync row, full library, goal-grouped items + attachments, top-level `unscopedItems[]`)
 - `create({ weekDate, templateId? })` — snapshots from explicit/default template, empty otherwise
 - `addItem` (idempotent), `removeItem` (drops from this sync only; library row stays; hand-deletes attachments to unlink files), `setItemText`, `reorderItems`
 
-### goals.attachments
+### attachments
 - `upload({ parentType: 'weekly_sync_item', parentId, fileName, fileType, data })` — base64; inserts the file blob into `files`, then the attachment metadata row. Metadata-insert failure rolls back the file row (no orphan bytes). Returns `{ url }` as a `/api/files/{id}` path.
 - `delete({ id })` — single attachment delete; cascades the `files` row via FK.
 
-### goals.images
+### images
 - `upload`, `uploadMultiple` — single-image / multi-image upload (used outside the weekly-sync flow)
 
-### goals.people
+### people
 - `getAll({ includeArchived? })`, `getById`, `create`, `update`, `archive`/`unarchive` (preferred), `delete` (hard, only for wrong entries)
 - `setCategory` — drag-drop, updates only category + boardOrder
 - `getTasksAsReferent` (with goal context), `getBucketListItemsAsParticipant` (read-only, shown in PersonModal)
 
-### goals.groups
+### groups
 - `getAll`, `create`, `update`, `delete` — CRUD for cross-entity groups
 - `getTasks({ groupId })` — tasks in a group joined with goal context (id/title/emoji + `scheduledAt` + completion); drives the Tasks section on the group filter view
 
-### goals.nextBids
+### nextBids
 - `list({ personId })`, `create({ personId, content, dueAt? })`, `update({ id, content?, dueAt? })` (`dueAt: null` clears), `setCompleted({ id, completed })` (sets/clears `completedAt`; bid stays visible), `delete` (hard — only for wrong entries)
 - `listUpcoming({ withinDays })` — open bids across all the user's people whose `dueAt` falls within window (default 60d); joined with person name + emoji; drives Pulse "Upcoming" alongside `importantDates.list`
 
-### goals.importantDates
+### importantDates
 - `list({ personId? })` (omit personId → all dates, sorted by month/day), `create`, `update`, `delete`
 
-### goals.self
+### self
 - `get` (or null), `update` — partial upsert on prose fields; only fields you pass get written
 
-### goals.selfListItems
+### selfListItems
 - `list` (ordered by kind then orderIdx — client groups by kind), `create({ kind, content, patternCategory? })` (server zeroes patternCategory unless `kind = 'pattern'`), `update` (same enforcement), `delete`, `reorder({ kind, ordering })` (gated on userId+kind so a forged id from another kind/user is a no-op)
 
-### goals.bucketList
+### bucketList
 - `list` (oldest first; rows hydrate `personIds[]`), `create`, `update` (pass `personIds` to replace link set, omit to leave unchanged), `toggleCompleted`, `delete`
 
 ### Data export
-- `goals.data.getAll` — all user data (values, goals, connections)
-- `goals.backup.export` / `goals.backup.import` — full user backup including people + userSelf
+- `data.getAll` — all user data (values, goals, connections). Shares `src/lib/data/queries/load-goals.ts` with `goals.getAll` — the 6-query hydration lives there once.
+- `backup.export` / `backup.import` — full user backup including people + userSelf. `import` re-parses its (large, untrusted) payload inside the service; that is not optional there.
 
 ## File storage
 
-All binary uploads live in the **`files`** Postgres table — bytes stored as `bytea`, served by the `/api/files/[id]` route. No external object store, no signed URLs, no RLS dance: the route auth-gates by Auth.js session cookie + `ownerId` match, full stop. Sync-item text notes are inline in `weekly_sync_items.text_content` (DB-only).
+All binary uploads live in the **`files`** Postgres table — bytes stored as `bytea`, served by the `/api/files/$id` route. No external object store, no signed URLs, no RLS dance: the route auth-gates by Auth.js session cookie + `ownerId` match, full stop. Sync-item text notes are inline in `weekly_sync_items.text_content` (DB-only).
+
+> **The route path must stay exactly `/api/files/$id`.** The literal string `/api/files/{id}` is persisted in `users.avatar_url` and `people.emoji`, so moving the route orphans every stored reference.
 
 The route is auth-gated on every request and returns 404 for both "not found" and "not owned by caller" so no enumeration leaks. `Cache-Control: private, max-age=300` lets the browser keep the bytes for the session without persisting them in a shared cache.
 
@@ -290,24 +382,28 @@ How callers reference uploaded files:
 
 **Security:**
 - The serving route requires an authenticated session AND matches `files.ownerId` against the session user. Nothing else.
-- Upload routes (`auth.uploadAvatar`, `people.uploadImage`, `attachments.upload`) build the `ownerId` from the server-verified `ctx.user.userId` — no user-supplied path segments anywhere.
+- Upload services (`auth.uploadAvatar`, `people.uploadImage`, `attachments.upload`) build the `ownerId` from the `userId` that `authMiddleware` resolved server-side — no user-supplied path segments anywhere.
 - Base64 envelope decoded + validated (size + image magic-bytes if `fileType === 'image'`) before any DB write.
 - Attachment upload inserts the `files` row first, then the `attachments` metadata row. If the metadata insert throws, the file row is rolled back via a follow-up delete (no orphan bytes).
 - `isOurStorageImageUrl` rejects anything that isn't a clean `/api/files/{id}` path so user-pasted external URLs can't be smuggled through the emoji/avatar fields.
 
 ## MCP server (talk-to-Anansi via Claude)
 
-Anansi ships a remote **Model Context Protocol** server at `POST /api/mcp` so Claude Desktop / claude.ai Connectors / Claude Code can read and write the user's goals, tasks, people, values, bids, dates, groups, bucket list, and Self entries through a tool catalog. The server **IS its own OAuth 2.1 Authorization Server** — it does not delegate to Supabase upstream — but it uses the existing Supabase session as the identity input to `/oauth/authorize`. Bearer tokens are short-lived (1h access) with rotating refresh (30d).
+Anansi ships a remote **Model Context Protocol** server at `POST /api/mcp` so Claude Desktop / claude.ai Connectors / Claude Code can read and write the user's goals, tasks, people, values, bids, dates, groups, bucket list, and Self entries through a tool catalog. The server **IS its own OAuth 2.1 Authorization Server** — it delegates to nothing upstream — but it uses the browser's Auth.js session as the identity input to `/oauth/authorize`. Bearer tokens are short-lived (1h access) with rotating refresh (30d).
 
-Transport: Streamable HTTP via `@modelcontextprotocol/sdk`'s `WebStandardStreamableHTTPServerTransport` (stateless, JSON response mode). Each request creates a fresh `McpServer` + transport; bearer is validated against `mcp_access_tokens.token_hash`, identity resolved to `{ userId, userName }`, and the same `createCaller(ctx)` that powers tRPC server-side calls dispatches each tool. No parallel business logic; no extra network hop.
+Transport: Streamable HTTP via `@modelcontextprotocol/sdk`'s `WebStandardStreamableHTTPServerTransport` (stateless, JSON response mode). Each request creates a fresh `McpServer` + transport; the bearer is validated against `mcp_access_tokens.token_hash`, identity resolves to `McpCtx = { userId }`, and each tool calls `src/server/services/*` **directly, in-process**. No parallel business logic, no extra network hop, and — because the MCP graph never reaches the Start compiler — no server-function registration, CSRF or Seroval involved.
+
+`src/routes/api.mcp.ts` must **never import `~/server/auth/session`**. MCP identity comes from the bearer token and nothing else; the only legitimate crossover is `/oauth/authorize`, which needs the browser session to know who is consenting.
 
 ### Endpoints
 
 - `POST /api/mcp` — main JSON-RPC endpoint. 401 + `WWW-Authenticate: Bearer realm="anansi-mcp", resource_metadata="…"` on missing/invalid token.
-- `GET /.well-known/oauth-protected-resource` — RFC 9728 (rewritten in `next.config.js` to `/api/oauth/well-known/oauth-protected-resource`).
-- `GET /.well-known/oauth-authorization-server` — RFC 8414 (same rewrite shape).
+- `GET /.well-known/oauth-protected-resource` — RFC 9728, served directly by `[.]well-known.oauth-protected-resource.ts`. No rewrite indirection.
+- `GET /.well-known/oauth-authorization-server` — RFC 8414, same shape.
 - `POST /oauth/register` — RFC 7591 Dynamic Client Registration. Public-client only (`token_endpoint_auth_method = "none"`). Rate-limited 5/min/IP.
-- `GET /oauth/authorize` — server-component consent page. Reads Supabase cookie. No session → 302 `/login?next=<this-url-encoded>` (login/register honor `?next=`). Prior consent for same `(user, client, scope)` → auto-mint code + 302 to redirect_uri. Otherwise renders `ConsentScreen`.
+- `GET /oauth/authorize` — the consent page. Reads the Auth.js session cookie. No session → redirect to `/login?next=<this-url-encoded>` (login/register honor `?next=`). Prior consent for the same `(user, client, scope)` → auto-mint a code + redirect to redirect_uri. Otherwise renders `ConsentScreen`.
+  - All four branches (`error` | `redirect` | `consent`) resolve inside **one** server fn, `resolveAuthorize` in `oauth.fn.ts`, because a TanStack loader also runs on the client — neither `getServerSession()` nor `mintAuthCode()` can be called from the loader body. The route sets `staleTime: Infinity` + `shouldReload: false` so it cannot re-run; the codes table is single-use anyway, so a stray mint is unused rather than dangerous.
+  - **The error branch renders inline and never redirects to an unverified `redirect_uri`.** That is the security property of the unknown-client case, not a UI preference.
 - `POST /oauth/authorize/decision` — handles Approve/Deny. CSRF-guarded by Origin/Referer check. Approve mints a 60s single-use code bound to PKCE + redirect_uri, records consent, 303 to redirect_uri.
 - `POST /oauth/token` — `authorization_code` + `refresh_token` grants. PKCE S256 only. Refresh is rotating with `SELECT … FOR UPDATE` to serialize concurrent rotations. Rate-limited 20/min/IP.
 - `POST /oauth/revoke` — RFC 7009. Always returns 200.
@@ -318,9 +414,13 @@ Transport: Streamable HTTP via `@modelcontextprotocol/sdk`'s `WebStandardStreama
 
 Domains: `system` (1 — `whoami`), `goals` (4), `tasks` (4), `values` (7), `people` (9), `next_bids` (6), `important_dates` (4), `groups` (5), `bucket_list` (5), `self` (6). Out of scope for v1 (re-add when needed): connections (graph topology), tracking items / sync templates / weekly sync, attachments / images, backup / data export.
 
-MCP-specific gates (not in underlying tRPC schemas): `create_person` / `update_person` reject URL emojis (LLM can't construct valid Supabase Storage URLs anyway); `create_goal` omits the `tasks` array (use `create_task` after the goal exists) so the LLM doesn't have to think about pre-cast task ids.
+MCP-specific gates (not in the underlying service schemas): `create_person` / `update_person` reject URL emojis (an LLM can't construct a valid `/api/files/{id}` pointer anyway); `create_goal` omits the `tasks` array (use `create_task` after the goal exists) so the LLM doesn't have to think about pre-cast task ids.
 
-### Tables (one migration: 0023)
+`src/lib/mcp/errors.ts` maps `AppError` → an MCP error result. **`_meta.trpc_code` keeps its name verbatim** even though tRPC is gone — it is an opaque private field that clients may already key on, and renaming it would be a gratuitous wire change.
+
+**The catalog is pinned.** `.golden/mcp-tools.json` holds the full `tools/list` output with every `inputSchema`; the diff against it must be **exactly zero** after any change here. `.golden/verify-mcp-tools.sh` runs it.
+
+### Tables
 
 All `user_id` columns are `uuid REFERENCES users(id) ON DELETE CASCADE`. Tokens stored as `token_hash` (SHA-256 hex of the raw value) — raw token never persisted.
 
@@ -334,25 +434,28 @@ All `user_id` columns are `uuid REFERENCES users(id) ON DELETE CASCADE`. Tokens 
 ### File layout (under src/)
 
 ```
-app/api/mcp/route.ts                           # Bearer auth + tRPC bridge + transport
-app/api/oauth/well-known/{oauth-authorization-server,oauth-protected-resource}/route.ts
-app/oauth/{register,token,revoke}/route.ts
-app/oauth/authorize/page.tsx                   # Server component, consent + auto-approve
-app/oauth/authorize/decision/route.ts          # Form POST → code mint
-components/oauth/ConsentScreen.tsx             # Server-rendered consent UI (EN-only for v1)
+routes/api.mcp.ts                              # Bearer auth + transport
+routes/[.]well-known.oauth-{authorization-server,protected-resource}.ts
+routes/oauth.{register,token,revoke}.ts
+routes/oauth.authorize.tsx                     # loader → resolveAuthorize server fn
+routes/oauth.authorize.decision.ts             # Form POST → code mint
+server/fn/oauth.fn.ts                          # resolveAuthorize (all four branches)
+components/oauth/ConsentScreen.tsx             # Consent UI (EN-only for v1)
 lib/mcp/server.ts                              # Per-request McpServer factory
-lib/mcp/caller.ts                              # createMcpCaller → createCaller(ctx)
-lib/mcp/errors.ts                              # mapTrpcError + mcpJsonResult
+lib/mcp/types.ts                               # McpCtx = { userId }
+lib/mcp/errors.ts                              # AppError → MCP error result + mcpJsonResult
 lib/mcp/tools/{system,goals,tasks,values,people,next_bids,important_dates,groups,bucket_list,self}.ts
 lib/mcp/oauth/{store,clients,codes,tokens,pkce,consent,metadata,scopes,audit,authorize-validation}.ts
 ```
+
+`ConsentScreen.tsx` is a plain HTML form posting to `/oauth/authorize/decision`, which stays a server route with its Origin/Referer CSRF check and 303 intact. `metadata.ts`'s `resolveOrigin(req: Request)` honours `x-forwarded-{proto,host}`, so the advertised endpoints are correct behind a proxy.
 
 ### Dev wiring
 
 Add to `.mcp.json` in any project (or Claude Desktop's config):
 
 ```json
-{ "mcpServers": { "anansi": { "type": "http", "url": "http://localhost:3000/api/mcp" } } }
+{ "mcpServers": { "anansi": { "type": "http", "url": "http://localhost:5173/api/mcp" } } }
 ```
 
 In Claude Code, run `/mcp` and pick `anansi` → it walks DCR + browser OAuth automatically. For prod, swap the URL. The MCP client caches the issued client_id and refresh token, so the browser-tab login flow runs once per device.
@@ -368,36 +471,73 @@ In Claude Code, run `/mcp` and pick `anansi` → it walks DCR + browser OAuth au
 - DCR is unauthenticated and publicly accessible — acceptable for a single-user personal app. For multi-tenant deployment, add an admin allow-list before exposing.
 - Audit log captures every OAuth state change (never tool calls — too noisy). Token hashes / raw codes are never logged.
 
-## Maintenance
+## Styling (Tailwind v4)
 
-**This file is the single source of truth.** Update it on the same commit as any change to: schema, API endpoints, file structure, features, tech stack, auth, file storage, or major UI restructuring. Out-of-date docs are worse than no docs — a future agent will trust the wrong fact and break something.
+`src/styles/globals.css` is the single entry: `@import 'tailwindcss'`, then the `@source` directives, then the React Flow stylesheet, then ~70 oklch design tokens with `color-mix()`, the `[data-theme="dark"]` overrides and a small `@layer base`. There is no `tailwind.config.ts`, no `postcss.config.cjs`, no autoprefixer (lightningcss handles prefixing), and no `theme.extend` / `@apply` / `theme()` anywhere. Dark mode is a `[data-theme]` attribute, **not** Tailwind's `dark:` variant — there are zero real `dark:` usages in the codebase.
+
+> **The `@source '../components'` and `@source '../routes'` directives are not optional.** v4 discovers classes by scanning outward from the CSS file's own directory, and `globals.css` lives in `src/styles/` while every class lives in a sibling. Delete them and nearly every utility silently vanishes *while the build still succeeds and the pages still render* — just unstyled.
+
+Two v4 preflight changes are restored in the `@layer base` block rather than at ~190 call sites: `cursor: pointer` on non-disabled buttons (v3 preflight had it, v4 dropped it), and `::placeholder { color: var(--ink-4) }` (v3 used gray-400, v4 uses currentColor@50%; `--ink-4` is what this design system actually defines for placeholders). Also renamed during the v4 port: `flex-shrink-0` → `shrink-0` (the old name emits nothing in v4), `backdrop-blur-sm` → `backdrop-blur-xs` (the scale shifted, so the old name now means 2× the blur), `outline-none` → `outline-hidden` (v4's `outline-none` is `outline-style: none`; `outline-hidden` preserves v3's forced-colors-friendly transparent outline).
+
+## Supply-chain cooldown
+
+`pnpm-workspace.yaml` sets `minimumReleaseAge: 10080` — no package version published in the last 7 days may be used. It is enforced **at every install, including `--frozen-lockfile`**, which re-verifies all lockfile entries; a lockfile written with the cooldown off will fail CI and the Docker build even though nothing is being resolved.
+
+Adding a dependency:
+
+```bash
+# comment out minimumReleaseAge in pnpm-workspace.yaml
+pnpm add <pkg>
+# restore minimumReleaseAge
+pnpm install --frozen-lockfile   # ← the step that catches a too-young TRANSITIVE dep
+```
+
+That last command is the one that matters, and it fails more often than the `pnpm add` does. When it names a transitive dependency, pin it under `overrides:` in `pnpm-workspace.yaml` with a comment saying when the pin can be deleted — and note that the policy check runs *before* resolution, so landing the pin needs one more install with the cooldown commented out. `pnpm dlx` from this repo needs `--config.minimum-release-age=0`.
 
 ## Post-change verification (required for every non-trivial change)
 
-After any meaningful change — schema, router, component, refactor — run the full trio and **fix every warning and error before declaring the work done**. Skipping turns the next session's first 30 minutes into cleanup.
+After any meaningful change — schema, route, component, refactor — run the whole set and **fix every warning and error before declaring the work done**.
 
 ```bash
-npm run format    # Prettier (formats in place)
-npm run lint      # ESLint — must end with zero warnings AND zero errors
-npm run build     # Next build — treat warnings as errors
+pnpm format      # Prettier, formats in place
+pnpm lint        # ESLint — must end with zero warnings AND zero errors
+pnpm typecheck   # tsr generate && tsc --noEmit
+pnpm build       # vite build (client + SSR + nitro)
 ```
 
 Rules:
 - Zero is the only acceptable count. Don't ship "just one warning" — they compound and get ignored.
-- If a warning seems wrong, fix the root cause (rename a variable, restructure a hook, narrow a type) rather than disabling the rule. `eslint-disable` comments need a one-line justification and should be rare.
-- The pre-existing `_global-error` prerender warning during `npm run build` is the documented exception (see memory). Anything else new is on you to fix.
+- Fix the root cause rather than disabling a rule. `eslint-disable` comments need a one-line justification and should be rare.
+- **Do not run `pnpm typecheck` while `pnpm dev` is running.** Both generate `routeTree.gen.ts`; racing them puts the dev server into an endless reload loop that looks like an app bug.
+
+> **A green `pnpm build` is not evidence that the app runs.** Three separate defects during the migration passed `vite build` and failed on the first real request: `import 'server-only'` (500 on every SSR pass), a mis-registered server-function id (`Invalid server function ID`, only at call time), and a dnd-kit hydration mismatch. **Exercise changes in `pnpm dev` from a real browser**, and include *client-side* navigation — a hard reload runs loaders on the server where a server fn is a direct call, so only client-side navigation tests the RPC path.
+
+`.golden/` holds the pre-migration oracle and is the reference for anything that must not drift: the 51-tool `tools/list` JSON, both `.well-known` documents, the MCP 401 response (which doubles as the security-header baseline), and 29 screenshots. `.golden/README.md` documents the diff procedure and its known false positives (`objectives-*` always differ — React Flow animates its dashed edges).
+
+## Infrastructure
+
+- **`start.mjs`** is the container entry: apply Drizzle migrations, then `import('./.output/server/index.mjs')` (Nitro's bundle listens on import and reads `PORT`/`HOST`). It preflights `DATABASE_URL` and `AUTH_SECRET` and exits 1 if either is missing. **`MIGRATE_ONLY=1` short-circuits before the server starts and exits 0** — that is a hard external contract, used as a NixOS `ExecStartPre`. Do not split this into a separate migration container.
+- **Dockerfile** — `node:24` builder → `node:24-slim` runtime, non-root `anansi` user, `HEALTHCHECK` against `/api/healthz` (which round-trips a `SELECT 1`, so unhealthy means "can't serve", not merely "process dead"). `pnpm install --config.node-linker=hoisted` is load-bearing: the runtime stage copies `node_modules/drizzle-orm` and `node_modules/postgres` as flat directories for `start.mjs` to import, and pnpm's default symlinks would arrive dangling.
+- **`.dockerignore`** — the `*.png` exclusion is written `/*.png`, anchored to the context root. A bare `*.png` matches at every depth and would silently drop `public/icon.png` and `public/apple-icon.png`, breaking the favicon with no error anywhere.
+- **Security headers** — the six headers that used to be `next.config.js`'s `headers()` now live in `src/lib/security-headers.ts` and are applied by a global **request** middleware in `src/start.ts`. Request middleware wraps every request Start handles — pages, server functions, server routes, redirects, 404s — which is what `source: '/:path*'` meant. Nitro `routeRules` would only exist in the built output and silently vanish under `vite dev`. (The one gap: a server function that *throws* produces Start's own 500 outside this middleware, so that response has no headers.)
+- **CI** (`.github/workflows/ci.yml`) runs format:check → lint → typecheck → build, then greps `.output/public/` for server modules and for the build-time env placeholders. The build step needs dummy `DATABASE_URL` + `AUTH_SECRET` because `src/lib/env.ts` validates at import time.
+- **Release** (`.github/workflows/release.yml`) builds a linux/amd64 image and pushes it to the box's own zot registry; s2-server's deploy timer follows `:latest`. It needs no build args — all that matters is a runnable image listening on 3000.
 
 ## Database migrations
 
-Drizzle migrations live in `src/lib/data/db/migrations/`.
+Drizzle migrations live in `src/lib/data/db/migrations/`. There is currently **one** file, `0000_perpetual_scream.sql` — the 23-migration history was squashed.
 
 1. **One migration per PR.** Schema changes land as a single consolidated file, not a chain of fixups. Reviewers shouldn't replay your iteration history; squashing after the fact is a merge-conflict magnet.
 2. **If you change schema during a PR and the previous migration isn't committed yet, roll it back before regenerating:**
    - Manually reverse in Postgres (`DROP TABLE`, `ALTER TABLE DROP COLUMN`, …) and delete the row from `drizzle.__drizzle_migrations` (match on `hash`, not `id`).
    - Delete the uncommitted `.sql` + `meta/NNNN_snapshot.json` and remove the matching `entries[]` item from `meta/_journal.json`.
-   - Edit `schema.ts`, then `npm run db:generate` to produce a single fresh migration.
-   - `npm run db:migrate` to apply.
-   - **Do not** use `npm run db:push` during this workflow — it's interactive and touches unrelated foreign keys.
+   - Edit `schema.ts`, then `pnpm db:generate` to produce a single fresh migration.
+   - `pnpm db:migrate` to apply.
+   - **Do not** use `pnpm db:push` during this workflow — it's interactive and touches unrelated foreign keys.
+
+## Maintenance
+
+**This file is the single source of truth.** Update it on the same commit as any change to: schema, service/endpoint surface, file structure, features, tech stack, auth, file storage, routing, or major UI restructuring. Out-of-date docs are worse than no docs — a future agent will trust the wrong fact and break something.
 
 
 ---

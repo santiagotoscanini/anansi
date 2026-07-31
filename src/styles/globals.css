@@ -1,6 +1,17 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+/* v4 discovers utility classes by scanning outward from THIS file's directory.
+   Every class in this app lives in a sibling of src/styles/, so without these
+   two directives Tailwind finds nothing and emits an empty utility layer —
+   while the build still succeeds and the app still renders, just unstyled.
+   That is the whole reason they are here; do not "tidy" them away. */
+@source '../components';
+@source '../routes';
+
+/* React Flow's stylesheet, imported here rather than from GoalsGraph.tsx so
+   the cascade order is deterministic: it lands before the token definitions
+   and the base layer below, which override parts of it. */
+@import '@xyflow/react/dist/style.css';
 
 /* ============================================================
    ANANSI — Design tokens
@@ -187,17 +198,38 @@
     font: inherit;
     color: inherit;
   }
+
+  /* Two Tailwind v4 preflight changes that would otherwise land as silent
+     regressions across the whole app. Both are restored here rather than by
+     editing ~190 call sites.
+
+     1. v3's preflight set `cursor: pointer` on button and [role="button"];
+        v4 dropped it in favour of the browser default (`default`). 164
+        buttons, 8 of which pass an explicit cursor-pointer — so without this
+        rule almost every button in the app stops looking clickable. */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* 2. v3's preflight coloured ::placeholder gray-400; v4 uses
+        `currentColor` at 50%. Neither is right here: --ink-4 is the token
+        this design system defines for placeholders (see its comment above),
+        which is why 19 inputs already spell `placeholder:text-[var(--ink-4)]`
+        by hand. Setting it once means the other ~36 inputs match, and it
+        tracks the dark-theme override for free. */
+  ::placeholder {
+    color: var(--ink-4);
+  }
 }
 
-@layer utilities {
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
-}
+/* The `.scrollbar-hide` utility that lived here was dropped, not ported.
+   Nothing has referenced the class since e054cc0 ("Make more responsive"),
+   so Tailwind's content scanner was already tree-shaking it out of the v3
+   build — porting it to v4's `@utility` would have carried a definition that
+   has emitted zero bytes for a long time. Reintroduce it as `@utility
+   scrollbar-hide { … }` (not `@layer utilities`, which does not compose with
+   variants in v4) if a scroll container ever needs it again. */
 
 /* ============================================================
    BRAND — wordmark (italic Cormorant + clay drop) + mark.

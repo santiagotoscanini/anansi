@@ -112,7 +112,7 @@ function EditableProse({
         autoFocus
         rows={rows}
         placeholder={placeholder}
-        className={`w-full resize-none rounded-xl border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-3 ${editingSize} text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]`}
+        className={`w-full resize-none rounded-xl border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-3 ${editingSize} text-[var(--ink)] outline-hidden transition-colors placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]`}
       />
     )
   }
@@ -121,7 +121,7 @@ function EditableProse({
     return (
       <button
         onClick={startEdit}
-        className={`block w-full rounded-xl border border-dashed border-[var(--hairline)] px-4 py-3 text-left ${editingSize} italic text-[var(--ink-4)] transition-colors hover:border-[var(--hairline-2)] hover:text-[var(--ink-3)]`}
+        className={`block w-full rounded-xl border border-dashed border-[var(--hairline)] px-4 py-3 text-left ${editingSize} text-[var(--ink-4)] italic transition-colors hover:border-[var(--hairline-2)] hover:text-[var(--ink-3)]`}
       >
         {placeholder}
       </button>
@@ -182,7 +182,7 @@ function ListRow({
             setEditing(false)
           }
         }}
-        className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--hairline-2)]"
+        className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-hidden focus:border-[var(--hairline-2)]"
       />
     )
   }
@@ -257,7 +257,7 @@ function ListBucket({
             }
           }}
           placeholder={placeholder}
-          className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-none placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
+          className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-hidden placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
         />
       ) : (
         <button
@@ -278,7 +278,7 @@ function ListBucket({
 function SectionHeader({ eyebrow, title, helper }: { eyebrow: string; title: string; helper?: string }) {
   return (
     <div className="mb-4">
-      <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--ink-4)]">{eyebrow}</div>
+      <div className="text-[10px] font-medium tracking-[0.18em] text-[var(--ink-4)] uppercase">{eyebrow}</div>
       <h3 className="mt-1.5 text-2xl font-light text-[var(--ink)]">{title}</h3>
       {helper && <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-[var(--ink-3)]">{helper}</p>}
     </div>
@@ -351,7 +351,7 @@ function RelationCard({
 function SubsectionHeader({ label }: { label: string }) {
   return (
     <div className="mb-4 flex items-center gap-3">
-      <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--ink-3)]">{label}</span>
+      <span className="text-[10px] font-medium tracking-[0.18em] text-[var(--ink-3)] uppercase">{label}</span>
       <span className="h-px flex-1 bg-[var(--vellum)]" />
     </div>
   )
@@ -505,7 +505,7 @@ export default function Self() {
           </div>
           {values.length > 0 && (
             <div className="rounded-xl border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-3">
-              <div className="mb-2 text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--ink-4)]">
+              <div className="mb-2 text-[10px] font-medium tracking-[0.18em] text-[var(--ink-4)] uppercase">
                 {t('self.whatIValue')}
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -641,7 +641,7 @@ export default function Self() {
                 >
                   <div className="mb-2.5">
                     <div className="text-xs font-medium text-[var(--ink)]">{label}</div>
-                    <div className="mt-0.5 text-[11px] italic leading-relaxed text-[var(--ink-4)]">
+                    <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--ink-4)] italic">
                       {t(cat.helperKey)}
                     </div>
                   </div>

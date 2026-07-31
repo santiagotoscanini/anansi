@@ -9,7 +9,7 @@ import { Link } from '@tanstack/react-router'
 export default function LegalFooter() {
   return (
     <div
-      className="pointer-events-none fixed bottom-3 right-4 z-50 flex gap-4"
+      className="pointer-events-none fixed right-4 bottom-3 z-50 flex gap-4"
       style={{
         fontFamily: 'var(--font-mono)',
         fontSize: 10,

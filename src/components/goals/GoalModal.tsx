@@ -182,7 +182,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
 
   return (
     <div
-      className="bg-[var(--ink)]/80 fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/80 p-4"
       onClick={showValueModal ? undefined : onClose} // Close when clicking the backdrop, unless value modal is open
     >
       <div
@@ -203,12 +203,12 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
           </button>
         </div>
 
-        <div className="px-6 pb-6 pt-5">
+        <div className="px-6 pt-5 pb-6">
           {/* Goal Details */}
           <div className="space-y-5">
             {/* Title with Emoji */}
             <div>
-              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+              <label className="mb-1.5 block text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
                 {t('goalModal.title')}
               </label>
               <div className="relative flex gap-2">
@@ -232,13 +232,13 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder={t('goalModal.titlePlaceholder')}
-                  className="h-10 flex-1 rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-4 text-[var(--ink)] outline-none transition-all focus:border-[var(--hairline-2)]"
+                  className="h-10 flex-1 rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-4 text-[var(--ink)] outline-hidden transition-all focus:border-[var(--hairline-2)]"
                   autoFocus
                 />
 
                 {/* Emoji Picker Dropdown */}
                 {showEmojiPicker && (
-                  <div className="absolute left-0 top-full z-50 mt-2 rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] p-2 shadow-xl">
+                  <div className="absolute top-full left-0 z-50 mt-2 rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] p-2 shadow-xl">
                     <EmojiPickerLazy onEmojiClick={handleEmojiClick} searchPlaceHolder={t('goalModal.searchEmoji')} />
 
                     {/* Custom Emoji URL Section */}
@@ -254,7 +254,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                             if (e.key === 'Enter') handleCustomEmojiUrl()
                           }}
                           placeholder={t('goalModal.emojiUrlPlaceholder')}
-                          className="flex-1 rounded border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-1.5 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
+                          className="flex-1 rounded border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-1.5 text-sm text-[var(--ink)] outline-hidden transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
                         />
                         <button
                           type="button"
@@ -272,7 +272,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
 
             {/* Description */}
             <div>
-              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+              <label className="mb-1.5 block text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
                 {t('goalModal.description')}
               </label>
               <textarea
@@ -280,13 +280,13 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder={t('goalModal.descriptionPlaceholder')}
                 rows={3}
-                className="w-full resize-none rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2.5 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"
+                className="w-full resize-none rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2.5 text-sm text-[var(--ink)] outline-hidden transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"
               />
             </div>
 
             {/* Value Selection */}
             <div>
-              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+              <label className="mb-1.5 block text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
                 {t('goalModal.values')}
               </label>
 
@@ -298,7 +298,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                   return (
                     <span
                       key={value.id}
-                      className="inline-flex items-center gap-1 rounded-full py-0.5 pl-2.5 pr-1 text-xs font-medium text-[var(--ink)]"
+                      className="inline-flex items-center gap-1 rounded-full py-0.5 pr-1 pl-2.5 text-xs font-medium text-[var(--ink)]"
                       style={{ backgroundColor: value.color }}
                     >
                       {value.name}
@@ -329,7 +329,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
             {/* Tasks Section */}
             <div>
               <div className="mb-3 flex items-center justify-between">
-                <label className="text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+                <label className="text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
                   {t('goalModal.tasks')}
                 </label>
                 {goalId && <span className="text-xs text-[var(--ink-3)]">{Math.round(completion)}%</span>}
@@ -406,7 +406,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
 
                       {/* Visual-only summary badges */}
                       <span
-                        className={`shrink-0 text-[10px] font-medium uppercase tracking-wide ${getDifficultyColor(task.difficulty)}`}
+                        className={`shrink-0 text-[10px] font-medium tracking-wide uppercase ${getDifficultyColor(task.difficulty)}`}
                       >
                         {t(getDifficultyKey(task.difficulty))}
                       </span>
@@ -475,7 +475,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
               <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+                    <p className="text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
                       {t('goalModal.trackingItems')}
                     </p>
                     <p className="mt-1 text-xs text-[var(--ink-3)]">
@@ -484,7 +484,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                         : t('goalModal.trackingCount', { count: trackingItemCount })}
                     </p>
                   </div>
-                  <span className="rounded-full bg-[var(--vellum)] px-2 py-0.5 text-[11px] tabular-nums text-[var(--ink-2)]">
+                  <span className="rounded-full bg-[var(--vellum)] px-2 py-0.5 text-[11px] text-[var(--ink-2)] tabular-nums">
                     {trackingItemCount}
                   </span>
                 </div>

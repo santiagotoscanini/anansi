@@ -122,7 +122,7 @@ export default function ValuesManager() {
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--paper)' }}>
-      <header className="px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
+      <header className="px-6 pt-10 pb-7 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
         <div className="mx-auto max-w-3xl">
           <div
             style={{
@@ -172,7 +172,7 @@ export default function ValuesManager() {
             onChange={(e) => setNewValueName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && void handleAdd()}
             placeholder={t('valuesManager.addPlaceholder')}
-            className="flex-1 rounded-md border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 text-sm outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"
+            className="flex-1 rounded-md border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 text-sm outline-hidden transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"
           />
           <button
             onClick={() => void handleAdd()}
@@ -211,7 +211,7 @@ export default function ValuesManager() {
                       aria-hidden
                     />
                     <span className="min-w-0 flex-1 truncate text-sm">{value.name}</span>
-                    <span className="shrink-0 text-xs tabular-nums text-[var(--ink-3)]">{behaviors.length}</span>
+                    <span className="shrink-0 text-xs text-[var(--ink-3)] tabular-nums">{behaviors.length}</span>
                   </button>
                   <div className="flex shrink-0 gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                     <button
@@ -251,7 +251,7 @@ export default function ValuesManager() {
                               if (e.key === 'Enter') void handleUpdate()
                               if (e.key === 'Escape') cancelEdit()
                             }}
-                            className="flex-1 rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-2 py-1.5 text-sm outline-none focus:border-[var(--hairline-2)]"
+                            className="flex-1 rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-2 py-1.5 text-sm outline-hidden focus:border-[var(--hairline-2)]"
                             autoFocus
                           />
                           <button
@@ -310,7 +310,7 @@ export default function ValuesManager() {
                           ))}
                         </ul>
                       ) : (
-                        <p className="px-2 py-1 text-xs italic text-[var(--ink-3)]">{t('valuesManager.noBehaviors')}</p>
+                        <p className="px-2 py-1 text-xs text-[var(--ink-3)] italic">{t('valuesManager.noBehaviors')}</p>
                       )}
 
                       {/* Add behavior */}
@@ -323,7 +323,7 @@ export default function ValuesManager() {
                             if (e.key === 'Enter') void handleAddBehavior(value.id)
                           }}
                           placeholder={t('valuesManager.behaviorPlaceholder', { name: value.name })}
-                          className="flex-1 rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-2 py-1.5 text-sm outline-none placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
+                          className="flex-1 rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-2 py-1.5 text-sm outline-hidden placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
                         />
                         <button
                           onClick={() => void handleAddBehavior(value.id)}

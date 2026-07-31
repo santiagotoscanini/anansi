@@ -1,17 +1,38 @@
 # pnpm 11 reads project settings from this file, not .npmrc.
 #
-# Supply-chain cooldown: refuse to RESOLVE a package version published less than
-# 7 days ago, so a freshly-published (possibly compromised) release ages out
-# before it can enter the lockfile. This bites at resolution time — `pnpm add`,
-# `pnpm update` — and NOT on a plain or `--frozen-lockfile` install against an
-# already-satisfied lockfile, which is why CI and Docker are unaffected.
+# Supply-chain cooldown: refuse a package version published less than 7 days
+# ago, so a freshly-published (possibly compromised) release ages out before it
+# can be depended on.
 #
-# ADDING A DEPENDENCY: see the "Supply-chain cooldown" note in CLAUDE.md. If
-# resolution fails with ERR_PNPM_MISSING_TIME, comment the line below out, run
-# the install, then restore it and confirm `pnpm install --frozen-lockfile`
-# still succeeds. `pnpm dlx` from this repo needs
-# `--config.minimum-release-age=0`.
+# This is enforced in TWO places, and the second one is easy to forget:
+#   1. at resolution — `pnpm add`, `pnpm update` refuse to pick a young version;
+#   2. at EVERY install, including `--frozen-lockfile`, which re-verifies all
+#      lockfile entries against the policy and fails the install if any is too
+#      young. So a lockfile written with the cooldown commented out will break
+#      CI and the Docker build even though nothing is being resolved.
+#
+# ADDING A DEPENDENCY: see the "Supply-chain cooldown" note in CLAUDE.md.
+# Comment the line below out, install, restore it, then confirm
+# `pnpm install --frozen-lockfile` still succeeds — that last step is the one
+# that catches a too-young transitive dependency pulled in by the new package.
+# `pnpm dlx` from this repo needs `--config.minimum-release-age=0`.
 minimumReleaseAge: 10080 # 7 days in minutes; pnpm's own default is 1440 (1 day)
+
+# Version pins that exist only to satisfy the cooldown above.
+#
+# @tailwindcss/vite → @tailwindcss/node depends on `enhanced-resolve: ^5.24.1`,
+# and the newest match (5.24.4, published 2026-07-28) is inside the window.
+# 5.24.3 is the newest release old enough to pass.
+#
+# Adding the pin is not enough on its own: the policy check runs BEFORE
+# resolution, so pnpm rejects the offending lockfile before it ever gets to
+# apply an override. It takes one install with the cooldown commented out to
+# rewrite the lockfile, then restore the cooldown and re-verify.
+#
+# SAFE TO DELETE once 5.24.4 is more than 7 days old; it carries no other
+# intent. Re-run `pnpm install --frozen-lockfile` after removing it.
+overrides:
+  enhanced-resolve: 5.24.3
 
 # Escape hatch for an urgent security fix — list package names to bypass the
 # cooldown for those packages only:
@@ -21,11 +42,14 @@ minimumReleaseAge: 10080 # 7 days in minutes; pnpm's own default is 1440 (1 day)
 # Treat package.json "engines" as a hard requirement rather than a warning.
 engineStrict: true
 
-# Postinstall scripts are blocked by default; these three are opted in because
-# each ships a platform-specific native binary that does not work unbuilt.
-# Anything not listed here stays blocked, which is the point — a compromised
-# transitive dependency cannot run code at install time.
+# Postinstall scripts are blocked by default; anything not listed here stays
+# blocked, which is the point — a compromised transitive dependency cannot run
+# code at install time.
+#
+# Only esbuild is left. `sharp` (Next's image optimiser) and `unrs-resolver`
+# (pulled in by eslint-config-next) both left the graph with Next itself.
+# Tailwind v4 needs no entry: @tailwindcss/oxide and lightningcss ship their
+# native binaries as per-platform optional dependencies rather than building
+# them in a postinstall script.
 allowBuilds:
   esbuild: true # bundler binary behind tsx and drizzle-kit
-  sharp: true # Next's image optimisation
-  unrs-resolver: true # native resolver used by the ESLint TS import plugin

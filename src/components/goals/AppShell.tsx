@@ -372,7 +372,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {/* Compass section */}
           {!isCollapsed ? (
             <div
-              className="mb-1 mt-4 px-2 text-[10px] font-medium uppercase tracking-[0.12em]"
+              className="mt-4 mb-1 px-2 text-[10px] font-medium tracking-[0.12em] uppercase"
               style={{ color: 'var(--ink-3)' }}
             >
               {t('dashboard.sections.compass')}
@@ -390,7 +390,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {/* Goals section */}
           {!isCollapsed ? (
             <div
-              className="mb-1 mt-4 px-2 text-[10px] font-medium uppercase tracking-[0.12em]"
+              className="mt-4 mb-1 px-2 text-[10px] font-medium tracking-[0.12em] uppercase"
               style={{ color: 'var(--ink-3)' }}
             >
               {t('dashboard.sections.goals')}
@@ -408,7 +408,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {/* Sync section */}
           {!isCollapsed ? (
             <div
-              className="mb-1 mt-4 px-2 text-[10px] font-medium uppercase tracking-[0.12em]"
+              className="mt-4 mb-1 px-2 text-[10px] font-medium tracking-[0.12em] uppercase"
               style={{ color: 'var(--ink-3)' }}
             >
               {t('dashboard.sections.sync')}
@@ -426,7 +426,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {/* Connections section */}
           {!isCollapsed ? (
             <div
-              className="mb-1 mt-4 px-2 text-[10px] font-medium uppercase tracking-[0.12em]"
+              className="mt-4 mb-1 px-2 text-[10px] font-medium tracking-[0.12em] uppercase"
               style={{ color: 'var(--ink-3)' }}
             >
               {t('dashboard.sections.connections')}
@@ -487,8 +487,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {/* Groups section — flat list, no nesting */}
           {!isCollapsed && (
             <>
-              <div className="mb-1 mt-4 flex items-center justify-between px-2">
-                <span className="text-[10px] font-medium uppercase tracking-[0.12em]" style={{ color: 'var(--ink-3)' }}>
+              <div className="mt-4 mb-1 flex items-center justify-between px-2">
+                <span className="text-[10px] font-medium tracking-[0.12em] uppercase" style={{ color: 'var(--ink-3)' }}>
                   {t('dashboard.sections.groups')}
                 </span>
                 <button
@@ -576,7 +576,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                       }
                     }}
                     placeholder={t('dashboard.groupNamePlaceholder')}
-                    className="flex-1 bg-transparent text-sm outline-none"
+                    className="flex-1 bg-transparent text-sm outline-hidden"
                     style={{ color: 'var(--ink)' }}
                     autoFocus
                   />
@@ -604,7 +604,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {resizable && !viewportTooNarrow && (
           <div
             onMouseDown={handleResizeMouseDown}
-            className="group absolute right-0 top-0 z-10 -mr-0.5 flex h-full w-1.5 cursor-col-resize items-center justify-center"
+            className="group absolute top-0 right-0 z-10 -mr-0.5 flex h-full w-1.5 cursor-col-resize items-center justify-center"
             aria-label={t('dashboard.resizeSidebar')}
             role="separator"
           >
@@ -765,7 +765,7 @@ function UserMenu({
       {open && (
         <div
           className={`absolute z-30 rounded-lg p-1 ${
-            isCollapsed ? 'bottom-full left-full ml-2 w-44' : 'bottom-full left-0 right-0 mb-2'
+            isCollapsed ? 'bottom-full left-full ml-2 w-44' : 'right-0 bottom-full left-0 mb-2'
           }`}
           style={{
             background: 'var(--canvas)',

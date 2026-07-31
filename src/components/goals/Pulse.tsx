@@ -259,7 +259,7 @@ export default function Pulse() {
     <div className="h-full overflow-y-auto" style={{ background: 'var(--paper)' }}>
       {/* Pulse hero — eyebrow + warm headline + italic Newsreader subtitle */}
       <header
-        className="px-6 pb-7 pt-10 md:px-12 md:pb-8 md:pt-14"
+        className="px-6 pt-10 pb-7 md:px-12 md:pt-14 md:pb-8"
         style={{ borderBottom: '1px solid var(--hairline)' }}
       >
         <div className="mx-auto flex max-w-5xl flex-wrap items-baseline justify-between gap-6">
@@ -750,7 +750,7 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
             onChange={(e) => handleChange(e.target.value)}
             rows={3}
             placeholder={t('pulse.itemPlaceholder')}
-            className="mt-3 w-full resize-y rounded-md p-3 text-sm outline-none"
+            className="mt-3 w-full resize-y rounded-md p-3 text-sm outline-hidden"
             style={{
               background: 'var(--paper-deep)',
               border: '1px solid var(--hairline)',
@@ -781,7 +781,7 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
                 <img src={a.url} alt={a.fileName} className="absolute inset-0 h-full w-full object-cover" />
                 <button
                   onClick={() => void onDeleteAttachment(a.id)}
-                  className="absolute right-0.5 top-0.5 rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+                  className="absolute top-0.5 right-0.5 rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
                   style={{ background: 'rgba(28, 20, 8, 0.75)', color: 'var(--paper)' }}
                   aria-label={t('pulse.removeAttachment')}
                 >

@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import { devtools } from '@tanstack/devtools-vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
 
 // Nitro is the deployment adapter — it emits the runnable .output/server bundle
@@ -11,13 +12,13 @@ import { nitro } from 'nitro/vite'
 // so it hides until you click the thing). Include it only for `vite build`;
 // dev uses TanStack Start's own dev server.
 //
-// Tailwind is deliberately absent from this plugin list: the repo is still on
-// Tailwind v3 via postcss.config.cjs, which Vite picks up natively. The
-// @tailwindcss/vite plugin arrives in phase 3.6 together with the v4 upgrade,
-// so that `next build` and `vite build` produce the same CSS until the flip.
+// Tailwind is a Vite plugin now — v4 has no PostCSS step, so there is no
+// postcss.config.cjs and no autoprefixer (v4 handles vendor prefixing itself
+// via lightningcss). The scanned directories are declared by @source in
+// src/styles/globals.css, not here.
 export default defineConfig(({ command }) => ({
   resolve: { tsconfigPaths: true },
   // Plugin order matters: devtools first, then (build-only) nitro, then
-  // tanstackStart → viteReact (Start must run before the React plugin).
-  plugins: [devtools(), ...(command === 'build' ? [nitro()] : []), tanstackStart(), viteReact()],
+  // tailwind → tanstackStart → viteReact (Start must run before the React plugin).
+  plugins: [devtools(), ...(command === 'build' ? [nitro()] : []), tailwindcss(), tanstackStart(), viteReact()],
 }))

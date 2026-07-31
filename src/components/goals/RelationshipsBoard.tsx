@@ -84,7 +84,7 @@ function PersonCard({
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-medium text-[var(--ink)]">{person.name}</span>
           {overdue && (
-            <span className="shrink-0 rounded-full border border-[var(--amber)] bg-[var(--amber-soft)] px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[var(--amber)]">
+            <span className="shrink-0 rounded-full border border-[var(--amber)] bg-[var(--amber-soft)] px-1.5 py-0.5 text-[9px] tracking-wide text-[var(--amber)] uppercase">
               {t('relationships.overdueTag')}
             </span>
           )}
@@ -212,7 +212,7 @@ export default function RelationshipsBoard() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: 'var(--paper)' }}>
-      <header className="shrink-0 px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
+      <header className="shrink-0 px-6 pt-10 pb-7 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
         <div
           style={{
             fontFamily: 'var(--font-mono)',
@@ -260,7 +260,7 @@ export default function RelationshipsBoard() {
               `-0` and the client expected `-1`, and React reported a hydration
               mismatch on every draggable. A fixed id makes both sides agree. */}
         <DndContext id="relationships-board" sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="grid grid-cols-1 gap-4 px-6 pb-8 pt-6 sm:grid-cols-2 md:px-8 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 px-6 pt-6 pb-8 sm:grid-cols-2 md:px-8 xl:grid-cols-4">
             {COLUMNS.map((col) => (
               <DroppableColumn key={col.id} column={col} people={byColumn[col.id]} onCardClick={setEditingPerson} />
             ))}

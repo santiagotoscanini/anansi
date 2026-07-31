@@ -54,7 +54,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
 
   if (!goal || (!isCreate && !task)) {
     return (
-      <div className="bg-[var(--ink)]/80 fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/80 p-4" onClick={onClose}>
         <div className="rounded-lg border border-[var(--hairline)] bg-[var(--canvas)] p-6 text-sm text-[var(--ink-2)]">
           {!goal ? t('taskModal.goalNotFound') : t('taskModal.taskNotFound')}
         </div>
@@ -128,7 +128,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
   }
 
   return (
-    <div className="bg-[var(--ink)]/80 fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/80 p-4" onClick={onClose}>
       <div
         className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--hairline)] bg-[var(--canvas)] shadow-2xl backdrop-blur"
         onClick={(e) => e.stopPropagation()}
@@ -153,11 +153,11 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
           </button>
         </div>
 
-        <div className="px-6 pb-6 pt-5">
+        <div className="px-6 pt-5 pb-6">
           <div className="space-y-5">
             {/* Title + emoji */}
             <div>
-              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+              <label className="mb-1.5 block text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
                 {t('taskModal.title')}
               </label>
               <div className="relative flex gap-2">
@@ -183,12 +183,12 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder={t('taskModal.titlePlaceholder')}
-                  className="h-10 flex-1 rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-4 text-[var(--ink)] outline-none transition-all focus:border-[var(--hairline-2)]"
+                  className="h-10 flex-1 rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-4 text-[var(--ink)] outline-hidden transition-all focus:border-[var(--hairline-2)]"
                   autoFocus
                 />
 
                 {showEmojiPicker && (
-                  <div className="absolute left-0 top-full z-50 mt-2 rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] p-2 shadow-xl">
+                  <div className="absolute top-full left-0 z-50 mt-2 rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] p-2 shadow-xl">
                     <EmojiPickerLazy onEmojiClick={handleEmojiClick} searchPlaceHolder={t('taskModal.searchEmoji')} />
                     <div className="mt-3 space-y-2 border-t border-[var(--hairline)] pt-3">
                       <label className="text-xs text-[var(--ink-2)]">{t('taskModal.customEmojiUrl')}</label>
@@ -202,7 +202,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                             if (e.key === 'Enter') handleCustomEmojiUrl()
                           }}
                           placeholder={t('taskModal.emojiUrlPlaceholder')}
-                          className="flex-1 rounded border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-1.5 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
+                          className="flex-1 rounded border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-1.5 text-sm text-[var(--ink)] outline-hidden transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]"
                         />
                         <button
                           type="button"
@@ -232,7 +232,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
 
             {/* Description */}
             <div>
-              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+              <label className="mb-1.5 block text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
                 {t('taskModal.description')}
               </label>
               <textarea
@@ -240,20 +240,20 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder={t('taskModal.descriptionPlaceholder')}
                 rows={4}
-                className="w-full resize-none rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2.5 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"
+                className="w-full resize-none rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2.5 text-sm text-[var(--ink)] outline-hidden transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"
               />
             </div>
 
             {/* Difficulty + Deadline + Completed */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+                <label className="mb-1.5 block text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
                   {t('taskModal.difficulty')}
                 </label>
                 <select
                   value={difficulty}
                   onChange={(e) => setDifficulty(parseInt(e.target.value) as 1 | 2 | 3)}
-                  className="h-10 w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 text-sm text-[var(--ink)] outline-none transition-all focus:border-[var(--hairline-2)]"
+                  className="h-10 w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 text-sm text-[var(--ink)] outline-hidden transition-all focus:border-[var(--hairline-2)]"
                 >
                   <option value={1}>{t('taskModal.difficultyEasy')}</option>
                   <option value={2}>{t('taskModal.difficultyMedium')}</option>
@@ -261,7 +261,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                 </select>
               </div>
               <div>
-                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+                <label className="mb-1.5 block text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
                   {t('taskModal.deadline')}
                 </label>
                 <DatePicker
@@ -272,7 +272,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+                <label className="mb-1.5 block text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
                   {t('taskModal.status')}
                 </label>
                 <button
@@ -297,7 +297,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
 
             {/* Referents */}
             <div>
-              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+              <label className="mb-1.5 block text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
                 {t('taskModal.relyingOn')}
               </label>
               {people.length === 0 ? (
@@ -328,7 +328,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
 
             {/* Groups */}
             <div>
-              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+              <label className="mb-1.5 block text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
                 {t('taskModal.groups')}
               </label>
               {groups.length === 0 ? (

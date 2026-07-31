@@ -62,7 +62,7 @@ export default function SyncDefaultEditor({ onClose }: SyncDefaultEditorProps) {
   }, [templates.length, createMutation, defaultName])
 
   return (
-    <div className="bg-[var(--ink)]/70 fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/70 p-4">
       <div className="flex h-[80vh] max-h-[720px] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--hairline)] bg-[var(--canvas)] text-[var(--ink)] shadow-2xl">
         <header className="flex items-center justify-between border-b border-[var(--hairline)] px-6 py-4">
           <div>

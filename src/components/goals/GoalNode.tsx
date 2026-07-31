@@ -132,7 +132,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
 
   return (
     <div
-      className="relative min-w-[220px] max-w-[300px] rounded-[14px] p-4 transition-all"
+      className="relative max-w-[300px] min-w-[220px] rounded-[14px] p-4 transition-all"
       style={{
         background: 'var(--canvas)',
         border: '1px solid var(--hairline)',
@@ -165,7 +165,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
 
       {/* Value Dots at the top - Expand on hover */}
       {associatedValues.length > 0 && (
-        <div className="group absolute -top-3 left-4 right-4 flex justify-center">
+        <div className="group absolute -top-3 right-4 left-4 flex justify-center">
           <div
             className="relative flex gap-1.5 rounded-full px-2 py-1"
             style={{
@@ -184,7 +184,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
             ))}
 
             {/* Expanded names tooltip on hover */}
-            <div className="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 opacity-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100">
+            <div className="pointer-events-none absolute top-full left-1/2 mt-1 -translate-x-1/2 opacity-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100">
               <div
                 className="flex flex-wrap gap-1 rounded-lg p-2"
                 style={{
@@ -196,7 +196,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
                 {associatedValues.map((value) => (
                   <span
                     key={value.id}
-                    className="whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium"
+                    className="rounded-full px-2 py-0.5 text-[10px] font-medium whitespace-nowrap"
                     style={{
                       backgroundColor: value.color,
                       color: 'var(--paper)',
@@ -279,17 +279,17 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
               title={t('goalNode.bucketTooltip', { month: m, quarter: q, year: y })}
             >
               {m > 0 && (
-                <span className="rounded-full border border-[var(--moss)] bg-[var(--moss-soft)] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-[var(--moss)]">
+                <span className="rounded-full border border-[var(--moss)] bg-[var(--moss-soft)] px-1.5 py-0.5 text-[9px] font-medium tracking-wide text-[var(--moss)] uppercase">
                   {m}M
                 </span>
               )}
               {q > 0 && (
-                <span className="rounded-full border border-[var(--indigo)] bg-[var(--indigo-soft)] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-[var(--indigo)]">
+                <span className="rounded-full border border-[var(--indigo)] bg-[var(--indigo-soft)] px-1.5 py-0.5 text-[9px] font-medium tracking-wide text-[var(--indigo)] uppercase">
                   {q}Q
                 </span>
               )}
               {y > 0 && (
-                <span className="rounded-full border border-[var(--plum)] bg-[var(--plum-soft)] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-[var(--plum)]">
+                <span className="rounded-full border border-[var(--plum)] bg-[var(--plum-soft)] px-1.5 py-0.5 text-[9px] font-medium tracking-wide text-[var(--plum)] uppercase">
                   {y}Y
                 </span>
               )}
@@ -369,7 +369,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
           </div>
 
           {/* Expanded names tooltip on hover */}
-          <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 -translate-x-1/2 opacity-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100">
+          <div className="pointer-events-none absolute top-full left-1/2 z-20 mt-1 -translate-x-1/2 opacity-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100">
             <div
               className="flex flex-wrap justify-center gap-1 rounded-lg p-2"
               style={{
@@ -381,7 +381,7 @@ const GoalNode = memo(({ data, selected }: GoalNodeProps) => {
               {referentPeople.map((p) => (
                 <span
                   key={p.id}
-                  className="flex items-center gap-1 whitespace-nowrap rounded-full border border-[var(--hairline)] bg-[var(--vellum)] px-2 py-0.5 text-[10px] text-[var(--ink)]"
+                  className="flex items-center gap-1 rounded-full border border-[var(--hairline)] bg-[var(--vellum)] px-2 py-0.5 text-[10px] whitespace-nowrap text-[var(--ink)]"
                 >
                   <Avatar name={p.name} emoji={p.emoji} size="xs" shape="circle" />
                   {p.name}

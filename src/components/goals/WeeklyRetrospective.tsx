@@ -325,7 +325,7 @@ export default function WeeklyRetrospective() {
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--paper)' }}>
       {defaultEditorOpen && <SyncDefaultEditor onClose={() => setDefaultEditorOpen(false)} />}
-      <header className="px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
+      <header className="px-6 pt-10 pb-7 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
         <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div
@@ -487,7 +487,7 @@ export default function WeeklyRetrospective() {
                         className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-[var(--vellum)]"
                       >
                         <span className="truncate">{item.title}</span>
-                        <span className="ml-2 shrink-0 rounded-full bg-[var(--vellum)] px-2 py-0.5 text-[10px] uppercase tracking-wide opacity-70">
+                        <span className="ml-2 shrink-0 rounded-full bg-[var(--vellum)] px-2 py-0.5 text-[10px] tracking-wide uppercase opacity-70">
                           {item.goalTitle ?? t('weeklySync.unscopedTag')}
                         </span>
                       </button>
@@ -591,7 +591,7 @@ export default function WeeklyRetrospective() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--paper-deep)]">
             <div className="mx-4 w-full max-w-md rounded-lg border border-[var(--hairline-2)] bg-[var(--ink-3)] p-6">
               <div className="mb-4 flex items-start gap-3">
-                <div className="flex-shrink-0 rounded-full bg-[var(--rust-soft)] p-2">
+                <div className="shrink-0 rounded-full bg-[var(--rust-soft)] p-2">
                   <Trash2 className="h-5 w-5 text-[var(--rust)]" />
                 </div>
                 <div className="flex-1">

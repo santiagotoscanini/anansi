@@ -79,7 +79,7 @@ export default function Tasks() {
     <div className="h-full overflow-y-auto" style={{ background: 'var(--paper)' }}>
       {/* Warm screen header — eyebrow + display title with brand-em + italic sub */}
       <header
-        className="px-6 pb-6 pt-10 md:px-12 md:pb-7 md:pt-12"
+        className="px-6 pt-10 pb-6 md:px-12 md:pt-12 md:pb-7"
         style={{ borderBottom: '1px solid var(--hairline)' }}
       >
         <div className="mx-auto max-w-5xl">
@@ -137,7 +137,7 @@ export default function Tasks() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t('tasks.searchPlaceholder')}
-                className="flex-1 bg-transparent text-sm outline-none"
+                className="flex-1 bg-transparent text-sm outline-hidden"
                 style={{ color: 'var(--ink)' }}
               />
             </div>

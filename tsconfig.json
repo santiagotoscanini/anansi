@@ -4,7 +4,6 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "target": "esnext",
-    "allowJs": true,
     "resolveJsonModule": true,
     "moduleDetection": "force",
     "isolatedModules": true,
@@ -12,18 +11,17 @@
     /* Strictness */
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "checkJs": true,
     /* Bundled projects */
     "lib": ["dom", "dom.iterable", "esnext"],
+    /* "node" is not in gpu-rig's list but is required here: image-upload.ts and
+       the `bytea` customType in schema.ts use Buffer, and several server files
+       read `process` / `path`. Vite's own client types come in through the
+       triple-slash reference in src/vite-env.d.ts. */
+    "types": ["node"],
     "noEmit": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
     "incremental": true,
     /* Path Aliases */
     "paths": {
@@ -31,14 +29,6 @@
     },
     "forceConsistentCasingInFileNames": true
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    "**/*.cjs",
-    "**/*.js",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
-  ],
-  "exclude": ["node_modules", ".next", ".output", ".nitro", "dist"]
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", ".output", ".nitro", "dist"]
 }

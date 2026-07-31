@@ -193,7 +193,7 @@ export default function BucketList() {
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--paper)' }}>
-      <header className="px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
+      <header className="px-6 pt-10 pb-7 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
         <div className="mx-auto max-w-3xl">
           <div
             style={{
@@ -248,7 +248,7 @@ export default function BucketList() {
             }}
             placeholder={t('bucketList.addPlaceholder')}
             maxLength={500}
-            className="flex-1 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2.5 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"
+            className="flex-1 rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2.5 text-sm text-[var(--ink)] outline-hidden transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"
           />
           <button
             type="button"
@@ -273,7 +273,7 @@ export default function BucketList() {
         {/* To do */}
         <section>
           <div className="mb-2 flex items-baseline justify-between">
-            <h3 className="text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+            <h3 className="text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
               {t('bucketList.toDoLabel')} <span className="text-[var(--ink-4)]">({pending.length})</span>
             </h3>
           </div>
@@ -302,7 +302,7 @@ export default function BucketList() {
         {done.length > 0 && (
           <section>
             <div className="mb-2 flex items-baseline justify-between">
-              <h3 className="text-[11px] font-medium uppercase tracking-wider text-[var(--moss)]">
+              <h3 className="text-[11px] font-medium tracking-wider text-[var(--moss)] uppercase">
                 {t('bucketList.doneLabel')} <span className="text-[var(--moss)]">({done.length})</span>
               </h3>
             </div>

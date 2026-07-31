@@ -15,7 +15,7 @@ export default function GraphMathHelpModal({ onClose }: GraphMathHelpModalProps)
   const { t } = useTranslation()
   return (
     <div
-      className="bg-[var(--ink)]/80 fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/80 p-4 backdrop-blur-xs"
       onClick={onClose}
     >
       <div

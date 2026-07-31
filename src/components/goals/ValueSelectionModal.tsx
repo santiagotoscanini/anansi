@@ -33,7 +33,7 @@ export default function ValueSelectionModal({
   }
 
   return (
-    <div className="bg-[var(--ink)]/80 fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/80 p-4" onClick={onClose}>
       <div
         className="w-full max-w-md rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] p-6"
         onClick={(e) => e.stopPropagation()}

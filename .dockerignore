@@ -3,7 +3,9 @@
 # so it also can't accidentally leak into a layer.
 
 # Build outputs — rebuilt inside the image.
-.next
+.output
+.nitro
+.tanstack
 out
 dist
 node_modules
@@ -34,9 +36,15 @@ Thumbs.db
 .cache
 
 # Tests + screenshots from local verification runs.
+#
+# `/*.png` is anchored to the context root ON PURPOSE. A bare `*.png` matches
+# at every depth, which would exclude public/icon.png and public/apple-icon.png
+# and ship an image with no favicon — silently, since a missing icon is a 404
+# the browser never complains about.
 .playwright-mcp
-*.png
+/*.png
 coverage
+.golden
 
 # Docs that don't ship with the runtime.
 README.md

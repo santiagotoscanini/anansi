@@ -151,7 +151,7 @@ export default function WeeklySyncItemRow({
             onChange={(e) => handleTextChange(e.target.value)}
             placeholder={t('weeklySyncRow.notesPlaceholder')}
             rows={4}
-            className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition-all focus:border-[var(--hairline-2)]"
+            className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-hidden transition-all focus:border-[var(--hairline-2)]"
           />
           <div className="mt-2 flex justify-end">
             <button
@@ -190,7 +190,7 @@ export default function WeeklySyncItemRow({
                     onChange={(e) => handleTextChange(e.target.value)}
                     placeholder={t('weeklySyncRow.notesPlaceholder')}
                     rows={4}
-                    className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition-all focus:border-[var(--hairline-2)]"
+                    className="w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-hidden transition-all focus:border-[var(--hairline-2)]"
                     autoFocus
                   />
                   <div className="mt-2 flex justify-end">
@@ -240,7 +240,7 @@ export default function WeeklySyncItemRow({
                       {!isDeleting && index < 3 && (
                         <button
                           onClick={() => onDeleteFileClick(file.id, file.fileName)}
-                          className="absolute right-1 top-1 block rounded-full bg-[var(--rust)] p-1 text-[var(--ink)] opacity-100 transition-all hover:bg-[var(--rust)] md:hidden md:opacity-0 md:group-hover:block md:group-hover:opacity-100"
+                          className="absolute top-1 right-1 block rounded-full bg-[var(--rust)] p-1 text-[var(--ink)] opacity-100 transition-all hover:bg-[var(--rust)] md:hidden md:opacity-0 md:group-hover:block md:group-hover:opacity-100"
                           title={t('weeklySyncRow.deleteTitle', { name: file.fileName })}
                         >
                           <Trash2 className="h-3 w-3" />
@@ -248,13 +248,13 @@ export default function WeeklySyncItemRow({
                       )}
 
                       {isDeleting && (
-                        <div className="bg-[var(--ink)]/60 absolute inset-0 flex items-center justify-center rounded">
+                        <div className="absolute inset-0 flex items-center justify-center rounded bg-[var(--ink)]/60">
                           <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--hairline-2)] border-t-white" />
                         </div>
                       )}
 
                       {index === 3 && imageFiles.length > 4 && (
-                        <div className="bg-[var(--ink)]/60 absolute inset-0 flex items-center justify-center rounded text-xs text-[var(--ink)]">
+                        <div className="absolute inset-0 flex items-center justify-center rounded bg-[var(--ink)]/60 text-xs text-[var(--ink)]">
                           +{imageFiles.length - 3}
                         </div>
                       )}

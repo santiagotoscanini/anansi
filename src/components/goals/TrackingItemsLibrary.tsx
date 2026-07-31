@@ -110,7 +110,7 @@ export default function TrackingItemsLibrary() {
   return (
     <div className="flex h-full flex-col" style={{ background: 'var(--paper)', color: 'var(--ink)' }}>
       <header
-        className="flex items-end justify-between gap-4 px-6 pb-7 pt-10 md:px-12"
+        className="flex items-end justify-between gap-4 px-6 pt-10 pb-7 md:px-12"
         style={{ borderBottom: '1px solid var(--hairline)' }}
       >
         <div className="min-w-0 flex-1">
@@ -176,19 +176,19 @@ export default function TrackingItemsLibrary() {
               value={draftTitle}
               onChange={(e) => setDraftTitle(e.target.value)}
               placeholder={t('trackingItems.titlePlaceholder')}
-              className="w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
+              className="w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-hidden focus:border-[var(--hairline-2)]"
             />
             <textarea
               value={draftDescription}
               onChange={(e) => setDraftDescription(e.target.value)}
               placeholder={t('trackingItems.descriptionPlaceholder')}
               rows={2}
-              className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
+              className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-hidden focus:border-[var(--hairline-2)]"
             />
             <select
               value={draftGoalId}
               onChange={(e) => setDraftGoalId(e.target.value)}
-              className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
+              className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-hidden focus:border-[var(--hairline-2)]"
             >
               <option value="">{t('trackingItems.unscopedLong')}</option>
               {[...goalsById.values()].map((g) => (
@@ -234,18 +234,18 @@ export default function TrackingItemsLibrary() {
                       <input
                         value={editTitle}
                         onChange={(e) => setEditTitle(e.target.value)}
-                        className="w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
+                        className="w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-hidden focus:border-[var(--hairline-2)]"
                       />
                       <textarea
                         value={editDescription}
                         onChange={(e) => setEditDescription(e.target.value)}
                         rows={2}
-                        className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
+                        className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-hidden focus:border-[var(--hairline-2)]"
                       />
                       <select
                         value={editGoalId}
                         onChange={(e) => setEditGoalId(e.target.value)}
-                        className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-none focus:border-[var(--hairline-2)]"
+                        className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-hidden focus:border-[var(--hairline-2)]"
                       >
                         <option value="">{t('trackingItems.unscopedShort')}</option>
                         {[...goalsById.values()].map((g) => (

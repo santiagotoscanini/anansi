@@ -79,7 +79,7 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
   const b = parsed?.backup
 
   return (
-    <div className="bg-[var(--ink)]/80 fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/80 p-4" onClick={onClose}>
       <div
         className="w-full max-w-md rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] p-6"
         onClick={(e) => e.stopPropagation()}
@@ -120,7 +120,7 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
             </button>
             {parseError && (
               <p className="mt-2 flex items-start gap-1.5 text-sm text-[var(--rust)]">
-                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{parseError}</span>
               </p>
             )}
@@ -155,7 +155,7 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
             </div>
 
             <div className="flex items-start gap-2 rounded-lg border border-[var(--rust)] bg-[var(--rust-soft)] p-3 text-sm text-[var(--rust)]">
-              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--rust)]" />
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--rust)]" />
               <span>
                 <Trans
                   i18nKey="backupImport.warningBody"
@@ -172,7 +172,7 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
               value={confirmToken}
               onChange={(e) => setConfirmToken(e.target.value)}
               placeholder={t('backupImport.typeReplace')}
-              className="w-full rounded-lg border border-[var(--hairline-2)] bg-transparent px-4 py-2 text-[var(--ink)] placeholder-[var(--ink-4)] outline-none transition-all focus:border-[var(--hairline-2)]"
+              className="w-full rounded-lg border border-[var(--hairline-2)] bg-transparent px-4 py-2 text-[var(--ink)] placeholder-[var(--ink-4)] outline-hidden transition-all focus:border-[var(--hairline-2)]"
               autoFocus
             />
 

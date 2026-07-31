@@ -321,7 +321,7 @@ export default function Horizons() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: 'var(--paper)' }}>
-      <header className="shrink-0 px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
+      <header className="shrink-0 px-6 pt-10 pb-7 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
         <div
           style={{
             fontFamily: 'var(--font-mono)',
@@ -380,9 +380,9 @@ export default function Horizons() {
           {/* Past — overdue, only when populated. Read-only placement; the
               user must reschedule via the card or open the goal to fix it. */}
           {byColumn.past.length > 0 && (
-            <div className="px-6 pb-4 pt-6 md:px-8">
+            <div className="px-6 pt-6 pb-4 md:px-8">
               <div className="rounded-xl border border-[var(--amber)] bg-[var(--amber-soft)] p-3">
-                <h3 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-[var(--amber)]">
+                <h3 className="mb-2 flex items-center gap-2 text-xs font-medium tracking-wide text-[var(--amber)] uppercase">
                   <Clock className="h-3 w-3" />
                   {t('horizons.pastDue', { count: byColumn.past.filter((task) => !task.completed).length })}
                 </h3>
@@ -400,7 +400,7 @@ export default function Horizons() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 px-6 pb-8 pt-6 sm:grid-cols-2 md:px-8 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 px-6 pt-6 pb-8 sm:grid-cols-2 md:px-8 xl:grid-cols-4">
             <DroppableColumn
               columnId="backlog"
               title={t('horizons.backlog')}
@@ -444,7 +444,7 @@ export default function Horizons() {
           {byColumn.later.length > 0 && (
             <div className="px-6 pb-8 md:px-8">
               <div className="rounded-xl border border-[var(--hairline)] bg-[var(--vellum)] p-3">
-                <h3 className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-[var(--ink-3)]">
+                <h3 className="mb-2 flex items-center gap-2 text-xs font-medium tracking-wide text-[var(--ink-3)] uppercase">
                   <Clock className="h-3 w-3" />
                   {t('horizons.later', { count: byColumn.later.filter((task) => !task.completed).length })}
                 </h3>

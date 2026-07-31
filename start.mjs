@@ -4,8 +4,8 @@
 //   1. Apply outstanding Drizzle migrations against $DATABASE_URL. Idempotent —
 //      Drizzle reads the `drizzle.__drizzle_migrations` ledger and skips
 //      anything already applied, so re-runs are free.
-//   2. import the Next standalone server (./server.js). It starts listening
-//      synchronously at import time and the process stays alive serving HTTP.
+//   2. import the Nitro server bundle (./.output/server/index.mjs). It starts
+//      listening at import time and the process stays alive serving HTTP.
 //
 // Doing both in one process keeps signal handling clean (SIGTERM from the
 // container runtime goes to a single PID and the server shuts down cleanly).
@@ -13,7 +13,7 @@
 // container restarts and surfaces the failure to whoever's watching.
 //
 // Extending later: drop new pre-start work here (cache warmups, healthcheck
-// pings, secret rotations…) above the `import("./server.js")` line.
+// pings, secret rotations…) above the final dynamic import.
 
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
@@ -25,7 +25,7 @@ if (!DATABASE_URL) {
   process.exit(1)
 }
 
-// AUTH_SECRET signs the Auth.js JWT session cookie. next-auth v5 errors on
+// AUTH_SECRET signs the Auth.js JWT session cookie. @auth/core errors on
 // the first session read without it in production; preflight here so the
 // container fails fast at boot rather than on the first sign-in attempt.
 if (!process.env.AUTH_SECRET) {
@@ -59,8 +59,10 @@ if (process.env.MIGRATE_ONLY === '1') {
   process.exit(0)
 }
 
-console.log('[start] launching next server…')
-// Next's standalone server.js starts listening on import. Awaiting the
-// dynamic import keeps `start.mjs` as the single process running in the
-// container — no fork, no parent/child signal forwarding shenanigans.
-await import('./server.js')
+console.log('[start] launching server…')
+// Nitro's node-server preset emits a bundle that starts listening on import
+// and reads PORT/HOST from the environment — the same contract Next's
+// standalone server.js had. Awaiting the dynamic import keeps `start.mjs` as
+// the single process running in the container — no fork, no parent/child
+// signal forwarding shenanigans.
+await import('./.output/server/index.mjs')

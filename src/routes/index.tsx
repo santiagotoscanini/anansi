@@ -216,7 +216,7 @@ function LandingPage() {
 
       <main>
         {/* ============ HERO ============ */}
-        <section className="relative overflow-hidden px-6 pb-24 pt-8 md:px-16 md:pb-32 md:pt-14">
+        <section className="relative overflow-hidden px-6 pt-8 pb-24 md:px-16 md:pt-14 md:pb-32">
           {/* Faint web at 4.5% opacity in the top-right */}
           <div
             aria-hidden
@@ -839,7 +839,7 @@ function LandingPage() {
         <section className="px-6 pb-24 md:px-16">
           <div className="mx-auto max-w-[1280px]">
             <div
-              className="md:px-18 relative overflow-hidden px-12 py-24 md:py-24"
+              className="relative overflow-hidden px-12 py-24 md:px-18 md:py-24"
               style={{ background: 'var(--surface-inverse)', color: 'var(--on-inverse)', borderRadius: 32 }}
             >
               <div

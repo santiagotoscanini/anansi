@@ -60,7 +60,7 @@ export default function LifeProgress() {
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--paper)' }}>
-      <header className="px-6 pb-7 pt-10 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
+      <header className="px-6 pt-10 pb-7 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
         <div className="mx-auto max-w-6xl">
           <div
             style={{

@@ -37,7 +37,7 @@ interface ProfileModalProps {
 
 const fieldLabel = 'mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]'
 const inputClass =
-  'w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]'
+  'w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 text-sm text-[var(--ink)] outline-hidden transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]'
 const sectionClass = 'border-t border-[var(--hairline)] px-6 py-5'
 
 // Fallback host shown in the MCP snippets before the client-side hydration
@@ -65,7 +65,7 @@ function CodeSnippet({ code, ariaLabel }: { code: string; ariaLabel: string }) {
   }
   return (
     <div className="relative">
-      <pre className="overflow-x-auto rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] py-2 pl-3 pr-12 font-mono text-[12px] leading-relaxed text-[var(--ink)]">
+      <pre className="overflow-x-auto rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] py-2 pr-12 pl-3 font-mono text-[12px] leading-relaxed text-[var(--ink)]">
         {code}
       </pre>
       <button
@@ -73,7 +73,7 @@ function CodeSnippet({ code, ariaLabel }: { code: string; ariaLabel: string }) {
         onClick={() => void handleCopy()}
         aria-label={copied ? t('profile.mcpCopied') : ariaLabel}
         title={copied ? t('profile.mcpCopied') : t('profile.mcpCopyUrl')}
-        className="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--hairline)] bg-[var(--canvas)] text-[var(--ink-3)] transition-all hover:text-[var(--ink)]"
+        className="absolute top-1.5 right-1.5 inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--hairline)] bg-[var(--canvas)] text-[var(--ink-3)] transition-all hover:text-[var(--ink)]"
       >
         {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
       </button>
@@ -255,7 +255,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
 
   return (
     <div
-      className="bg-[var(--ink)]/70 fixed inset-0 z-40 flex items-center justify-center p-4 backdrop-blur"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-[var(--ink)]/70 p-4 backdrop-blur"
       onClick={onClose}
     >
       <div
@@ -540,7 +540,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
               Same pattern as Linear's docs (`claude mcp add --transport http
               linear-server https://mcp.linear.app/mcp`). */}
           <div className="mt-5">
-            <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+            <div className="mb-1.5 text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
               {t('profile.mcpClaudeCliHeading')}
             </div>
             <p className="mb-2 text-xs text-[var(--ink-3)]">{t('profile.mcpClaudeCliHelp')}</p>
@@ -554,7 +554,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
               <pre> so the JSON copies verbatim including the braces; users
               who use Claude Code know this format. */}
           <div className="mt-5">
-            <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+            <div className="mb-1.5 text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
               {t('profile.mcpClaudeCodeHeading')}
             </div>
             <p className="mb-2 text-xs text-[var(--ink-3)]">{t('profile.mcpClaudeCodeHelp')}</p>
@@ -571,7 +571,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
           {/* Claude Desktop + claude.ai — the URL goes into the connector
               form. No code snippet here; the UI form handles the rest. */}
           <div className="mt-5">
-            <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">
+            <div className="mb-1.5 text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
               {t('profile.mcpClaudeDesktopHeading')}
             </div>
             <p className="text-xs text-[var(--ink-3)]">{t('profile.mcpClaudeDesktopHelp')}</p>

@@ -9,7 +9,7 @@ import DatePicker from './DatePicker'
 
 const fieldHelper = 'mt-1.5 text-xs text-[var(--ink-3)]'
 const inputClass =
-  'w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]'
+  'w-full rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2 text-sm text-[var(--ink)] outline-hidden transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]'
 
 // Yearly recurring per-person dates (birthdays, anniversaries). Pulse surfaces
 // them when the next occurrence is within 30 days. Year is optional but kept
@@ -136,13 +136,13 @@ export default function PersonImportantDatesSection({ personId }: { personId: st
 function SectionLabel({ children, hint }: { children: React.ReactNode; hint?: React.ReactNode }) {
   return (
     <div className="mb-1.5 flex items-center gap-1.5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--ink-3)]">{children}</span>
+      <span className="text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">{children}</span>
       {hint && (
         <span className="group relative inline-flex">
           <HelpCircle className="h-3 w-3 cursor-help text-[var(--ink-4)] transition-colors hover:text-[var(--ink-2)]" />
           <span
             role="tooltip"
-            className="pointer-events-none invisible absolute left-0 top-full z-30 mt-1.5 w-64 rounded-md border border-[var(--hairline)] bg-[var(--canvas)] p-2.5 text-xs leading-relaxed text-[var(--ink-2)] opacity-0 shadow-2xl transition-opacity group-hover:visible group-hover:opacity-100"
+            className="pointer-events-none invisible absolute top-full left-0 z-30 mt-1.5 w-64 rounded-md border border-[var(--hairline)] bg-[var(--canvas)] p-2.5 text-xs leading-relaxed text-[var(--ink-2)] opacity-0 shadow-2xl transition-opacity group-hover:visible group-hover:opacity-100"
           >
             {hint}
           </span>
@@ -200,7 +200,7 @@ function ImportantDateRow({
               }
             }}
             autoFocus
-            className="w-full border-0 bg-transparent p-0 text-sm text-[var(--ink)] outline-none placeholder:text-[var(--ink-4)]"
+            className="w-full border-0 bg-transparent p-0 text-sm text-[var(--ink)] outline-hidden placeholder:text-[var(--ink-4)]"
           />
         ) : (
           <button

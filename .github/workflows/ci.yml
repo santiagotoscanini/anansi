@@ -38,9 +38,18 @@ jobs:
           cache: 'pnpm'
 
       # --frozen-lockfile fails rather than silently re-resolving if the
-      # lockfile and package.json have drifted. It also means the supply-chain
-      # cooldown in pnpm-workspace.yaml never applies here — cooldown gates
-      # resolution, and a satisfied lockfile does none.
+      # lockfile and package.json have drifted. It does NOT exempt this step
+      # from the supply-chain cooldown in pnpm-workspace.yaml: pnpm re-verifies
+      # every lockfile entry against the policy on each install and fails with
+      # ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION if one is too young. So a
+      # lockfile committed with the cooldown disabled locally is caught here,
+      # which is the point — see the same note in the Dockerfile.
+      #
+      # Resolves through the self-hosted Verdaccio — `registry:` in
+      # pnpm-workspace.yaml, not a flag here, so CI, the Docker build and local
+      # dev share one gate. A PR is therefore validated against exactly the
+      # artifacts a release will ship, and Verdaccio being down fails CI rather
+      # than being quietly worked around.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

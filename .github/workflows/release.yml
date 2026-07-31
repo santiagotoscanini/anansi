@@ -10,8 +10,13 @@
 # Layer cache lives in the registry itself (cache/anansi repo), so
 # incremental rebuilds stay fast despite ephemeral runners.
 #
-# No build-time env vars are needed. All secrets are read server-side at
-# runtime. Set DATABASE_URL and AUTH_SECRET at `docker run` time.
+# No build args and no build-time secrets. All secrets are read server-side at
+# runtime; set DATABASE_URL and AUTH_SECRET at `docker run` time.
+#
+# Dependencies resolve through the self-hosted Verdaccio, which is pinned in
+# pnpm-workspace.yaml rather than passed in here — so this build, CI and local
+# dev all go through the same gate and no environment can opt out. Verdaccio
+# being unreachable fails this job by design; see the note on the build step.
 #
 # Nothing ships unvalidated: `build-and-push` needs the `validate` job,
 # which is the CI workflow reused wholesale. Previously CI and Release both
@@ -46,6 +51,11 @@ jobs:
       - name: Log in to registry
         run: podman login zot:5000 -u ci --password-stdin <<< "${{ secrets.REGISTRY_PASSWORD }}"
 
+      # No --build-arg for the registry. pnpm-workspace.yaml pins `registry:` to
+      # the self-hosted Verdaccio, so this build resolves through it the same way
+      # local dev and CI do, and there is deliberately NO fallback to npmjs: a
+      # gate that silently routes around itself is not a gate. If Verdaccio is
+      # down this job fails, and the fix is the proxy, not the pipeline.
       - name: Build image
         run: |
           META=(

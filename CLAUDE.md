@@ -655,9 +655,30 @@ would pass either way, since the client always converges.
 
 Two v4 preflight changes are restored in the `@layer base` block rather than at ~190 call sites: `cursor: pointer` on non-disabled buttons (v3 preflight had it, v4 dropped it), and `::placeholder { color: var(--ink-4) }` (v3 used gray-400, v4 uses currentColor@50%; `--ink-4` is what this design system actually defines for placeholders). Also renamed during the v4 port: `flex-shrink-0` → `shrink-0` (the old name emits nothing in v4), `backdrop-blur-sm` → `backdrop-blur-xs` (the scale shifted, so the old name now means 2× the blur), `outline-none` → `outline-hidden` (v4's `outline-none` is `outline-style: none`; `outline-hidden` preserves v3's forced-colors-friendly transparent outline).
 
+## Package registry
+
+Every dependency resolves through the self-hosted **Verdaccio** at `https://verdaccio.toscanini.me/`. It is declared once, as `registry:` in `pnpm-workspace.yaml`, so local dev, CI and the Docker build share a single gate — no environment can opt out, and there is **no fallback to npmjs anywhere**. A gate that silently routes around itself is not a gate.
+
+What it provides: one chokepoint every app's dependencies flow through, private packages served alongside public ones, and independence from npmjs outages, unpublishes and yanked versions.
+
+> **It is a cache, not a filter.** Verdaccio proxies npmjs transparently and vets nothing — a malicious package passes straight through. It becomes a security control only once configured as one (publish auth, package allow-lists). The protection against a *tampered mirror* is the lockfile, not the proxy: pnpm verifies every tarball against the integrity hash pinned in `pnpm-lock.yaml`, so even a fully compromised Verdaccio cannot swap the contents of a locked dependency. This repo's actual supply-chain defenses remain the cooldown below, `allowBuilds`, and `--frozen-lockfile`.
+
+The lockfile is **registry-agnostic** — lockfile v9 records integrity hashes and no tarball URLs — so pointing at a different registry needs no lockfile change and produces a byte-identical install or fails on the hash.
+
+**Failure mode to recognise.** When Verdaccio's uplink to npmjs is down it keeps answering `GET /`, `/-/ping` and every already-cached package with `200`, while returning `500 {"error":"uplink is offline"}` for anything it must fetch, and sometimes a hard `404` for a package npmjs serves fine. So the proxy looks healthy from a browser while installs collapse — only a real install of an uncached package is an honest probe. Persistent 404s can be a poisoned negative cache entry; delete that package's directory from Verdaccio's storage so it refetches.
+
+Emergency override, for an outage where a build must ship anyway — deliberately manual, never wired into a workflow:
+
+```bash
+podman build --build-arg NPM_REGISTRY=https://registry.npmjs.org/ .   # image build
+pnpm install --config.registry=https://registry.npmjs.org/            # one command
+```
+
 ## Supply-chain cooldown
 
 `pnpm-workspace.yaml` sets `minimumReleaseAge: 10080` — no package version published in the last 7 days may be used. It is enforced **at every install, including `--frozen-lockfile`**, which re-verifies all lockfile entries; a lockfile written with the cooldown off will fail CI and the Docker build even though nothing is being resolved.
+
+The cooldown reads publish dates from the registry's packument, so it depends on Verdaccio proxying the `time` field through intact — it does (verified). A proxy that stripped `time` would break every install.
 
 Adding a dependency:
 
@@ -708,10 +729,14 @@ Rules:
 
 - **`start.mjs`** is the container entry: apply Drizzle migrations, then `import('./.output/server/index.mjs')` (Nitro's bundle listens on import and reads `PORT`/`HOST`). It preflights `DATABASE_URL` and `AUTH_SECRET` and exits 1 if either is missing. **`MIGRATE_ONLY=1` short-circuits before the server starts and exits 0** — that is a hard external contract, used as a NixOS `ExecStartPre`. Do not split this into a separate migration container.
 - **Dockerfile** — `node:24` builder → `node:24-slim` runtime, non-root `anansi` user, `HEALTHCHECK` against `/api/healthz` (which round-trips a `SELECT 1`, so unhealthy means "can't serve", not merely "process dead"). `pnpm install --config.node-linker=hoisted` is load-bearing: the runtime stage copies `node_modules/drizzle-orm` and `node_modules/postgres` as flat directories for `start.mjs` to import, and pnpm's default symlinks would arrive dangling.
+  - The registry is **not** named here: `pnpm-workspace.yaml` is COPY'd in and pins `registry:`, so the image build inherits the same gate as CI and local dev. `ARG NPM_REGISTRY` is an emergency override, **empty by default** — empty means "use the committed registry", so the default path cannot bypass the proxy.
+  - **`--config.registry` is the only spelling that works.** pnpm silently ignores `npm_config_registry` / `NPM_CONFIG_REGISTRY`, so setting either would resolve from npmjs while looking correct — the same class of silent-fallback bug as the `viteReact({ babel })` note above.
+  - **`COREPACK_NPM_REGISTRY` closes the pnpm bootstrap.** `corepack enable` only installs shims; the pnpm *binary* is fetched on the first `pnpm` invocation, and corepack reads none of pnpm's config — so without it the build pulls pnpm itself from npmjs before the gate applies. The value is `sed`'d out of `pnpm-workspace.yaml` rather than restated, so corepack cannot drift from pnpm.
 - **`.dockerignore`** — the `*.png` exclusion is written `/*.png`, anchored to the context root. A bare `*.png` matches at every depth and would silently drop `public/icon.png` and `public/apple-icon.png`, breaking the favicon with no error anywhere.
 - **Security headers** — the six headers that used to be `next.config.js`'s `headers()` now live in `src/lib/security-headers.ts` and are applied by a global **request** middleware in `src/start.ts`. Request middleware wraps every request Start handles — pages, server functions, server routes, redirects, 404s — which is what `source: '/:path*'` meant. Nitro `routeRules` would only exist in the built output and silently vanish under `vite dev`. (The one gap: a server function that *throws* produces Start's own 500 outside this middleware, so that response has no headers.)
 - **CI** (`.github/workflows/ci.yml`) runs format:check → lint → typecheck → build, then greps `.output/public/` for server modules and for the build-time env placeholders. The build step needs dummy `DATABASE_URL` + `AUTH_SECRET` because `src/lib/env.ts` validates at import time.
-- **Release** (`.github/workflows/release.yml`) builds a linux/amd64 image and pushes it to the box's own zot registry; s2-server's deploy timer follows `:latest`. It needs no build args — all that matters is a runnable image listening on 3000.
+- **Release** (`.github/workflows/release.yml`) builds a linux/amd64 image and pushes it to the box's own zot registry; s2-server's deploy timer follows `:latest`. No build-time secrets — all that matters is a runnable image listening on 3000.
+  - Dependencies resolve through the self-hosted **Verdaccio** and there is **no fallback to npmjs** — see "Package registry" below. Verdaccio being unreachable fails the release, by design.
 
 ## Database migrations
 

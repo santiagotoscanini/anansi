@@ -8,6 +8,11 @@
 # No build-time secrets. The only runtime env vars the image needs are
 # DATABASE_URL (Postgres) and AUTH_SECRET (Auth.js JWT signing). Set them at
 # `docker run` time — the image stays portable across environments.
+#
+# One build ARG, NPM_REGISTRY — a hostname, not a credential. It defaults to
+# npmjs so `docker build .` works on any machine; release.yml overrides it with
+# the box's own Verdaccio so the server's builds resolve through the local
+# proxy. See the note above the install step.
 
 # ───── Stage 1: builder ──────────────────────────────────────────────────
 FROM node:24 AS builder
@@ -20,11 +25,44 @@ RUN corepack enable
 # directories, and a symlink into a .pnpm store that is never copied would
 # arrive dangling — start.mjs would then fail to import them at boot.
 #
-# --frozen-lockfile also means the supply-chain cooldown in pnpm-workspace.yaml
-# never applies during a build: cooldown gates resolution, and a satisfied
-# lockfile resolves nothing.
+# --frozen-lockfile does NOT exempt the build from the supply-chain cooldown in
+# pnpm-workspace.yaml. pnpm re-verifies every lockfile entry against the policy
+# on each install and fails with ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION if any
+# is too young — resolution is not the only gate. So a lockfile committed with
+# the cooldown disabled locally breaks the image build, not just `pnpm add`.
+#
+# That also makes the registry's `time` metadata load-bearing here: the policy
+# reads publish dates from the packument. Verdaccio proxies them through intact
+# (verified), but a proxy that stripped `time` would break this step.
+#
+# Which registry: none named here. pnpm-workspace.yaml pins `registry:` to the
+# self-hosted Verdaccio and is COPY'd in below, so the build inherits the same
+# gate as local dev and CI — one declaration, no per-environment drift.
+#
+# NPM_REGISTRY is the emergency override, empty by default. Set it to build
+# against a different registry without editing the repo:
+#   podman build --build-arg NPM_REGISTRY=https://registry.npmjs.org/ .
+# Empty means "use whatever pnpm-workspace.yaml says", so the default path
+# cannot silently bypass the proxy.
+#
+# `--config.registry` is the only spelling that works: pnpm silently IGNORES
+# the npm_config_registry / NPM_CONFIG_REGISTRY env vars, so setting one here
+# would resolve from npmjs while looking correct.
+#
+# COREPACK_NPM_REGISTRY closes the last direct download. `corepack enable` above
+# only installs shims; the pnpm BINARY itself is fetched on the first `pnpm`
+# invocation — which is this line — and corepack reads none of pnpm's config, so
+# without this it pulls pnpm straight from npmjs and skips the proxy entirely:
+#   ! Corepack is about to download https://registry.npmjs.org/pnpm/-/pnpm-11.18.0.tgz
+#
+# The registry is read OUT of pnpm-workspace.yaml rather than restated, so the
+# gate has exactly one source of truth and corepack cannot drift from pnpm.
+ARG NPM_REGISTRY=
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile --config.node-linker=hoisted
+RUN REGISTRY="${NPM_REGISTRY:-$(sed -n 's|^registry:[[:space:]]*||p' pnpm-workspace.yaml)}" \
+    && test -n "$REGISTRY" \
+    && COREPACK_NPM_REGISTRY="$REGISTRY" \
+       pnpm install --frozen-lockfile --config.node-linker=hoisted --config.registry="$REGISTRY"
 
 COPY . .
 

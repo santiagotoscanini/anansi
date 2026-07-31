@@ -25,17 +25,54 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Order matters: pnpm/action-setup must run BEFORE setup-node, because
-      # `cache: pnpm` needs the pnpm binary on PATH to locate the store.
-      # Version comes from package.json "packageManager".
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
+      # pnpm comes from corepack, NOT pnpm/action-setup, so the pnpm binary
+      # itself is fetched through Verdaccio like everything else. action-setup
+      # downloads pnpm straight from npmjs before any of our config applies,
+      # which left the bootstrap outside the gate that the rest of the pipeline
+      # enforces.
+      #
+      # Node first, because corepack ships WITH Node — the reverse of the old
+      # ordering, where action-setup had to precede setup-node so that
+      # `cache: pnpm` could find a pnpm on PATH. That built-in cache is why the
+      # store is cached by hand below: it resolves pnpm during setup-node's own
+      # execution, which is too early for a corepack-provided binary to exist.
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'pnpm'
+
+      # `corepack enable` only installs shims; the pnpm BINARY is downloaded on
+      # the first `pnpm` invocation — the store-path step below — so the env var
+      # has to be visible to LATER steps, which is what GITHUB_ENV does. The
+      # registry is read out of pnpm-workspace.yaml rather than restated here,
+      # so CI, the Dockerfile and local dev cannot drift from one another.
+      # Version comes from package.json "packageManager", as before.
+      - name: Enable pnpm via corepack
+        run: |
+          set -euo pipefail
+          registry="$(sed -n 's|^registry:[[:space:]]*||p' pnpm-workspace.yaml)"
+          test -n "$registry" || { echo "::error::no registry: in pnpm-workspace.yaml"; exit 1; }
+          corepack enable
+          {
+            echo "COREPACK_NPM_REGISTRY=$registry"
+            # Never sit at an interactive "continue?" prompt on a runner.
+            echo "COREPACK_ENABLE_DOWNLOAD_PROMPT=0"
+          } >> "$GITHUB_ENV"
+          echo "pnpm will be fetched from $registry"
+
+      # Replaces setup-node's `cache: pnpm`. Keyed on the lockfile: the store
+      # holds exactly the packages it pins, so a lockfile change is the only
+      # thing that can invalidate it.
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path | tail -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
 
       # --frozen-lockfile fails rather than silently re-resolving if the
       # lockfile and package.json have drifted. It does NOT exempt this step

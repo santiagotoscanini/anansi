@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/app/icon.svg" alt="Ananse Ntontan — Adinkra symbol for Anansi" width="96" height="96" />
+  <img src="public/icon.svg" alt="Ananse Ntontan — Adinkra symbol for Anansi" width="96" height="96" />
 </p>
 
 <h1 align="center">Anansi</h1>
@@ -28,79 +28,122 @@ The app sits at the intersection of "what do I want" (goals, tasks, values), "wh
 - **Values** — Named + colored tags on goals; values carry their own behavior list (short evidence sentences).
 - **Groups** — Cross-entity tags spanning both people and tasks. The same `Family` group can hold both your partner and the "call mom" task.
 - **Backup / Import** — Full per-user JSON+base64 export and transactional replace import.
+- **MCP server** — A remote Model Context Protocol server at `POST /api/mcp` exposing 51 tools, so Claude can read and write your goals, people, values and Self entries. It is its own OAuth 2.1 authorization server.
 
 ## Stack
 
-- **Frontend:** Next.js 16 (App Router), React 19 (with React Compiler), TypeScript, Tailwind, React Flow (`@xyflow/react`), Framer Motion, dnd-kit.
-- **API:** tRPC v11 with TanStack Query v5, App-Router-native client (`createTRPCReact`).
-- **Auth:** HttpOnly JWT cookies via `jose` (encrypted JWE A256GCM) + bcrypt password hashing. Rate-limited login + register routes.
-- **Database:** PostgreSQL 17 via Drizzle ORM + Drizzle Kit migrations.
-- **Storage:** Filesystem-backed `uploads/{userId}/` for avatars, person photos, weekly-sync attachments. Polymorphic `attachments` table with magic-byte-validated upload.
+- **Framework:** TanStack Start (Vite 8 + Nitro), TanStack Router file routes, React 19, TypeScript.
+- **Data:** TanStack Query + `createServerFn` server functions calling a plain service layer. No tRPC.
+- **UI:** Tailwind v4 (no PostCSS step), React Flow (`@xyflow/react`), Lucide, dnd-kit, i18next (EN + ES).
+- **Auth:** Auth.js v5 on `@auth/core` directly, Credentials provider, bcrypt password hashing, JWT session cookie. The browser bundle contains no auth SDK.
+- **Database:** PostgreSQL via Drizzle ORM + Drizzle Kit migrations.
+- **Storage:** All uploads live in a `files` Postgres table as `bytea`, served by `/api/files/{id}` behind a session + owner check. No object store, no filesystem writes.
 
 Deeper architectural detail lives in [`CLAUDE.md`](./CLAUDE.md) — it's the single source of truth for schema, endpoints, and feature design intent.
 
 ## Local development
 
-Requires Node 20+ and a Postgres database. The simplest free option is a [Supabase](https://supabase.com) project — use the **Session pooler** connection string (Project → Connect → Session pooler), which is IPv4-compatible and works on the free tier.
+Requires **Node 24+** and **pnpm 11** (`corepack enable`), plus a Postgres database — local Docker, RDS, a Supabase session-pooler URL, anything.
 
 ```bash
 # 1. Create .env at the repo root.
 cp .env.example .env
 # then fill in:
-#   DATABASE_URL — Supabase Session pooler URL (URL-encode special chars in the password)
-#   JWT_SECRET   — 32+ chars; generate with: openssl rand -base64 48
+#   DATABASE_URL — any Postgres connection string
+#   AUTH_SECRET  — generate with: openssl rand -base64 32
 
 # 2. Install deps
-npm ci
+pnpm install
 
-# 3. Apply migrations
-npm run db:migrate
+# 3. Apply migrations (creates the whole schema, accounts table included)
+pnpm db:migrate
 
 # 4. Start the dev server
-npm run dev
+pnpm dev
 ```
 
-App lands on <http://localhost:3000>.
+Dev lands on <http://localhost:5173>. The production build serves on `:3000`:
+
+```bash
+pnpm build && pnpm start
+```
+
+> **`env -u DATABASE_URL` is often needed in front of these commands.** A stale
+> ambient `DATABASE_URL` beats `.env` (dotenv does not override already-set
+> vars), and the failure looks like an unrelated connection error rather than a
+> config problem.
 
 ### First user
 
-There's no seed script — register your first user via the app's `/register` page. For automated flows (Playwright, smoke testing), the conventional credentials are `santi@test.local` / `devpassword`. To insert that user directly:
+Register at <http://localhost:5173/register> — name, email, password, submit. The `signUp` server function bcrypts the password, inserts the user row and signs you in. There's no confirmation email and no second step.
+
+The conventional test user for automated flows is `santi@test.local` / `devpassword12345` (the register form enforces a 12-character minimum). Once it exists, populate every tab with a deterministic dataset:
 
 ```bash
-HASH=$(node -e "console.log(require('bcryptjs').hashSync('devpassword', 10))")
-ID=$(node -e "console.log(require('@paralleldrive/cuid2').createId())")
-psql "$DATABASE_URL" \
-  -c "INSERT INTO users (id, name, email, password) VALUES ('$ID', 'Santi', 'santi@test.local', '$HASH');"
+env -u DATABASE_URL npx tsx scripts/seed-dev-data.ts
 ```
+
+There is no password reset flow. If you lock yourself out locally, re-register with a different email or delete the user row and start over.
+
+### Adding a dependency
+
+`pnpm-workspace.yaml` sets `minimumReleaseAge: 10080` — no package published in the last 7 days may be used, enforced on **every** install including `--frozen-lockfile`. So:
+
+```bash
+# comment out minimumReleaseAge in pnpm-workspace.yaml
+pnpm add <pkg>
+# restore minimumReleaseAge
+pnpm install --frozen-lockfile   # ← the step that catches a too-young TRANSITIVE dep
+```
+
+That last command fails more often than the `pnpm add` does. `pnpm dlx` from this repo needs `--config.minimum-release-age=0`.
 
 ## Pre-flight checks
 
-Run all three before opening a PR. Zero is the only acceptable count:
+Run all four before opening a PR. Zero warnings and zero errors is the only acceptable count:
 
 ```bash
-npm run format      # Prettier — formats in place
-npm run lint        # ESLint — must end clean
-npm run typecheck   # tsc --noEmit
-npm run build       # next build
+pnpm format      # Prettier — formats in place
+pnpm lint        # ESLint — must end clean
+pnpm typecheck   # tsr generate && tsc --noEmit
+pnpm build       # vite build (client + SSR + nitro)
 ```
 
-CI runs lint + typecheck + build on every PR (`.github/workflows/ci.yml`).
+CI runs `format:check` → `lint` → `typecheck` → `build` on every PR, then greps the built client assets for server modules and env placeholders (`.github/workflows/ci.yml`).
+
+> Don't run `pnpm typecheck` while `pnpm dev` is running — both generate
+> `routeTree.gen.ts`, and racing them puts the dev server into a reload loop
+> that looks like an app bug.
+
+**A green build is not evidence that the app runs.** Several defects during the TanStack migration passed `vite build` and failed on the first real request. Exercise changes in `pnpm dev` from a real browser, and include client-side navigation — a hard reload runs loaders on the server, where a server function is a direct call, so only client-side navigation tests the RPC path.
 
 ## Deployment
 
-Anansi is a Next.js app deployed to your platform of choice (Vercel, Fly, Render, …). It needs a Postgres database (Supabase works out of the box — `DATABASE_URL` is the only DB-side requirement).
+Anansi ships as a Docker image: a `node:24` builder producing Nitro's self-contained `.output/`, and a `node:24-slim` runtime that runs as a non-root user. `.github/workflows/release.yml` builds `linux/amd64` on every push to `main` and pushes `:latest` to a self-hosted zot registry.
+
+```bash
+docker build -t anansi .
+docker run -p 3000:3000 \
+  -e DATABASE_URL=postgresql://... \
+  -e AUTH_SECRET=$(openssl rand -base64 32) \
+  anansi
+```
+
+`start.mjs` is the entrypoint: it preflights both env vars, applies outstanding Drizzle migrations, then imports the Nitro server in the same process. Migrations are idempotent, so re-runs are free.
 
 Required env:
 
 - `DATABASE_URL` — Postgres connection string.
-- `JWT_SECRET` — at least 32 characters; the app refuses to boot without it. Generate with `openssl rand -base64 48`.
+- `AUTH_SECRET` — 32+ characters; signs the Auth.js JWT session cookie. The container refuses to boot without it.
+- `MIGRATE_ONLY=1` *(optional)* — apply migrations and exit 0 without starting the server. Used as a systemd `ExecStartPre` so a failed migration can't be papered over by a healthy-looking boot.
 
-A `/api/healthz` route does a DB round-trip check. Run `npx drizzle-kit migrate` to apply pending migrations before starting the server.
+The image has a `HEALTHCHECK` against `/api/healthz`, which round-trips a `SELECT 1` — unhealthy means "can't serve", not merely "process dead".
 
 ## Documentation
 
-- [`CLAUDE.md`](./CLAUDE.md) — architecture, schema, API endpoints, feature design notes. The canonical doc.
-- [`TODO.md`](./TODO.md) — backlog of outstanding features and follow-ups.
+- [`CLAUDE.md`](./CLAUDE.md) — architecture, schema, service surface, feature design notes. The canonical doc.
+- [`todo.md`](./todo.md) — backlog of outstanding features and follow-ups.
+- [`.golden/README.md`](./.golden/README.md) — the pre-migration baseline oracle (MCP tool catalog, `.well-known` documents, screenshots) and how to diff against it.
 
 ## License
 

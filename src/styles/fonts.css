@@ -1,18 +1,13 @@
 /* ============================================================
-   ANANSI — self-hosted type stack (TanStack Start only)
+   ANANSI — self-hosted type stack
    ============================================================
 
-   Replaces `next/font/google` from src/app/layout.tsx. Next generated the
-   five `--font-*` custom properties onto a class it put on <html>; Vite has
-   no equivalent, so the @font-face rules and the variables both live here.
-
-   This file is imported ONLY by src/routes/__root.tsx. The Next layout never
-   sees it, so the two stacks cannot fight over the same custom properties
-   while they coexist — which also means a mistake here shows up as a font
-   regression under `pnpm dev:start` alone, never under `pnpm dev`.
+   Defines the five `--font-*` custom properties the design tokens in
+   globals.css build on, plus the @font-face rules that back them. Imported
+   only by src/routes/__root.tsx.
 
    ------------------------------------------------------------
-   Why the exact family strings below matter (migration risk R3)
+   Why the exact family strings below matter
    ------------------------------------------------------------
    src/styles/globals.css builds --font-brand/display/text/ui/mono out of
    these five variables and terminates every stack in `Georgia, serif` or
@@ -21,7 +16,7 @@
 
    So the strings are not guessed. They were read out of each installed
    package's own metadata.json `family` field and checked against
-   .golden/font-vars.txt, which captured what next/font emits today:
+   .golden/font-vars.txt, the captured pre-migration baseline:
 
      "Cormorant Garamond"  @fontsource/cormorant-garamond   ✓
      "Instrument Serif"    @fontsource/instrument-serif     ✓

@@ -10,7 +10,7 @@ export type { Locale } from './constants'
 
 import { FALLBACK_LOCALE, STORAGE_KEY, SUPPORTED_LOCALES } from './constants'
 
-// Only initialize once. In Next.js dev / HMR the module can be re-evaluated;
+// Only initialize once. Under Vite HMR the module can be re-evaluated;
 // re-initing throws warnings and clobbers in-flight subscriptions.
 //
 // `init()` is ASYNCHRONOUS and the promise is exported, because callers now have

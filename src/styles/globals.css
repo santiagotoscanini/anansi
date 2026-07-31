@@ -75,7 +75,7 @@
   --surface-inverse: var(--ink);
   --on-inverse: var(--paper);
 
-  /* -------- Type stack — references next/font CSS vars from layout.tsx -------- */
+  /* -------- Type stack — the --font-* vars come from src/styles/fonts.css -------- */
   --font-brand: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
   --font-display: var(--font-instrument-serif), 'Instrument Serif', Georgia, serif;
   --font-text: var(--font-newsreader), 'Newsreader', Georgia, serif;

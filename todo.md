@@ -26,7 +26,7 @@ shipped work stays visible until the next prune.
   - Conflict policy: last-write-wins on edits, but never auto-delete on the remote (ask first).
   - Decide which TickTick project a new goal maps to (default: a single "Anansi" list, or one
     list per top-level goal).
-  - Background job — Next.js cron / a long-running queue worker to pull on a schedule.
+  - Background job — a Nitro scheduled task or a long-running queue worker to pull on a schedule.
 
 ## Goals & objectives
 
@@ -93,7 +93,11 @@ following were deliberately deferred:
 - [ ] **Structured logging (pino).** 39 `console.*` call-sites with no context tagging
       (userId, requestId, durationMs). Bring in `pino` + a tRPC middleware that attaches
       structured fields per request. _Audit item #22._
-- [ ] **Security headers** — `Strict-Transport-Security`, `X-Frame-Options`,
-      `Referrer-Policy`, `Content-Security-Policy`. Baseline CSP for a uploads-rendering
-      app: `img-src 'self'; script-src 'self'`. Configure via `next.config.js`. _Audit
-      item #23._
+- [ ] **Content-Security-Policy** — the only header from this audit item still
+      missing. `Strict-Transport-Security`, `X-Frame-Options`, `Referrer-Policy`,
+      `X-Content-Type-Options`, `Permissions-Policy` and `X-DNS-Prefetch-Control`
+      all ship today from `src/lib/security-headers.ts` via the global request
+      middleware in `src/start.ts`. Baseline CSP for an uploads-rendering app:
+      `img-src 'self'; script-src 'self'` — note the inline styles the design
+      system uses at ~400 call sites will need `style-src` worked out first.
+      _Audit item #23._

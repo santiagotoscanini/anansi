@@ -42,6 +42,19 @@ jobs:
       - name: Format check
         run: pnpm format:check
 
+      # routeTree.gen.ts is generated and gitignored, so a clean checkout does
+      # not have it — and the typed ESLint rules need it. Without this step every
+      # `Route.useSearch()` / `createFileRoute()` resolves to an error type and
+      # lint fails with ~111 no-unsafe-* errors that say nothing about the real
+      # code. It passes locally only because a previous `pnpm dev` or
+      # `pnpm typecheck` left the file on disk.
+      #
+      # `pnpm typecheck` runs `tsr generate` itself, so only Lint needs this —
+      # but generating once here keeps the two steps independent of each other's
+      # ordering.
+      - name: Generate route tree
+        run: pnpm generate-routes
+
       - name: Lint
         run: pnpm lint
 

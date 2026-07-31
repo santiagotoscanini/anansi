@@ -8,10 +8,6 @@
 # testing
 /coverage
 
-# next.js
-/.next/
-/out/
-
 # vite / tanstack start / nitro
 /.output/
 /.nitro/

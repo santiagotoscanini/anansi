@@ -8,11 +8,10 @@ import { db } from '~/lib/data'
 import { accounts, users } from '~/lib/data/schema'
 import { env } from '~/lib/env'
 
-// Auth.js v5 on @auth/core directly — the framework-agnostic core that
-// next-auth wraps. src/lib/auth/index.ts (the Next config) is still live and
-// must stay behaviourally identical to this file until Next is deleted in 3.6;
-// @auth/core is pinned to the exact version next-auth resolves so both stacks
-// share ONE physical copy of the JWE/HKDF code.
+// Auth.js v5 on @auth/core directly — the framework-agnostic core that the
+// next-auth package wraps. Using it directly is what keeps the auth SDK out
+// of the browser bundle entirely: sign-in runs in a server function, not in
+// a client-side provider.
 //
 // Credentials provider only for v1. Google is scaffolded but commented out
 // (re-enable by importing @auth/core/providers/google, adding it to

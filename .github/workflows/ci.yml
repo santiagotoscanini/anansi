@@ -1,12 +1,19 @@
-# Validates every PR + every push to main: lint, typecheck, build.
-# Runs on the self-hosted runner (s2-server) — an ephemeral container
-# per job, so each run starts clean like a hosted runner.
+# Validates every PR, and gates every release: format, lint, typecheck,
+# build, plus a client-bundle boundary check. Runs on the self-hosted
+# runner (s2-server) — an ephemeral container per job, so each run starts
+# clean like a hosted runner.
+#
+# There is deliberately NO `push: branches: [main]` trigger here. Release
+# calls this workflow as a job (`uses: ./.github/workflows/ci.yml`) and
+# gates the image build on it, so a push to main validates exactly once
+# and a red result stops the deploy. Adding a push trigger back would run
+# the whole thing twice per merge and re-create the race where the image
+# ships while CI is still red.
 name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main]
+  workflow_call:
 
 permissions:
   contents: read

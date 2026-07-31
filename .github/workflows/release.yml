@@ -12,6 +12,11 @@
 #
 # No build-time env vars are needed. All secrets are read server-side at
 # runtime. Set DATABASE_URL and AUTH_SECRET at `docker run` time.
+#
+# Nothing ships unvalidated: `build-and-push` needs the `validate` job,
+# which is the CI workflow reused wholesale. Previously CI and Release both
+# triggered on push to main and ran in parallel, so a red CI did not stop
+# the image — main deployed with 111 lint errors outstanding.
 
 name: Release image
 
@@ -25,7 +30,14 @@ env:
   CACHE: zot:5000/cache/${{ github.event.repository.name }}
 
 jobs:
+  # The same steps PRs run — one definition, so the gate can never drift
+  # from what CI actually checks. Also runs on workflow_dispatch, so a
+  # manual release is validated too.
+  validate:
+    uses: ./.github/workflows/ci.yml
+
   build-and-push:
+    needs: validate
     runs-on: self-hosted
     steps:
       - name: Checkout

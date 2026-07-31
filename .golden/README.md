@@ -8,7 +8,7 @@ the diff is the finding.
 
 | File | What it is | Used by |
 |---|---|---|
-| `mcp-tools.json` | `tools/list` result: all **51** tools with full `inputSchema`, sorted by name | **Phase 1c gate** — the diff after pointing MCP at services must be exactly zero. Re-checked at 3.5 and 3.6. |
+| `mcp-tools.json` | `tools/list` result: all **51** tools with full `inputSchema`, sorted by name | **The standing catalog gate** — `pnpm check:mcp-tools`, run in CI on every PR. Diff must be exactly zero. Re-baselined once for zod 4; see below. |
 | `mcp-tool-names.tsv` | `domain <TAB> tool_name`, 51 rows, 51 unique | Cross-check that no tool is dropped or renamed |
 | `procedures.tsv` | `file <TAB> line <TAB> name`, **84** rows | **Phase 1b checklist** — one service export per row, no exceptions (mitigates R7, the loss of `_def.record` flattening) |
 | `well-known-as.json` | RFC 8414 authorization-server metadata | Phase 3.5 — must stay byte-identical modulo origin |
@@ -129,7 +129,13 @@ not an account-enumeration oracle), duplicate email → "An account with this em
 exists", 5-character password → "Password must be at least 12 characters". Sign-out
 clears the cookie and the server agrees (`session: null`).
 
-Reproduce with `scripts/check-auth-compat.mjs` (needs both dev servers up).
+Reproduced at the time with `scripts/check-auth-compat.mjs`. **That script has been
+deleted**: it drove the Next stack on :3100 and the Start stack on :3001 and compared
+them, and the Next stack no longer exists, so it could never run again. The table above
+is its output and is the part worth keeping. The behaviour it proved — that the origin
+rewrite in `src/routes/api.auth.$.ts` is what makes the `__Secure-` cookie name resolve
+behind a TLS-terminating proxy — is now only covered by the comments in that file, so
+do not remove them casually.
 
 ## Server functions (settles R8 and the superjson→Seroval question, in 3.3)
 
@@ -371,7 +377,8 @@ defect of the whole migration.
 
 `.golden/verify-mcp-tools.sh <token> 5173` → **OK: 51 tools, identical to golden.**
 Zero drift after the entire dispatch layer moved from tRPC's `createCaller` to direct
-in-process service calls.
+in-process service calls. (That script has since been replaced by
+`pnpm check:mcp-tools` — see below.)
 
 Results, all green: 19 OAuth checks (DCR public-client shape, consent screen contents,
 cross-origin decision POST → 403, approve → 303, PKCE S256 enforced, prior consent
@@ -430,3 +437,67 @@ like a failure the first time you hit it: **a failed PKCE verification burns the
 code.** `consumeAuthCode` consumes atomically *before* checking the challenge, which is
 what denies an attacker a brute-force window against a live code. A test that probes a
 wrong verifier therefore needs its own authorization round.
+
+---
+
+## The catalog gate today: `pnpm check:mcp-tools`
+
+`verify-mcp-tools.sh` is gone. It asserted the right thing but cost too much to run:
+it curled a live server with a bearer token, so exercising the invariant meant booting
+the app, having a database, registering an OAuth client and completing a browser
+consent flow. CLAUDE.md said the diff "must be exactly zero after any change here" and
+nothing enforced it, which made it a comment rather than a gate.
+
+`scripts/check-mcp-tools.ts` replaces it and runs in CI on every PR. The catalog is a
+pure function of tool *registration* — handlers close over the `McpCtx`, but titles,
+descriptions and `inputSchema`s do not — so it builds the server with a fake user id
+and drives a real `Client` over `InMemoryTransport`. No server, no database, no token.
+
+It goes through a real client rather than reading the registry because the interesting
+part is exactly what the SDK does on the way out: converting each Zod raw shape into
+JSON Schema. Reaching into internals would skip the conversion and check nothing that
+matters — as the zod 4 bump proved.
+
+The live HTTP path (bearer auth, transport, real tool calls verified against the
+database) is covered by `scripts/mcp-smoke.sh`, which is where it belongs.
+
+To re-baseline deliberately: `pnpm check:mcp-tools --update`. It never self-updates on
+failure; an oracle that rewrites itself asserts nothing.
+
+## Re-baselined once, for zod 4
+
+The zod 3 → 4 upgrade changed the emitted JSON Schema. Two of the changes were defects
+and were fixed in the source; the rest were cosmetic and the baseline moved.
+
+**Fixed, not accepted:**
+
+- **`z.coerce.date()` throws.** Zod 3 quietly rendered it as
+  `{ type: 'string', format: 'date-time' }`; zod 4 refuses with *"Date cannot be
+  represented in JSON Schema"* — thrown from inside `tools/list`, so the entire catalog
+  500s and every connected client loses all 51 tools at once. `tsc` and `vite build`
+  both pass. Fixed by `isoDate` in `src/lib/mcp/tools/fields.ts`: a plain string
+  carrying `.meta({ format: 'date-time' })`, which reproduces the old output exactly.
+  Coercion still happens one layer down, where every handler re-parses `args` with the
+  canonical schema from `~/lib/api/types`.
+- **`additionalProperties: false` vanished from 44 of 51 tools.** Zod 3 rendered
+  `z.object()` closed; zod 4 renders it as nothing. That keyword is what tells a model
+  not to invent parameters, and some providers require it for strict tool calling.
+  Fixed by `toolInput()` / `closedObject()` in the same file. Note these use
+  `.meta({ additionalProperties: false })` and **not** `z.strictObject()`: strict also
+  emits the keyword, but it changes runtime behaviour from *stripping* unknown keys to
+  *rejecting* them, so a model that tacked on one stray field would go from a
+  successful call to a failed one.
+
+**Accepted, and the reason the file moved.** Twenty properties changed representation
+without changing meaning. Fighting these would mean writing worse zod — avoiding
+`z.number().int()`, hand-overriding metadata — to satisfy a snapshot:
+
+| n | change | equivalent? |
+|---|---|---|
+| 13 | `.nullable()`: `{"type":["string","null"]}` → `{"anyOf":[{"type":"string"},{"type":"null"}]}` | yes, identical JSON Schema semantics |
+| 5 | `z.number().int()`: bare `{"type":"integer"}` → adds safe-integer `minimum`/`maximum` | yes, and strictly more accurate about what zod validates |
+| 2 | literal union: `{"enum":[1,2,3]}` → `{"anyOf":[{"const":1},…]}` | yes |
+
+What was verified to be unchanged before re-baselining, and what the check still
+guards: **51 tools, identical names, zero drift in titles, descriptions, annotations,
+`required` arrays, or property key sets.**

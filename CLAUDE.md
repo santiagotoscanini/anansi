@@ -33,12 +33,49 @@ Local dev DB only — do not reuse credentials in production.
 
 ## Stack
 
-- **Framework:** TanStack Start (Vite 8 + Nitro), TanStack Router file routes, React 19, TypeScript
+- **Framework:** TanStack Start (Vite 8 + Nitro), TanStack Router file routes, React 19 **+ React Compiler**, TypeScript
 - **Data:** TanStack Query + `createServerFn` server functions. **No tRPC** — see "Data flow".
 - **UI:** Tailwind **v4** (`@tailwindcss/vite`, no PostCSS step), React Flow (`@xyflow/react`), Lucide, dnd-kit, react-hot-toast, i18next
-- **Backend:** Auth.js v5 core (`@auth/core` + `@auth/drizzle-adapter`), bcryptjs, Zod 3
+- **Backend:** Auth.js v5 core (`@auth/core` + `@auth/drizzle-adapter`), bcryptjs, **Zod 4**
 - **Database:** PostgreSQL + Drizzle ORM + Drizzle Kit
 - **Tooling:** pnpm 11 (with a supply-chain cooldown), ESLint flat config, Prettier (single quotes, no semicolons), `@t3-oss/env-core`
+
+### React Compiler
+
+Enabled in `vite.config.ts` via `@rolldown/plugin-babel` + `reactCompilerPreset()`.
+ESLint has enforced the compiler's rules (`preserve-manual-memoization`,
+`set-state-in-effect`, `purity`) as **errors** since the migration; for a while the
+compiler itself was not installed, so the codebase paid the constraint cost and got
+none of the auto-memoization.
+
+> **It is a separate plugin, not an option on `viteReact()`.** `@vitejs/plugin-react`
+> v6 moved its transform to oxc and **dropped the `babel` option entirely**, so the
+> v4-era `viteReact({ babel: { plugins: [...] } })` spelling is now silently ignored —
+> no error, no warning, and a build that looks completely normal while compiling
+> nothing. The only way to tell the difference is to grep the build output for
+> `react/compiler-runtime`; when it is working, ~39 client chunks import it and a
+> small `compiler-runtime-*.js` chunk is emitted.
+
+Applied to the client build only, which is where the value is (SSR renders each
+component once). Compiled and uncompiled components interoperate, so a mixed build is
+not a half-configured state.
+
+### Zod 4
+
+`z.coerce.date()` **cannot be rendered into JSON Schema** by zod 4 — it throws
+`Date cannot be represented in JSON Schema` rather than silently emitting
+`{type:'string', format:'date-time'}` the way zod 3 did. That matters only on the MCP
+path, where the throw comes from inside `tools/list` and takes the whole catalog with
+it; see `src/lib/mcp/tools/fields.ts` and the zod 4 section of `.golden/README.md`.
+
+Two other zod 4 changes bit during the upgrade and are worth knowing:
+
+- **`.default()` no longer parses its argument.** It short-circuits and returns the
+  value as the output, so `z.object({ n: z.number().default(60) }).default({})` now
+  yields `{}` with no `n`. **`.prefault()`** is the old behaviour.
+- **`z.coerce.date()`'s input type is `unknown`**, which poisons any object spread
+  built from a schema's *input* type. Type UI-facing mutations from the schema's
+  **output** type instead — see the note in `lib/mutations/goals-data.ts`.
 
 ## Project Structure
 
@@ -200,7 +237,9 @@ Image, document, and other binary uploads on weekly-sync items; built-in inline 
 
 ## Database Structure
 
-**Conventions for every table:** `id` (text, primary key, cuid2), `createdAt` and `updatedAt` (timestamp, audit). Listed only when notable. All user-scoped tables cascade-delete on `users.id`. **Exception:** `users.id` itself is a `uuid` and every `user_id` FK column is also `uuid` — no cuid2 on the user identity boundary. (The uuid is a leftover from the Supabase Auth era, kept because the column type is load-bearing across every FK; it is now generated locally.)
+**Conventions for every table:** `id` (text, primary key, cuid2), `createdAt` and `updatedAt` (timestamp, audit). Listed only when notable. The audit pair comes from the shared `timestamps` object in `schema.ts`, spread into each table; `updatedAt` carries `.$onUpdate(() => new Date())` so services do not restate it.
+
+> **`$onUpdate` does not rescue an empty `.set({})`.** It is a Drizzle-level default (no DDL, no migration, and a raw `UPDATE` in psql will not fire it), and drizzle raises "No values to set" while *building* the query — before any `$onUpdate` value is applied. So patch-shaped updates whose fields are all optional (`people`, `tasks`, `connections`, `person_groups`, and the three typed patch builders in `auth` / `important-dates` / `self-list-items`) still seed `updatedAt: new Date()` by hand to guarantee a non-empty SET, and say so locally. An explicit value always wins over `$onUpdate`, which is what lets `backup.import` preserve the timestamps it is restoring. All user-scoped tables cascade-delete on `users.id`. **Exception:** `users.id` itself is a `uuid` and every `user_id` FK column is also `uuid` — no cuid2 on the user identity boundary. (The uuid is a leftover from the Supabase Auth era, kept because the column type is load-bearing across every FK; it is now generated locally.)
 
 ### users
 - `id` (uuid, PK, `defaultRandom()` — generated locally on user creation; no external auth-table FK)
@@ -425,7 +464,7 @@ MCP-specific gates (not in the underlying service schemas): `create_person` / `u
 
 `src/lib/mcp/errors.ts` maps `AppError` → an MCP error result. **`_meta.trpc_code` keeps its name verbatim** even though tRPC is gone — it is an opaque private field that clients may already key on, and renaming it would be a gratuitous wire change.
 
-**The catalog is pinned.** `.golden/mcp-tools.json` holds the full `tools/list` output with every `inputSchema`; the diff against it must be **exactly zero** after any change here. `.golden/verify-mcp-tools.sh` runs it.
+**The catalog is pinned.** `.golden/mcp-tools.json` holds the full `tools/list` output with every `inputSchema`; the diff against it must be **exactly zero** after any change here. Enforced by `pnpm check:mcp-tools` (`scripts/check-mcp-tools.ts`), which runs in CI on every PR. Re-baseline deliberately with `--update` only after reading the diff.
 
 ### Tables
 
@@ -452,6 +491,7 @@ lib/mcp/server.ts                              # Per-request McpServer factory
 lib/mcp/types.ts                               # McpCtx = { userId }
 lib/mcp/errors.ts                              # AppError → MCP error result + mcpJsonResult
 lib/mcp/tools/{system,goals,tasks,values,people,next_bids,important_dates,groups,bucket_list,self}.ts
+lib/mcp/tools/fields.ts                        # isoDate + toolInput/closedObject (zod 4 JSON Schema)
 lib/mcp/oauth/{store,clients,codes,tokens,pkce,consent,metadata,scopes,audit,authorize-validation}.ts
 ```
 
@@ -590,11 +630,25 @@ That last command is the one that matters, and it fails more often than the `pnp
 After any meaningful change — schema, route, component, refactor — run the whole set and **fix every warning and error before declaring the work done**.
 
 ```bash
-pnpm format      # Prettier, formats in place
-pnpm lint        # ESLint — must end with zero warnings AND zero errors
-pnpm typecheck   # tsr generate && tsc --noEmit
-pnpm build       # vite build (client + SSR + nitro)
+pnpm format           # Prettier, formats in place
+pnpm lint             # ESLint — must end with zero warnings AND zero errors
+pnpm typecheck        # tsr generate && tsc --noEmit
+pnpm check:mcp-tools  # MCP catalog vs .golden/mcp-tools.json — must be zero diff
+pnpm build            # vite build (client + SSR + nitro)
 ```
+
+All five run in CI on every PR, and Release gates the image on them.
+`check:mcp-tools` needs no server, database or token — it builds the MCP server
+in-process and drives a real client over an in-memory transport, so it is seconds.
+
+CI additionally boots the built server and runs `check-fonts.mjs` and
+`check-i18n.mjs` against it. Both guard failures that are invisible to a build:
+a wrong font family silently renders the app in `Georgia`, and a missing i18n
+bundle silently renders raw key paths — both at HTTP 200. Neither needs a
+database, so the server boots against a deliberately unreachable URL.
+
+`check-shell.mjs` is **not** in CI: it signs in and loads `/app`, so it needs a real
+Postgres and a seeded user. Run it locally against `pnpm dev` or a built server.
 
 Rules:
 - Zero is the only acceptable count. Don't ship "just one warning" — they compound and get ignored.
@@ -603,7 +657,7 @@ Rules:
 
 > **A green `pnpm build` is not evidence that the app runs.** Three separate defects during the migration passed `vite build` and failed on the first real request: `import 'server-only'` (500 on every SSR pass), a mis-registered server-function id (`Invalid server function ID`, only at call time), and a dnd-kit hydration mismatch. **Exercise changes in `pnpm dev` from a real browser**, and include *client-side* navigation — a hard reload runs loaders on the server where a server fn is a direct call, so only client-side navigation tests the RPC path.
 
-`.golden/` holds the pre-migration oracle and is the reference for anything that must not drift: the 51-tool `tools/list` JSON, both `.well-known` documents, the MCP 401 response (which doubles as the security-header baseline), and 29 screenshots. `.golden/README.md` documents the diff procedure and its known false positives (`objectives-*` always differ — React Flow animates its dashed edges).
+`.golden/` holds the pre-migration oracle and is the reference for anything that must not drift: the 51-tool `tools/list` JSON, both `.well-known` documents, the MCP 401 response (which doubles as the security-header baseline), and 29 screenshots. `.golden/README.md` documents the diff procedure, the one deliberate re-baseline (zod 4), and its known false positives (`objectives-*` always differ — React Flow animates its dashed edges).
 
 ## Infrastructure
 

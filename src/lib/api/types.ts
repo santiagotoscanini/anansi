@@ -303,6 +303,18 @@ export const updateValueSchema = valueSchema.partial().required({ id: true })
 export const createTaskSchema = taskSchema.omit({ id: true })
 export const updateTaskSchema = taskSchema.partial().required({ id: true })
 
+// The browser's wire shape for task writes: the task fields plus the goal that
+// owns the task. `goalId` is not part of the task patch itself — the server
+// derives ownership from the task id — it is there because the optimistic cache
+// update in lib/mutations/goals-data.ts has to know which goal's task array to
+// patch without refetching.
+//
+// Declared here rather than inline in tasks.fn.ts because a `.fn.ts` module may
+// export ONLY server functions (see CLAUDE.md), so a schema written there can
+// never be shared and is guaranteed to drift from whatever the client assumes.
+export const createTaskInputSchema = createTaskSchema.extend({ goalId: z.string() })
+export const updateTaskInputSchema = updateTaskSchema.extend({ goalId: z.string() })
+
 export const createGoalSchema = goalSchema.omit({ id: true, importance: true, status: true })
 // `tasks` deliberately excluded from goal updates — task CRUD has its own
 // per-task endpoints (goals.tasks.{create,update,delete}). Sending tasks
@@ -415,6 +427,8 @@ export type CreateValue = z.infer<typeof createValueSchema>
 export type UpdateValue = z.infer<typeof updateValueSchema>
 export type CreateTask = z.infer<typeof createTaskSchema>
 export type UpdateTask = z.infer<typeof updateTaskSchema>
+export type CreateTaskInput = z.infer<typeof createTaskInputSchema>
+export type UpdateTaskInput = z.infer<typeof updateTaskInputSchema>
 export type CreateGoal = z.infer<typeof createGoalSchema>
 export type UpdateGoal = z.infer<typeof updateGoalSchema>
 export type CreateConnection = z.infer<typeof createConnectionSchema>

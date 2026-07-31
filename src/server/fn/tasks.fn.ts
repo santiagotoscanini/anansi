@@ -2,7 +2,7 @@
 // EXPORTS ONLY SERVER FUNCTIONS — see the note in values.fn.ts.
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
-import { createTaskSchema, updateTaskSchema } from '~/lib/api/types'
+import { createTaskInputSchema, updateTaskInputSchema } from '~/lib/api/types'
 import { authMiddleware } from '~/server/middleware/auth'
 import * as tasks from '~/server/services/tasks'
 
@@ -10,12 +10,12 @@ import * as tasks from '~/server/services/tasks'
 // the ownership check runs against, so it is not redundant with `id`.
 export const createTask = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
-  .validator(createTaskSchema.extend({ goalId: z.string() }))
+  .validator(createTaskInputSchema)
   .handler(({ data, context }) => tasks.create(context.userId, data))
 
 export const updateTask = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
-  .validator(updateTaskSchema.extend({ goalId: z.string() }))
+  .validator(updateTaskInputSchema)
   .handler(({ data, context }) => tasks.update(context.userId, data))
 
 export const deleteTask = createServerFn({ method: 'POST' })

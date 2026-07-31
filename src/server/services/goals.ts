@@ -79,7 +79,7 @@ export async function update(userId: string, input: UpdateGoal) {
   const { id, valueIds, position, ...goalData } = input
 
   if (Object.keys(goalData).length > 0 || position) {
-    const updateData: Partial<typeof goals.$inferInsert> = { ...goalData, updatedAt: new Date() }
+    const updateData: Partial<typeof goals.$inferInsert> = { ...goalData }
     if (position) {
       updateData.positionX = position.x
       updateData.positionY = position.y
@@ -116,13 +116,10 @@ export async function remove(userId: string, id: string) {
       .limit(1)
     if (!owned) throw new AppError('NOT_FOUND', 'Goal not found or access denied')
 
-    await tx.update(goals).set({ status: 'archived', updatedAt: new Date() }).where(eq(goals.id, id))
+    await tx.update(goals).set({ status: 'archived' }).where(eq(goals.id, id))
     await tx.delete(connections).where(eq(connections.source, id))
     await tx.delete(connections).where(eq(connections.target, id))
-    await tx
-      .update(trackingItems)
-      .set({ status: 'archived', updatedAt: new Date() })
-      .where(eq(trackingItems.goalId, id))
+    await tx.update(trackingItems).set({ status: 'archived' }).where(eq(trackingItems.goalId, id))
 
     return { success: true }
   })

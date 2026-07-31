@@ -307,6 +307,8 @@
           "type": "string"
         },
         "boardOrder": {
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
           "type": "integer"
         },
         "category": {
@@ -433,13 +435,21 @@
           "type": "string"
         },
         "difficulty": {
-          "description": "1 = easy, 2 = medium, 3 = hard.",
-          "enum": [
-            1,
-            2,
-            3
+          "anyOf": [
+            {
+              "const": 1,
+              "type": "number"
+            },
+            {
+              "const": 2,
+              "type": "number"
+            },
+            {
+              "const": 3,
+              "type": "number"
+            }
           ],
-          "type": "number"
+          "description": "1 = easy, 2 = medium, 3 = hard."
         },
         "emoji": {
           "pattern": "^\\S{1,8}$",
@@ -1070,6 +1080,8 @@
       "additionalProperties": false,
       "properties": {
         "boardOrder": {
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
           "type": "integer"
         },
         "category": {
@@ -1329,6 +1341,8 @@
           "type": "string"
         },
         "orderIdx": {
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
           "type": "integer"
         }
       },
@@ -1450,12 +1464,18 @@
       "additionalProperties": false,
       "properties": {
         "appreciation": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "boardOrder": {
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
           "type": "integer"
         },
         "category": {
@@ -1492,15 +1512,23 @@
           "type": "string"
         },
         "legacyMessage": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "myNeeds": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "name": {
@@ -1508,9 +1536,13 @@
           "type": "string"
         },
         "selfReflection": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       },
@@ -1537,26 +1569,40 @@
       "additionalProperties": false,
       "properties": {
         "apologyLanguage": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "attachmentTendencies": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "conflictStyle": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "descriptionYear": {
           "anyOf": [
             {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
               "type": "integer"
             },
             {
@@ -1566,41 +1612,65 @@
           "description": "Calendar year this description was written for."
         },
         "loveLanguageGive": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "loveLanguageReceive": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "myStory": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "noteToFutureSelf": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "stressResponse": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "thisYearSelfDescription": {
-          "description": "Who I am this year — a paragraph.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who I am this year — a paragraph."
         }
       },
       "type": "object"
@@ -1677,12 +1747,20 @@
           "type": "string"
         },
         "difficulty": {
-          "enum": [
-            1,
-            2,
-            3
-          ],
-          "type": "number"
+          "anyOf": [
+            {
+              "const": 1,
+              "type": "number"
+            },
+            {
+              "const": 2,
+              "type": "number"
+            },
+            {
+              "const": 3,
+              "type": "number"
+            }
+          ]
         },
         "emoji": {
           "pattern": "^\\S{1,8}$",

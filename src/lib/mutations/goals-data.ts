@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { qk } from '~/lib/queries/keys'
 import type { GoalsData } from '~/lib/queries/goals'
+import type { UpdateTaskInput } from '~/lib/api/types'
 import { createConnection, deleteConnection, updateConnection } from '~/server/fn/connections.fn'
 import { createGoal, deleteGoal, updateGoal } from '~/server/fn/goals.fn'
 import { createTask, deleteTask, setTaskScheduled, updateTask } from '~/server/fn/tasks.fn'
@@ -132,7 +133,16 @@ export function useCreateTask() {
 export function useUpdateTask() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: Parameters<typeof updateTask>[0]['data']) => updateTask({ data }),
+    // Typed as the schema's OUTPUT (`UpdateTask`), not its input.
+    //
+    // `scheduledAt` is `z.coerce.date()`, whose input type is `unknown` — that
+    // is correct and deliberate, because MCP hands it an ISO string. But the
+    // optimistic patch below spreads these fields straight onto a cached task,
+    // where `scheduledAt` is a real `Date | null`, and `unknown` does not go
+    // there. The UI has an actual Date in hand at every call site, so asking
+    // for the output type is both honest and what the callers already pass;
+    // the coercion stays available for the string-shaped MCP path.
+    mutationFn: (data: UpdateTaskInput) => updateTask({ data }),
     onMutate: async ({ id, goalId, ...patch }) => {
       await queryClient.cancelQueries({ queryKey: qk.goalsData })
       const snapshot = queryClient.getQueryData<GoalsData>(qk.goalsData)

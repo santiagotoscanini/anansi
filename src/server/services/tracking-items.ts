@@ -65,7 +65,7 @@ export async function update(userId: string, input: UpdateTrackingItem) {
 
   const [updated] = await db
     .update(trackingItems)
-    .set({ ...updateData, updatedAt: new Date() })
+    .set({ ...updateData })
     .where(eq(trackingItems.id, id))
     .returning()
   return updated
@@ -91,7 +91,7 @@ export async function remove(userId: string, id: string) {
     // while nothing changed.
     const updated = await db
       .update(trackingItems)
-      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .set({ deletedAt: new Date() })
       .where(eq(trackingItems.id, id))
       .returning({ id: trackingItems.id })
     if (updated.length === 0) {

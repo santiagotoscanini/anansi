@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
+import { toolInput } from './fields'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
 import * as self from '~/server/services/self'
 import * as selfListItems from '~/server/services/self-list-items'
@@ -28,7 +29,7 @@ export function registerSelfTools(server: McpServer, ctx: McpCtx): void {
     {
       title: "Get the user's self portrait",
       description: "Return the user's prose Self row (or null if not yet started).",
-      inputSchema: {},
+      inputSchema: toolInput({}),
     },
     async () => {
       try {
@@ -45,7 +46,7 @@ export function registerSelfTools(server: McpServer, ctx: McpCtx): void {
       title: 'Update self portrait',
       description:
         'Partial upsert of prose Self fields. Only the fields you pass get written; omitted fields are untouched. Passing null clears a field.',
-      inputSchema: {
+      inputSchema: toolInput({
         thisYearSelfDescription: z.string().nullable().optional().describe('Who I am this year — a paragraph.'),
         descriptionYear: z
           .number()
@@ -61,7 +62,7 @@ export function registerSelfTools(server: McpServer, ctx: McpCtx): void {
         conflictStyle: z.string().nullable().optional(),
         stressResponse: z.string().nullable().optional(),
         noteToFutureSelf: z.string().nullable().optional(),
-      },
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
@@ -79,7 +80,7 @@ export function registerSelfTools(server: McpServer, ctx: McpCtx): void {
       title: 'List Self list items',
       description:
         'Return every list-shaped Self item across all kinds (energizer, drainer, just_for_me, proud, pattern, trigger, release, year_ahead). Group client-side by `kind`.',
-      inputSchema: {},
+      inputSchema: toolInput({}),
     },
     async () => {
       try {
@@ -96,11 +97,11 @@ export function registerSelfTools(server: McpServer, ctx: McpCtx): void {
       title: 'Add an item to a Self bucket',
       description:
         'Add an entry to one of the Self list buckets. `patternCategory` is required ONLY when `kind = pattern` — server ignores it for other kinds.',
-      inputSchema: {
+      inputSchema: toolInput({
         kind: selfListKind,
         content: z.string().min(1).max(2000),
         patternCategory: patternCategory.optional(),
-      },
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
@@ -117,11 +118,11 @@ export function registerSelfTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Update a Self list item',
       description: 'Edit content or pattern category of an existing Self item.',
-      inputSchema: {
+      inputSchema: toolInput({
         id: z.string(),
         content: z.string().min(1).max(2000).optional(),
         patternCategory: patternCategory.nullable().optional(),
-      },
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
@@ -138,7 +139,7 @@ export function registerSelfTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Delete a Self list item',
       description: 'Remove a Self item entirely.',
-      inputSchema: { id: z.string() },
+      inputSchema: toolInput({ id: z.string() }),
       annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     async ({ id }) => {

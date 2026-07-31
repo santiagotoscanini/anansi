@@ -292,7 +292,7 @@ export async function setItemText(userId: string, input: SetSyncItemText) {
   await assertOwnsSyncItem(userId, input.weeklySyncItemId)
   await db
     .update(weeklySyncItems)
-    .set({ textContent: input.textContent, updatedAt: new Date() })
+    .set({ textContent: input.textContent })
     .where(eq(weeklySyncItems.id, input.weeklySyncItemId))
   return { success: true }
 }
@@ -320,10 +320,7 @@ export async function reorderItems(userId: string, input: ReorderSyncItems) {
     }
 
     for (const o of input.ordering) {
-      await tx
-        .update(weeklySyncItems)
-        .set({ orderIdx: o.orderIdx, updatedAt: new Date() })
-        .where(eq(weeklySyncItems.id, o.id))
+      await tx.update(weeklySyncItems).set({ orderIdx: o.orderIdx }).where(eq(weeklySyncItems.id, o.id))
     }
     return { success: true }
   })

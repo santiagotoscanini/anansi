@@ -54,7 +54,6 @@ export async function update(userId: string, input: UpdateBucketListItem) {
     .set({
       content: input.content,
       description: input.description ?? null,
-      updatedAt: new Date(),
     })
     .where(and(eq(bucketListItems.id, input.id), eq(bucketListItems.userId, userId)))
     .returning()
@@ -81,7 +80,6 @@ export async function toggleCompleted(userId: string, input: { id: string; compl
     .update(bucketListItems)
     .set({
       completedAt: input.completed ? new Date() : null,
-      updatedAt: new Date(),
     })
     .where(and(eq(bucketListItems.id, input.id), eq(bucketListItems.userId, userId)))
     .returning()

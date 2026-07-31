@@ -68,7 +68,9 @@ export async function create(userId: string, input: CreateImportantDate) {
 /** Patch semantics: only keys present in `input` are written. */
 export async function update(userId: string, input: UpdateImportantDate) {
   await assertOwnsDate(userId, input.id)
-  const patch: { label?: string; month?: number; day?: number; year?: number | null; updatedAt?: Date } = {
+  // Seeded — see the note in services/auth.ts updateProfile. Every field below
+  // is optional, and drizzle rejects `.set({})` before $onUpdate can fill it.
+  const patch: { label?: string; month?: number; day?: number; year?: number | null; updatedAt: Date } = {
     updatedAt: new Date(),
   }
   if (input.label !== undefined) patch.label = input.label

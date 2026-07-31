@@ -19,7 +19,7 @@ export async function update(userId: string, input: UpdateSelf) {
   if (existing) {
     const [updated] = await db
       .update(userSelf)
-      .set({ ...input, updatedAt: new Date() })
+      .set({ ...input })
       .where(eq(userSelf.userId, userId))
       .returning()
     return updated

@@ -71,6 +71,8 @@ export async function update(userId: string, input: UpdateConnection) {
 
   const [updated] = await db
     .update(connections)
+    // updatedAt restated: every field in updateData is optional, so an id-only
+    // patch would leave `.set({})`, which drizzle rejects before  runs.
     .set({ ...updateData, updatedAt: new Date() })
     .where(eq(connections.id, id))
     .returning()

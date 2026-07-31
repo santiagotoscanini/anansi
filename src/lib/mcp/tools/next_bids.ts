@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
+import { createNextBidSchema, updateNextBidSchema } from '~/lib/api/types'
+import { isoDate, toolInput } from './fields'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
 import * as nextBids from '~/server/services/next-bids'
 
@@ -14,7 +16,7 @@ export function registerNextBidsTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'List next bids for a person',
       description: 'All open + completed bids for one person, ordered oldest-first.',
-      inputSchema: { personId: z.string() },
+      inputSchema: toolInput({ personId: z.string() }),
     },
     async ({ personId }) => {
       try {
@@ -31,9 +33,9 @@ export function registerNextBidsTools(server: McpServer, ctx: McpCtx): void {
       title: 'Upcoming bids across all people',
       description:
         'Open bids with a `dueAt` falling within the window, across every active person. Joined with person name + emoji. Default window 60 days.',
-      inputSchema: {
+      inputSchema: toolInput({
         withinDays: z.number().int().min(1).max(365).default(60),
-      },
+      }),
     },
     async ({ withinDays }) => {
       try {
@@ -50,16 +52,16 @@ export function registerNextBidsTools(server: McpServer, ctx: McpCtx): void {
       title: 'Capture a next bid',
       description:
         "Record an actionable bid toward a person. `dueAt` is optional — bids without a deadline appear in the person's list but never on the upcoming feed.",
-      inputSchema: {
+      inputSchema: toolInput({
         personId: z.string(),
         content: z.string().min(1).max(500),
-        dueAt: z.coerce.date().nullable().optional(),
-      },
+        dueAt: isoDate.nullable().optional(),
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
       try {
-        return mcpJsonResult(await nextBids.create(ctx.userId, args))
+        return mcpJsonResult(await nextBids.create(ctx.userId, createNextBidSchema.parse(args)))
       } catch (e) {
         return mcpErrorFromUnknown(e)
       }
@@ -71,16 +73,16 @@ export function registerNextBidsTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Update a next bid',
       description: 'Patch content or deadline. Pass `dueAt: null` to clear the deadline.',
-      inputSchema: {
+      inputSchema: toolInput({
         id: z.string(),
         content: z.string().min(1).max(500).optional(),
-        dueAt: z.coerce.date().nullable().optional(),
-      },
+        dueAt: isoDate.nullable().optional(),
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
       try {
-        return mcpJsonResult(await nextBids.update(ctx.userId, args))
+        return mcpJsonResult(await nextBids.update(ctx.userId, updateNextBidSchema.parse(args)))
       } catch (e) {
         return mcpErrorFromUnknown(e)
       }
@@ -92,10 +94,10 @@ export function registerNextBidsTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Mark a bid done (or reopen)',
       description: 'Toggle completion. Done bids stay visible — the trail of fulfilled bids is intentional.',
-      inputSchema: {
+      inputSchema: toolInput({
         id: z.string(),
         completed: z.boolean(),
-      },
+      }),
       annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     async ({ id, completed }) => {
@@ -112,7 +114,7 @@ export function registerNextBidsTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Delete a next bid',
       description: 'Hard-delete. Only use for entries that were captured incorrectly — prefer `set_next_bid_done`.',
-      inputSchema: { id: z.string() },
+      inputSchema: toolInput({ id: z.string() }),
       annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     async ({ id }) => {

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
+import { toolInput } from './fields'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
 import { createBucketListItemSchema } from '~/lib/api/types'
 import * as bucketList from '~/server/services/bucket-list'
@@ -14,7 +15,7 @@ export function registerBucketListTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'List bucket-list items',
       description: 'All bucket-list items oldest-first, with linked person ids hydrated.',
-      inputSchema: {},
+      inputSchema: toolInput({}),
     },
     async () => {
       try {
@@ -31,11 +32,11 @@ export function registerBucketListTools(server: McpServer, ctx: McpCtx): void {
       title: 'Add a bucket-list item',
       description:
         "Capture something the user wants to do. `personIds` links people to this item ('people I want to do this with').",
-      inputSchema: {
+      inputSchema: toolInput({
         content: z.string().min(1).max(500),
         description: z.string().max(2000).optional(),
         personIds: z.array(z.string()).optional(),
-      },
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
@@ -60,12 +61,12 @@ export function registerBucketListTools(server: McpServer, ctx: McpCtx): void {
       title: 'Update a bucket-list item',
       description:
         'Edit content/description/people. `personIds` REPLACES the linked-person set if passed; omit to leave alone. `content` is required even on update.',
-      inputSchema: {
+      inputSchema: toolInput({
         id: z.string(),
         content: z.string().min(1).max(500),
         description: z.string().max(2000).nullable().optional(),
         personIds: z.array(z.string()).optional(),
-      },
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
@@ -82,10 +83,10 @@ export function registerBucketListTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Mark a bucket-list item done (or undone)',
       description: 'Set or clear the completion timestamp on a bucket-list item.',
-      inputSchema: {
+      inputSchema: toolInput({
         id: z.string(),
         completed: z.boolean(),
-      },
+      }),
       annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     async ({ id, completed }) => {
@@ -102,7 +103,7 @@ export function registerBucketListTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Delete a bucket-list item',
       description: 'Hard-delete. Confirm with the user before calling.',
-      inputSchema: { id: z.string() },
+      inputSchema: toolInput({ id: z.string() }),
       annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     async ({ id }) => {

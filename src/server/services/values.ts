@@ -37,7 +37,7 @@ export async function update(userId: string, input: UpdateValue) {
   const { id, ...updateData } = input
   const [updated] = await db
     .update(values)
-    .set({ ...updateData, updatedAt: new Date() })
+    .set({ ...updateData })
     .where(and(eq(values.id, id), eq(values.userId, userId)))
     .returning()
   return updated

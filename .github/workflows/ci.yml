@@ -68,6 +68,18 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # The MCP tool catalog is a public contract: renaming a tool or changing an
+      # inputSchema breaks already-connected clients, and nothing else in this
+      # pipeline can see it. The catalog is produced by converting Zod shapes to
+      # JSON Schema at runtime, so both `tsc` and `vite build` pass while it is
+      # broken — the zod 4 upgrade made `tools/list` throw outright, and only this
+      # check caught it.
+      #
+      # Runs in-process against a fake user id, so it needs no server, no database
+      # and no OAuth token. Placed before Build because it is seconds, not minutes.
+      - name: Check MCP tool catalog
+        run: pnpm check:mcp-tools
+
       # The build needs these present but not real. src/lib/env.ts validates at
       # import time, and the build imports the server graph while collecting
       # page data, so an unset DATABASE_URL fails the build rather than
@@ -101,3 +113,55 @@ jobs:
             exit 1
           fi
           echo "client bundle is clean"
+
+      # ── Runtime checks ──────────────────────────────────────────────────────
+      #
+      # Everything above this line inspects source or build artefacts. These two
+      # boot the built server and drive a real browser at it, because what they
+      # guard is invisible to a build BY CONSTRUCTION:
+      #
+      #   - check-fonts: every font stack in globals.css ends in `Georgia, serif`
+      #     / `ui-sans-serif`, so a wrong @fontsource family name renders the
+      #     whole app in a fallback face with no error anywhere.
+      #   - check-i18n: i18next answers a missing bundle by rendering the raw key
+      #     path ("landing.hero.title") and carrying on — still HTTP 200.
+      #
+      # No database: the marketing page and the auth pages do not query, so the
+      # server boots against a deliberately unreachable URL. (check-shell.mjs is
+      # NOT here — it signs in and loads /app, so it needs a real Postgres and a
+      # seeded user. Run it locally; see CLAUDE.md.)
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('./node_modules/playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # Keyed on the playwright version because each release pins an exact
+      # chromium revision — a stale cache does not fail at install time, it
+      # fails at browser launch with "Executable doesn't exist at ...".
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install Chromium
+        run: pnpm exec playwright install chromium
+
+      - name: Runtime checks (fonts, i18n)
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:59999/ci
+          AUTH_SECRET: ci-placeholder-secret-not-used-for-anything-real
+          # The scripts otherwise go hunting through the npx cache for a
+          # playwright install; point them at the one in the lockfile.
+          PLAYWRIGHT_PATH: ${{ github.workspace }}/node_modules/playwright
+        run: |
+          set -euo pipefail
+          node .output/server/index.mjs &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:3000/ && break
+            sleep 1
+          done
+          curl -sf -o /dev/null http://localhost:3000/ || { echo "::error::built server never came up"; exit 1; }
+          node scripts/check-fonts.mjs http://localhost:3000/
+          node scripts/check-i18n.mjs http://localhost:3000/

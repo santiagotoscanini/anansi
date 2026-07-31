@@ -275,7 +275,13 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       )
       for (const g of b.goals) {
         if (g.parentId) {
-          await tx.update(goals).set({ parentId: g.parentId }).where(eq(goals.id, g.id))
+          // `updatedAt` is restated deliberately. Goals are inserted with
+          // parentId null and re-linked in this second pass, so without it
+          // `timestamps.$onUpdate` would stamp every parented goal with the
+          // import time and the restore would quietly lose the backed-up value.
+          // An explicit value always beats $onUpdate, which is what makes this
+          // work.
+          await tx.update(goals).set({ parentId: g.parentId, updatedAt: g.updatedAt }).where(eq(goals.id, g.id))
         }
       }
     }

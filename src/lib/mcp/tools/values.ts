@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
+import { toolInput } from './fields'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
 import * as valueBehaviors from '~/server/services/value-behaviors'
 import * as values from '~/server/services/values'
@@ -16,7 +17,7 @@ export function registerValuesTools(server: McpServer, ctx: McpCtx): void {
       title: 'List values',
       description:
         'All values defined by the user, with names and colors. Call before tagging goals so you have the right ids.',
-      inputSchema: {},
+      inputSchema: toolInput({}),
     },
     async () => {
       try {
@@ -32,10 +33,10 @@ export function registerValuesTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Create a value',
       description: 'Create a new value tag. Color is any CSS-valid hex like #f97316.',
-      inputSchema: {
+      inputSchema: toolInput({
         name: z.string().min(1),
         color: z.string().min(1).describe('CSS color, typically a hex like #f97316.'),
-      },
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
@@ -52,11 +53,11 @@ export function registerValuesTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Update a value',
       description: 'Rename or recolor a value. Pass only the fields you want to change.',
-      inputSchema: {
+      inputSchema: toolInput({
         id: z.string(),
         name: z.string().min(1).optional(),
         color: z.string().min(1).optional(),
-      },
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
@@ -73,7 +74,7 @@ export function registerValuesTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Delete a value',
       description: 'Remove a value and untag every goal that used it. Confirm with the user.',
-      inputSchema: { id: z.string() },
+      inputSchema: toolInput({ id: z.string() }),
       annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     async ({ id }) => {
@@ -91,7 +92,7 @@ export function registerValuesTools(server: McpServer, ctx: McpCtx): void {
       title: 'List behaviors for a value',
       description:
         "Return the ordered list of behavior rows attached to a value — concrete evidence the user uses to confirm they're living it.",
-      inputSchema: { valueId: z.string() },
+      inputSchema: toolInput({ valueId: z.string() }),
     },
     async ({ valueId }) => {
       try {
@@ -107,10 +108,10 @@ export function registerValuesTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Add a behavior to a value',
       description: "Append a concrete behavior row (e.g. 'Date night every Saturday') to a value.",
-      inputSchema: {
+      inputSchema: toolInput({
         valueId: z.string(),
         content: z.string().min(1).max(500),
-      },
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
@@ -127,7 +128,7 @@ export function registerValuesTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Delete a value behavior',
       description: 'Remove a single behavior row from a value.',
-      inputSchema: { id: z.string() },
+      inputSchema: toolInput({ id: z.string() }),
       annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     async ({ id }) => {

@@ -26,7 +26,7 @@ async function assertOwnsTemplate(tx: Db, userId: string, id: string) {
 async function clearDefault(tx: Db, userId: string) {
   await tx
     .update(syncTemplates)
-    .set({ isDefault: false, updatedAt: new Date() })
+    .set({ isDefault: false })
     .where(and(eq(syncTemplates.userId, userId), eq(syncTemplates.isDefault, true)))
 }
 
@@ -77,7 +77,7 @@ export async function update(userId: string, input: UpdateSyncTemplate) {
 
     const [updated] = await tx
       .update(syncTemplates)
-      .set({ ...updateData, updatedAt: new Date() })
+      .set({ ...updateData })
       .where(eq(syncTemplates.id, id))
       .returning()
     return updated

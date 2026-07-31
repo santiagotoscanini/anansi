@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
+import { toolInput } from './fields'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
 import * as authService from '~/server/services/auth'
 
@@ -13,7 +14,7 @@ export function registerSystemTools(server: McpServer, ctx: McpCtx): void {
       title: 'Who am I?',
       description:
         'Return the Anansi profile of the user whose token is being used. Useful for verifying the MCP connection works.',
-      inputSchema: {},
+      inputSchema: toolInput({}),
     },
     async () => {
       try {

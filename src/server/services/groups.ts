@@ -28,6 +28,7 @@ export async function update(userId: string, input: UpdatePersonGroup) {
   const { id, ...rest } = input
   const [updated] = await db
     .update(personGroups)
+    // updatedAt restated — see services/connections.ts update.
     .set({ ...rest, updatedAt: new Date() })
     .where(and(eq(personGroups.id, id), eq(personGroups.userId, userId)))
     .returning()

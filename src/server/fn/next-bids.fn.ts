@@ -36,5 +36,10 @@ export const deleteNextBid = createServerFn({ method: 'POST' })
 /** Open bids across every person, due inside the window. Drives Pulse. */
 export const listUpcomingNextBids = createServerFn({ method: 'GET' })
   .middleware([authMiddleware])
-  .validator(z.object({ withinDays: z.number().int().min(1).max(365).default(60) }).default({}))
+  // `.prefault({})`, not `.default({})`. In zod 4 the two diverged: `.default()`
+  // now short-circuits and returns its argument as the parsed OUTPUT, so `{}`
+  // would be handed straight to the handler with no `withinDays` at all.
+  // `.prefault()` is the zod 3 behaviour — feed the value through the schema —
+  // which is what makes the inner `.default(60)` apply.
+  .validator(z.object({ withinDays: z.number().int().min(1).max(365).default(60) }).prefault({}))
   .handler(({ data, context }) => nextBids.listUpcoming(context.userId, data))

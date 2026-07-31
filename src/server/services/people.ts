@@ -101,6 +101,7 @@ export async function update(userId: string, input: UpdatePerson) {
   const { id, groupIds, ...updateData } = input
   const [updated] = await db
     .update(people)
+    // updatedAt restated — see services/connections.ts update.
     .set({ ...updateData, updatedAt: new Date() })
     .where(and(eq(people.id, id), eq(people.userId, userId)))
     .returning()
@@ -118,7 +119,7 @@ export async function update(userId: string, input: UpdatePerson) {
 export async function archive(userId: string, id: string) {
   const [updated] = await db
     .update(people)
-    .set({ archivedAt: new Date(), updatedAt: new Date() })
+    .set({ archivedAt: new Date() })
     .where(and(eq(people.id, id), eq(people.userId, userId)))
     .returning()
   return updated
@@ -127,7 +128,7 @@ export async function archive(userId: string, id: string) {
 export async function unarchive(userId: string, id: string) {
   const [updated] = await db
     .update(people)
-    .set({ archivedAt: null, updatedAt: new Date() })
+    .set({ archivedAt: null })
     .where(and(eq(people.id, id), eq(people.userId, userId)))
     .returning()
   return updated
@@ -152,7 +153,6 @@ export async function setCategory(
     .set({
       category: input.category,
       boardOrder: input.boardOrder ?? 0,
-      updatedAt: new Date(),
     })
     .where(and(eq(people.id, input.id), eq(people.userId, userId)))
     .returning()

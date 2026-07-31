@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
+import { closedObject, toolInput } from './fields'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
 import * as goals from '~/server/services/goals'
 
@@ -21,7 +22,7 @@ export function registerGoalsTools(server: McpServer, ctx: McpCtx): void {
       title: 'List goals',
       description:
         'Return every active goal the user owns, with embedded tasks, value tags, parent-child links, and canvas position. The primary read tool for goals; call before mutating to learn the available ids.',
-      inputSchema: {},
+      inputSchema: toolInput({}),
     },
     async () => {
       try {
@@ -38,16 +39,16 @@ export function registerGoalsTools(server: McpServer, ctx: McpCtx): void {
       title: 'Create a goal',
       description:
         "Create a new top-level or sub-goal. Pass parentId to nest under another goal. `position` is the {x,y} canvas placement — pick something around {x: 100, y: 100} if you don't have a preference. Add tasks separately with `create_task` after the goal exists.",
-      inputSchema: {
+      inputSchema: toolInput({
         title: z.string().min(1).describe('Short goal title (the headline on the card).'),
         description: z.string().describe('One-paragraph description of the goal. Empty string is fine.'),
         emoji,
         parentId: z.string().optional().describe('Goal id to nest under. Omit for a top-level goal.'),
         valueIds: z.array(z.string()).default([]).describe('Existing value ids tagged on this goal.'),
-        position: z
-          .object({ x: z.number(), y: z.number() })
-          .describe("Canvas position. Pick {x:100,y:100} if you don't have a preference."),
-      },
+        position: closedObject({ x: z.number(), y: z.number() }).describe(
+          "Canvas position. Pick {x:100,y:100} if you don't have a preference.",
+        ),
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
@@ -70,15 +71,15 @@ export function registerGoalsTools(server: McpServer, ctx: McpCtx): void {
       title: 'Update a goal',
       description:
         "Patch a goal's metadata. Pass only the fields you want to change. `valueIds` REPLACES the entire tag set if passed (omit to leave tags alone). Tasks are NOT editable here — use the task tools.",
-      inputSchema: {
+      inputSchema: toolInput({
         id: z.string().describe('Goal id.'),
         title: z.string().min(1).optional(),
         description: z.string().optional(),
         emoji,
         parentId: z.string().optional().describe('New parent goal id (or omit to leave unchanged).'),
         valueIds: z.array(z.string()).optional().describe("Replace the goal's value tags with this set if passed."),
-        position: z.object({ x: z.number(), y: z.number() }).optional(),
-      },
+        position: closedObject({ x: z.number(), y: z.number() }).optional(),
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
@@ -96,7 +97,7 @@ export function registerGoalsTools(server: McpServer, ctx: McpCtx): void {
       title: 'Delete a goal',
       description:
         'Archive a goal and its associated connections + tracking items. Children of the goal become parent-less (not deleted). Confirm with the user before calling — this is destructive.',
-      inputSchema: { id: z.string() },
+      inputSchema: toolInput({ id: z.string() }),
       annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     async ({ id }) => {

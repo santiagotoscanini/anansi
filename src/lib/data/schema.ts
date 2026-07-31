@@ -50,6 +50,47 @@ const bytea = customType<{ data: Buffer; default: false }>({
   },
 })
 
+/**
+ * The audit columns carried by every non-junction table, declared once.
+ *
+ * `$onUpdate` is a **Drizzle-level** default, not a database trigger: it runs
+ * whenever an update goes through the ORM and emits no DDL, so adding it
+ * generates no migration. A raw `UPDATE` in psql still won't touch the column —
+ * that would need a trigger, which is deliberately not what this is.
+ *
+ * It exists because keeping `updatedAt` correct by hand does not scale: 29 of
+ * the 32 update sites in the service layer were carrying an identical
+ * `updatedAt: new Date()`, and three of those had to thread it through a typed
+ * patch object just to satisfy the pattern. It is a maintenance tax on every
+ * new write, paid forever, to restate the same fact.
+ *
+ * The three sites that did NOT set it were all fine as written — `next_bids`
+ * has no `updatedAt` column at all, and the third is the goal re-link pass in
+ * `backup.import`, which now restates the column explicitly so a restore keeps
+ * the backed-up timestamp. An explicit value always wins over `$onUpdate`, so
+ * opting out stays possible where it is meant.
+ *
+ * The argument here is structural rather than bug-driven: correct-by-
+ * construction beats correct-by-review for a field this easy to forget on the
+ * next table someone adds.
+ *
+ * ONE CAVEAT, and it is the reason seven update sites still restate the column
+ * by hand: **`$onUpdate` does not rescue an empty `.set({})`.** Drizzle raises
+ * "No values to set" while building the query, before any `$onUpdate` value is
+ * applied. So a patch-shaped update whose fields are all optional — `people`,
+ * `tasks`, `connections`, `person_groups`, and the three typed patch builders —
+ * would throw on an id-only call that previously succeeded. Those sites seed
+ * `updatedAt: new Date()` to guarantee a non-empty SET, and say so locally.
+ * Sites whose columns are always present just let `$onUpdate` do it.
+ */
+const timestamps = {
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at')
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+}
+
 // Users table.
 //
 // `id` is a self-generated UUID — Auth.js's Drizzle adapter expects users.id
@@ -76,8 +117,7 @@ export const users = pgTable('users', {
   // language is a JSON drop + a tuple entry in src/i18n/config.ts — no DB
   // migration. Free-form text (vs enum) keeps that promise.
   locale: text('locale'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  ...timestamps,
 })
 
 // Auth.js `accounts` table — required by @auth/drizzle-adapter when ANY OAuth
@@ -138,8 +178,7 @@ export const values = pgTable('values', {
   userId: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  ...timestamps,
 })
 
 // Behaviors that confirm a value — concrete actions or habits the user uses
@@ -180,8 +219,7 @@ export const goals = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    ...timestamps,
   },
   // Every getAll filters by (userId, status='active'); we also list children
   // by parentId. These are the hot read paths on the canvas.
@@ -211,8 +249,7 @@ export const tasks = pgTable(
     // then promotes to Monthly when September starts. This replaces the
     // earlier horizon enum + horizonAt anchor — same idea, simpler primitive.
     scheduledAt: timestamp('scheduled_at'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    ...timestamps,
   },
   // Every per-goal task fetch joins on goal_id; the Horizons board scans
   // by scheduled_at for non-null, non-completed tasks.
@@ -233,8 +270,7 @@ export const connections = pgTable(
       .notNull()
       .references(() => goals.id, { onDelete: 'cascade' }),
     weight: real('weight').notNull(),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    ...timestamps,
   },
   // Importance/progress calculations scan outgoing edges by source; the
   // graph also queries incoming edges by target.
@@ -261,8 +297,7 @@ export const trackingItems = pgTable(
     order: integer('order').notNull().default(0),
     status: trackingItemStatusEnum('status').notNull().default('active'),
     deletedAt: timestamp('deleted_at'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    ...timestamps,
   },
   (t) => [index('tracking_items_user_idx').on(t.userId)],
 )
@@ -284,8 +319,7 @@ export const weeklySync = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     weekDate: timestamp('week_date').notNull(), // Monday of the retrospective week
     templateId: text('template_id').references(() => syncTemplates.id, { onDelete: 'set null' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    ...timestamps,
   },
   // getByWeek and getWeeklyRetrospectiveData filter by (userId, weekDate);
   // unique because there's exactly one sync per user per week.
@@ -311,8 +345,7 @@ export const weeklySyncItems = pgTable(
       .references(() => trackingItems.id, { onDelete: 'cascade' }),
     textContent: text('text_content'),
     orderIdx: integer('order_idx').notNull().default(0),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    ...timestamps,
   },
   // Every retrospective render reads (weekly_sync_id, order_idx) — give it
   // a covering index so the ORDER BY doesn't sort.
@@ -333,8 +366,7 @@ export const syncTemplates = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     isDefault: boolean('is_default').notNull().default(false),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    ...timestamps,
   },
   (t) => [
     uniqueIndex('sync_templates_one_default_per_user')
@@ -409,8 +441,7 @@ export const people = pgTable(
     selfReflection: text('self_reflection'),
     decideBy: timestamp('decide_by'),
     archivedAt: timestamp('archived_at'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    ...timestamps,
   },
   (t) => [index('people_user_idx').on(t.userId)],
 )
@@ -428,8 +459,7 @@ export const bucketListItems = pgTable('bucket_list_items', {
   content: text('content').notNull(),
   description: text('description'),
   completedAt: timestamp('completed_at'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  ...timestamps,
 })
 
 // Junction: bucket list items ↔ people. "People I want to do this with."
@@ -494,8 +524,7 @@ export const importantDates = pgTable(
     month: integer('month').notNull(),
     day: integer('day').notNull(),
     year: integer('year'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    ...timestamps,
   },
   (t) => [index('important_dates_person_idx').on(t.personId)],
 )
@@ -532,8 +561,7 @@ export const personGroups = pgTable('person_groups', {
   name: text('name').notNull(),
   color: text('color').notNull(),
   orderIdx: integer('order_idx').notNull().default(0),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  ...timestamps,
 })
 
 export const peopleToGroups = pgTable('people_to_groups', {
@@ -592,8 +620,7 @@ export const userSelf = pgTable('user_self', {
   conflictStyle: text('conflict_style'),
   stressResponse: text('stress_response'),
   noteToFutureSelf: text('note_to_future_self'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  ...timestamps,
 })
 
 // Self list items — atomic rows for every list-shaped section on the Self page.
@@ -613,8 +640,7 @@ export const selfListItems = pgTable(
     patternCategory: selfPatternCategoryEnum('pattern_category'),
     content: text('content').notNull(),
     orderIdx: integer('order_idx').notNull().default(0),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    ...timestamps,
   },
   (t) => [index('self_list_items_user_kind_idx').on(t.userId, t.kind)],
 )

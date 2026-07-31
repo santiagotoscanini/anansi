@@ -32,7 +32,7 @@ The app sits at the intersection of "what do I want" (goals, tasks, values), "wh
 
 ## Stack
 
-- **Framework:** TanStack Start (Vite 8 + Nitro), TanStack Router file routes, React 19, TypeScript.
+- **Framework:** TanStack Start (Vite 8 + Nitro), TanStack Router file routes, React 19 with the React Compiler, TypeScript.
 - **Data:** TanStack Query + `createServerFn` server functions calling a plain service layer. No tRPC.
 - **UI:** Tailwind v4 (no PostCSS step), React Flow (`@xyflow/react`), Lucide, dnd-kit, i18next (EN + ES).
 - **Auth:** Auth.js v5 on `@auth/core` directly, Credentials provider, bcrypt password hashing, JWT session cookie. The browser bundle contains no auth SDK.
@@ -103,13 +103,16 @@ That last command fails more often than the `pnpm add` does. `pnpm dlx` from thi
 Run all four before opening a PR. Zero warnings and zero errors is the only acceptable count:
 
 ```bash
-pnpm format      # Prettier — formats in place
-pnpm lint        # ESLint — must end clean
-pnpm typecheck   # tsr generate && tsc --noEmit
-pnpm build       # vite build (client + SSR + nitro)
+pnpm format           # Prettier — formats in place
+pnpm lint             # ESLint — must end clean
+pnpm typecheck        # tsr generate && tsc --noEmit
+pnpm check:mcp-tools  # MCP tool catalog vs .golden/mcp-tools.json — zero diff
+pnpm build            # vite build (client + SSR + nitro)
 ```
 
-CI runs `format:check` → `lint` → `typecheck` → `build` on every PR, then greps the built client assets for server modules and env placeholders (`.github/workflows/ci.yml`).
+CI runs `format:check` → `lint` → `typecheck` → `check:mcp-tools` → `build` on every PR, then greps the built client assets for server modules and env placeholders, boots the built server, and runs the font and i18n checks against it (`.github/workflows/ci.yml`). `.github/workflows/release.yml` calls that whole workflow as a gate, so nothing ships unvalidated.
+
+`scripts/check-shell.mjs` is the one check CI does not run — it signs in and loads `/app`, so it needs a real Postgres and a seeded user. Run it locally.
 
 > Don't run `pnpm typecheck` while `pnpm dev` is running — both generate
 > `routeTree.gen.ts`, and racing them puts the dev server into a reload loop

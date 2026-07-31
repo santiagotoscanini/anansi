@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
+import { toolInput } from './fields'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
 import * as importantDates from '~/server/services/important-dates'
 
@@ -15,7 +16,7 @@ export function registerImportantDatesTools(server: McpServer, ctx: McpCtx): voi
       title: 'List important dates',
       description:
         'Yearly-recurring dates across people. Pass personId to filter to one person, omit for all dates sorted by month/day.',
-      inputSchema: { personId: z.string().optional() },
+      inputSchema: toolInput({ personId: z.string().optional() }),
     },
     async ({ personId }) => {
       try {
@@ -34,13 +35,13 @@ export function registerImportantDatesTools(server: McpServer, ctx: McpCtx): voi
     {
       title: 'Record an important date',
       description: "Add a yearly-recurring date for a person. `year` is optional — used for 'turning N' math.",
-      inputSchema: {
+      inputSchema: toolInput({
         personId: z.string(),
         label: z.string().min(1).max(120).describe("Short label like 'Birthday' or 'Anniversary'."),
         month: z.number().int().min(1).max(12),
         day: z.number().int().min(1).max(31),
         year: z.number().int().min(1).max(3000).optional().describe('Original year, if known.'),
-      },
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
@@ -57,13 +58,13 @@ export function registerImportantDatesTools(server: McpServer, ctx: McpCtx): voi
     {
       title: 'Update an important date',
       description: 'Patch label/month/day/year. Pass `year: null` to clear the originating year.',
-      inputSchema: {
+      inputSchema: toolInput({
         id: z.string(),
         label: z.string().min(1).max(120).optional(),
         month: z.number().int().min(1).max(12).optional(),
         day: z.number().int().min(1).max(31).optional(),
         year: z.number().int().min(1).max(3000).nullable().optional(),
-      },
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
@@ -80,7 +81,7 @@ export function registerImportantDatesTools(server: McpServer, ctx: McpCtx): voi
     {
       title: 'Delete an important date',
       description: 'Remove the recurring date entry.',
-      inputSchema: { id: z.string() },
+      inputSchema: toolInput({ id: z.string() }),
       annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     async ({ id }) => {

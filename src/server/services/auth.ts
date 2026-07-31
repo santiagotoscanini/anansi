@@ -86,7 +86,7 @@ export async function changePassword(userId: string, input: { currentPassword: s
   }
 
   const passwordHash = await bcrypt.hash(input.newPassword, 10)
-  await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, user.id))
+  await db.update(users).set({ passwordHash }).where(eq(users.id, user.id))
 }
 
 export async function me(userId: string) {
@@ -105,6 +105,11 @@ export async function updateProfile(userId: string, input: { name?: string; emai
     if (existing) throw new AppError('CONFLICT', 'Email already in use')
   }
 
+  // Seeded with the audit column rather than left to `timestamps.$onUpdate`,
+  // because every other field here is optional and drizzle rejects `.set({})`
+  // outright with "No values to set" — that check runs BEFORE $onUpdate is
+  // applied, so it cannot fill an otherwise-empty patch. `updateProfile({})` is
+  // valid input, so without this seed it would throw instead of no-op.
   const patch: { name?: string; email?: string; updatedAt: Date } = { updatedAt: new Date() }
   if (input.name !== undefined) patch.name = input.name
   if (input.email !== undefined) patch.email = input.email
@@ -146,7 +151,7 @@ export async function uploadAvatar(userId: string, input: { fileName: string; da
 
   const [updated] = await db
     .update(users)
-    .set({ avatarUrl: fileUrl(file.id), updatedAt: new Date() })
+    .set({ avatarUrl: fileUrl(file.id) })
     .where(eq(users.id, userId))
     .returning(PROFILE_COLUMNS)
 
@@ -159,7 +164,7 @@ export async function removeAvatar(userId: string) {
 
   const [updated] = await db
     .update(users)
-    .set({ avatarUrl: null, updatedAt: new Date() })
+    .set({ avatarUrl: null })
     .where(eq(users.id, userId))
     .returning(PROFILE_COLUMNS)
 
@@ -172,11 +177,7 @@ export async function removeAvatar(userId: string) {
  * src/i18n/config.ts — keep the caller's enum in sync when adding a language.
  */
 export async function setLocale(userId: string, locale: 'en' | 'es') {
-  const [updated] = await db
-    .update(users)
-    .set({ locale, updatedAt: new Date() })
-    .where(eq(users.id, userId))
-    .returning(PROFILE_COLUMNS)
+  const [updated] = await db.update(users).set({ locale }).where(eq(users.id, userId)).returning(PROFILE_COLUMNS)
   return updated
 }
 

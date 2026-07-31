@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
+import { toolInput } from './fields'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
 import { createPersonGroupSchema } from '~/lib/api/types'
 import * as groups from '~/server/services/groups'
@@ -16,7 +17,7 @@ export function registerGroupsTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'List groups',
       description: 'All groups the user has defined. Each group can tag people AND tasks.',
-      inputSchema: {},
+      inputSchema: toolInput({}),
     },
     async () => {
       try {
@@ -32,10 +33,10 @@ export function registerGroupsTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Create a group',
       description: 'Add a new group. Color is any CSS hex like #f97316.',
-      inputSchema: {
+      inputSchema: toolInput({
         name: z.string().min(1),
         color: z.string().min(1),
-      },
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
@@ -59,12 +60,12 @@ export function registerGroupsTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Update a group',
       description: 'Rename, recolor, or reorder a group.',
-      inputSchema: {
+      inputSchema: toolInput({
         id: z.string(),
         name: z.string().min(1).optional(),
         color: z.string().min(1).optional(),
         orderIdx: z.number().int().optional(),
-      },
+      }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     async (args) => {
@@ -81,7 +82,7 @@ export function registerGroupsTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Delete a group',
       description: 'Remove a group. Cascades to its memberships (people and tasks lose this tag).',
-      inputSchema: { id: z.string() },
+      inputSchema: toolInput({ id: z.string() }),
       annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     async ({ id }) => {
@@ -98,7 +99,7 @@ export function registerGroupsTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Tasks in a group',
       description: "Every task tagged with the group, joined with the parent goal's context.",
-      inputSchema: { groupId: z.string() },
+      inputSchema: toolInput({ groupId: z.string() }),
     },
     async ({ groupId }) => {
       try {

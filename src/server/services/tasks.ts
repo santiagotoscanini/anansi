@@ -36,6 +36,7 @@ export async function update(userId: string, input: UpdateTask & { goalId: strin
 
   const [updated] = await db
     .update(tasks)
+    // updatedAt restated — see services/connections.ts update.
     .set({ ...updateData, updatedAt: new Date() })
     .where(and(eq(tasks.id, id), eq(tasks.goalId, goalId)))
     .returning()
@@ -79,6 +80,6 @@ export async function setScheduled(userId: string, input: { id: string; schedule
     .limit(1)
   if (!owned) throw new AppError('NOT_FOUND', 'Task not found or access denied')
 
-  await db.update(tasks).set({ scheduledAt: input.scheduledAt, updatedAt: new Date() }).where(eq(tasks.id, input.id))
+  await db.update(tasks).set({ scheduledAt: input.scheduledAt }).where(eq(tasks.id, input.id))
   return { success: true }
 }

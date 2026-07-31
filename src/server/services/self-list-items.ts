@@ -49,6 +49,8 @@ export async function update(userId: string, input: UpdateSelfListItem) {
     .limit(1)
   if (!row) throw new AppError('NOT_FOUND', 'Self list item not found or access denied')
 
+  // Seeded — see the note in services/auth.ts updateProfile. Both fields below
+  // are optional, and drizzle rejects `.set({})` before $onUpdate can fill it.
   const patch: { content?: string; patternCategory?: typeof row.patternCategory; updatedAt: Date } = {
     updatedAt: new Date(),
   }
@@ -74,7 +76,7 @@ export async function reorder(userId: string, input: ReorderSelfListItems) {
     for (const { id, orderIdx } of input.ordering) {
       await tx
         .update(selfListItems)
-        .set({ orderIdx, updatedAt: new Date() })
+        .set({ orderIdx })
         .where(and(eq(selfListItems.id, id), eq(selfListItems.userId, userId), eq(selfListItems.kind, input.kind)))
     }
   })

@@ -1,18 +1,21 @@
-/* source() pins class scanning to an explicit root. Without it, v4's
-   auto-detection resolves a different root in the client build than in the
-   SSR one, the two emit different bytes for this file, and the server links
-   an /assets/globals-<hash>.css that was never published — every first paint
-   is unstyled until hydration swaps in the client's URL (TanStack/router
-   #4959). The hash mismatch is the symptom to check if this regresses:
-   `grep -ro 'globals-.*\.css' .output/server` vs `ls .output/public/assets`. */
-@import 'tailwindcss' source('../..');
+/* source(none) turns v4's automatic class scanning OFF; the @source below is
+   then the complete list of what gets scanned. Auto-detection must not run
+   here because it is environment-dependent: it respects .gitignore, and the
+   image build has none (.dockerignore drops it), so the client pass and the
+   SSR pass scanned different trees, emitted different bytes for this file,
+   and the server linked an /assets/globals-<hash>.css that was never
+   published — every first paint 404'd the stylesheet and rendered unstyled
+   until hydration swapped in the client's URL (TanStack/router#4959 is the
+   same failure). The symptom to check if this regresses:
+   `grep -ro 'globals-.*\.css' .output/server` vs `ls .output/public/assets`
+   must name the SAME hash. */
+@import 'tailwindcss' source(none);
 
-/* Kept alongside source() above: scanning is only deterministic from an
-   explicit root, and these name the two trees that actually hold classes —
-   without any scan directive Tailwind emits an empty utility layer while the
-   build still succeeds. Do not "tidy" them away. */
-@source '../components';
-@source '../routes';
+/* Everything that carries a class lives under src/, and build artifacts
+   never do — scanning exactly this tree is what makes the output identical
+   in every environment. Without any @source Tailwind emits an empty utility
+   layer while the build still succeeds; do not "tidy" this away. */
+@source '../';
 
 /* React Flow's stylesheet, imported here rather than from GoalsGraph.tsx so
    the cascade order is deterministic: it lands before the token definitions

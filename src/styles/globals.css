@@ -1,10 +1,16 @@
-@import 'tailwindcss';
+/* source() pins class scanning to an explicit root. Without it, v4's
+   auto-detection resolves a different root in the client build than in the
+   SSR one, the two emit different bytes for this file, and the server links
+   an /assets/globals-<hash>.css that was never published — every first paint
+   is unstyled until hydration swaps in the client's URL (TanStack/router
+   #4959). The hash mismatch is the symptom to check if this regresses:
+   `grep -ro 'globals-.*\.css' .output/server` vs `ls .output/public/assets`. */
+@import 'tailwindcss' source('../..');
 
-/* v4 discovers utility classes by scanning outward from THIS file's directory.
-   Every class in this app lives in a sibling of src/styles/, so without these
-   two directives Tailwind finds nothing and emits an empty utility layer —
-   while the build still succeeds and the app still renders, just unstyled.
-   That is the whole reason they are here; do not "tidy" them away. */
+/* Kept alongside source() above: scanning is only deterministic from an
+   explicit root, and these name the two trees that actually hold classes —
+   without any scan directive Tailwind emits an empty utility layer while the
+   build still succeeds. Do not "tidy" them away. */
 @source '../components';
 @source '../routes';
 

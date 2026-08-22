@@ -883,7 +883,7 @@
     "common": {
       "kicker": "a place to talk about your life",
       "footerPrivate": "private by default",
-      "footerEncrypted": "encrypted",
+      "footerEncrypted": "encrypted in transit",
       "footerNoNotifications": "no notifications",
       "orWithEmail": "or with email",
       "continueGoogle": "Continue with Google",

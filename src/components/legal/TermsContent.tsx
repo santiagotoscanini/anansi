@@ -94,8 +94,9 @@ export default function TermsContent() {
       <Section title="Service availability">
         <p>
           We aim to keep Anansi available and responsive, but the service is provided &ldquo;as is.&rdquo; We don&apos;t
-          commit to a specific uptime, response time, or feature set. Scheduled maintenance, outages upstream of us
-          (Supabase, Vercel), and unexpected bugs will happen.
+          commit to a specific uptime, response time, or feature set. Anansi runs on one machine in a house, so a power
+          cut, a lost internet connection, a reboot, or an unexpected bug will take it offline, and there is no second
+          machine to fail over to.
         </p>
       </Section>
 

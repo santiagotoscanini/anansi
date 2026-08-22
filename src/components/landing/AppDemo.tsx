@@ -148,10 +148,7 @@ function DemoSidebar() {
         <NavRow icon={Network} label={t('dashboard.nav.relationships')} />
 
         <div className="mt-4 mb-1 flex items-center justify-between px-2">
-          <span
-            className="text-[10px] font-medium tracking-[0.12em] uppercase"
-            style={{ color: 'var(--ink-3)' }}
-          >
+          <span className="text-[10px] font-medium tracking-[0.12em] uppercase" style={{ color: 'var(--ink-3)' }}>
             {t('dashboard.sections.groups')}
           </span>
           <Plus className="h-3.5 w-3.5" style={{ color: 'var(--ink-3)' }} />
@@ -234,7 +231,10 @@ function NavRow({
 
 function GroupRow({ label, count, dotColor }: { label: string; count: number; dotColor?: string }) {
   return (
-    <span className="flex items-center justify-between rounded-lg px-3 py-2 text-[13px]" style={{ color: 'var(--ink-2)' }}>
+    <span
+      className="flex items-center justify-between rounded-lg px-3 py-2 text-[13px]"
+      style={{ color: 'var(--ink-2)' }}
+    >
       <span className="flex items-center gap-3">
         <span
           className="h-2 w-2 rounded-full"
@@ -303,9 +303,7 @@ function DemoPulse() {
             <span>
               <span style={{ color: 'var(--ink)' }}>{4}</span>/{5} {t('pulse.filledProgress')}
             </span>
-            <span
-              style={{ width: 96, height: 4, background: 'var(--vellum)', borderRadius: 99, overflow: 'hidden' }}
-            >
+            <span style={{ width: 96, height: 4, background: 'var(--vellum)', borderRadius: 99, overflow: 'hidden' }}>
               <span style={{ display: 'block', width: '80%', height: '100%', background: 'var(--clay)' }} />
             </span>
             <span>{80}%</span>
@@ -491,9 +489,7 @@ function PromptCard({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-2">
-            <span
-              style={{ fontFamily: 'var(--font-display)', fontSize: 19, lineHeight: 1.3, color: 'var(--ink)' }}
-            >
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: 19, lineHeight: 1.3, color: 'var(--ink)' }}>
               {title}
             </span>
             <span
@@ -561,10 +557,7 @@ function UpcomingRow({
   last?: boolean
 }) {
   return (
-    <li
-      className="flex items-start gap-3 py-3"
-      style={{ borderBottom: last ? 'none' : '1px solid var(--hairline)' }}
-    >
+    <li className="flex items-start gap-3 py-3" style={{ borderBottom: last ? 'none' : '1px solid var(--hairline)' }}>
       {kind === 'date' ? (
         <span
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"

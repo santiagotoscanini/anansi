@@ -77,19 +77,19 @@ export default function PrivacyContent() {
       <Section title="What we collect automatically">
         <ul>
           <li>
-            <strong>Account identity</strong> — your name, email address, and a hashed password (stored and verified by
+            <strong>Account identity:</strong> your name, email address, and a hashed password (stored and verified by
             our authentication provider, Supabase Auth; we never see the plaintext).
           </li>
           <li>
-            <strong>Session cookies</strong> — HttpOnly cookies that keep you signed in. Strictly necessary for the app
+            <strong>Session cookies:</strong> HttpOnly cookies that keep you signed in. Strictly necessary for the app
             to work.
           </li>
           <li>
-            <strong>Server logs</strong> — request paths, status codes, and approximate timing. We do not log request
+            <strong>Server logs:</strong> request paths, status codes, and approximate timing. We do not log request
             bodies or response bodies. Logs are retained for operational debugging and rotated.
           </li>
           <li>
-            <strong>Aggregate analytics</strong> — page-view counts and rough performance metrics via Vercel Web
+            <strong>Aggregate analytics:</strong> page-view counts and rough performance metrics via Vercel Web
             Analytics and Vercel Speed Insights. Both are cookieless. Neither identifies you personally to us.
           </li>
         </ul>
@@ -98,19 +98,19 @@ export default function PrivacyContent() {
       <Section title="Where your data lives">
         <ul>
           <li>
-            <strong>Database</strong> — Postgres managed by Supabase, in the region selected for our project.
+            <strong>Database:</strong> Postgres managed by Supabase, in the region selected for our project.
           </li>
           <li>
-            <strong>File uploads</strong> — your avatar, photos of people, and weekly-sync attachments live in Supabase
+            <strong>File uploads:</strong> your avatar, photos of people, and weekly-sync attachments live in Supabase
             Storage in the same region. Avatars and people photos are stored in public buckets behind unguessable URLs
             scoped to your user id; sync attachments live in a private bucket and are served via short-lived signed URLs
             (1 hour).
           </li>
           <li>
-            <strong>Hosting</strong> — the Anansi web app is served by Vercel.
+            <strong>Hosting:</strong> the Anansi web app is served by Vercel.
           </li>
           <li>
-            <strong>Email</strong> — sign-up confirmations, password resets, and email-change confirmations are sent
+            <strong>Email:</strong> sign-up confirmations, password resets, and email-change confirmations are sent
             through Supabase&apos;s email provider.
           </li>
         </ul>
@@ -144,14 +144,14 @@ export default function PrivacyContent() {
       <Section title="Your rights">
         <ul>
           <li>
-            <strong>Export</strong> — Profile → Backups exports every row we hold about you, plus your binary
+            <strong>Export:</strong> Profile → Backups exports every row we hold about you, plus your binary
             attachments, as a single JSON file. No request needed.
           </li>
           <li>
-            <strong>Correct or update</strong> — every field you can read on a screen is editable on that screen.
+            <strong>Correct or update:</strong> every field you can read on a screen is editable on that screen.
           </li>
           <li>
-            <strong>Delete</strong> — you can delete individual entries at any time. To delete your entire account and
+            <strong>Delete:</strong> you can delete individual entries at any time. To delete your entire account and
             all associated data, contact us (see below). Account deletion is irreversible and removes your database rows
             and storage objects within a few days of the request.
           </li>

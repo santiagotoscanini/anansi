@@ -60,7 +60,7 @@
     "backupDownloaded_other": "Backup downloaded ({{count}} files)",
     "exportFailed": "Export failed",
     "mcp": "Anansi for Claude",
-    "mcpHelp": "Connect Anansi to Claude (Desktop, Code, or claude.ai). Once linked, you can talk to Claude to create goals, capture next bids, update your Self portrait — anything the app lets you do, plus a few that reading takes from you.",
+    "mcpHelp": "Connect Anansi to Claude (Desktop, Code, or claude.ai). Once linked, you can talk to Claude to create goals, capture next bids, update your Self portrait. Anything the app lets you do.",
     "mcpServerUrl": "Server URL",
     "mcpServerUrlHelp": "Paste this into your Claude client as an HTTP MCP server. It opens a browser tab the first time to sign you in.",
     "mcpCopyUrl": "Copy URL",
@@ -161,7 +161,7 @@
     "totalExplanation3": "(a pure orchestration node, e.g., \"Stay healthy\"), it leans almost entirely on its dependencies. The clamp at the end keeps the result inside [0, 100].",
     "importanceTitle": "4 · Importance (from outgoing edge weights)",
     "importanceFormula": "avg = Σ(outgoingEdge.weight) / count(outgoingEdges)\n\nLow      if no outgoing edges, OR avg ≤ 33.3\nMedium   if 33.3 < avg < 66.6\nHigh     if avg ≥ 66.6",
-    "importanceExplanation1": "A goal's importance isn't self-declared — it's read from how heavily",
+    "importanceExplanation1": "A goal's importance is read from how heavily",
     "importanceExplanation2": "other goals depend on it",
     "importanceExplanation3": ". A goal with strong outgoing edges (averaging high weight) is a load-bearing column in your structure. A goal nothing depends on is just a leaf.",
     "miniMapTitle": "5 · MiniMap colors",
@@ -172,7 +172,7 @@
     "rationaleTitle": "Why model goals this way?",
     "rationaleIntro": "The graph treats goals as a network, not a list. Two ideas drive every formula above:",
     "rationaleConnectionsHeader": "Connections carry meaning.",
-    "rationaleConnectionsBody": "An edge isn't decoration — it says \"this feeds that.\" Importance and dependency progress both fall out of the same edges; you only have to maintain one piece of structure.",
+    "rationaleConnectionsBody": "An edge says \"this feeds that.\" Importance and dependency progress both fall out of the same edges; you only have to maintain one piece of structure.",
     "rationaleDifficultyHeader": "Difficulty matters.",
     "rationaleDifficultyBody": "Counting completed tasks alone treats a 10-minute errand the same as a multi-week project. Weighting by difficulty makes percentages mean something closer to actual effort.",
     "exampleHeader": "Example",
@@ -252,9 +252,9 @@
     "difficultyMedium": "Medium",
     "difficultyHard": "Hard",
     "titleRequired": "Goal title is required",
-    "goalUpdated": "Goal updated successfully",
-    "goalCreated": "Goal created successfully",
-    "goalDeleted": "Goal deleted successfully",
+    "goalUpdated": "Goal updated",
+    "goalCreated": "Goal created",
+    "goalDeleted": "Goal deleted",
     "customEmojiSet": "Custom emoji set"
   },
   "taskModal": {
@@ -359,7 +359,7 @@
     "eyebrow": "Goals · progress",
     "titlePre": "The year, ",
     "titleEm": "so far.",
-    "subtitle": "Where you've shown up. Not a leaderboard, not a streak. A quiet record of evidence.",
+    "subtitle": "Where you've shown up. A quiet record of evidence.",
     "noTerminalGoals": "No terminal goals found",
     "noTerminalGoalsHelp": "Create goals and connect them to build your goal hierarchy",
     "overallTitle": "Overall Life Progress",
@@ -399,7 +399,7 @@
     "eyebrow": "Compass · bucket list · {{count}}",
     "titlePre": "Things to do ",
     "titleEm": "before dying.",
-    "subtitle": "Not a list of trophies. A list of moments you'd grieve not having tried. Tag the people you want to be with when it happens.",
+    "subtitle": "A list of moments you'd grieve not having tried. Tag the people you want to be with when it happens.",
     "addPlaceholder": "Something to do before you die…",
     "addDetails": "Add with details",
     "addFailed": "Couldn't add",
@@ -539,15 +539,15 @@
     "removeFromSyncFailed": "Failed to remove",
     "noWeeklySync": "No weekly sync available",
     "uploadingImages": "Uploading images...",
-    "imagesUploaded_one": "{{count}} image uploaded successfully",
-    "imagesUploaded_other": "{{count}} images uploaded successfully",
+    "imagesUploaded_one": "{{count}} image uploaded",
+    "imagesUploaded_other": "{{count}} images uploaded",
     "uploadFailed": "Failed to upload images",
     "noFileData": "No file data",
     "readFileFailed": "Failed to read file",
     "saveTextFailed": "Failed to save text",
     "notesCleared": "Notes cleared",
     "clearNotesFailed": "Failed to clear notes",
-    "fileDeleted": "{{name}} deleted successfully",
+    "fileDeleted": "{{name}} deleted",
     "fileDeleteFailed": "Failed to delete {{name}}",
     "importanceHigh": "High",
     "importanceMedium": "Medium",
@@ -706,7 +706,7 @@
     "showReference": "Show reference",
     "releasedEyebrow": "Released",
     "releasedTitle": "Things I've let go of",
-    "releasedHelper": "Not regrets — releases. Stories, roles, expectations I no longer carry.",
+    "releasedHelper": "Releases, not regrets: stories, roles and expectations I no longer carry.",
     "releasePlaceholder": "Something you've put down…",
     "addRelease": "Add a release",
     "yearAheadEyebrow": "Year ahead",
@@ -962,7 +962,7 @@
     },
     "forgot": {
       "kicker": "Forgot your password",
-      "title": "Let's get you back in",
+      "title": "Reset your password",
       "titleSent": "Check your email",
       "body": "Tell us the email you signed up with. We'll send you a one-time link to set a new password.",
       "bodySent": "If an account exists for that email, we sent a reset link. Click it and you'll be taken to a page to set a new password.",
@@ -986,7 +986,7 @@
       "passwordShort": "12 characters or more, please.",
       "success": "Password updated. Welcome back.",
       "expiredTitle": "This link has expired",
-      "expiredBody": "The reset link is single-use and time-bound. Request a fresh one and we'll get you back in.",
+      "expiredBody": "The reset link is single-use and time-bound. Request a fresh one.",
       "sendNew": "Send a new link"
     }
   },
@@ -1017,9 +1017,9 @@
     },
     "manifesto": {
       "chapter": "Chapter I · the shape of it",
-      "title1": "Not a tracker.",
-      "title2": "<em>A thinking surface.</em>",
-      "intro": "Every app built around “your goals” eventually becomes a guilt machine. anansi makes a different bet — that the things worth tending are too slow for streaks, and too quiet for notifications.",
+      "title1": "A thinking surface",
+      "title2": "<em>for the long arc.</em>",
+      "intro": "Every app built around “your goals” eventually becomes a guilt machine. anansi bets the other way: the things worth tending are too slow for streaks.",
       "isntHeading": "It isn't",
       "isnt": [
         ["A habit tracker", "Streaks turn rest into failure."],
@@ -1029,16 +1029,16 @@
         ["A growth-hacked feed", "No streaks, no badges, no nudges."]
       ],
       "isHeading": "It is",
-      "isBody1": "A place to write down what you want and notice <em>which threads pull at which.</em> A reflection-only Personal CRM that asks not “when did I last contact them” but “what do I want to repair?” A Self page that's a portrait, not a profile.",
+      "isBody1": "A place to write down what you want and notice <em>which threads pull at which.</em> A reflection-only Personal CRM that asks not “when did I last contact them” but “what do I want to repair?” A Self page that's a portrait.",
       "isBody2": "Empty fields read as clean pages. The system computes which goal is now <em>important</em> from the threads you've drawn. Tasks promote themselves toward you as their deadline approaches.",
       "isBody3": "anansi is what you'd build for yourself if you trusted slow software.",
-      "quote": "“Built for the long arc, not the dopamine hit.”",
+      "quote": "“Built for the long arc.”",
       "quoteCite": "— the first line we wrote"
     },
     "surfaces": {
       "chapter": "Chapter II · six surfaces",
       "title": "Six places to put a thought.",
-      "intro": "Each one has a different shape because the kinds of thinking it holds are different. A goal is not a person. A value is not a task. A weekly note is not a bucket-list item.",
+      "intro": "Each one has a different shape because the kinds of thinking it holds are different. A goal, a person, a value and a weekly note each want their own.",
       "items": {
         "pulse": {
           "name": "Pulse",
@@ -1047,8 +1047,8 @@
         },
         "self": {
           "name": "Self",
-          "cap": "a living portrait, not a tracker",
-          "body": "This-year shape. My story. How I love, apologize, fight, stress. The patterns I'm catching gently. Released. Just for me. A page you write for yourself, not anyone else."
+          "cap": "a portrait you keep rewriting",
+          "body": "This-year shape. My story. How I love, apologize, fight, stress. The patterns I'm catching gently. Released. Just for me. A page you write for yourself."
         },
         "objectives": {
           "name": "Objectives",
@@ -1057,7 +1057,7 @@
         },
         "people": {
           "name": "People",
-          "cap": "a reflection surface — not a rolodex",
+          "cap": "a reflection surface",
           "body": "No phone numbers, no last-contacted timer. Per person: appreciation, my needs, legacy message, next bids, the dates that matter. To-process · exploring · long-term · context-bound."
         },
         "values": {
@@ -1068,7 +1068,7 @@
         "bucket": {
           "name": "Bucket List",
           "cap": "the things to do before dying",
-          "body": "Tag each item with the people you want to do it with. Not a checklist of trophies — a list of moments you'd grieve not having tried."
+          "body": "Tag each item with the people you want to do it with. A list of moments you'd grieve not having tried."
         }
       }
     },
@@ -1132,7 +1132,7 @@
       "titlePre": "Why a",
       "titleEm": "spider?",
       "body1": "anansi is named after the West African spider-trickster — keeper of stories, weaver of webs. The mark you've seen throughout this page is <em>Ananse Ntontan,</em> the Adinkra symbol for the spider's web. It stands for <em>wisdom, creativity, and the complexity of life.</em>",
-      "body2": "The metaphor isn't decorative. anansi is a graph: every goal connects to other goals, to values, to people, to tasks, to the weekly reflection that sits over all of them. Pull on one thread and the others move. The whole point is to <em>see the threads.</em>",
+      "body2": "The metaphor is structural. anansi is a graph: every goal connects to other goals, to values, to people, to tasks, to the weekly reflection that sits over all of them. Pull on one thread and the others move. The whole point is to <em>see the threads.</em>",
       "symbol": "Ananse Ntontan",
       "lineage": "Adinkra · Ghana · Akan"
     },
@@ -1140,7 +1140,7 @@
       "chapter": "Chapter VI · pricing",
       "title1": "One price.",
       "title2": "<em>A year at a time.</em>",
-      "intro": "anansi is a yearly subscription, not a monthly one — because the things this app holds move on the scale of years, not weeks. Start any time. Cancel any time. We won't email you.",
+      "intro": "anansi bills yearly, because what it holds moves on the scale of years. Start any time. Cancel any time. We won't email you.",
       "year": {
         "title": "A year",
         "badge": "most chosen",
@@ -1149,14 +1149,14 @@
         "feature1": "All six surfaces · unlimited goals · unlimited people",
         "feature2": "Yearly review · self-portrait history",
         "feature3": "Encrypted backups · one-click export",
-        "feature4": "Quiet by design — no nudges, no email digest",
+        "feature4": "No nudges, no email digest",
         "cta": "Begin your year →"
       },
       "lifetime": {
         "title": "A lifetime",
         "badge": "limited",
         "perOnce": "/ once",
-        "blurb": "Three years of use, paid up front. After that — yours.",
+        "blurb": "Three years of use, paid up front. Then it's yours.",
         "feature1": "Everything in A Year",
         "feature2": "All future surfaces, forever",
         "feature3": "Founder's badge in your profile · one free gift year",

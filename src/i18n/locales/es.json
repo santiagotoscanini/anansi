@@ -60,7 +60,7 @@
     "backupDownloaded_other": "Copia descargada ({{count}} archivos)",
     "exportFailed": "La exportación falló",
     "mcp": "Anansi para Claude",
-    "mcpHelp": "Conectá Anansi con Claude (Desktop, Code o claude.ai). Después podés hablarle a Claude para crear metas, capturar próximos gestos, actualizar tu retrato — lo mismo que hace la app, más algo de lo que solo leyendo te exige.",
+    "mcpHelp": "Conectá Anansi con Claude (Desktop, Code o claude.ai). Después podés hablarle a Claude para crear metas, capturar próximos gestos, actualizar tu retrato. Todo lo que la app te deja hacer.",
     "mcpServerUrl": "URL del servidor",
     "mcpServerUrlHelp": "Pegá esta URL en tu cliente de Claude como servidor MCP por HTTP. La primera vez abre una pestaña del navegador para iniciar sesión.",
     "mcpCopyUrl": "Copiar URL",
@@ -161,7 +161,7 @@
     "totalExplanation3": "(un nodo puro de orquestación, p. ej., \"Estar sano\"), se apoya casi por completo en sus dependencias. El recorte al final mantiene el resultado dentro de [0, 100].",
     "importanceTitle": "4 · Importancia (de los pesos salientes)",
     "importanceFormula": "prom = Σ(aristaSaliente.peso) / cantidad(aristasSalientes)\n\nBaja     si no hay aristas salientes, O prom ≤ 33,3\nMedia    si 33,3 < prom < 66,6\nAlta     si prom ≥ 66,6",
-    "importanceExplanation1": "La importancia de una meta no se autodeclara — se lee de cuánto",
+    "importanceExplanation1": "La importancia de una meta se lee de cuánto",
     "importanceExplanation2": "otras metas dependen de ella",
     "importanceExplanation3": ". Una meta con aristas salientes fuertes (peso promedio alto) es una columna que sostiene tu estructura. Una meta de la que nada depende es solo una hoja.",
     "miniMapTitle": "5 · Colores del MiniMapa",
@@ -172,7 +172,7 @@
     "rationaleTitle": "¿Por qué modelar las metas así?",
     "rationaleIntro": "El grafo trata las metas como una red, no como una lista. Dos ideas mueven cada fórmula de arriba:",
     "rationaleConnectionsHeader": "Las conexiones llevan significado.",
-    "rationaleConnectionsBody": "Una arista no es decoración — dice \"esto alimenta aquello\". La importancia y el progreso de dependencias salen de las mismas aristas; solo tenés que mantener una pieza de estructura.",
+    "rationaleConnectionsBody": "Una arista dice \"esto alimenta aquello\". La importancia y el progreso de dependencias salen de las mismas aristas; solo tenés que mantener una pieza de estructura.",
     "rationaleDifficultyHeader": "La dificultad importa.",
     "rationaleDifficultyBody": "Contar tareas completadas a secas trata un mandado de 10 minutos igual que un proyecto de varias semanas. Ponderar por dificultad hace que los porcentajes signifiquen algo más cercano al esfuerzo real.",
     "exampleHeader": "Ejemplo",
@@ -359,7 +359,7 @@
     "eyebrow": "Metas · progreso",
     "titlePre": "El año, ",
     "titleEm": "hasta ahora.",
-    "subtitle": "Donde estuviste presente. No es una tabla de posiciones, ni una racha. Un registro silencioso de evidencia.",
+    "subtitle": "Donde estuviste presente. Un registro silencioso de evidencia.",
     "noTerminalGoals": "No hay metas terminales",
     "noTerminalGoalsHelp": "Creá metas y conectalas para armar tu jerarquía",
     "overallTitle": "Progreso global",
@@ -399,7 +399,7 @@
     "eyebrow": "Brújula · lista de deseos · {{count}}",
     "titlePre": "Cosas para hacer ",
     "titleEm": "antes de morir.",
-    "subtitle": "No es una lista de trofeos. Es una lista de momentos que lamentarías no haber intentado. Etiquetá las personas con las que querés vivirlos.",
+    "subtitle": "Una lista de momentos que lamentarías no haber intentado. Etiquetá las personas con las que querés vivirlos.",
     "addPlaceholder": "Algo para hacer antes de morir…",
     "addDetails": "Agregar con detalles",
     "addFailed": "No se pudo agregar",
@@ -539,15 +539,15 @@
     "removeFromSyncFailed": "No se pudo quitar",
     "noWeeklySync": "No hay sync semanal disponible",
     "uploadingImages": "Subiendo imágenes...",
-    "imagesUploaded_one": "{{count}} imagen subida con éxito",
-    "imagesUploaded_other": "{{count}} imágenes subidas con éxito",
+    "imagesUploaded_one": "{{count}} imagen subida",
+    "imagesUploaded_other": "{{count}} imágenes subidas",
     "uploadFailed": "No se pudieron subir las imágenes",
     "noFileData": "No hay datos de archivo",
     "readFileFailed": "No se pudo leer el archivo",
     "saveTextFailed": "No se pudo guardar el texto",
     "notesCleared": "Notas borradas",
     "clearNotesFailed": "No se pudieron borrar las notas",
-    "fileDeleted": "{{name}} eliminado con éxito",
+    "fileDeleted": "{{name}} eliminado",
     "fileDeleteFailed": "No se pudo eliminar {{name}}",
     "importanceHigh": "Alta",
     "importanceMedium": "Media",
@@ -706,7 +706,7 @@
     "showReference": "Mostrar referencia",
     "releasedEyebrow": "Soltado",
     "releasedTitle": "Cosas que solté",
-    "releasedHelper": "No arrepentimientos — sino liberaciones. Historias, roles, expectativas que ya no cargo.",
+    "releasedHelper": "Liberaciones, no arrepentimientos: historias, roles y expectativas que ya no cargo.",
     "releasePlaceholder": "Algo que hayas dejado…",
     "addRelease": "Agregar una liberación",
     "yearAheadEyebrow": "Año por delante",
@@ -962,7 +962,7 @@
     },
     "forgot": {
       "kicker": "Olvidaste tu contraseña",
-      "title": "Vamos a devolverte la entrada",
+      "title": "Restablecé tu contraseña",
       "titleSent": "Revisá tu correo",
       "body": "Contános el correo con el que te registraste. Te mandamos un enlace de un solo uso para poner una contraseña nueva.",
       "bodySent": "Si hay una cuenta con ese correo, te mandamos un enlace para restablecer. Hacé clic y llegás a una página para poner una contraseña nueva.",
@@ -986,7 +986,7 @@
       "passwordShort": "12 caracteres o más, por favor.",
       "success": "Contraseña actualizada. Bienvenido de nuevo.",
       "expiredTitle": "Este enlace expiró",
-      "expiredBody": "El enlace es de un solo uso y tiene tiempo limitado. Pedí uno nuevo y te devolvemos la entrada.",
+      "expiredBody": "El enlace es de un solo uso y tiene tiempo limitado. Pedí uno nuevo.",
       "sendNew": "Enviar un enlace nuevo"
     }
   },
@@ -1017,9 +1017,9 @@
     },
     "manifesto": {
       "chapter": "Capítulo I · la forma de esto",
-      "title1": "No es un rastreador.",
-      "title2": "<em>Es una superficie para pensar.</em>",
-      "intro": "Toda app construida alrededor de “tus metas” termina siendo una máquina de culpa. anansi hace una apuesta distinta — que las cosas que vale la pena cuidar son demasiado lentas para las rachas y demasiado silenciosas para las notificaciones.",
+      "title1": "Una superficie para pensar",
+      "title2": "<em>para el arco largo.</em>",
+      "intro": "Toda app construida alrededor de “tus metas” termina siendo una máquina de culpa. anansi apuesta al revés: las cosas que vale la pena cuidar son demasiado lentas para las rachas.",
       "isntHeading": "No es",
       "isnt": [
         ["Un rastreador de hábitos", "Las rachas convierten el descanso en fracaso."],
@@ -1029,16 +1029,16 @@
         ["Un feed con growth-hacking", "Sin rachas, sin medallas, sin empujones."]
       ],
       "isHeading": "Es",
-      "isBody1": "Un lugar para escribir lo que querés y notar <em>qué hilos tiran de qué.</em> Un CRM personal solo para reflexionar que no pregunta “¿cuándo los contacté por última vez?” sino “¿qué quiero reparar?”. Una página de Tú que es un retrato, no un perfil.",
+      "isBody1": "Un lugar para escribir lo que querés y notar <em>qué hilos tiran de qué.</em> Un CRM personal solo para reflexionar que no pregunta “¿cuándo los contacté por última vez?” sino “¿qué quiero reparar?”. Una página de Tú que es un retrato.",
       "isBody2": "Los campos vacíos se leen como páginas limpias. El sistema calcula qué meta es ahora <em>importante</em> a partir de los hilos que dibujaste. Las tareas se acercan a vos a medida que se acerca su fecha.",
       "isBody3": "anansi es lo que te construirías para vos mismo si confiaras en el software lento.",
-      "quote": "“Hecho para el arco largo, no para el golpe de dopamina.”",
+      "quote": "“Hecho para el arco largo.”",
       "quoteCite": "— la primera línea que escribimos"
     },
     "surfaces": {
       "chapter": "Capítulo II · seis superficies",
       "title": "Seis lugares para apoyar un pensamiento.",
-      "intro": "Cada uno tiene una forma distinta porque los tipos de pensamiento que sostiene son distintos. Una meta no es una persona. Un valor no es una tarea. Una nota semanal no es un ítem de la lista de deseos.",
+      "intro": "Cada uno tiene una forma distinta porque los tipos de pensamiento que sostiene son distintos. Una meta, una persona, un valor y una nota semanal piden cada uno la suya.",
       "items": {
         "pulse": {
           "name": "Pulso",
@@ -1047,8 +1047,8 @@
         },
         "self": {
           "name": "Tú",
-          "cap": "un retrato vivo, no un rastreador",
-          "body": "La forma de este año. Mi historia. Cómo amo, cómo pido perdón, cómo peleo, cómo me estreso. Los patrones que estoy notando con cuidado. Lo soltado. Solo para mí. Una página que escribís para vos mismo, no para nadie más."
+          "cap": "un retrato que reescribís",
+          "body": "La forma de este año. Mi historia. Cómo amo, cómo pido perdón, cómo peleo, cómo me estreso. Los patrones que estoy notando con cuidado. Lo soltado. Solo para mí. Una página que escribís para vos mismo."
         },
         "objectives": {
           "name": "Objetivos",
@@ -1057,7 +1057,7 @@
         },
         "people": {
           "name": "Personas",
-          "cap": "una superficie para reflexionar — no un rolodex",
+          "cap": "una superficie para reflexionar",
           "body": "Sin números de teléfono, sin contador del último contacto. Por persona: aprecio, mis necesidades, mensaje de legado, próximos gestos, las fechas que importan. Por procesar · explorando · largo plazo · vínculo de contexto."
         },
         "values": {
@@ -1068,7 +1068,7 @@
         "bucket": {
           "name": "Lista de deseos",
           "cap": "las cosas para hacer antes de morir",
-          "body": "Etiquetá cada ítem con las personas con las que querés hacerlo. No es una lista de trofeos — es una lista de momentos que lamentarías no haber intentado."
+          "body": "Etiquetá cada ítem con las personas con las que querés hacerlo. Una lista de momentos que lamentarías no haber intentado."
         }
       }
     },
@@ -1132,7 +1132,7 @@
       "titlePre": "¿Por qué una",
       "titleEm": "araña?",
       "body1": "anansi lleva el nombre del trickster-araña de África Occidental — guardián de historias, tejedor de redes. La marca que viste a lo largo de esta página es <em>Ananse Ntontan,</em> el símbolo Adinkra de la telaraña. Representa <em>sabiduría, creatividad y la complejidad de la vida.</em>",
-      "body2": "La metáfora no es decorativa. anansi es un grafo: cada meta se conecta con otras metas, con valores, con personas, con tareas, con la reflexión semanal que está por encima de todo. Tirá de un hilo y los otros se mueven. Lo que importa es <em>ver los hilos.</em>",
+      "body2": "La metáfora es estructural. anansi es un grafo: cada meta se conecta con otras metas, con valores, con personas, con tareas, con la reflexión semanal que está por encima de todo. Tirá de un hilo y los otros se mueven. Lo que importa es <em>ver los hilos.</em>",
       "symbol": "Ananse Ntontan",
       "lineage": "Adinkra · Ghana · Akan"
     },
@@ -1140,7 +1140,7 @@
       "chapter": "Capítulo VI · precios",
       "title1": "Un solo precio.",
       "title2": "<em>Un año a la vez.</em>",
-      "intro": "anansi es una suscripción anual, no mensual — porque las cosas que esta app sostiene se mueven en la escala de años, no de semanas. Empezá cuando quieras. Cancelá cuando quieras. No te vamos a mandar correo.",
+      "intro": "anansi se cobra por año, porque lo que sostiene se mueve en la escala de años. Empezá cuando quieras. Cancelá cuando quieras. No te vamos a mandar correo.",
       "year": {
         "title": "Un año",
         "badge": "más elegido",
@@ -1149,14 +1149,14 @@
         "feature1": "Las seis superficies · metas ilimitadas · personas ilimitadas",
         "feature2": "Revisión anual · historial del autorretrato",
         "feature3": "Respaldos cifrados · exportación con un clic",
-        "feature4": "Silencioso por diseño — sin empujones, sin resumen por correo",
+        "feature4": "Sin empujones, sin resumen por correo",
         "cta": "Empezá tu año →"
       },
       "lifetime": {
         "title": "Una vida",
         "badge": "limitado",
         "perOnce": "/ una vez",
-        "blurb": "Tres años de uso, pagados por adelantado. Después — es tuyo.",
+        "blurb": "Tres años de uso, pagados por adelantado. Después es tuyo.",
         "feature1": "Todo lo de Un año",
         "feature2": "Todas las superficies futuras, para siempre",
         "feature3": "Insignia de fundador en tu perfil · un año de regalo",

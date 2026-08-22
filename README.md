@@ -6,29 +6,29 @@
 
 <p align="center">
   Personal operating system for goals, relationships, and values.<br />
-  Self-hosted. Single user. Built for the long arc, not the dopamine hit.
+  Self-hosted. Single user. Built for the long arc.
 </p>
 
 ---
 
 Anansi is named after the West African spider trickster — whose Adinkra symbol **Ananse Ntontan** (the spider's web) represents wisdom, creativity, and the complexity of life. The icon above is that web.
 
-The app sits at the intersection of "what do I want" (goals, tasks, values), "who am I to the people around me" (a reflection-only Personal CRM), and "what am I noticing about myself" (the Self living portrait). Nothing here is a contact manager or a productivity tracker — it's a thinking surface.
+The app sits at the intersection of "what do I want" (goals, tasks, values), "who am I to the people around me" (a reflection-only Personal CRM), and "what am I noticing about myself" (the Self living portrait). It's a thinking surface.
 
 ## Features
 
-- **Goals canvas (`Objectives`)** — Hierarchical goals with parent-child links, free-positioned cards on a React Flow canvas, and weighted connections (0–100) that auto-derive importance (Low/Medium/High).
-- **Tasks** — Per-goal tasks with title, emoji, description, difficulty, deadline, referent people, and group tags. The cross-goal `Tasks` tab is a searchable flat list grouped by goal.
-- **Horizons** — Tasks bucketed into `Backlog` / `This Month` / `This Quarter` / `This Year` based on `scheduledAt`. Buckets are computed at render — a task auto-promotes as the deadline approaches.
-- **Pulse** — Daily landing view. Sync items + unified Upcoming feed (next bids + important dates) + On the Horizon (Month/Quarter/Year, year collapsed by default).
-- **Weekly Sync** — Reusable user-owned tracking-items library, sync templates (one default per user, auto-snapshotted into each new sync), inline text per item, and binary attachments.
-- **Personal CRM** — A reflection surface, not a rolodex. People sit in a 4-column Kanban (`To Process` / `Exploring` / `Long-term` / `Context-bound`). Per-person prompts: appreciation, my needs, legacy message, self-reflection. Plus per-person `Next bids` (gestures, gifts, repairs) and yearly `Important dates` (birthdays, anniversaries) that surface in Pulse.
-- **Self** — A living portrait, not a tracker. Prose fields (this-year description, my story, attachment tendencies, love/apology/conflict/stress patterns, note-to-future-self) plus list buckets (energizers, drainers, just-for-me, proud, patterns, triggers, releases, year-ahead). Empty fields read as clean pages, not unfinished forms.
-- **Bucket List** — Things to do before dying, optionally tagged with the people you want to do them with.
-- **Values** — Named + colored tags on goals; values carry their own behavior list (short evidence sentences).
-- **Groups** — Cross-entity tags spanning both people and tasks. The same `Family` group can hold both your partner and the "call mom" task.
-- **Backup / Import** — Full per-user JSON+base64 export and transactional replace import.
-- **MCP server** — A remote Model Context Protocol server at `POST /api/mcp` exposing 51 tools, so Claude can read and write your goals, people, values and Self entries. It is its own OAuth 2.1 authorization server.
+- **Goals canvas (`Objectives`).** Hierarchical goals with parent-child links, free-positioned cards on a React Flow canvas, and weighted connections (0–100) that auto-derive importance (Low/Medium/High).
+- **Tasks.** Per-goal tasks with title, emoji, description, difficulty, deadline, referent people, and group tags. The cross-goal `Tasks` tab is a searchable flat list grouped by goal.
+- **Horizons.** Tasks bucketed into `Backlog` / `This Month` / `This Quarter` / `This Year` based on `scheduledAt`. Buckets are computed at render — a task auto-promotes as the deadline approaches.
+- **Pulse.** Daily landing view. Sync items + unified Upcoming feed (next bids + important dates) + On the Horizon (Month/Quarter/Year, year collapsed by default).
+- **Weekly Sync.** Reusable user-owned tracking-items library, sync templates (one default per user, auto-snapshotted into each new sync), inline text per item, and binary attachments.
+- **Personal CRM.** A reflection surface. People sit in a 4-column Kanban (`To Process` / `Exploring` / `Long-term` / `Context-bound`). Per-person prompts: appreciation, my needs, legacy message, self-reflection. Plus per-person `Next bids` (gestures, gifts, repairs) and yearly `Important dates` (birthdays, anniversaries) that surface in Pulse.
+- **Self.** A portrait you keep rewriting. Prose fields (this-year description, my story, attachment tendencies, love/apology/conflict/stress patterns, note-to-future-self) plus list buckets (energizers, drainers, just-for-me, proud, patterns, triggers, releases, year-ahead). Empty fields read as clean pages, not unfinished forms.
+- **Bucket List.** Things to do before dying, optionally tagged with the people you want to do them with.
+- **Values.** Named + colored tags on goals; values carry their own behavior list (short evidence sentences).
+- **Groups.** Cross-entity tags spanning both people and tasks. The same `Family` group can hold both your partner and the "call mom" task.
+- **Backup / Import.** Full per-user JSON+base64 export and transactional replace import.
+- **MCP server.** A remote Model Context Protocol server at `POST /api/mcp` exposing 51 tools, so Claude can read and write your goals, people, values and Self entries. It is its own OAuth 2.1 authorization server.
 
 ## Stack
 

@@ -19,7 +19,7 @@ The app sits at the intersection of "what do I want" (goals, tasks, values), "wh
 
 - **Goals canvas (`Objectives`).** Hierarchical goals with parent-child links, free-positioned cards on a React Flow canvas, and weighted connections (0–100) that auto-derive importance (Low/Medium/High).
 - **Tasks.** Per-goal tasks with title, emoji, description, difficulty, deadline, referent people, and group tags. The cross-goal `Tasks` tab is a searchable flat list grouped by goal.
-- **Horizons.** Tasks bucketed into `Backlog` / `This Month` / `This Quarter` / `This Year` based on `scheduledAt`. Buckets are computed at render — a task auto-promotes as the deadline approaches.
+- **Horizons.** Tasks bucketed into `Backlog` / `This Month` / `This Quarter` / `This Year` based on `scheduledAt`. Buckets are computed at render, so a task auto-promotes as the deadline approaches.
 - **Pulse.** Daily landing view. Sync items + unified Upcoming feed (next bids + important dates) + On the Horizon (Month/Quarter/Year, year collapsed by default).
 - **Weekly Sync.** Reusable user-owned tracking-items library, sync templates (one default per user, auto-snapshotted into each new sync), inline text per item, and binary attachments.
 - **Personal CRM.** A reflection surface. People sit in a 4-column Kanban (`To Process` / `Exploring` / `Long-term` / `Context-bound`). Per-person prompts: appreciation, my needs, legacy message, self-reflection. Plus per-person `Next bids` (gestures, gifts, repairs) and yearly `Important dates` (birthdays, anniversaries) that surface in Pulse.

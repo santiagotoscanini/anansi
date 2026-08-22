@@ -1,7 +1,8 @@
 // Public marketing landing page — port of Landing.html from the Anansi
-// design bundle. Six chapters: hero, manifesto, six surfaces, look
-// inside (Pulse mockup), whispers, why-the-spider, pricing, closing
-// card + colophon footer.
+// design bundle. In order: hero, a look inside (the hand-built Pulse
+// demo window — AppDemo.tsx), manifesto, six surfaces, the Claude
+// interlude, whispers, why-the-spider, pricing, closing card +
+// colophon footer.
 //
 // Auth-aware: the top-right CTA flips between "Log in" (logged out) and
 // "Go to app →" (logged in). The session is resolved in the route loader, so
@@ -19,6 +20,7 @@ import { ArrowRight, Heart, Shield, Clock, Plus, Sparkles } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
 import { sessionQueryOptions } from '~/lib/queries/session'
 import { AnansiMark, BrandLockup } from '~/components/goals/Brand'
+import AppDemo from '~/components/landing/AppDemo'
 
 export const Route = createFileRoute('/')({
   // Resolved server-side, so the nav CTA is right in the SSR HTML rather than
@@ -327,6 +329,31 @@ function LandingPage() {
                 <Plus className="h-3 w-3" /> {t('landing.hero.badgeNoNotifications')}
               </span>
             </div>
+          </div>
+        </section>
+
+        {/* ============ A LOOK INSIDE — the Pulse, drawn to scale ============
+            Hand-built demo window, not a screenshot (see AppDemo.tsx). Sits
+            between the hero and Chapter I; like the Claude interlude it is
+            deliberately NOT a numbered chapter, so the I–VI sequence never
+            needs renumbering in any locale. */}
+        <section className="px-6 pb-24 md:px-16">
+          <div className="mx-auto max-w-[1280px]">
+            <AppDemo />
+            <p
+              className="mt-6"
+              style={{
+                fontFamily: 'var(--font-text)',
+                fontStyle: 'italic',
+                fontSize: 14,
+                lineHeight: 1.55,
+                color: 'var(--ink-3)',
+                maxWidth: 720,
+              }}
+            >
+              <span className="mr-2.5 inline-block h-px w-4 align-middle" style={{ background: 'var(--ink-4)' }} />
+              {t('landing.demo.caption')}
+            </p>
           </div>
         </section>
 

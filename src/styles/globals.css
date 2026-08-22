@@ -336,6 +336,73 @@
 }
 
 /* ============================================================
+   LANDING — the hand-built app-demo window.
+   (src/components/landing/AppDemo.tsx)
+
+   The demo's content is authored at a FIXED desktop size (1280px
+   canvas) and scaled as one unit, same technique as hermes/santree:
+   a container query divides the frame's width by the design width,
+   so there is no measurement, no hook, and no hydration step. Real
+   11px chrome downscaled reads like a screenshot; the same markup
+   reflowed responsively reads like a website pretending to be one.
+   --demo-w / --demo-h / --demo-focus are set per instance in
+   AppDemo.tsx. Nothing in the demo animates, so there is no
+   reduced-motion branch to carry.
+   ============================================================ */
+.demo-fit {
+  container-type: inline-size;
+  aspect-ratio: calc(var(--demo-w) / var(--demo-h));
+  /* Stepped fallback for engines without container-query units. */
+  --demo-scale: 0.85;
+  --demo-focus: 0;
+}
+@supports (opacity: calc(100cqw / 1280px)) {
+  .demo-fit {
+    --demo-scale: calc(100cqw / (var(--demo-w) * 1px));
+  }
+}
+.demo-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  transform: scale(var(--demo-scale));
+}
+
+/* On a phone, fitting a 1280px desktop canvas into a ~380px column
+   scales 11px chrome down to ~3px — an unreadable smear. So below
+   `sm` the window stops being a whole screenshot and becomes a
+   viewport: the canvas holds near its authored size and the frame
+   crops to the region worth seeing (--demo-focus is the canvas x
+   the crop starts at — just past the sidebar, so the greeting and
+   this week's prompts lead). */
+@media (max-width: 639px) {
+  .demo-fit {
+    aspect-ratio: 0.78;
+    --demo-scale: 0.85;
+  }
+  /* Beat the @supports rule above, which is later in cascade order. */
+  @supports (opacity: calc(100cqw / 1280px)) {
+    .demo-fit {
+      --demo-scale: 0.85;
+    }
+  }
+  /* The crop offset is a PHONE-ONLY move. Applied unconditionally it
+     shifts the desktop canvas out of its own frame. */
+  .demo-canvas {
+    transform: translateX(calc(var(--demo-focus) * var(--demo-scale) * -1px)) scale(var(--demo-scale));
+  }
+}
+
+/* The frame: hairline + the deep warm ambient that lifts the window
+   off the page. Both tokens theme-flip, so the same frame reads as a
+   photograph in light mode and a lit window in dark mode. */
+.demo-frame {
+  border: 1px solid var(--hairline-2);
+  box-shadow: var(--shadow-pop);
+}
+
+/* ============================================================
    Light-mode tag color boosts — bigger contrast on muted hues.
    ============================================================ */
 :root .tag-moss {

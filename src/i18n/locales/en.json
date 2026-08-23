@@ -929,10 +929,10 @@
       "opening": "Opening…",
       "submit": "Sign in",
       "newHere": "New here?",
-      "beginAYear": "Begin a year →"
+      "beginAYear": "Start writing →"
     },
     "register": {
-      "kicker": "Begin a year",
+      "kicker": "Start writing",
       "heroPre": "Make a",
       "heroEm": "thinking surface.",
       "heroBody": "A few quiet details and you're in.",
@@ -948,7 +948,7 @@
       "agreement": "I understand that anansi is a private space — not a backup of my mind, just a thinking surface I tend to.",
       "agreementNudge": "Please tick the agreement first.",
       "beginning": "Beginning…",
-      "submit": "Begin your year",
+      "submit": "Start writing",
       "alreadyStarted": "Already started?",
       "logIn": "Log in →",
       "errorName": "What should we call you?",

@@ -9,7 +9,7 @@
 // The "Contact" line needs a real email.
 
 export const termsMetadata = {
-  title: 'Terms · Anansi',
+  title: 'Anansi terms of service',
   description: 'The agreement between you and Anansi.',
 }
 
@@ -37,7 +37,7 @@ export default function TermsContent() {
         </h1>
         <p style={{ fontFamily: 'var(--font-text)', fontSize: 16, lineHeight: 1.65, color: 'var(--ink-2)' }}>
           By creating an Anansi account or using the service, you agree to these terms. They are short on purpose; if
-          anything below isn&apos;t acceptable to you, please don&apos;t sign up — and if you already have an account,
+          anything below isn&apos;t acceptable to you, please don&apos;t sign up, and if you already have an account,
           you can export your data and close it at any time.
         </p>
         <p
@@ -81,7 +81,7 @@ export default function TermsContent() {
         <ul>
           <li>No uploading content you don&apos;t have the right to upload.</li>
           <li>No probing, scanning, or otherwise attacking the service or its infrastructure.</li>
-          <li>No using Anansi to harass, threaten, or target anyone — including in private notes about them.</li>
+          <li>No using Anansi to harass, threaten, or target anyone, including in private notes about them.</li>
           <li>No automated scraping or programmatic access outside the documented backup export.</li>
           <li>No attempts to circumvent any account limits, rate limits, or storage quotas the service applies.</li>
         </ul>
@@ -102,7 +102,7 @@ export default function TermsContent() {
 
       <Section title="Payment">
         <p>
-          Anansi is free. There are no paid tiers, and none are planned — the service costs you nothing to use, now or
+          Anansi is free. There are no paid tiers and none are planned. The service costs you nothing to use, now or
           later. If that ever changes, these terms will be updated first and announced inside the product; nothing you
           do today can create a charge.
         </p>
@@ -110,8 +110,8 @@ export default function TermsContent() {
 
       <Section title="Ending the agreement">
         <p>
-          You can stop using Anansi at any time. To close your account and have your data deleted, contact us — see the
-          Privacy policy for details. We may close your account if you violate these terms or if we discontinue the
+          You can stop using Anansi at any time. To close your account and have your data deleted, contact us. The
+          Privacy policy has the details. We may close your account if you violate these terms or if we discontinue the
           service. If we discontinue, we&apos;ll give as much advance notice as we can and a window to export your data.
         </p>
       </Section>
@@ -120,7 +120,7 @@ export default function TermsContent() {
         <p>
           Anansi is provided without warranties of any kind, express or implied, including merchantability, fitness for
           a particular purpose, and non-infringement. We do our best to keep your data safe, but you should keep your
-          own backups using the Profile → Backups export — especially before any major change.
+          own backups using the Profile → Backups export, especially before any major change.
         </p>
       </Section>
 

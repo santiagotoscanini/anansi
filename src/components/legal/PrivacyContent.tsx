@@ -29,7 +29,7 @@
 // jurisdiction review it.
 
 export const privacyMetadata = {
-  title: 'Privacy · Anansi',
+  title: 'Anansi privacy policy',
   description: 'How Anansi handles your data.',
 }
 
@@ -151,10 +151,10 @@ export default function PrivacyContent() {
 
       <Section title="Connecting Claude">
         <p>
-          Anansi speaks Model Context Protocol, so you can connect it to a Claude client. If you do, that client reads
-          and writes your Anansi data, and whatever it reads travels to Anthropic as part of the conversation. That is
-          the feature working as designed, and it is also the largest opening in everything above. It stays closed until
-          you connect it.
+          Anansi speaks Model Context Protocol. You can connect it to a Claude client. If you do, that client reads and
+          writes your Anansi data, and whatever it reads travels to Anthropic as part of the conversation. That is the
+          feature working as designed, and it is also the largest opening in everything above. It stays closed until you
+          connect it.
         </p>
         <p>
           Anansi issues those tokens itself rather than delegating to anyone. An access token lasts an hour, a refresh

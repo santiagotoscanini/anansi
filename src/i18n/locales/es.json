@@ -995,7 +995,6 @@
       "philosophy": "Filosofía",
       "whatsInside": "Qué hay adentro",
       "whispers": "Susurros",
-      "pricing": "Precios",
       "logIn": "Iniciar sesión",
       "goToApp": "Ir a la app"
     },
@@ -1008,7 +1007,7 @@
       "lead": "anansi es el diario que escribirías si tu diario pudiera ver los hilos entre las cosas.",
       "body": "Metas que saben a qué valores responden. Personas a las que cuidás, no que gestionás. Reflexiones que se acumulan, semana tras semana. Una sola superficie para pensar el arco largo de una vida.",
       "ctaSignedIn": "Ir a tu app",
-      "ctaSignedOut": "Empezá un año",
+      "ctaSignedOut": "Empezá a escribir",
       "readPhilosophy": "Leé la filosofía →",
       "badgePrivate": "Privado por defecto",
       "badgeEncrypted": "Tu base de datos, tu servidor",
@@ -1170,35 +1169,6 @@
       "symbol": "Ananse Ntontan",
       "lineage": "Adinkra · Ghana · Akan"
     },
-    "pricing": {
-      "chapter": "Capítulo VI · precios",
-      "title1": "Un solo precio.",
-      "title2": "<em>Un año a la vez.</em>",
-      "intro": "anansi se cobra por año, porque lo que sostiene se mueve en la escala de años. Empezá cuando quieras. Cancelá cuando quieras. No te vamos a mandar correo.",
-      "year": {
-        "title": "Un año",
-        "badge": "más elegido",
-        "perYear": "/ año",
-        "blurb": "$6 al mes, pagado de una vez. Cancelá cuando quieras, sin preguntas.",
-        "feature1": "Las seis superficies · metas ilimitadas · personas ilimitadas",
-        "feature2": "Revisión anual · historial del autorretrato",
-        "feature3": "Respaldo completo, archivos incluidos · exportación con un clic",
-        "feature4": "Sin empujones, sin resumen por correo",
-        "cta": "Empezá tu año →"
-      },
-      "lifetime": {
-        "title": "Una vida",
-        "badge": "limitado",
-        "perOnce": "/ una vez",
-        "blurb": "Tres años de uso, pagados por adelantado. Después es tuyo.",
-        "feature1": "Todo lo de Un año",
-        "feature2": "Todas las superficies futuras, para siempre",
-        "feature3": "Insignia de fundador en tu perfil · un año de regalo",
-        "feature4": "Línea directa con el equipo para pedir funciones",
-        "cta": "Empezá una vida →"
-      },
-      "comp": "Estudiantes, trabajadores de cuidados paliativos, terapeutas: es gratis para ustedes. Escribinos desde su correo institucional."
-    },
     "coda": {
       "kicker": "Coda",
       "titlePre": "La vida que escribirías,",
@@ -1206,7 +1176,7 @@
       "titleEm": "software lento.",
       "body": "Esta es una app tranquila. No va a tirar de vos. Va a estar acá cuando vuelvas.",
       "ctaSignedIn": "Ir a tu app",
-      "ctaSignedOut": "Empezá tu año",
+      "ctaSignedOut": "Empezá a escribir",
       "haveAccount": "Ya tengo una cuenta"
     },
     "footer": {
@@ -1217,7 +1187,6 @@
       "appPhilosophy": "Filosofía",
       "appSurfaces": "Las seis superficies",
       "appWhispers": "Susurros",
-      "appPricing": "Precios",
       "teamAbout": "Sobre nosotros",
       "teamContact": "Contacto",
       "teamChangelog": "Novedades",

@@ -355,6 +355,13 @@
   /* Stepped fallback for engines without container-query units. */
   --demo-scale: 0.85;
   --demo-focus: 0;
+  /* iOS Safari fails to clip a scaled (composited) child at an
+     overflow-hidden edge — the phone crop paints a 920px canvas into a
+     ~340px box and WebKit lets it leak past the right edge, panning
+     the whole page. `contain: paint` forces a real clip boundary;
+     the translateZ keeps the frame on its own layer as belt. */
+  contain: paint;
+  transform: translateZ(0);
 }
 @supports (opacity: calc(100cqw / 1280px)) {
   .demo-fit {

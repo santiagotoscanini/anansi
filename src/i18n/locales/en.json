@@ -995,7 +995,6 @@
       "philosophy": "Philosophy",
       "whatsInside": "What's inside",
       "whispers": "Whispers",
-      "pricing": "Pricing",
       "logIn": "Log in",
       "goToApp": "Go to app"
     },
@@ -1008,7 +1007,7 @@
       "lead": "anansi is the journal you'd write if your journal could see the threads between things.",
       "body": "Goals that know which values they answer to. People you tend to, not manage. Reflections that compound, week after week. One thinking surface for the long arc of a life.",
       "ctaSignedIn": "Go to your app",
-      "ctaSignedOut": "Begin a year",
+      "ctaSignedOut": "Start writing",
       "readPhilosophy": "Read the philosophy →",
       "badgePrivate": "Private by default",
       "badgeEncrypted": "Your database, your server",
@@ -1170,35 +1169,6 @@
       "symbol": "Ananse Ntontan",
       "lineage": "Adinkra · Ghana · Akan"
     },
-    "pricing": {
-      "chapter": "Chapter VI · pricing",
-      "title1": "One price.",
-      "title2": "<em>A year at a time.</em>",
-      "intro": "anansi bills yearly, because what it holds moves on the scale of years. Start any time. Cancel any time. We won't email you.",
-      "year": {
-        "title": "A year",
-        "badge": "most chosen",
-        "perYear": "/ year",
-        "blurb": "$6 a month, paid once. Cancel any time, no questions.",
-        "feature1": "All six surfaces · unlimited goals · unlimited people",
-        "feature2": "Yearly review · self-portrait history",
-        "feature3": "Full backup, files included · one-click export",
-        "feature4": "No nudges, no email digest",
-        "cta": "Begin your year →"
-      },
-      "lifetime": {
-        "title": "A lifetime",
-        "badge": "limited",
-        "perOnce": "/ once",
-        "blurb": "Three years of use, paid up front. Then it's yours.",
-        "feature1": "Everything in A Year",
-        "feature2": "All future surfaces, forever",
-        "feature3": "Founder's badge in your profile · one free gift year",
-        "feature4": "Direct line to the team for feature requests",
-        "cta": "Begin a lifetime →"
-      },
-      "comp": "Students, hospice workers, therapists: it's free for you. Write us from your institutional email."
-    },
     "coda": {
       "kicker": "Coda",
       "titlePre": "The life you'd write down,",
@@ -1206,7 +1176,7 @@
       "titleEm": "slow software.",
       "body": "This is a quiet app. It won't pull at you. It'll be there when you come back.",
       "ctaSignedIn": "Go to your app",
-      "ctaSignedOut": "Begin your year",
+      "ctaSignedOut": "Start writing",
       "haveAccount": "I already have an account"
     },
     "footer": {
@@ -1217,7 +1187,6 @@
       "appPhilosophy": "Philosophy",
       "appSurfaces": "The six surfaces",
       "appWhispers": "Whispers",
-      "appPricing": "Pricing",
       "teamAbout": "About us",
       "teamContact": "Contact",
       "teamChangelog": "Changelog",

@@ -100,11 +100,11 @@ export default function TermsContent() {
         </p>
       </Section>
 
-      <Section title="Payment, if and when it exists">
+      <Section title="Payment">
         <p>
-          Anansi is currently free to use. If we introduce paid tiers in the future, the pricing and what each tier
-          includes will be shown before you commit, and you will not be charged retroactively for usage incurred on a
-          free tier.
+          Anansi is free. There are no paid tiers, and none are planned — the service costs you nothing to use, now or
+          later. If that ever changes, these terms will be updated first and announced inside the product; nothing you
+          do today can create a charge.
         </p>
       </Section>
 
@@ -126,18 +126,17 @@ export default function TermsContent() {
 
       <Section title="Limitation of liability">
         <p>
-          To the maximum extent permitted by law, the total liability of Anansi and its operator for any claim arising
-          from your use of the service is limited to the greater of (a) the amount you paid for the service in the
-          twelve months before the claim arose, or (b) one hundred euros. We will not be liable for indirect,
-          incidental, special, consequential, or punitive damages, including loss of profits, data, or goodwill.
+          Anansi is provided free of charge. To the maximum extent permitted by law, the total liability of Anansi and
+          its operator for any claim arising from your use of the service is limited to one hundred euros, and we will
+          not be liable for indirect, incidental, special, consequential, or punitive damages, including loss of
+          profits, data, or goodwill.
         </p>
       </Section>
 
       <Section title="Governing law">
         <p>
           These terms are governed by the laws of the jurisdiction in which Anansi&apos;s operator is established. The
-          specific jurisdiction and any required dispute-resolution clause will be substituted in before paid plans are
-          offered; until then, the parties will attempt to resolve any dispute by good-faith negotiation.
+          parties will attempt to resolve any dispute by good-faith negotiation before anything else.
         </p>
       </Section>
 

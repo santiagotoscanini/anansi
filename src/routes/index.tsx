@@ -1,8 +1,7 @@
 // Public marketing landing page — port of Landing.html from the Anansi
 // design bundle. In order: hero, a look inside (the hand-built Pulse
 // demo window — AppDemo.tsx), manifesto, six surfaces, the Claude
-// interlude, whispers, why-the-spider, pricing, closing card +
-// colophon footer.
+// interlude, whispers, why-the-spider, closing card + colophon footer.
 //
 // Auth-aware: the top-right CTA flips between "Log in" (logged out) and
 // "Go to app →" (logged in). The session is resolved in the route loader, so
@@ -205,9 +204,6 @@ function LandingPage() {
           </a>
           <a href="#whispers" className="hidden text-sm transition-colors md:inline" style={{ color: 'var(--ink-2)' }}>
             {t('landing.nav.whispers')}
-          </a>
-          <a href="#pricing" className="hidden text-sm transition-colors md:inline" style={{ color: 'var(--ink-2)' }}>
-            {t('landing.nav.pricing')}
           </a>
           <Link
             to={loginHref}
@@ -800,76 +796,6 @@ function LandingPage() {
           </div>
         </section>
 
-        {/* ============ VI · PRICING ============ */}
-        <section id="pricing" className="px-6 py-24 md:px-16">
-          <div className="mx-auto max-w-[1280px]">
-            <ChapterHead
-              chapter={t('landing.pricing.chapter')}
-              title={
-                <>
-                  {t('landing.pricing.title1')}
-                  <br />
-                  <Trans i18nKey="landing.pricing.title2" components={{ em: <BrandEm /> }} />
-                </>
-              }
-            >
-              {t('landing.pricing.intro')}
-            </ChapterHead>
-
-            <div className="grid max-w-[920px] grid-cols-1 gap-5 md:grid-cols-2">
-              <PricingCard
-                title={t('landing.pricing.year.title')}
-                badge={t('landing.pricing.year.badge')}
-                badgeKind="eyebrow"
-                price="$72"
-                per={t('landing.pricing.year.perYear')}
-                blurb={t('landing.pricing.year.blurb')}
-                features={[
-                  t('landing.pricing.year.feature1'),
-                  t('landing.pricing.year.feature2'),
-                  t('landing.pricing.year.feature3'),
-                  t('landing.pricing.year.feature4'),
-                ]}
-                cta={t('landing.pricing.year.cta')}
-                ctaHref={ctaHref}
-                primary
-              />
-              <PricingCard
-                title={t('landing.pricing.lifetime.title')}
-                badge={t('landing.pricing.lifetime.badge')}
-                badgeKind="tag-clay"
-                price="$240"
-                per={t('landing.pricing.lifetime.perOnce')}
-                blurb={t('landing.pricing.lifetime.blurb')}
-                features={[
-                  t('landing.pricing.lifetime.feature1'),
-                  t('landing.pricing.lifetime.feature2'),
-                  t('landing.pricing.lifetime.feature3'),
-                  t('landing.pricing.lifetime.feature4'),
-                ]}
-                cta={t('landing.pricing.lifetime.cta')}
-                ctaHref={ctaHref}
-                deep
-              />
-            </div>
-
-            <p
-              className="mt-8"
-              style={{
-                fontFamily: 'var(--font-text)',
-                fontStyle: 'italic',
-                fontSize: 14,
-                lineHeight: 1.55,
-                color: 'var(--ink-3)',
-                maxWidth: 720,
-              }}
-            >
-              <span className="mr-2.5 inline-block h-px w-4 align-middle" style={{ background: 'var(--ink-4)' }} />
-              {t('landing.pricing.comp')}
-            </p>
-          </div>
-        </section>
-
         {/* ============ CLOSING CARD ============ */}
         <section className="px-6 pb-24 md:px-16">
           <div className="mx-auto max-w-[1280px]">
@@ -984,7 +910,6 @@ function LandingPage() {
           <a href="#philosophy">{t('landing.footer.appPhilosophy')}</a>
           <a href="#surfaces">{t('landing.footer.appSurfaces')}</a>
           <a href="#whispers">{t('landing.footer.appWhispers')}</a>
-          <a href="#pricing">{t('landing.footer.appPricing')}</a>
         </ColophonCol>
         <ColophonCol heading={t('landing.footer.headingTeam')}>
           <a href="#">{t('landing.footer.teamAbout')}</a>
@@ -1162,109 +1087,6 @@ function Whisper({
         <span>{t(`landing.whispers.items.${whisperKey}.who`)}</span>
         <span>{t(`landing.whispers.items.${whisperKey}.duration`)}</span>
       </div>
-    </div>
-  )
-}
-
-function PricingCard({
-  title,
-  badge,
-  badgeKind,
-  price,
-  per,
-  blurb,
-  features,
-  cta,
-  ctaHref,
-  primary,
-  deep,
-}: {
-  title: string
-  badge: string
-  badgeKind: 'eyebrow' | 'tag-clay'
-  price: string
-  per: string
-  blurb: string
-  features: string[]
-  cta: string
-  ctaHref: string
-  primary?: boolean
-  deep?: boolean
-}) {
-  return (
-    <div
-      className="px-8 py-9"
-      style={{
-        background: deep ? 'var(--paper-deep)' : 'var(--canvas)',
-        border: '1px solid var(--hairline)',
-        borderRadius: 14,
-      }}
-    >
-      <div className="mb-2 flex items-baseline justify-between">
-        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 32 }}>{title}</h3>
-        {badgeKind === 'eyebrow' ? (
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: 'var(--ink-3)',
-            }}
-          >
-            {badge}
-          </span>
-        ) : (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1"
-            style={{ background: 'var(--clay-soft)', color: 'var(--clay-deep)', fontSize: 11, fontWeight: 500 }}
-          >
-            {badge}
-          </span>
-        )}
-      </div>
-      <div
-        className="mt-3"
-        style={{ fontFamily: 'var(--font-display)', fontSize: 56, lineHeight: 1, letterSpacing: '-0.02em' }}
-      >
-        {price}
-        <span className="ml-1.5" style={{ fontSize: 18, color: 'var(--ink-3)', fontFamily: 'var(--font-ui)' }}>
-          {per}
-        </span>
-      </div>
-      <div
-        className="mt-2"
-        style={{ fontFamily: 'var(--font-text)', fontStyle: 'italic', color: 'var(--ink-3)', fontSize: 14 }}
-      >
-        {blurb}
-      </div>
-      <ul className="my-7 list-none p-0">
-        {features.map((f, i) => (
-          <li
-            key={i}
-            style={{
-              fontFamily: 'var(--font-text)',
-              fontSize: 16,
-              color: 'var(--ink-2)',
-              padding: '8px 0',
-              borderBottom: i === features.length - 1 ? 'none' : '1px solid var(--hairline)',
-            }}
-          >
-            {f}
-          </li>
-        ))}
-      </ul>
-      <Link
-        to={ctaHref}
-        className="flex h-12 w-full items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors"
-        style={{
-          background: primary ? 'var(--clay)' : 'transparent',
-          color: primary ? 'var(--paper)' : 'var(--ink)',
-          border: primary ? '0' : '1px solid var(--ink)',
-        }}
-      >
-        {cta}
-      </Link>
     </div>
   )
 }

@@ -3,7 +3,20 @@ import { LoginScreen, SignInErrorScreen } from '~/components/auth/AuthScreens'
 import LegalFooter from '~/components/LegalFooter'
 import { safeNext } from '~/lib/safe-next'
 import { authModeQueryOptions, sessionQueryOptions } from '~/lib/queries/session'
-import { startOidcSignIn } from '~/server/fn/auth.fn'
+
+// EMAIL-FIRST SIGN-IN — the iris "two-halves" hybrid.
+//
+// Both doors are open at once: the operator signs in through Pocket ID,
+// everyone else with email + password. Step 1 of the form takes an address and
+// nothing else; a server function answers which door it goes through, and the
+// form either hands off to the IdP or reveals the password field in place.
+//
+// Note what does NOT happen here any more: no automatic bounce to the IdP in
+// beforeLoad. The email decides the door, so the redirect can only be minted
+// after step 1, in the component. That also dissolves the old redirect loop —
+// `?error=` (written by @auth/core on every failed sign-in, since
+// `pages.signIn` points here) now renders an error screen whose retry lands on
+// the form rather than re-entering an automatic bounce.
 
 // The `?next=` target is sanitized in the VALIDATOR, not at the redirect
 // site. That way every consumer of `Route.useSearch().next` — the sign-in
@@ -24,13 +37,7 @@ import { startOidcSignIn } from '~/server/fn/auth.fn'
 // routeTree.gen.ts — TypeScript resolves that fine for an inline function
 // literal, but bails to `{}` when the validator is the result of a generic
 // call. The symptom is every param silently vanishing from `useSearch()` and
-// from every `navigate()` to this route. An inline function is also tolerant
-// for free: a malformed query string yields `undefined`, not a route error,
-// which is what a public entry point should do.
-// `error` is written by @auth/core, not by us: every failed sign-in is
-// redirected to `pages.signIn` — which config.ts sets to this route — with the
-// error type in the query string (index.js:139). Under SSO that param is the
-// difference between a sign-in error page and an infinite loop; see beforeLoad.
+// from every `navigate()` to this route.
 export const Route = createFileRoute('/login')({
   validateSearch: (search: Record<string, unknown>): { next?: string; error?: string } => ({
     next: typeof search.next === 'string' ? safeNext(search.next) : undefined,
@@ -39,43 +46,15 @@ export const Route = createFileRoute('/login')({
 
   // Already signed in? Never render the form. This runs on the server during
   // SSR, so a returning user gets a redirect in the HTTP response rather than
-  // the flash of a login page the useEffect check in the Next version produced.
-  // The `next` support is what lets /oauth/authorize send an unauthenticated
-  // MCP client here and resume afterwards.
+  // the flash of a login page. The `next` support is what lets /oauth/authorize
+  // send an unauthenticated MCP client here and resume afterwards — honoured by
+  // BOTH doors: the password path navigates to it on success, and the OIDC path
+  // threads it through `startOidcSignIn` into Auth.js's post-callback redirect.
   beforeLoad: async ({ context, search }) => {
     const session = await context.queryClient.ensureQueryData(sessionQueryOptions())
     if (session) throw redirect({ href: search.next ?? '/app' })
 
-    const mode = await context.queryClient.ensureQueryData(authModeQueryOptions())
-
-    // No IdP configured (all of local dev) — the password form below is the
-    // whole of sign-in and nothing about this route has changed.
-    if (!mode.oidcEnabled) return mode
-
-    // THE LOOP GUARD. @auth/core sends a failed sign-in back here with
-    // `?error=`; bouncing straight to the IdP again would send an account it
-    // refuses — a user outside the `admins` group, say — round and round
-    // between the two hosts with nothing on screen. Render the failure instead
-    // and let the user choose to retry.
-    if (search.error) return mode
-
-    // Mint the authorize URL. This is a write: it sets the `state` and PKCE
-    // cookies the callback is checked against, and they ride out on this
-    // response (Start merges set-cookie into non-2xx responses, so the redirect
-    // below keeps them).
-    let url: string
-    try {
-      ;({ url } = await startOidcSignIn({ data: { next: search.next } }))
-    } catch {
-      // Discovery failed or the IdP is unreachable. Land on our own error
-      // screen rather than a route error boundary — this is the one auth
-      // surface an unauthenticated visitor sees, so it should read like a page.
-      throw redirect({ to: '/login', search: { next: search.next, error: 'Unreachable' } })
-    }
-
-    // Absolute URL, so TanStack turns this into a full-page navigation rather
-    // than a router push — which is required: it is a different origin.
-    throw redirect({ href: url })
+    return await context.queryClient.ensureQueryData(authModeQueryOptions())
   },
 
   component: LoginPage,
@@ -86,13 +65,14 @@ function LoginPage() {
   const { oidcEnabled, providerName } = Route.useRouteContext()
   const navigate = useNavigate()
 
-  // Under SSO this component is only ever reached with an `?error=` — every
-  // other path through beforeLoad throws a redirect before rendering.
-  if (oidcEnabled) {
+  // The IdP bounced a sign-in back with `?error=`. Render the failure and let
+  // the user choose to retry — the retry clears the param and lands on the
+  // form, so an account the IdP refuses can still take the password door.
+  if (error) {
     return (
       <>
         <SignInErrorScreen
-          code={error ?? 'Unknown'}
+          code={error}
           providerName={providerName}
           onRetry={() => void navigate({ to: '/login', search: { next } })}
         />
@@ -107,6 +87,9 @@ function LoginPage() {
           (already sanitized) path out of the query string, so it cannot be
           checked against the typed route tree. */}
       <LoginScreen
+        oidcEnabled={oidcEnabled}
+        providerName={providerName}
+        next={next}
         onSwitchToRegister={() => void navigate({ to: '/register', search: { next } })}
         onSuccess={() => void navigate({ href: next ?? '/app' })}
       />

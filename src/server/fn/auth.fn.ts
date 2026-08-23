@@ -1,6 +1,8 @@
 import { createServerFn } from '@tanstack/react-start'
+import { getRequest } from '@tanstack/react-start/server'
 import { z } from 'zod'
 import { env, oidcEnabled } from '~/lib/env'
+import { checkRateLimit, clientIpFromHeaders } from '~/lib/rate-limit'
 import { safeNext } from '~/lib/safe-next'
 import { authMiddleware } from '~/server/middleware/auth'
 import { signInWithCredentials, signOutSession, startOidcSignIn as startOidcSignInAction } from '~/server/auth/actions'
@@ -13,31 +15,48 @@ import { AppError } from '~/server/services/errors'
 // the module as mixed and mis-register the function ids, which surfaces only as
 // "Invalid server function ID" the moment someone clicks the button.
 
-// The browser-facing auth surface. These replace the four server actions in
-// src/app/auth/actions.ts and return the identical
-// `{ ok: true } | { ok: false, error }` shape, so each call site changes by one
-// import line rather than by a rewrite.
+// The browser-facing auth surface: what doors exist, which door an address
+// goes through, and the flows that change who is signed in. None of the
+// pre-sign-in functions can sit behind `authMiddleware` for the obvious
+// reason, so each one carries its own IP rate limit instead — this module is
+// the unauthenticated attack surface of the app.
 //
 // Why a result object instead of throwing: every one of these is driven by a
 // form, and "email already taken" or "current password is wrong" is ordinary
 // user input, not an exception. Throwing would route them through the error
 // boundary and lose the field-level message. Genuine faults still throw.
-type Result = { ok: true } | { ok: false; error: string }
+type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string }
 
 /** Narrow an AppError to its message; anything else stays opaque to the user. */
-function toResult(err: unknown): Result {
+function toResult(err: unknown): { ok: false; error: string } {
   if (err instanceof AppError) return { ok: false, error: err.message }
   throw err
 }
 
 /**
- * Which front door this deployment has: single sign-on, or email + password.
+ * The rate-limit gate, applied at the FUNCTION layer rather than in the
+ * services, because the key is the client IP and the request is only in scope
+ * here. Returns the failure result to hand straight back to the form, or null
+ * when the call may proceed.
+ */
+function limit(endpoint: string, cfg: { limit: number; windowMs: number }): { ok: false; error: string } | null {
+  const ip = clientIpFromHeaders(getRequest().headers)
+  const rl = checkRateLimit(endpoint, `ip:${ip}`, cfg)
+  if (rl.allowed) return null
+
+  const minutes = Math.ceil(rl.retryAfterSec / 60)
+  const wait = rl.retryAfterSec < 90 ? `${rl.retryAfterSec} seconds` : `${minutes} minutes`
+  return { ok: false, error: `Too many attempts. Try again in ${wait}.` }
+}
+
+/**
+ * What doors this deployment has.
  *
  * The client cannot answer this for itself. `oidcEnabled` lives in `~/lib/env`,
  * which is server-only — importing it from a route file would pull dotenv into
  * the browser bundle and throw on first access — so the answer has to cross the
  * wire, and this is the crossing. `/login` and `/register` both read it in
- * `beforeLoad`, where it decides whether a form renders at all.
+ * `beforeLoad`.
  *
  * Constant for the lifetime of the process, which is why the query that wraps
  * it is `staleTime: Infinity`: one fetch per browser session, and every
@@ -45,11 +64,38 @@ function toResult(err: unknown): Result {
  */
 export const fetchAuthMode = createServerFn({ method: 'GET' }).handler(() => ({
   oidcEnabled,
-  // Named on the sign-in error screen ("anansi couldn't finish with Pocket ID").
-  // Null rather than a default when SSO is off, so a caller cannot render a
+  // Named on the login page's IdP button and the sign-in error screen. Null
+  // rather than a default when SSO is off, so a caller cannot render a
   // provider name for a provider that does not exist.
   providerName: oidcEnabled ? (env.OIDC_PROVIDER_NAME ?? 'Pocket ID') : null,
+  // Whether /register asks for an invite code. The code itself never crosses
+  // the wire — only whether one is needed, so the form can say so up front
+  // instead of failing on submit.
+  inviteRequired: Boolean(env.INVITE_CODE),
 }))
+
+/**
+ * Step 1 of the email-first login: which door does this address go through?
+ *
+ * ⚠ THE ENUMERATION RULE. The service distinguishes three cases; this function
+ * answers with TWO. An address that does not exist is reported as `password`,
+ * identical to one that does, and the credential check then fails the same way
+ * for both. Do not "improve" this by forwarding `unknown` — the moment the
+ * browser can tell the difference, /login is an account-existence oracle for
+ * every address on the internet.
+ *
+ * POST rather than GET: it is rate-limited state and must never be cached or
+ * prefetched.
+ */
+export const probeEmail = createServerFn({ method: 'POST' })
+  .validator(z.object({ email: z.string().trim().email() }))
+  .handler(async ({ data }): Promise<Result<{ method: 'oidc' | 'password' }>> => {
+    const limited = limit('auth.probe', { limit: 30, windowMs: 60_000 })
+    if (limited) return limited
+
+    const method = await authService.resolveLoginMethod(data.email)
+    return { ok: true, method: method === 'oidc' ? 'oidc' : 'password' }
+  })
 
 /**
  * Mint the IdP authorize URL for the browser to navigate to.
@@ -59,22 +105,42 @@ export const fetchAuthMode = createServerFn({ method: 'GET' }).handler(() => ({
  * on a response no cache will ever replay.
  *
  * The caller does a FULL-PAGE navigation to the returned URL
- * (`window.location.href`, or a router redirect with an absolute `href`, which
- * TanStack turns into one). A router push cannot work — it is a different
+ * (`window.location.href`) — a router push cannot work, it is a different
  * origin.
  */
 export const startOidcSignIn = createServerFn({ method: 'POST' })
   .validator(z.object({ next: z.string().optional() }))
-  .handler(async ({ data }) => {
-    // safeNext again here even though /login's validator already ran it: this
-    // value ends up in a cookie that Auth.js redirects to after the callback,
-    // and a server fn is callable directly, not only through that route.
-    return { url: await startOidcSignInAction(safeNext(data.next)) }
+  .handler(async ({ data }): Promise<Result<{ url: string }>> => {
+    const limited = limit('auth.oidcStart', { limit: 30, windowMs: 60_000 })
+    if (limited) return limited
+
+    if (!oidcEnabled) return { ok: false, error: 'Single sign-on is not configured on this deployment.' }
+
+    try {
+      // safeNext again here even though /login's validator already ran it: this
+      // value ends up in a cookie that Auth.js redirects to after the callback,
+      // and a server fn is callable directly, not only through that route.
+      return { ok: true, url: await startOidcSignInAction(safeNext(data.next)) }
+    } catch {
+      // Discovery failed or the IdP is unreachable. A message, not a thrown
+      // error: this is one of the auth surfaces an unauthenticated visitor sees.
+      return { ok: false, error: `Could not reach ${env.OIDC_PROVIDER_NAME ?? 'the identity provider'}. Try again.` }
+    }
   })
 
+/**
+ * Step 2 of the email-first login.
+ *
+ * 5 attempts / 15 minutes / IP. The window is per-IP rather than per-account on
+ * purpose: a per-account limit lets an attacker lock a known user out of their
+ * own account by burning the budget.
+ */
 export const signIn = createServerFn({ method: 'POST' })
   .validator(z.object({ email: z.string(), password: z.string() }))
   .handler(async ({ data }): Promise<Result> => {
+    const limited = limit('auth.signIn', { limit: 5, windowMs: 15 * 60_000 })
+    if (limited) return limited
+
     try {
       await signInWithCredentials(data.email, data.password)
       return { ok: true }
@@ -86,9 +152,19 @@ export const signIn = createServerFn({ method: 'POST' })
     }
   })
 
+/**
+ * Register, then sign in.
+ *
+ * 3 / hour / IP. Registration is the only unauthenticated write in the app and
+ * the invite code is checked inside `registerUser`, so this limit is what
+ * stands between a scripted attacker and unlimited guesses at it.
+ */
 export const signUp = createServerFn({ method: 'POST' })
-  .validator(z.object({ name: z.string(), email: z.string(), password: z.string() }))
+  .validator(z.object({ name: z.string(), email: z.string(), password: z.string(), inviteCode: z.string().optional() }))
   .handler(async ({ data }): Promise<Result> => {
+    const limited = limit('auth.register', { limit: 3, windowMs: 60 * 60_000 })
+    if (limited) return limited
+
     let email: string
     try {
       // registerUser normalises the email; sign in with what it actually

@@ -44,10 +44,12 @@ export const env = createEnv({
 
     // ── Pocket ID (OIDC) ────────────────────────────────────────────────────
     //
-    // All optional, and all absent in local dev. That ABSENCE is the signal to
-    // fall back to email + password — see `oidcEnabled` below. Deliberately not
-    // NODE_ENV: a production build without an IdP still has a way in, and a dev
-    // container pointed at one behaves exactly like production.
+    // All optional, and all absent in local dev. Unlike the original either/or
+    // design, absence does NOT switch the app to password-only: BOTH providers
+    // run at once (see server/auth/config.ts). Absence only removes the OIDC
+    // door. Deliberately not NODE_ENV: a production build without an IdP still
+    // has a way in, and a dev container pointed at one behaves exactly like
+    // production.
     OIDC_ISSUER_URL: z.string().url('OIDC_ISSUER_URL must be a valid https:// URL').optional(),
     OIDC_CLIENT_ID: z.string().optional(),
     OIDC_CLIENT_SECRET: z.string().optional(),
@@ -59,6 +61,25 @@ export const env = createEnv({
     OIDC_PROVIDER_ID: z.string().optional(),
     OIDC_PROVIDER_NAME: z.string().optional(),
     OIDC_SCOPES: z.string().optional(),
+
+    // ── Hybrid-auth guardrails ──────────────────────────────────────────────
+    //
+    // Comma-separated list of addresses that may ONLY sign in through the IdP
+    // (the operator's). Registration rejects them and the Credentials provider
+    // refuses them even if a password hash somehow exists. This is what closes
+    // the squat-the-operator's-email hole that running both providers with
+    // account linking OFF would otherwise leave: without it, someone could
+    // register a password account on the operator's address first and the
+    // OIDC sign-in would then land on a users row an attacker controls.
+    OIDC_EMAILS: z.string().optional(),
+
+    // The invite GATE, and a break-glass master code. SET = registration asks
+    // for a code, and every member's personal `users.invite_code` opens the
+    // door alongside this value (kept so the first user can ever exist, and as
+    // a recovery path when the database is empty). Absent = no code required,
+    // which is the deliberate "open registration" state rather than an
+    // accident.
+    INVITE_CODE: z.string().optional(),
   },
   runtimeEnv: process.env,
   // An unset var and a var set to "" should behave identically; without this,
@@ -70,11 +91,11 @@ export const env = createEnv({
 /**
  * Is single sign-on configured on this deployment?
  *
- * The one flag everything else branches on: which provider Auth.js is built
- * with, whether `/login` renders a form or bounces to the IdP, and whether
- * `/register` exists at all. True only when the four vars that make an OIDC
- * round trip possible are ALL present — a half-configured IdP falls back to
- * password login rather than producing a broken redirect.
+ * True only when the four vars that make an OIDC round trip possible are ALL
+ * present — a half-configured IdP falls back to password-only rather than
+ * producing a broken redirect. Since the hybrid-auth change this no longer
+ * switches providers: it only decides whether the Pocket ID door exists next
+ * to the always-present password one.
  *
  * `emptyStringAsUndefined` above means a var set to "" reads as absent here,
  * so blanking one in the env file is a valid way to turn SSO off.
@@ -87,3 +108,28 @@ export const env = createEnv({
 export const oidcEnabled = Boolean(
   env.OIDC_ISSUER_URL && env.OIDC_CLIENT_ID && env.OIDC_CLIENT_SECRET && env.OIDC_REDIRECT_URI,
 )
+
+/** The parsed `OIDC_EMAILS` list, lowercased and trimmed. Empty when unset. */
+const oidcEmails: ReadonlySet<string> = new Set(
+  (env.OIDC_EMAILS ?? '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+)
+
+/**
+ * Is this address reserved for the IdP?
+ *
+ * Three call sites, and all three are security-relevant:
+ *   1. registration — refuse to create a password account on it;
+ *   2. the Credentials provider's `authorize` — refuse to authenticate it even
+ *      if a hash exists (e.g. the address was added to the list later);
+ *   3. the email-first login form — route it straight to "Sign in with
+ *      Pocket ID" instead of revealing a password field.
+ *
+ * Case- and whitespace-insensitive because email addresses are compared
+ * case-insensitively everywhere else in this codebase too.
+ */
+export function isOidcEmail(email: string): boolean {
+  return oidcEmails.has(email.trim().toLowerCase())
+}

@@ -10,6 +10,7 @@ import { Link } from '@tanstack/react-router'
 import { ArrowRight, Check, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useSignIn, useSignUp } from '~/lib/mutations/auth'
+import { probeEmail, startOidcSignIn } from '~/server/fn/auth.fn'
 import { AnansiMark, BrandLockup, Wordmark } from '~/components/goals/Brand'
 import toast from 'react-hot-toast'
 
@@ -145,11 +146,29 @@ export function SignInErrorScreen({
   )
 }
 
+// EMAIL-FIRST, TWO-STEP. Step 'email' shows the address alone; submitting it
+// asks the server which door that address goes through (`probeEmail`) and
+// either hands the browser to the IdP or reveals the password field in place.
+// A step, not a second page, so the browser's password manager sees one form
+// with both fields.
+//
+// ⚠ THE ENUMERATION RULE, restated here because this is where it is visible:
+// an address that does not exist gets the password field, exactly like one
+// that does, and the credential check then fails identically. `probeEmail`
+// collapses its `unknown` result into `password` server-side (auth.fn.ts)
+// precisely so this component CANNOT render the difference even by accident.
 export function LoginScreen({
+  oidcEnabled,
+  providerName,
+  next,
   onSwitchToRegister,
   onSuccess,
 }: {
-  /** Omitted where self-registration is the IdP's job — see /login's route. */
+  oidcEnabled: boolean
+  /** Null only when SSO is off, in which case the IdP button never renders. */
+  providerName: string | null
+  /** Threaded into the OIDC flow so a `?next=` deep link survives the IdP round trip. */
+  next?: string
   onSwitchToRegister?: () => void
   onSuccess?: () => void
 }) {
@@ -157,17 +176,55 @@ export function LoginScreen({
   const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  // 'email' → the address only; 'password' → the credential field revealed
+  // below it.
+  const [step, setStep] = useState<'email' | 'password'>('email')
   const [error, setError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!email || !password) {
+  const provider = providerName ?? t('auth.oidc.providerFallback')
+
+  /** Full-page navigation, not a router push — the IdP is a different origin. */
+  const goToIdp = async () => {
+    const result = await startOidcSignIn({ data: { next } })
+    if (!result.ok) {
+      toast.error(result.error)
+      return
+    }
+    window.location.href = result.url
+  }
+
+  const handleEmailStep = async () => {
+    if (!email) {
+      toast.error(t('auth.login.needEmail'))
+      return
+    }
+    setSubmitting(true)
+    try {
+      const result = await probeEmail({ data: { email: email.trim() } })
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      if (result.method === 'oidc') {
+        await goToIdp()
+        return
+      }
+      setStep('password')
+    } catch {
+      toast.error(t('auth.login.probeFailed'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handlePasswordStep = async () => {
+    if (!password) {
       toast.error(t('auth.login.needCredentials'))
       return
     }
     setSubmitting(true)
-    const result = await signInWithPassword(email, password)
+    const result = await signInWithPassword(email.trim(), password)
     setSubmitting(false)
     if (result.ok) {
       toast.success(t('auth.login.welcomeBack'))
@@ -178,6 +235,11 @@ export function LoginScreen({
       toast.error(result.error || t('auth.login.credentialsRejected'))
       setPassword('')
     }
+  }
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    await (step === 'email' ? handleEmailStep() : handlePasswordStep())
   }
 
   return (
@@ -286,27 +348,40 @@ export function LoginScreen({
             <input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              // Going back to the address means the answer to "which door" is
+              // stale — drop the password step with it.
+              onChange={(e) => {
+                setEmail(e.target.value)
+                setStep('email')
+                setPassword('')
+                setError(false)
+              }}
               placeholder={t('auth.common.emailPlaceholder')}
+              autoComplete="username"
+              autoFocus
               required
               style={{ ...fieldInput, borderColor: error ? 'var(--rust)' : 'var(--hairline-2)' }}
             />
           </label>
 
-          <label style={{ display: 'block', marginBottom: 8 }}>
-            <span style={fieldLabel}>{t('auth.common.passwordLabel')}</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={t('auth.common.passwordPlaceholderShort')}
-              required
-              style={{ ...fieldInput, borderColor: error ? 'var(--rust)' : 'var(--hairline-2)' }}
-            />
-            {error && (
-              <p style={{ marginTop: 6, fontSize: 12, color: 'var(--rust)' }}>{t('auth.login.credentialsError')}</p>
-            )}
-          </label>
+          {step === 'password' && (
+            <label style={{ display: 'block', marginBottom: 8 }}>
+              <span style={fieldLabel}>{t('auth.common.passwordLabel')}</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={t('auth.common.passwordPlaceholderShort')}
+                autoComplete="current-password"
+                autoFocus
+                required
+                style={{ ...fieldInput, borderColor: error ? 'var(--rust)' : 'var(--hairline-2)' }}
+              />
+              {error && (
+                <p style={{ marginTop: 6, fontSize: 12, color: 'var(--rust)' }}>{t('auth.login.credentialsError')}</p>
+              )}
+            </label>
+          )}
 
           <button
             type="submit"
@@ -334,6 +409,10 @@ export function LoginScreen({
               <>
                 <Loader2 className="h-4 w-4 animate-spin" /> {t('auth.login.opening')}
               </>
+            ) : step === 'email' ? (
+              <>
+                {t('auth.login.continue')} <ArrowRight size={14} />
+              </>
             ) : (
               <>
                 {t('auth.login.submit')} <ArrowRight size={14} />
@@ -341,8 +420,33 @@ export function LoginScreen({
             )}
           </button>
 
-          {/* Absent under SSO: /register is gated off there, so an invitation
-              to it would be a link to a redirect. */}
+          {/* The always-visible escape hatch. The probe routes the operator
+              here automatically, but a browser mid-flow, a stale cookie or a
+              typo in the address should never be able to hide the IdP door. */}
+          {oidcEnabled && (
+            <button
+              type="button"
+              onClick={() => void goToIdp()}
+              disabled={submitting}
+              style={{
+                marginTop: 16,
+                width: '100%',
+                background: 'transparent',
+                border: 0,
+                fontSize: 13,
+                color: 'var(--ink-3)',
+                textDecoration: 'underline',
+                textUnderlineOffset: 4,
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                transition: 'color var(--dur-1) var(--ease)',
+              }}
+            >
+              {t('auth.login.oidcButton', { provider })}
+            </button>
+          )}
+
+          {/* Registration is open alongside the IdP (invite-gated when the
+              deployment sets INVITE_CODE) — see /register's route. */}
           {onSwitchToRegister && (
             <p
               style={{
@@ -377,9 +481,12 @@ export function LoginScreen({
 }
 
 export function RegisterScreen({
+  inviteRequired,
   onSwitchToLogin,
   onSuccess,
 }: {
+  /** Whether this deployment's INVITE_CODE gate is on — from fetchAuthMode. */
+  inviteRequired: boolean
   onSwitchToLogin: () => void
   onSuccess?: () => void
 }) {
@@ -388,12 +495,14 @@ export function RegisterScreen({
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string }>({})
+  const [inviteCode, setInviteCode] = useState('')
+  const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string; inviteCode?: string }>({})
   const [agreed, setAgreed] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
   const validate = () => {
     const next: typeof errors = {}
+    if (inviteRequired && !inviteCode.trim()) next.inviteCode = t('auth.register.errorInviteMissing')
     if (!name.trim()) next.name = t('auth.register.errorName')
     if (!email.trim()) next.email = t('auth.register.errorEmailMissing')
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) next.email = t('auth.register.errorEmailFormat')
@@ -413,7 +522,12 @@ export function RegisterScreen({
     setSubmitting(true)
     try {
       const normalizedEmail = email.trim().toLowerCase()
-      const result = await signUp(name.trim(), normalizedEmail, password)
+      const result = await signUp(
+        name.trim(),
+        normalizedEmail,
+        password,
+        inviteRequired ? inviteCode.trim() : undefined,
+      )
       if (!result.ok) {
         toast.error(result.error || t('auth.register.emailTaken'))
         return
@@ -476,6 +590,28 @@ export function RegisterScreen({
           >
             {t('auth.register.heroBody')}
           </p>
+
+          {inviteRequired && (
+            <label style={{ display: 'block', marginBottom: 14 }}>
+              <span style={fieldLabel}>{t('auth.register.inviteLabel')}</span>
+              <input
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                style={{
+                  ...fieldInput,
+                  fontFamily: 'var(--font-mono)',
+                  borderColor: errors.inviteCode ? 'var(--rust)' : 'var(--hairline-2)',
+                }}
+              />
+              {errors.inviteCode ? (
+                <p style={fieldError}>{errors.inviteCode}</p>
+              ) : (
+                <p style={{ marginTop: 6, fontSize: 12, color: 'var(--ink-3)' }}>{t('auth.register.inviteHint')}</p>
+              )}
+            </label>
+          )}
 
           <label style={{ display: 'block', marginBottom: 14 }}>
             <span style={fieldLabel}>{t('auth.register.nameLabel')}</span>

@@ -8,18 +8,19 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '~/lib/data'
 import { accounts, users } from '~/lib/data/schema'
-import { env, oidcEnabled } from '~/lib/env'
+import { env, isOidcEmail, oidcEnabled } from '~/lib/env'
 
 // Auth.js v5 on @auth/core directly — the framework-agnostic core that the
 // next-auth package wraps. Using it directly is what keeps the auth SDK out
 // of the browser bundle entirely: sign-in runs in a server function, not in
 // a client-side provider.
 //
-// Exactly ONE provider is ever active, chosen by whether an IdP is configured:
-// Pocket ID (OIDC) when it is, the Credentials provider when it isn't. See
-// `providers` below for why it is either/or rather than both. No magic links,
-// no email verification, no password reset — those all require an email
-// transport we don't ship.
+// BOTH providers are active at once (the iris "two-halves" hybrid): the
+// operator signs in through Pocket ID, everyone else with email + password,
+// and the login page routes between them by the address typed. See
+// `providers` below for the safety property that makes running both
+// acceptable. No magic links, no email verification, no password reset —
+// those all require an email transport we don't ship.
 //
 // Session strategy is JWT (signed cookie) — required when using an adapter with
 // Credentials, since Auth.js can't persist a DB session row from inside
@@ -111,16 +112,23 @@ function pocketIdProvider(): OIDCConfig<Profile> | null {
       image: typeof p.picture === 'string' ? p.picture : null,
     }),
 
-    // Links the OIDC identity onto a PRE-EXISTING users row with the same
-    // email instead of creating a second, empty account. That is what carries
-    // the current user's goals across this migration.
+    // ⚠ OFF, and this is the line that makes running two providers safe.
     //
-    // Safe *here* and only here: Pocket ID is the only provider on this
-    // deployment (see `providers` below) and it verifies the address itself, so
-    // there is no second, unverified issuer that could assert someone else's
-    // email and inherit their data. Adding a second provider means revisiting
-    // this line first.
-    allowDangerousEmailAccountLinking: true,
+    // The old either/or setup had this TRUE and was right to: with exactly one
+    // provider there is no second issuer that could assert an email (and the
+    // TRUE run is what linked the operator's existing row to the IdP). Now
+    // there are two, and one of them — password registration — performs NO
+    // EMAIL VERIFICATION (there is no mail transport on this deployment).
+    // With linking on, anyone could register a password account on the
+    // operator's address, wait, and inherit the operator's identity the
+    // moment the real OIDC sign-in linked onto that pre-existing row.
+    //
+    // With it off, an OIDC sign-in whose email already belongs to a password
+    // account fails with OAuthAccountNotLinked instead of silently merging.
+    // `OIDC_EMAILS` (see the credentials provider below) is the other half of
+    // the defence: it stops those addresses from being registered at all, so
+    // the operator never actually meets that error.
+    allowDangerousEmailAccountLinking: false,
   }
 }
 
@@ -129,11 +137,17 @@ const pocketId = pocketIdProvider()
 /**
  * Email + password against `users.passwordHash`.
  *
- * The only provider where there is no IdP, and unreachable where there is —
- * see `providers` below. `passwordHash` is left in the schema and
- * `changePassword` left in the service layer either way: the column simply goes
- * dormant on an SSO deployment, and nothing about seeding or the dev flow has
- * to know which mode it is running in.
+ * Live alongside the IdP, not instead of it. Two independent reasons an
+ * address is refused here, and the order matters:
+ *
+ *   1. `isOidcEmail` — the address is reserved for the IdP. Refused even if a
+ *      hash exists, which covers the case where an address was added to
+ *      `OIDC_EMAILS` after somebody had already registered it. This check is
+ *      the reason a password account can never shadow the operator.
+ *   2. no `passwordHash` — an OIDC-only account. Returns null naturally.
+ *
+ * Both return the same `null`: the caller must not be able to tell which case
+ * it hit, or the login form becomes an account-enumeration oracle.
  */
 const credentialsProvider = Credentials({
   name: 'credentials',
@@ -151,9 +165,14 @@ const credentialsProvider = Credentials({
     if (!parsed.success) return null
 
     const { email, password } = parsed.data
+
+    // (1) Reserved for the IdP — never authenticate it with a password.
+    if (isOidcEmail(email)) return null
+
     const user = await db.query.users.findFirst({
       where: eq(users.email, email),
     })
+    // (2) OIDC-only account, or no such user.
     if (!user?.passwordHash) return null
 
     const ok = await bcrypt.compare(password, user.passwordHash)
@@ -191,17 +210,21 @@ export const authConfig = {
     usersTable: users,
     accountsTable: accounts,
   }),
-  // EITHER/OR, never both. Where an IdP exists it is the only door: a second
-  // password path on a publicly-exposed surface is a second thing to attack and
-  // a second thing to keep patched, and it would defeat the group restriction
-  // the IdP enforces. Where there is no IdP — `pnpm dev`, the Playwright flows,
-  // scripts/capture-screens.sh — the credentials provider is the only door, and
-  // the shape of everything downstream is unchanged.
+  // BOTH, simultaneously — the iris "two-halves" hybrid. The operator gets
+  // Pocket ID (group-restricted at the IdP); everyone else gets email +
+  // password behind the invite gate, because handing out IdP accounts to
+  // every user is not what this deployment's IdP is for. `/login` picks
+  // between them by the address typed; both doors issue the same session
+  // cookie, so nothing downstream branches on which was used.
   //
-  // Swapping providers does NOT change the session cookie's name, salt or key
+  // `.filter()` rather than a ternary because `pocketIdProvider()` returns
+  // null in local dev and in any deployment without an IdP — there, the array
+  // is just the credentials provider and the app is unchanged.
+  //
+  // Adding a provider does NOT change the session cookie's name, salt or key
   // material (all of that comes from basePath + secret + protocol, see above),
   // so sessions issued before this deploy keep working after it.
-  providers: pocketId ? [pocketId] : [credentialsProvider],
+  providers: [pocketId, credentialsProvider].filter((p) => p !== null),
   callbacks: {
     // Add the user id to the JWT on sign-in so the session callback can
     // surface it to getServerSession() (and ultimately every service call).

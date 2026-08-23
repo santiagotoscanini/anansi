@@ -123,6 +123,18 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
     () => '',
   )
   const [mcpCopied, setMcpCopied] = useState(false)
+  const [inviteCopied, setInviteCopied] = useState(false)
+
+  const handleCopyInvite = async () => {
+    if (!me?.inviteCode) return
+    try {
+      await navigator.clipboard.writeText(me.inviteCode)
+      setInviteCopied(true)
+      setTimeout(() => setInviteCopied(false), 1600)
+    } catch {
+      // Clipboard write can be blocked; the code stays selectable below.
+    }
+  }
 
   const handleCopyMcpUrl = async () => {
     if (!mcpServerUrl) return
@@ -378,6 +390,40 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
             >
               {changingPassword ? t('profile.changingPassword') : t('profile.changePassword')}
             </button>
+          </div>
+        </div>
+
+        {/* Invite — the member-to-member growth loop. Every account carries a
+            personal code (`users.invite_code`) and any member's code admits a
+            new signup while the INVITE_CODE gate is on. The code arrives with
+            `fetchMe`; for an OIDC-created account the first read is also what
+            mints it, so this card never has a permanently empty state, only a
+            loading one. The copy value is the code alone, not a URL — what a
+            new person needs is /register plus the code. */}
+        <div className={sectionClass}>
+          <label className={fieldLabel}>{t('profile.invite')}</label>
+          <p className="mb-3 text-xs text-[var(--ink-3)]">{t('profile.inviteHelp')}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 font-mono text-[14px] tracking-[0.08em] select-all">
+              {me?.inviteCode ?? '··········'}
+            </span>
+            {me?.inviteCode && (
+              <button
+                type="button"
+                onClick={() => void handleCopyInvite()}
+                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-1.5 text-xs text-[var(--ink)] transition-all hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
+              >
+                {inviteCopied ? (
+                  <>
+                    <Check className="h-3.5 w-3.5" /> {t('profile.inviteCopied')}
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5" /> {t('profile.inviteCopy')}
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
 

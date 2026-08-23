@@ -117,6 +117,12 @@ export const users = pgTable('users', {
   // language is a JSON drop + a tuple entry in src/i18n/config.ts — no DB
   // migration. Free-form text (vs enum) keeps that promise.
   locale: text('locale'),
+  // Personal invite code: any member's code admits a new signup while the
+  // INVITE_CODE gate is on (see server/services/auth.ts). Minted at
+  // registration; lazy-minted on first profile read for rows the Auth.js
+  // adapter created (OIDC sign-ins bypass registerUser). Nullable exactly for
+  // that window between adapter insert and first read.
+  inviteCode: text('invite_code').unique(),
   ...timestamps,
 })
 

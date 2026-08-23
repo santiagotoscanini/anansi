@@ -41,8 +41,8 @@ export function useSignIn() {
 export function useSignUp() {
   const resetIdentity = useResetIdentity()
   return useCallback(
-    async (name: string, email: string, password: string) => {
-      const result = await signUp({ data: { name, email, password } })
+    async (name: string, email: string, password: string, inviteCode?: string) => {
+      const result = await signUp({ data: { name, email, password, inviteCode } })
       if (result.ok) await resetIdentity()
       return result
     },

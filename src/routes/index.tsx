@@ -750,9 +750,7 @@ function LandingPage() {
                 {/* The svg carries width/height attrs; the CSS override lets
                     it shrink with the column instead of forcing a 380px box
                     (which was the page's one horizontal overflow on phones). */}
-                <span
-                  className="relative z-[1] w-full max-w-[380px] [&_svg]:h-auto [&_svg]:w-full"
-                >
+                <span className="relative z-[1] w-full max-w-[380px] [&_svg]:h-auto [&_svg]:w-full">
                   <AnansiMark size={380} strokeWidth={1.5} />
                 </span>
               </div>

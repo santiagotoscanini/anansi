@@ -245,7 +245,8 @@ function LandingPage() {
               className="mt-9"
               style={{
                 fontFamily: 'var(--font-display)',
-                fontSize: 128,
+                // Fluid: 54px on a phone, the full 128 from ~910px up.
+                fontSize: 'clamp(54px, 14vw, 128px)',
                 fontWeight: 400,
                 lineHeight: 0.96,
                 letterSpacing: '-0.03em',
@@ -266,7 +267,7 @@ function LandingPage() {
               style={{
                 fontFamily: 'var(--font-text)',
                 fontStyle: 'italic',
-                fontSize: 26,
+                fontSize: 'clamp(21px, 5.6vw, 26px)',
                 lineHeight: 1.32,
                 color: 'var(--ink-2)',
                 maxWidth: 760,
@@ -587,7 +588,7 @@ function LandingPage() {
                     className="mt-5"
                     style={{
                       fontFamily: 'var(--font-display)',
-                      fontSize: 42,
+                      fontSize: 'clamp(32px, 9vw, 42px)',
                       fontWeight: 400,
                       lineHeight: 1.05,
                       letterSpacing: '-0.02em',
@@ -746,7 +747,12 @@ function LandingPage() {
                     zIndex: 0,
                   }}
                 />
-                <span style={{ position: 'relative', zIndex: 1 }}>
+                {/* The svg carries width/height attrs; the CSS override lets
+                    it shrink with the column instead of forcing a 380px box
+                    (which was the page's one horizontal overflow on phones). */}
+                <span
+                  className="relative z-[1] w-full max-w-[380px] [&_svg]:h-auto [&_svg]:w-full"
+                >
                   <AnansiMark size={380} strokeWidth={1.5} />
                 </span>
               </div>
@@ -757,7 +763,7 @@ function LandingPage() {
                   className="mt-6"
                   style={{
                     fontFamily: 'var(--font-display)',
-                    fontSize: 56,
+                    fontSize: 'clamp(36px, 10vw, 56px)',
                     fontWeight: 400,
                     lineHeight: 1.03,
                     letterSpacing: '-0.02em',
@@ -895,7 +901,7 @@ function LandingPage() {
                 <h2
                   style={{
                     fontFamily: 'var(--font-display)',
-                    fontSize: 84,
+                    fontSize: 'clamp(40px, 11vw, 84px)',
                     fontWeight: 400,
                     lineHeight: 1.0,
                     letterSpacing: '-0.02em',
@@ -1072,7 +1078,7 @@ function ChapterHead({
         className="mt-6"
         style={{
           fontFamily: 'var(--font-display)',
-          fontSize: 60,
+          fontSize: 'clamp(38px, 10.5vw, 60px)',
           fontWeight: 400,
           lineHeight: 1.03,
           letterSpacing: '-0.02em',

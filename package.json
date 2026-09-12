@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "start": "node .output/server/index.mjs",
+    "check:bundle": "test -d .output/public && ! grep -rqE 'drizzle-orm|@auth/core|bcryptjs|postgres:' .output/public/ && ! grep -rqE 'placeholder-secret|postgresql://(ci|build)' .output/public/",
+    "start": "node start.mjs",
     "generate-routes": "tsr generate",
     "lint": "eslint .",
     "typecheck": "tsr generate && tsc --noEmit",
@@ -24,6 +25,7 @@
     "db:studio": "drizzle-kit studio",
     "format:check": "prettier --check .",
     "check:mcp-tools": "tsx scripts/check-mcp-tools.ts",
+    "ci": "pnpm generate-routes && pnpm format:check && pnpm lint && pnpm typecheck && pnpm check:mcp-tools && pnpm check:bundle",
     "preview": "vite preview"
   },
   "type": "module",

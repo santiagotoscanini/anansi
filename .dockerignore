@@ -44,7 +44,8 @@ Thumbs.db
 .playwright-mcp
 /*.png
 coverage
-.golden
+# NOT excluded any more: Railpack honours .dockerignore, and the `ci` script’s
+# check:mcp-tools reads .golden/mcp-tool-names.tsv as its oracle.
 
 # Docs that don't ship with the runtime.
 README.md

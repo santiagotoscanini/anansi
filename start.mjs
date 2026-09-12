@@ -15,6 +15,7 @@
 // Extending later: drop new pre-start work here (cache warmups, healthcheck
 // pings, secret rotations…) above the final dynamic import.
 
+import { existsSync } from 'node:fs'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import postgres from 'postgres'
@@ -33,6 +34,16 @@ if (!process.env.AUTH_SECRET) {
   process.exit(1)
 }
 
+// Where the SQL ledger sits depends on how the image was built: the Dockerfile copies it to
+// ./drizzle/migrations, while a Railpack image keeps the repo layout. Pick whichever actually
+// holds a journal so the app can never boot having silently skipped its migrations.
+const MIGRATIONS_DIRS = ['./drizzle/migrations', './src/lib/data/db/migrations']
+const migrationsFolder = MIGRATIONS_DIRS.find((dir) => existsSync(`${dir}/meta/_journal.json`))
+if (!migrationsFolder) {
+  console.error(`[start] no migrations found in ${MIGRATIONS_DIRS.join(' or ')} — refusing to boot`)
+  process.exit(1)
+}
+
 console.log('[start] applying migrations…')
 const sql = postgres(DATABASE_URL, {
   // One-shot connection, no need for a pool. `prepare: false` keeps us
@@ -41,7 +52,7 @@ const sql = postgres(DATABASE_URL, {
   prepare: false,
 })
 try {
-  await migrate(drizzle(sql), { migrationsFolder: './drizzle/migrations' })
+  await migrate(drizzle(sql), { migrationsFolder })
   console.log('[start] migrations up to date')
 } catch (err) {
   console.error('[start] migration failed:', err)

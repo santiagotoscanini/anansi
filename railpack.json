@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "secrets": ["DATABASE_URL", "AUTH_SECRET"],
+  "steps": {
+    "build": {
+      "commands": ["...", "rm -rf /root/.cache/pnpm"]
+    }
+  },
+  "deploy": {
+    "startCommand": "node start.mjs",
+    "variables": {
+      "HOST": "0.0.0.0",
+      "NODE_ENV": "production"
+    }
+  }
+}

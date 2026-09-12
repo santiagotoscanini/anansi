@@ -34,9 +34,9 @@ if (!process.env.AUTH_SECRET) {
   process.exit(1)
 }
 
-// Where the SQL ledger sits depends on how the image was built: the Dockerfile copies it to
-// ./drizzle/migrations, while a Railpack image keeps the repo layout. Pick whichever actually
-// holds a journal so the app can never boot having silently skipped its migrations.
+// A Railpack image keeps the repo layout; ./drizzle/migrations is the legacy location images
+// built before the Railpack cutover used. Pick whichever actually holds a journal so the app
+// can never boot having silently skipped its migrations.
 const MIGRATIONS_DIRS = ['./drizzle/migrations', './src/lib/data/db/migrations']
 const migrationsFolder = MIGRATIONS_DIRS.find((dir) => existsSync(`${dir}/meta/_journal.json`))
 if (!migrationsFolder) {

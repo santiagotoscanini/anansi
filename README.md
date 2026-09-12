@@ -127,15 +127,16 @@ Three checks are **not automated today** — nothing runs them anywhere, so run 
 
 Anansi ships as a container image, and the server it runs on builds it. Every push to `main` is picked up by daedalus's GitHub App, which runs `pnpm ci` inside an image build driven by rootless BuildKit + Railpack (`railpack.json`), then pushes `sha-<sha>` and `latest` to that box's own zot registry (`registry.toscanini.me/anansi`). A deploy timer notices the new digest and restarts the container: live in about two minutes, with nothing leaving the network. Results come back to GitHub as a check run named `daedalus` plus a Deployment — there are no workflow files in this repo and no registry credentials to configure.
 
-The `Dockerfile` — a `node:24` builder producing Nitro's self-contained `.output/`, then a `node:24-slim` runtime as a non-root user — is kept as the rollback path (switch the app's build strategy to Dockerfile in daedalus) and is scheduled for deletion. It is also how you run Anansi locally:
+`railpack.json` is the whole build definition — there is no Dockerfile, so a build definition that turns out to be wrong is rolled back with `git revert` of the commit that changed it. `exclude` in that file is the build-context filter (`.dockerignore` syntax, `!` negation included) and `deploy.inputs` is the exact list of what the runtime image contains.
+
+Run it locally without an image at all:
 
 ```bash
-docker build -t anansi .
-docker run -p 3000:3000 \
-  -e DATABASE_URL=postgresql://... \
-  -e AUTH_SECRET=$(openssl rand -base64 32) \
-  anansi
+pnpm build
+DATABASE_URL=postgresql://... AUTH_SECRET=$(openssl rand -base64 32) node start.mjs
 ```
+
+`pnpm ci` is the same check suite the server runs inside the build, so a green `pnpm ci` locally is a green build there. For a **real** image without deploying it, set the app's publish mode to *Candidate* in daedalus and press *Build now*: the same Railpack build runs and pushes `candidate-<sha>` to the registry, and nothing is deployed.
 
 `start.mjs` is the entrypoint: it preflights both env vars, applies outstanding Drizzle migrations, then imports the Nitro server in the same process. Migrations are idempotent, so re-runs are free.
 
@@ -145,7 +146,7 @@ Required env:
 - `AUTH_SECRET` — 32+ characters; signs the Auth.js JWT session cookie. The container refuses to boot without it.
 - `MIGRATE_ONLY=1` *(optional)* — apply migrations and exit 0 without starting the server. Used as a systemd `ExecStartPre` so a failed migration can't be papered over by a healthy-looking boot.
 
-The image has a `HEALTHCHECK` against `/api/healthz`, which round-trips a `SELECT 1` — unhealthy means "can't serve", not merely "process dead".
+`/api/healthz` round-trips a `SELECT 1`, so a 200 there means "can serve", not merely "process alive". A Railpack image declares no `HEALTHCHECK` of its own — the probe is external (gatus on the host), which is the right place for it.
 
 ## Documentation
 

@@ -657,7 +657,7 @@ Two v4 preflight changes are restored in the `@layer base` block rather than at 
 
 ## Package registry
 
-Every dependency resolves through the self-hosted **Verdaccio** at `https://verdaccio.toscanini.me/`. It is declared once, as `registry:` in `pnpm-workspace.yaml`, so local dev, the box's image build and the `Dockerfile` share a single gate — no environment can opt out, and there is **no fallback to npmjs anywhere**. A gate that silently routes around itself is not a gate.
+Every dependency resolves through the self-hosted **Verdaccio** at `https://verdaccio.toscanini.me/`. It is declared once, as `registry:` in `pnpm-workspace.yaml`, so local dev and the box's image build share a single gate — no environment can opt out, and there is **no fallback to npmjs anywhere**. A gate that silently routes around itself is not a gate.
 
 What it provides: one chokepoint every app's dependencies flow through, private packages served alongside public ones, and independence from npmjs outages, unpublishes and yanked versions.
 
@@ -670,9 +670,15 @@ The lockfile is **registry-agnostic** — lockfile v9 records integrity hashes a
 Emergency override, for an outage where a build must ship anyway — deliberately manual, nothing automatic reaches for it:
 
 ```bash
-podman build --build-arg NPM_REGISTRY=https://registry.npmjs.org/ .   # Dockerfile (rollback) build
-pnpm install --config.registry=https://registry.npmjs.org/            # one command
+pnpm install --config.registry=https://registry.npmjs.org/   # one command, locally
 ```
+
+**`--config.registry` is the only spelling that works.** pnpm silently ignores
+`npm_config_registry` / `NPM_CONFIG_REGISTRY`, so setting either resolves from
+npmjs while looking correct — the same class of silent-fallback bug as the
+`viteReact({ babel })` note above. There is no override for the box's build:
+the gate is `pnpm-workspace.yaml`, which the build reads from the repo, so an
+emergency that must ship goes through a commit like everything else.
 
 ## Supply-chain cooldown
 
@@ -735,16 +741,15 @@ Rules:
 ## Infrastructure
 
 - **`start.mjs`** is the container entry: apply Drizzle migrations, then `import('./.output/server/index.mjs')` (Nitro's bundle listens on import and reads `PORT`/`HOST`). It preflights `DATABASE_URL` and `AUTH_SECRET` and exits 1 if either is missing. **`MIGRATE_ONLY=1` short-circuits before the server starts and exits 0** — that is a hard external contract, used as a NixOS `ExecStartPre`. Do not split this into a separate migration container.
-- **Dockerfile** — `node:24` builder → `node:24-slim` runtime, non-root `anansi` user, `HEALTHCHECK` against `/api/healthz` (which round-trips a `SELECT 1`, so unhealthy means "can't serve", not merely "process dead"). `pnpm install --config.node-linker=hoisted` is load-bearing: the runtime stage copies `node_modules/drizzle-orm` and `node_modules/postgres` as flat directories for `start.mjs` to import, and pnpm's default symlinks would arrive dangling.
-  - The registry is **not** named here: `pnpm-workspace.yaml` is COPY'd in and pins `registry:`, so this build inherits the same gate as the box's build and local dev. `ARG NPM_REGISTRY` is an emergency override, **empty by default** — empty means "use the committed registry", so the default path cannot bypass the proxy.
-  - **`--config.registry` is the only spelling that works.** pnpm silently ignores `npm_config_registry` / `NPM_CONFIG_REGISTRY`, so setting either would resolve from npmjs while looking correct — the same class of silent-fallback bug as the `viteReact({ babel })` note above.
-  - **`COREPACK_NPM_REGISTRY` closes the pnpm bootstrap.** `corepack enable` only installs shims; the pnpm *binary* is fetched on the first `pnpm` invocation, and corepack reads none of pnpm's config — so without it the build pulls pnpm itself from npmjs before the gate applies. The value is `sed`'d out of `pnpm-workspace.yaml` rather than restated, so corepack cannot drift from pnpm.
-- **`.dockerignore`** — the `*.png` exclusion is written `/*.png`, anchored to the context root. A bare `*.png` matches at every depth and would silently drop `public/icon.png` and `public/apple-icon.png`, breaking the favicon with no error anywhere.
+- **`railpack.json`** is the WHOLE build definition — there is no Dockerfile. `provider: node` + `.tool-versions` pick the toolchain; `steps.build` extends Railpack's own build step; `deploy.inputs` is the complete list of what the runtime image contains — the mise runtime, `/app/.output`, `start.mjs`, the Drizzle migrations, and the bare `node_modules/drizzle-orm` + `node_modules/postgres` that `start.mjs` imports. Nothing else ships: an image that needs another file needs another `deploy.inputs` entry, not a copy step. Rolling a build definition back is `git revert` of the commit that changed it.
+  - The registry is **not** named here either: `pnpm-workspace.yaml` is in the build context and pins `registry:`, so the box's build inherits the same gate as local dev. See "Package registry" for the emergency override and for why `--config.registry` is the only spelling pnpm honours.
+  - There is **no `HEALTHCHECK`** in a Railpack image, so nothing container-side round-trips `SELECT 1` any more. `/api/healthz` still exists and is what gatus probes from outside; a green systemd unit has never meant a live container here.
+- **`railpack.json`'s `exclude`** is the build-context filter, in `.dockerignore` syntax with `!` negation — Railpack read `.dockerignore` and merged it into this same field, so folding the file in changed nothing except leaving exactly one list. Two entries carry real history: the `*.png` exclusion is written `/*.png`, anchored to the context root, because a bare `*.png` matches at every depth and would silently drop `public/icon.png` and `public/apple-icon.png`, breaking the favicon with no error anywhere; and **`.golden/` is deliberately NOT excluded** — `pnpm ci` runs `check:mcp-tools`, which reads `.golden/mcp-tool-names.tsv` as its oracle, and the checks run against this same context. Excluding something the build or the checks need breaks them; excluding something only the image does not need buys nothing, because `deploy.inputs` already decides that.
 - **Security headers** — the six headers that used to be `next.config.js`'s `headers()` now live in `src/lib/security-headers.ts` and are applied by a global **request** middleware in `src/start.ts`. Request middleware wraps every request Start handles — pages, server functions, server routes, redirects, 404s — which is what `source: '/:path*'` meant. Nitro `routeRules` would only exist in the built output and silently vanish under `vite dev`. (The one gap: a server function that *throws* produces Start's own 500 outside this middleware, so that response has no headers.)
 - **Build** — the box builds this repo; there are no `.github/workflows` files and no `REGISTRY_PASSWORD` secret. On every push to `main` daedalus's GitHub App builds the image with rootless BuildKit + Railpack from `railpack.json`, running `pnpm ci` (format:check → lint → typecheck → check:mcp-tools → check:bundle) inside that build, and pushes `sha-<sha>` and `latest` to the box's own zot registry (`registry.toscanini.me/anansi`). `app-anansi-deploy.timer` sees the new digest and restarts the container — live in ~2 minutes, and nothing leaves the network. The result shows up on GitHub as a check run named `daedalus` plus a Deployment.
   - The build needs dummy `DATABASE_URL` + `AUTH_SECRET` (declared in `railpack.json`'s `secrets`) because `src/lib/env.ts` validates at import time. Nothing else is a build-time secret — all that matters is a runnable image listening on 3000.
   - Dependencies resolve through the self-hosted **Verdaccio** and there is **no fallback to npmjs** — see "Package registry" below. Verdaccio being unreachable fails the build, by design.
-  - The **`Dockerfile` is the rollback path only** and is scheduled for deletion. To use it, set the app's build strategy to Dockerfile in daedalus and press *Build now*.
+  - To verify a change to the build definition: `pnpm ci` locally for the checks, and for a **real** image without shipping it, set the app's publish mode to *Candidate* in daedalus and press *Build now* — same Railpack build, pushed as `candidate-<sha>`, deployed nowhere.
 
 ## Database migrations
 

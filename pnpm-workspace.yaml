@@ -1,10 +1,10 @@
 # pnpm 11 reads project settings from this file, not .npmrc.
 
-# Every dependency resolves through the self-hosted Verdaccio — local dev, the
-# box's Railpack image build, and the Dockerfile alike. Declared HERE rather
-# than passed per-environment so there is exactly one gate: an install that does
-# not go through the proxy is not a supported path, and no build can quietly opt
-# out of it.
+# Every dependency resolves through the self-hosted Verdaccio — local dev and
+# the box's Railpack image build alike. Declared HERE rather than passed
+# per-environment so there is exactly one gate: an install that does not go
+# through the proxy is not a supported path, and no build can quietly opt out
+# of it.
 #
 # What this buys: one place every app's dependencies flow through, private
 # packages served alongside public ones, and independence from npmjs outages,
@@ -21,8 +21,8 @@
 # and every release. If its npmjs uplink is down it answers 500
 # {"error":"uplink is offline"} for anything it has not cached, and builds
 # fail. That is the intended behaviour of a gate — fix the proxy rather than
-# routing around it. The documented escape hatch for an emergency is the
-# NPM_REGISTRY build arg (Dockerfile) or `--config.registry=` on one command.
+# routing around it. The documented escape hatch for an emergency is
+# `--config.registry=` on one command.
 registry: https://verdaccio.toscanini.me/
 
 # Supply-chain cooldown: refuse a package version published less than 7 days

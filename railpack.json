@@ -8,10 +8,34 @@
     }
   },
   "deploy": {
+    "inputs": [
+      {
+        "step": "packages:mise",
+        "include": [
+          "/mise/shims",
+          "/mise/installs/node",
+          "/usr/local/bin/mise",
+          "/etc/mise/config.toml",
+          "/root/.local/state/mise"
+        ]
+      },
+      {
+        "step": "build",
+        "include": [
+          "/app/.output",
+          "/app/start.mjs",
+          "/app/src/lib/data/db/migrations",
+          "/app/node_modules/drizzle-orm",
+          "/app/node_modules/postgres"
+        ]
+      }
+    ],
     "startCommand": "node start.mjs",
     "variables": {
       "HOST": "0.0.0.0",
-      "NODE_ENV": "production"
+      "NODE_ENV": "production",
+      "TZ": "UTC",
+      "LANG": "C.UTF-8"
     }
   }
 }

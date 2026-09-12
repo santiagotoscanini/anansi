@@ -1,4 +1,11 @@
-# Two-stage TanStack Start build. `vite build` (with the Nitro adapter) emits
+# Two-stage TanStack Start build — the ROLLBACK path, not the normal one. The
+# deployed image is built on the box by daedalus's GitHub App with rootless
+# BuildKit + Railpack (railpack.json); this file is only used when the app's
+# build strategy is switched to Dockerfile in daedalus, and for a local
+# `docker build`. It is scheduled for deletion once the Railpack path has
+# proven itself.
+#
+# `vite build` (with the Nitro adapter) emits
 # `.output/` — a self-contained server bundle plus the hashed client assets —
 # so the runtime stage needs almost nothing else. Two stages rather than three
 # because pnpm's content-addressed store makes a separate deps stage cheap to
@@ -9,10 +16,10 @@
 # DATABASE_URL (Postgres) and AUTH_SECRET (Auth.js JWT signing). Set them at
 # `docker run` time — the image stays portable across environments.
 #
-# One build ARG, NPM_REGISTRY — a hostname, not a credential. It defaults to
-# npmjs so `docker build .` works on any machine; release.yml overrides it with
-# the box's own Verdaccio so the server's builds resolve through the local
-# proxy. See the note above the install step.
+# One build ARG, NPM_REGISTRY — a hostname, not a credential, and empty by
+# default: empty means "use the registry pinned in pnpm-workspace.yaml", the
+# box's own Verdaccio. Set it only to build against a different registry during
+# an outage. See the note above the install step.
 
 # ───── Stage 1: builder ──────────────────────────────────────────────────
 FROM node:24 AS builder

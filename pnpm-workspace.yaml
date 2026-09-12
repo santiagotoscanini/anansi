@@ -1,9 +1,10 @@
 # pnpm 11 reads project settings from this file, not .npmrc.
 
-# Every dependency resolves through the self-hosted Verdaccio — local dev, CI,
-# and the Docker build alike. Declared HERE rather than passed per-environment
-# so there is exactly one gate: an install that does not go through the proxy
-# is not a supported path, and no workflow can quietly opt out of it.
+# Every dependency resolves through the self-hosted Verdaccio — local dev, the
+# box's Railpack image build, and the Dockerfile alike. Declared HERE rather
+# than passed per-environment so there is exactly one gate: an install that does
+# not go through the proxy is not a supported path, and no build can quietly opt
+# out of it.
 #
 # What this buys: one place every app's dependencies flow through, private
 # packages served alongside public ones, and independence from npmjs outages,
@@ -33,7 +34,7 @@ registry: https://verdaccio.toscanini.me/
 #   2. at EVERY install, including `--frozen-lockfile`, which re-verifies all
 #      lockfile entries against the policy and fails the install if any is too
 #      young. So a lockfile written with the cooldown commented out will break
-#      CI and the Docker build even though nothing is being resolved.
+#      the box's image build even though nothing is being resolved.
 #
 # ADDING A DEPENDENCY: see the "Supply-chain cooldown" note in CLAUDE.md.
 # Comment the line below out, install, restore it, then confirm

@@ -110,9 +110,12 @@ pnpm check:mcp-tools  # MCP tool catalog vs .golden/mcp-tools.json — zero diff
 pnpm build            # vite build (client + SSR + nitro)
 ```
 
-CI runs `format:check` → `lint` → `typecheck` → `check:mcp-tools` → `build` on every PR, then greps the built client assets for server modules and env placeholders, boots the built server, and runs the font and i18n checks against it (`.github/workflows/ci.yml`). `.github/workflows/release.yml` calls that whole workflow as a gate, so nothing ships unvalidated.
+`pnpm ci` runs `format:check` → `lint` → `typecheck` → `check:mcp-tools` → `check:bundle` (the grep of the built client assets for server modules and env placeholders), and the box runs exactly that inside the image build on every push to `main` — see [Deployment](#deployment). A failure there fails the build, so nothing ships unvalidated.
 
-`scripts/check-shell.mjs` is the one check CI does not run — it signs in and loads `/app`, so it needs a real Postgres and a seeded user. Run it locally.
+Three checks are **not automated today** — nothing runs them anywhere, so run them by hand:
+
+- `scripts/check-fonts.mjs` and `scripts/check-i18n.mjs` need a booted server and a Playwright chromium. They used to run in a GitHub Actions workflow that no longer exists. Run them after touching fonts or translations; neither needs a database.
+- `scripts/check-shell.mjs` signs in and loads `/app`, so it needs a real Postgres and a seeded user.
 
 > Don't run `pnpm typecheck` while `pnpm dev` is running — both generate
 > `routeTree.gen.ts`, and racing them puts the dev server into a reload loop
@@ -122,7 +125,9 @@ CI runs `format:check` → `lint` → `typecheck` → `check:mcp-tools` → `bui
 
 ## Deployment
 
-Anansi ships as a Docker image: a `node:24` builder producing Nitro's self-contained `.output/`, and a `node:24-slim` runtime that runs as a non-root user. `.github/workflows/release.yml` builds `linux/amd64` on every push to `main` and pushes `:latest` to a self-hosted zot registry.
+Anansi ships as a container image, and the server it runs on builds it. Every push to `main` is picked up by daedalus's GitHub App, which runs `pnpm ci` inside an image build driven by rootless BuildKit + Railpack (`railpack.json`), then pushes `sha-<sha>` and `latest` to that box's own zot registry (`registry.toscanini.me/anansi`). A deploy timer notices the new digest and restarts the container: live in about two minutes, with nothing leaving the network. Results come back to GitHub as a check run named `daedalus` plus a Deployment — there are no workflow files in this repo and no registry credentials to configure.
+
+The `Dockerfile` — a `node:24` builder producing Nitro's self-contained `.output/`, then a `node:24-slim` runtime as a non-root user — is kept as the rollback path (switch the app's build strategy to Dockerfile in daedalus) and is scheduled for deletion. It is also how you run Anansi locally:
 
 ```bash
 docker build -t anansi .

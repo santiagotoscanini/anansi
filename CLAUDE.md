@@ -186,7 +186,7 @@ MCP tool  ───────────────────────�
 
 > **A `.fn.ts` module must export ONLY server functions.** Exporting any plain runtime value makes the Start compiler treat the module as mixed and mis-register its function ids. `vite build` tolerates it; **`vite dev` throws `Invalid server function ID` at call time** — so it hides until someone clicks the thing. This is why `server/middleware/auth.ts` lives outside `fn/`: `createMiddleware` returns a runtime value.
 
-> **Never `import 'server-only'`.** That package's exports map the `react-server` condition to an empty module and everything else to a bare `throw`, and Vite's SSR pass does not apply that condition — so the guard fires on the server it exists to protect and 500s every request. `vite build` does not catch it. The boundary is enforced by the `no-restricted-imports` rule in `eslint.config.mjs` (client-reachable directories may not import `~/server/**` or `~/lib/mcp/**`) plus a CI grep over `.output/public/`.
+> **Never `import 'server-only'`.** That package's exports map the `react-server` condition to an empty module and everything else to a bare `throw`, and Vite's SSR pass does not apply that condition — so the guard fires on the server it exists to protect and 500s every request. `vite build` does not catch it. The boundary is enforced by the `no-restricted-imports` rule in `eslint.config.mjs` (client-reachable directories may not import `~/server/**` or `~/lib/mcp/**`) plus `pnpm check:bundle`, which greps the built `.output/public/` and runs as part of `pnpm ci`.
 
 **Errors across the wire.** Services throw `AppError`. `authMiddleware` converts it to an HTTP status plus a `CODE: message` string, because Seroval does not reconstruct an `Error` subclass on the client — so don't rely on `instanceof AppError` there; `lib/queries/errors.ts` parses the code back out of the message. The MCP path loses nothing: it calls services in-process, where `instanceof` holds and `_meta.trpc_code` stays exact.
 
@@ -509,7 +509,7 @@ MCP-specific gates (not in the underlying service schemas): `create_person` / `u
 
 `src/lib/mcp/errors.ts` maps `AppError` → an MCP error result. **`_meta.trpc_code` keeps its name verbatim** even though tRPC is gone — it is an opaque private field that clients may already key on, and renaming it would be a gratuitous wire change.
 
-**The catalog is pinned.** `.golden/mcp-tools.json` holds the full `tools/list` output with every `inputSchema`; the diff against it must be **exactly zero** after any change here. Enforced by `pnpm check:mcp-tools` (`scripts/check-mcp-tools.ts`), which runs in CI on every PR. Re-baseline deliberately with `--update` only after reading the diff.
+**The catalog is pinned.** `.golden/mcp-tools.json` holds the full `tools/list` output with every `inputSchema`; the diff against it must be **exactly zero** after any change here. Enforced by `pnpm check:mcp-tools` (`scripts/check-mcp-tools.ts`), part of `pnpm ci` and so run inside the image build on every push to `main`. Re-baseline deliberately with `--update` only after reading the diff.
 
 ### Tables
 
@@ -657,7 +657,7 @@ Two v4 preflight changes are restored in the `@layer base` block rather than at 
 
 ## Package registry
 
-Every dependency resolves through the self-hosted **Verdaccio** at `https://verdaccio.toscanini.me/`. It is declared once, as `registry:` in `pnpm-workspace.yaml`, so local dev, CI and the Docker build share a single gate — no environment can opt out, and there is **no fallback to npmjs anywhere**. A gate that silently routes around itself is not a gate.
+Every dependency resolves through the self-hosted **Verdaccio** at `https://verdaccio.toscanini.me/`. It is declared once, as `registry:` in `pnpm-workspace.yaml`, so local dev, the box's image build and the `Dockerfile` share a single gate — no environment can opt out, and there is **no fallback to npmjs anywhere**. A gate that silently routes around itself is not a gate.
 
 What it provides: one chokepoint every app's dependencies flow through, private packages served alongside public ones, and independence from npmjs outages, unpublishes and yanked versions.
 
@@ -667,16 +667,16 @@ The lockfile is **registry-agnostic** — lockfile v9 records integrity hashes a
 
 **Failure mode to recognise.** When Verdaccio's uplink to npmjs is down it keeps answering `GET /`, `/-/ping` and every already-cached package with `200`, while returning `500 {"error":"uplink is offline"}` for anything it must fetch, and sometimes a hard `404` for a package npmjs serves fine. So the proxy looks healthy from a browser while installs collapse — only a real install of an uncached package is an honest probe. Persistent 404s can be a poisoned negative cache entry; delete that package's directory from Verdaccio's storage so it refetches.
 
-Emergency override, for an outage where a build must ship anyway — deliberately manual, never wired into a workflow:
+Emergency override, for an outage where a build must ship anyway — deliberately manual, nothing automatic reaches for it:
 
 ```bash
-podman build --build-arg NPM_REGISTRY=https://registry.npmjs.org/ .   # image build
+podman build --build-arg NPM_REGISTRY=https://registry.npmjs.org/ .   # Dockerfile (rollback) build
 pnpm install --config.registry=https://registry.npmjs.org/            # one command
 ```
 
 ## Supply-chain cooldown
 
-`pnpm-workspace.yaml` sets `minimumReleaseAge: 10080` — no package version published in the last 7 days may be used. It is enforced **at every install, including `--frozen-lockfile`**, which re-verifies all lockfile entries; a lockfile written with the cooldown off will fail CI and the Docker build even though nothing is being resolved.
+`pnpm-workspace.yaml` sets `minimumReleaseAge: 10080` — no package version published in the last 7 days may be used. It is enforced **at every install, including `--frozen-lockfile`**, which re-verifies all lockfile entries; a lockfile written with the cooldown off will fail the box's image build even though nothing is being resolved.
 
 The cooldown reads publish dates from the registry's packument, so it depends on Verdaccio proxying the `time` field through intact — it does (verified). A proxy that stripped `time` would break every install.
 
@@ -703,18 +703,25 @@ pnpm check:mcp-tools  # MCP catalog vs .golden/mcp-tools.json — must be zero d
 pnpm build            # vite build (client + SSR + nitro)
 ```
 
-All five run in CI on every PR, and Release gates the image on them.
+`pnpm ci` is four of those five in their check form — `format:check`, `lint`,
+`typecheck`, `check:mcp-tools` — plus `check:bundle`, and the box runs exactly
+that inside the image build on every push to `main`, after the build step. A
+failure there fails the build, so nothing ships past them.
 `check:mcp-tools` needs no server, database or token — it builds the MCP server
 in-process and drives a real client over an in-memory transport, so it is seconds.
 
-CI additionally boots the built server and runs `check-fonts.mjs` and
-`check-i18n.mjs` against it. Both guard failures that are invisible to a build:
-a wrong font family silently renders the app in `Georgia`, and a missing i18n
-bundle silently renders raw key paths — both at HTTP 200. Neither needs a
-database, so the server boots against a deliberately unreachable URL.
+**`check-fonts.mjs` and `check-i18n.mjs` are not automated today.** They lived
+only in the deleted GitHub Actions workflow, and nothing runs them now: both
+need a booted server and a Playwright chromium, and the image build has neither.
+They still guard failures that are invisible to a build — a wrong
+font family silently renders the app in `Georgia`, a missing i18n bundle
+silently renders raw key paths, both at HTTP 200 — so run them by hand against
+a built server (neither needs a database; boot against a deliberately
+unreachable `DATABASE_URL`) after touching fonts or translations.
 
-`check-shell.mjs` is **not** in CI: it signs in and loads `/app`, so it needs a real
-Postgres and a seeded user. Run it locally against `pnpm dev` or a built server.
+`check-shell.mjs` is not automated either, and never was: it signs in and loads
+`/app`, so it needs a real Postgres and a seeded user. Run it locally against
+`pnpm dev` or a built server.
 
 Rules:
 - Zero is the only acceptable count. Don't ship "just one warning" — they compound and get ignored.
@@ -729,14 +736,15 @@ Rules:
 
 - **`start.mjs`** is the container entry: apply Drizzle migrations, then `import('./.output/server/index.mjs')` (Nitro's bundle listens on import and reads `PORT`/`HOST`). It preflights `DATABASE_URL` and `AUTH_SECRET` and exits 1 if either is missing. **`MIGRATE_ONLY=1` short-circuits before the server starts and exits 0** — that is a hard external contract, used as a NixOS `ExecStartPre`. Do not split this into a separate migration container.
 - **Dockerfile** — `node:24` builder → `node:24-slim` runtime, non-root `anansi` user, `HEALTHCHECK` against `/api/healthz` (which round-trips a `SELECT 1`, so unhealthy means "can't serve", not merely "process dead"). `pnpm install --config.node-linker=hoisted` is load-bearing: the runtime stage copies `node_modules/drizzle-orm` and `node_modules/postgres` as flat directories for `start.mjs` to import, and pnpm's default symlinks would arrive dangling.
-  - The registry is **not** named here: `pnpm-workspace.yaml` is COPY'd in and pins `registry:`, so the image build inherits the same gate as CI and local dev. `ARG NPM_REGISTRY` is an emergency override, **empty by default** — empty means "use the committed registry", so the default path cannot bypass the proxy.
+  - The registry is **not** named here: `pnpm-workspace.yaml` is COPY'd in and pins `registry:`, so this build inherits the same gate as the box's build and local dev. `ARG NPM_REGISTRY` is an emergency override, **empty by default** — empty means "use the committed registry", so the default path cannot bypass the proxy.
   - **`--config.registry` is the only spelling that works.** pnpm silently ignores `npm_config_registry` / `NPM_CONFIG_REGISTRY`, so setting either would resolve from npmjs while looking correct — the same class of silent-fallback bug as the `viteReact({ babel })` note above.
   - **`COREPACK_NPM_REGISTRY` closes the pnpm bootstrap.** `corepack enable` only installs shims; the pnpm *binary* is fetched on the first `pnpm` invocation, and corepack reads none of pnpm's config — so without it the build pulls pnpm itself from npmjs before the gate applies. The value is `sed`'d out of `pnpm-workspace.yaml` rather than restated, so corepack cannot drift from pnpm.
 - **`.dockerignore`** — the `*.png` exclusion is written `/*.png`, anchored to the context root. A bare `*.png` matches at every depth and would silently drop `public/icon.png` and `public/apple-icon.png`, breaking the favicon with no error anywhere.
 - **Security headers** — the six headers that used to be `next.config.js`'s `headers()` now live in `src/lib/security-headers.ts` and are applied by a global **request** middleware in `src/start.ts`. Request middleware wraps every request Start handles — pages, server functions, server routes, redirects, 404s — which is what `source: '/:path*'` meant. Nitro `routeRules` would only exist in the built output and silently vanish under `vite dev`. (The one gap: a server function that *throws* produces Start's own 500 outside this middleware, so that response has no headers.)
-- **CI** (`.github/workflows/ci.yml`) runs format:check → lint → typecheck → build, then greps `.output/public/` for server modules and for the build-time env placeholders. The build step needs dummy `DATABASE_URL` + `AUTH_SECRET` because `src/lib/env.ts` validates at import time.
-- **Release** (`.github/workflows/release.yml`) builds a linux/amd64 image and pushes it to the box's own zot registry; s2-server's deploy timer follows `:latest`. No build-time secrets — all that matters is a runnable image listening on 3000.
-  - Dependencies resolve through the self-hosted **Verdaccio** and there is **no fallback to npmjs** — see "Package registry" below. Verdaccio being unreachable fails the release, by design.
+- **Build** — the box builds this repo; there are no `.github/workflows` files and no `REGISTRY_PASSWORD` secret. On every push to `main` daedalus's GitHub App builds the image with rootless BuildKit + Railpack from `railpack.json`, running `pnpm ci` (format:check → lint → typecheck → check:mcp-tools → check:bundle) inside that build, and pushes `sha-<sha>` and `latest` to the box's own zot registry (`registry.toscanini.me/anansi`). `app-anansi-deploy.timer` sees the new digest and restarts the container — live in ~2 minutes, and nothing leaves the network. The result shows up on GitHub as a check run named `daedalus` plus a Deployment.
+  - The build needs dummy `DATABASE_URL` + `AUTH_SECRET` (declared in `railpack.json`'s `secrets`) because `src/lib/env.ts` validates at import time. Nothing else is a build-time secret — all that matters is a runnable image listening on 3000.
+  - Dependencies resolve through the self-hosted **Verdaccio** and there is **no fallback to npmjs** — see "Package registry" below. Verdaccio being unreachable fails the build, by design.
+  - The **`Dockerfile` is the rollback path only** and is scheduled for deletion. To use it, set the app's build strategy to Dockerfile in daedalus and press *Build now*.
 
 ## Database migrations
 

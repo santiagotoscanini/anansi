@@ -1,23 +1,58 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Auth } from '@auth/core'
-import { authConfig } from '~/server/auth/config'
+import { authConfig, oidcProviderId } from '~/server/auth/config'
 
 // Auth.js's own HTTP endpoints, the direct replacement for
-// src/app/api/auth/[...nextauth]/route.ts.
+// src/app/api/auth/[...nextauth]/route.ts, cut down to what is safe to serve.
 //
-// Nothing in the UI calls this: sign-in, sign-up and sign-out all run
-// in-process through server functions, which is one fewer round trip and keeps
-// the Set-Cookie on the response the browser is already waiting for. It exists
-// anyway for three reasons, all of which cost one file to keep and a debugging
-// session to rediscover:
+// The UI never posts here: sign-in, sign-up, sign-out and the start of the
+// OIDC flow all run in-process through server functions
+// (src/server/fn/auth.fn.ts → src/server/auth/actions.ts), which is one fewer
+// round trip, keeps the Set-Cookie on the response the browser is already
+// waiting for, and puts every password check behind the per-IP limit.
 //
-//   1. `/api/auth/*` is a public contract. It is also what `basePath` in
-//      config.ts declares, and basePath feeds the cookie name — so the mount
-//      point is not free to drift even if nothing called it.
-//   2. `pages.signIn: '/login'` means @auth/core redirects error cases here.
-//   3. It is the landing pad for the commented-out Google provider: an OAuth
-//      callback has to be a real URL the provider can redirect a browser to,
-//      and no server function can be that.
+// That is why the credentials doors are NOT served here. `POST
+// /api/auth/callback/credentials` is a second door to the same password check
+// that the signIn server fn's `limit('auth.signIn', …)` never sees, so leaving
+// it open made the rate limit decorative (found 2026-10-02, security review).
+// Every action the app does not use answers 404:
+//
+//   GET  session, csrf, providers   harmless reads (no secret, no write)
+//   GET  signin, error              where @auth/core sends a browser on its own
+//                                   (`pages.signIn: '/login'` turns both into a
+//                                   redirect to the login page)
+//   POST signout                    clears the cookie; Auth.js checks its own
+//                                   CSRF token on it
+//   GET/POST signin/<oidc id>       the Pocket ID door: starting the flow, and
+//   GET/POST callback/<oidc id>     the URL the IdP sends the browser back to
+//                                   (it has to be a real URL; no server function
+//                                   can be one). Registered at the IdP, so the
+//                                   id comes from config.ts, never a literal.
+//
+// `signin/credentials` and `callback/credentials` (the password doors) are not
+// on the list. The mount point stays because `/api/auth` is what `basePath` in
+// config.ts declares, and basePath feeds the cookie name.
+
+const ALLOWED: Record<string, ReadonlySet<string>> = {
+  GET: new Set([
+    'session',
+    'csrf',
+    'providers',
+    'signin',
+    'error',
+    `signin/${oidcProviderId}`,
+    `callback/${oidcProviderId}`,
+  ]),
+  POST: new Set(['signout', `signin/${oidcProviderId}`, `callback/${oidcProviderId}`]),
+}
+
+/** Served only for an `/api/auth/<action>[/<oidc id>]` on the list above. */
+function allowed(request: Request): boolean {
+  const path = new URL(request.url).pathname
+  const prefix = `${authConfig.basePath}/`
+  if (!path.startsWith(prefix)) return false
+  return ALLOWED[request.method]?.has(path.slice(prefix.length)) ?? false
+}
 
 /**
  * Rewrite the request URL to the scheme and host the *client* used.
@@ -61,11 +96,18 @@ function withForwardedOrigin(request: Request): Request {
   })
 }
 
+function handle({ request }: { request: Request }): Response | Promise<Response> {
+  if (!allowed(request)) {
+    return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain;charset=UTF-8' } })
+  }
+  return Auth(withForwardedOrigin(request), authConfig)
+}
+
 export const Route = createFileRoute('/api/auth/$')({
   server: {
     handlers: {
-      GET: ({ request }) => Auth(withForwardedOrigin(request), authConfig),
-      POST: ({ request }) => Auth(withForwardedOrigin(request), authConfig),
+      GET: handle,
+      POST: handle,
     },
   },
 })

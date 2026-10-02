@@ -9,8 +9,11 @@ import { authConfig, oidcProviderId } from './config'
 // replay those cookies onto the outgoing response.
 //
 // `skipCSRFCheck` for the same reason next-auth passes it: these never go
-// through Auth.js's csrf-token form dance, and TanStack Start server functions
-// are already Origin-checked.
+// through Auth.js's csrf-token form dance. The CSRF check that covers them is
+// the server-function one, `csrfMiddleware` in src/start.ts (Sec-Fetch-Site
+// same-origin, else Origin = APP_PUBLIC_URL). It is declared there by hand:
+// Start's default one switches off as soon as an app declares request
+// middleware, which this one does.
 //
 // In-process rather than a fetch to /api/auth/* — no network hop, and the
 // cookies land on the response of whatever server fn the browser actually

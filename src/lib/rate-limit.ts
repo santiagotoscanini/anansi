@@ -69,17 +69,36 @@ export function checkRateLimit(endpoint: string, key: string, cfg: RateLimitConf
   }
 }
 
-// Read the client IP from forwarded headers (Traefik / reverse proxies set
-// these). Falls back to a constant string so unknown clients still get
-// rate-limited as a single shared bucket — better than no limit at all.
+/**
+ * The rate-limit key for a request: an address the client cannot choose.
+ *
+ * The public path is Cloudflare's edge → cloudflared → traefik's `cfweb`
+ * entrypoint (bridge-only, which trusts forwarded headers from traefik-net) →
+ * the app. So X-Forwarded-For arrives as
+ * `<whatever the client sent>, <real client ip>, <cloudflared's ip>`, and its
+ * FIRST entry is the client's own words: keying on it let anyone rotate past
+ * the sign-in limit with a fresh header per attempt (found 2026-10-02).
+ *
+ *   1. `cf-connecting-ip`: Cloudflare overwrites it with the address it saw.
+ *   2. Else the X-Forwarded-For entry second from the right: the address the
+ *      peer in front of traefik (cloudflared) saw, appended by that peer.
+ *   3. Else `unknown`: one shared bucket. LAN traffic lands here (traefik's
+ *      LAN entrypoint strips forwarded headers and sets a single entry), so
+ *      the house shares one budget; accepted. A LAN client could also set
+ *      cf-connecting-ip itself; the LAN is not what this guards against.
+ *
+ * X-Real-IP is not read: traefik passes a client's own through on `cfweb`.
+ * Also the address the OAuth audit log records, for the same reason.
+ */
 export function clientIpFromHeaders(headers: Headers): string {
-  const xff = headers.get('x-forwarded-for')
-  if (xff) {
-    // First entry is the original client; the rest are intermediate proxies.
-    const first = xff.split(',')[0]?.trim()
-    if (first) return first
-  }
-  const xri = headers.get('x-real-ip')
-  if (xri) return xri.trim()
+  const cf = headers.get('cf-connecting-ip')?.trim()
+  if (cf) return cf
+
+  const hops = (headers.get('x-forwarded-for') ?? '')
+    .split(',')
+    .map((h) => h.trim())
+    .filter(Boolean)
+  if (hops.length >= 2) return hops[hops.length - 2]!
+
   return 'unknown'
 }

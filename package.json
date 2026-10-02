@@ -25,7 +25,8 @@
     "db:studio": "drizzle-kit studio",
     "format:check": "prettier --check .",
     "check:mcp-tools": "tsx scripts/check-mcp-tools.ts",
-    "ci": "pnpm generate-routes && pnpm format:check && pnpm lint && pnpm typecheck && pnpm check:mcp-tools && pnpm check:bundle",
+    "test": "tsx --test 'src/**/*.test.ts'",
+    "ci": "pnpm generate-routes && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm check:mcp-tools && pnpm check:bundle",
     "preview": "vite preview"
   },
   "type": "module",

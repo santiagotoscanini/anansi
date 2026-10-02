@@ -112,6 +112,13 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
 
+  // node:test's describe()/test() return promises the runner itself tracks;
+  // awaiting them at the top level is not how the API is used.
+  {
+    files: ['src/**/*.test.ts'],
+    rules: { '@typescript-eslint/no-floating-promises': 'off' },
+  },
+
   // i18n enforcement — every user-facing string in UI code must route through
   // `t(...)` or `<Trans>`. Plugin defaults already exclude <Trans>, ALL_CAPS,
   // punctuation/symbol-only strings, emoji, and common DOM attrs (className,

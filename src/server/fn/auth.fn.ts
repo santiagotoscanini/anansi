@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { z } from 'zod'
 import { env, oidcEnabled } from '~/lib/env'
-import { checkRateLimit, clientIpFromHeaders } from '~/lib/rate-limit'
+import { checkRateLimit, clientIpFromHeaders, limitFailures } from '~/lib/rate-limit'
 import { safeNext } from '~/lib/safe-next'
 import { authMiddleware } from '~/server/middleware/auth'
 import { signInWithCredentials, signOutSession, startOidcSignIn as startOidcSignInAction } from '~/server/auth/actions'
@@ -40,12 +40,17 @@ function toResult(err: unknown): { ok: false; error: string } {
  * when the call may proceed.
  */
 function limit(endpoint: string, cfg: { limit: number; windowMs: number }): { ok: false; error: string } | null {
-  const ip = clientIpFromHeaders(getRequest().headers)
-  const rl = checkRateLimit(endpoint, `ip:${ip}`, cfg)
-  if (rl.allowed) return null
+  const rl = checkRateLimit(endpoint, ipKey(), cfg)
+  return rl.allowed ? null : tooMany(rl.retryAfterSec)
+}
 
-  const minutes = Math.ceil(rl.retryAfterSec / 60)
-  const wait = rl.retryAfterSec < 90 ? `${rl.retryAfterSec} seconds` : `${minutes} minutes`
+function ipKey(): string {
+  return `ip:${clientIpFromHeaders(getRequest().headers)}`
+}
+
+function tooMany(retryAfterSec: number): { ok: false; error: string } {
+  const minutes = Math.ceil(retryAfterSec / 60)
+  const wait = retryAfterSec < 90 ? `${retryAfterSec} seconds` : `${minutes} minutes`
   return { ok: false, error: `Too many attempts. Try again in ${wait}.` }
 }
 
@@ -131,19 +136,20 @@ export const startOidcSignIn = createServerFn({ method: 'POST' })
 /**
  * Step 2 of the email-first login.
  *
- * 5 attempts / 15 minutes / IP. The window is per-IP rather than per-account on
- * purpose: a per-account limit lets an attacker lock a known user out of their
- * own account by burning the budget.
+ * 5 FAILED attempts / 15 minutes / IP; a successful sign-in is not counted
+ * (`limitFailures` says how, and why a success does not wipe the failures).
+ * The window is per-IP rather than per-account on purpose: a per-account limit
+ * lets an attacker lock a known user out of their own account by burning the
+ * budget.
  */
 export const signIn = createServerFn({ method: 'POST' })
   .validator(z.object({ email: z.string(), password: z.string() }))
   .handler(async ({ data }): Promise<Result> => {
-    const limited = limit('auth.signIn', { limit: 5, windowMs: 15 * 60_000 })
-    if (limited) return limited
-
     try {
-      await signInWithCredentials(data.email, data.password)
-      return { ok: true }
+      const rl = await limitFailures('auth.signIn', ipKey(), { limit: 5, windowMs: 15 * 60_000 }, () =>
+        signInWithCredentials(data.email, data.password),
+      )
+      return rl.allowed ? { ok: true } : tooMany(rl.retryAfterSec)
     } catch {
       // @auth/core throws on a failed authorize(). Do not report which of the
       // two fields was wrong — that turns the login form into an account

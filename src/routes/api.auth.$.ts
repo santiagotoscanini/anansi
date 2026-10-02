@@ -13,7 +13,7 @@ import { authConfig, oidcProviderId } from '~/server/auth/config'
 //
 // That is why the credentials doors are NOT served here. `POST
 // /api/auth/callback/credentials` is a second door to the same password check
-// that the signIn server fn's `limit('auth.signIn', …)` never sees, so leaving
+// that the signIn server fn's `auth.signIn` limit never sees, so leaving
 // it open made the rate limit decorative (found 2026-10-02, security review).
 // Every action the app does not use answers 404:
 //

@@ -21,6 +21,7 @@ interface RateLimitResult {
   allowed: boolean
   remaining: number
   retryAfterSec: number
+  refund: () => void
 }
 
 // One Map per logical endpoint avoids cross-endpoint collisions when the
@@ -62,11 +63,50 @@ export function checkRateLimit(endpoint: string, key: string, cfg: RateLimitConf
   b.count++
 
   const allowed = b.count <= cfg.limit
+  const bucket = b
   return {
     allowed,
     remaining: Math.max(0, cfg.limit - b.count),
     retryAfterSec: allowed ? 0 : Math.ceil((b.resetAt - now) / 1000),
+    // Un-count this one call. Bound to the bucket it was counted in, so a
+    // refund that lands after the window rolled over touches the dead bucket,
+    // never the new one.
+    refund: () => {
+      if (bucket.count > 0) bucket.count--
+    },
   }
+}
+
+/**
+ * Run `attempt` behind the limit, counting it only if it FAILS (throws).
+ *
+ * For the credential checks, where a success is not abuse: a user signing in
+ * on a laptop and a phone and re-logging a few times must never meet "Too many
+ * attempts" with the right password.
+ *
+ * Record first, refund on success, rather than check first and record on
+ * failure: the attempt is counted while it is in flight, so a burst of
+ * parallel guesses cannot all pass the check before the first one fails. A
+ * limited call returns before `attempt` runs, so a locked-out key never
+ * reaches bcrypt.
+ *
+ * A success refunds only ITSELF; it does not clear the failures before it.
+ * Clearing would let anyone holding one valid account interleave a correct
+ * sign-in every four guesses and try other people's passwords from the same
+ * address without end.
+ */
+export async function limitFailures<T>(
+  endpoint: string,
+  key: string,
+  cfg: RateLimitConfig,
+  attempt: () => Promise<T>,
+): Promise<{ allowed: false; retryAfterSec: number } | { allowed: true; value: T }> {
+  const rl = checkRateLimit(endpoint, key, cfg)
+  if (!rl.allowed) return { allowed: false, retryAfterSec: rl.retryAfterSec }
+
+  const value = await attempt()
+  rl.refund()
+  return { allowed: true, value }
 }
 
 /**

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { checkRateLimit, clientIpFromHeaders } from './rate-limit'
+import { checkRateLimit, clientIpFromHeaders, limitFailures } from './rate-limit'
 
 const key = (headers: Record<string, string>) => clientIpFromHeaders(new Headers(headers))
 
@@ -54,5 +54,54 @@ describe('checkRateLimit', () => {
     assert.equal(third.allowed, false)
     assert.ok(third.retryAfterSec > 0)
     assert.equal(checkRateLimit(endpoint, 'ip:b', cfg).allowed, true)
+  })
+})
+
+describe('limitFailures (the sign-in shape)', () => {
+  const cfg = { limit: 5, windowMs: 15 * 60_000 }
+  const ok = () => Promise.resolve('signed in')
+  const wrong = () => Promise.reject(new Error('CredentialsSignin'))
+
+  /** One sign-in as auth.fn.ts runs it: 'ok' | 'wrong' | 'limited'. */
+  async function signIn(endpoint: string, attempt: () => Promise<string>) {
+    try {
+      const rl = await limitFailures(endpoint, 'ip:a', cfg, attempt)
+      return rl.allowed ? 'ok' : 'limited'
+    } catch {
+      return 'wrong'
+    }
+  }
+
+  test('10 successes in a row are never limited', async () => {
+    const endpoint = `test.${Math.random()}`
+    for (let i = 0; i < 10; i++) assert.equal(await signIn(endpoint, ok), 'ok')
+  })
+
+  test('5 failures, then the 6th is limited even with the right password, before it is checked', async () => {
+    const endpoint = `test.${Math.random()}`
+    for (let i = 0; i < 5; i++) assert.equal(await signIn(endpoint, wrong), 'wrong')
+    let checked = false
+    const right = () => {
+      checked = true
+      return ok()
+    }
+    assert.equal(await signIn(endpoint, right), 'limited')
+    assert.equal(checked, false, 'a locked-out key must never reach the password check')
+  })
+
+  test('a success after 3 failures refunds only itself: 2 more failures still lock the key', async () => {
+    const endpoint = `test.${Math.random()}`
+    for (let i = 0; i < 3; i++) assert.equal(await signIn(endpoint, wrong), 'wrong')
+    assert.equal(await signIn(endpoint, ok), 'ok')
+    assert.equal(await signIn(endpoint, wrong), 'wrong')
+    assert.equal(await signIn(endpoint, wrong), 'wrong')
+    assert.equal(await signIn(endpoint, ok), 'limited')
+  })
+
+  test('attempts in flight count: a parallel burst cannot all pass the check', async () => {
+    const endpoint = `test.${Math.random()}`
+    const results = await Promise.all(Array.from({ length: 8 }, () => signIn(endpoint, wrong)))
+    assert.equal(results.filter((r) => r === 'wrong').length, 5)
+    assert.equal(results.filter((r) => r === 'limited').length, 3)
   })
 })

@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.railpack.com",
   "provider": "node",
-  "secrets": ["DATABASE_URL", "AUTH_SECRET"],
   "exclude": [
     ".output",
     ".nitro",

@@ -746,7 +746,9 @@ export function RegisterScreen({
         </form>
       </div>
 
-      {/* Ink testimonial panel — paper-on-ink, the single inverted register */}
+      {/* Ink panel, paper-on-ink, the single inverted register. It carries one
+          real Self prompt (the same strings the Self page uses). It used to
+          carry a quote from an invented "user"; never put one back. */}
       <div
         className="relative hidden overflow-hidden md:flex md:flex-col md:justify-between"
         style={{ background: 'var(--surface-inverse)', color: 'var(--on-inverse)', padding: '72px 64px' }}
@@ -760,19 +762,6 @@ export function RegisterScreen({
           </span>
         </div>
         <div style={{ position: 'relative', zIndex: 1, maxWidth: 460 }}>
-          <div
-            style={{
-              fontFamily: 'var(--font-brand)',
-              fontStyle: 'italic',
-              fontSize: 72,
-              color: 'var(--clay)',
-              lineHeight: 0.5,
-              fontWeight: 500,
-              marginBottom: 24,
-            }}
-          >
-            “
-          </div>
           <p
             style={{
               fontFamily: 'var(--font-text)',
@@ -782,7 +771,7 @@ export function RegisterScreen({
               color: 'var(--on-inverse)',
             }}
           >
-            {t('auth.register.testimonialBody')}
+            {t('auth.register.promptBody')}
           </p>
           <div
             style={{
@@ -798,8 +787,7 @@ export function RegisterScreen({
               borderTop: '1px solid var(--hairline-2)',
             }}
           >
-            <span>{t('auth.register.testimonialWho')}</span>
-            <span>{t('auth.register.testimonialDuration')}</span>
+            <span>{t('auth.register.promptSource')}</span>
           </div>
         </div>
         <div

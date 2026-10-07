@@ -413,6 +413,65 @@
 }
 
 /* ============================================================
+   Landing motion (src/routes/index.tsx, components/landing/*).
+   Every resting state is the FINISHED state, so a page with no
+   scroll timelines, no JS, or reduced motion shows everything.
+   ------------------------------------------------------------
+   .landing-rise   the lead, CTA and window settle in on load.
+                   The h1 does not move: it is the LCP text.
+   .web-thread     the clay threads of the web draw themselves as
+                   the figure scrolls through the viewport.
+   .transcript-row the Claude conversation arrives line by line.
+   ============================================================ */
+@media (prefers-reduced-motion: no-preference) {
+  .landing-rise {
+    animation: landing-rise 720ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation-delay: var(--rise-delay, 0ms);
+  }
+
+  @supports (animation-timeline: view()) {
+    .web-figure {
+      view-timeline-name: --web;
+    }
+    .web-thread {
+      stroke-dasharray: 1;
+      animation: web-draw linear both;
+      animation-timeline: --web;
+      animation-range: cover calc(12% + var(--i) * 4%) cover calc(36% + var(--i) * 4%);
+    }
+    .transcript-list {
+      view-timeline-name: --transcript;
+    }
+    .transcript-row {
+      animation: transcript-in linear both;
+      animation-timeline: --transcript;
+      animation-range: cover calc(4% + var(--i) * 4%) cover calc(14% + var(--i) * 4%);
+    }
+  }
+}
+
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes web-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes transcript-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ============================================================
    Light-mode tag color boosts — bigger contrast on muted hues.
    ============================================================ */
 :root .tag-moss {

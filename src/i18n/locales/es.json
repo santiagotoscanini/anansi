@@ -959,10 +959,9 @@
       "welcomeNamed": "Bienvenido, {{name}}. Empieza tu año.",
       "emailTaken": "Ese correo ya podría estar en uso.",
       "genericError": "Algo salió mal. Probá de nuevo en un momento.",
-      "testimonialBody": "Usé la sección de Personas para escribir lo que necesitaba de mi hermano durante diez años. Tuvimos la conversación un mes después. Lloró. No sabía que lo sabía tan claro hasta que estuvo en la página.",
-      "testimonialWho": "Ingeniero, 41",
-      "testimonialDuration": "1 año adentro",
-      "credit": "Ananse Ntontan · Adinkra · Ghana"
+      "credit": "Ananse Ntontan · Adinkra · Ghana",
+      "promptBody": "Lo que necesito escuchar después del daño, y lo que doy por defecto.",
+      "promptSource": "Tú · Lenguaje de la disculpa"
     },
     "checkEmail": {
       "kicker": "Una cosa más",
@@ -1003,32 +1002,25 @@
   },
   "landing": {
     "nav": {
-      "philosophy": "Filosofía",
-      "whatsInside": "Qué hay adentro",
-      "whispers": "Susurros",
+      "web": "La red",
+      "claude": "Con Claude",
+      "faq": "Preguntas",
       "logIn": "Iniciar sesión",
       "goToApp": "Ir a la app"
     },
+    "cta": {
+      "signedIn": "Ir a tu app",
+      "signedOut": "Empezá a escribir"
+    },
     "hero": {
-      "eyebrow": "El lugar para hablar de tu vida, con vos mismo primero",
-      "title1": "Un lugar tranquilo",
-      "title2": "para lo que querés,",
-      "title3": "a quienes querés,",
-      "title4": "y <em>en quién te estás convirtiendo.</em>",
+      "title": "Un lugar tranquilo para lo que querés, a quienes querés, y <em>en quién te estás convirtiendo.</em>",
       "lead": "anansi es el diario que escribirías si tu diario pudiera ver los hilos entre las cosas.",
-      "body": "Metas que saben a qué valores responden. Personas a las que cuidás, no que gestionás. Reflexiones que se acumulan, semana tras semana. Una sola superficie para pensar el arco largo de una vida.",
-      "ctaSignedIn": "Ir a tu app",
-      "ctaSignedOut": "Empezá a escribir",
-      "readPhilosophy": "Leé la filosofía →",
-      "badgePrivate": "Privado por defecto",
-      "badgeEncrypted": "Tu base de datos, tu servidor",
-      "badgeLongArc": "Hecho para el arco largo",
-      "badgeNoNotifications": "Sin notificaciones, nunca"
+      "terms": "Gratis · Sin notificaciones · Funciona con Claude"
     },
     "demo": {
-      "ariaLabel": "Una ventana de la app anansi en la pantalla Pulso. Una barra lateral de papel cálido lista Pulso y luego las secciones Brújula, Metas, Sync y Conexiones con sus doce superficies, más un grupo Familia. El panel principal dice “Buenas tardes, esta semana.” sobre tres consignas de diario —páginas de la mañana, una conversación de verdad, movimiento—, cada una con una entrada breve, mientras una columna a la derecha lleva las fechas próximas y las tareas del horizonte de este mes.",
-      "windowTitle": "anansi — pulso",
-      "caption": "El Pulso, un jueves: la semana a medio escribir, nada urgente. Las entradas son inventadas; la calma no.",
+      "ariaLabel": "Una ventana de la app anansi en la pantalla Pulso. Una barra lateral de papel cálido lista Pulso y luego las secciones Brújula, Metas, Sync y Conexiones con sus doce superficies, más un grupo Familia. El panel principal dice “Buenas tardes, esta semana.” sobre tres consignas de diario (páginas de la mañana, una conversación de verdad y movimiento), cada una con una entrada breve, mientras una columna a la derecha lleva las fechas próximas y las tareas del horizonte de este mes.",
+      "windowTitle": "anansi · pulso",
+      "caption": "El Pulso un jueves, con la semana a medio escribir y nada urgente. Todas las entradas son inventadas.",
       "eyebrowDate": "Jueves 17 de septiembre · 14 – 20 sep 2026",
       "userInitial": "N",
       "userName": "Nadia",
@@ -1059,150 +1051,104 @@
       "month2": "Mandar el capítulo dos al grupo de lectura",
       "month2Date": "30 sep"
     },
-    "manifesto": {
-      "chapter": "Capítulo I · la forma de esto",
-      "title1": "Una superficie para pensar",
-      "title2": "<em>para el arco largo.</em>",
-      "intro": "Toda app construida alrededor de “tus metas” termina siendo una máquina de culpa. anansi apuesta al revés: las cosas que vale la pena cuidar son demasiado lentas para las rachas.",
-      "isntHeading": "No es",
-      "isnt": [
-        ["Un rastreador de hábitos", "Las rachas convierten el descanso en fracaso."],
-        ["Una herramienta de productividad", "Hacer más no es la meta."],
-        ["Un gestor de contactos", "Las personas no son fichas."],
-        ["Un diario que te olvidás de escribir", "Acá las páginas vacías están bien."],
-        ["Un feed con growth-hacking", "Sin rachas, sin medallas, sin empujones."]
-      ],
-      "isHeading": "Es",
-      "isBody1": "Un lugar para escribir lo que querés y notar <em>qué hilos tiran de qué.</em> Un CRM personal solo para reflexionar que no pregunta “¿cuándo los contacté por última vez?” sino “¿qué quiero reparar?”. Una página de Tú que es un retrato.",
-      "isBody2": "Los campos vacíos se leen como páginas limpias. El sistema calcula qué meta es ahora <em>importante</em> a partir de los hilos que dibujaste. Las tareas se acercan a vos a medida que se acerca su fecha.",
-      "isBody3": "anansi es lo que te construirías para vos mismo si confiaras en el software lento.",
-      "quote": "“Hecho para el arco largo.”",
-      "quoteCite": "— la primera línea que escribimos"
-    },
-    "surfaces": {
-      "chapter": "Capítulo II · seis superficies",
-      "title": "Seis lugares para apoyar un pensamiento.",
-      "intro": "Cada uno tiene una forma distinta porque los tipos de pensamiento que sostiene son distintos. Una meta, una persona, un valor y una nota semanal piden cada uno la suya.",
-      "items": {
-        "pulse": {
-          "name": "Pulso",
-          "cap": "el latido de la semana",
-          "body": "Qué te está pidiendo la semana, ahora mismo. Items de seguimiento para completar. Próximos gestos para hacer. El horizonte del próximo mes, visible debajo en silencio."
+    "web": {
+      "eyebrow": "La red",
+      "title": "Tirás de un hilo <em>y se mueven los demás.</em>",
+      "body1": "Una meta sabe a qué valores responde. Una tarea puede nombrar a las personas para las que es. Un grupo como Familia guarda personas y tareas a la vez. Cada vínculo que dibujás es otro hilo de la misma red.",
+      "body2": "Las conexiones entre metas tienen un peso, y anansi calcula con esos pesos qué metas importan más. Nunca marcás nada como importante. Las tareas se te acercan solas a medida que llega su fecha.",
+      "name": "La marca es <em>Ananse Ntontan,</em> el símbolo Adinkra de la telaraña. Representa la sabiduría, la creatividad y la complejidad de la vida.",
+      "center": "Vos",
+      "figureAria": "La red Ananse Ntontan dibujada en grande. En su anillo exterior cuelgan ocho registros: la meta Escribir la novela, el valor Oficio, la tarea Capítulo dos, la persona Amara, un próximo gesto sobre un ensayo, la fecha Papá cumple 70, el grupo Familia y las Páginas de la mañana de esta semana. Hilos color arcilla unen la meta con su valor, su tarea y la semana; la tarea con Amara; Amara con su gesto; y Familia con la fecha de Papá y con Amara.",
+      "nodes": {
+        "goal": {
+          "kind": "Meta",
+          "name": "Escribir la novela"
         },
-        "self": {
-          "name": "Tú",
-          "cap": "un retrato que reescribís",
-          "body": "La forma de este año. Mi historia. Cómo amo, cómo pido perdón, cómo peleo, cómo me estreso. Los patrones que estoy notando con cuidado. Lo soltado. Solo para mí. Una página que escribís para vos mismo."
+        "value": {
+          "kind": "Valor",
+          "name": "Oficio"
         },
-        "objectives": {
-          "name": "Objetivos",
-          "cap": "un grafo de lo que querés, con peso",
-          "body": "Metas como tarjetas en un lienzo libre. Las conexiones tienen peso. La importancia se calcula, no se declara. Mirá el lienzo y el peso te muestra dónde mirar."
+        "task": {
+          "kind": "Tarea",
+          "name": "Capítulo dos"
         },
-        "people": {
-          "name": "Personas",
-          "cap": "una superficie para reflexionar",
-          "body": "Sin números de teléfono, sin contador del último contacto. Por persona: aprecio, mis necesidades, mensaje de legado, próximos gestos, las fechas que importan. Se acomodan en cuatro columnas: por procesar, explorando, largo plazo y vínculo de contexto."
+        "person": {
+          "kind": "Persona",
+          "name": "Amara"
         },
-        "values": {
-          "name": "Valores",
-          "cap": "el porqué detrás del qué",
-          "body": "Etiquetas con nombre y color que acompañan a las metas. Cada valor lleva su propia lista de comportamientos. Frases breves de evidencia de cómo se ve vivirlo, esta semana."
+        "bid": {
+          "kind": "Próximo gesto",
+          "name": "El ensayo"
         },
-        "bucket": {
-          "name": "Lista de deseos",
-          "cap": "las cosas para hacer antes de morir",
-          "body": "Etiquetá cada ítem con las personas con las que querés hacerlo. Una lista de momentos que lamentarías no haber intentado."
-        }
-      }
-    },
-    "whispers": {
-      "chapter": "Capítulo IV · susurros",
-      "title1": "Lo que la gente dice,",
-      "title2": "<em>bajito.</em>",
-      "intro": "anansi sostiene las cosas que no decís en voz alta. Por eso, cuando hablan de esto, tienden a susurrar. Preguntamos. Esto es lo que respondieron. Anónimo, como quisieron.",
-      "disclaimer": "No publicamos datos que identifiquen. anansi es el tipo de software donde la mayoría preferiría no estar nombrada, y preferimos ganar confianza silenciosa antes que alcance ruidoso.",
-      "items": {
-        "designer": {
-          "body": "Es el primer lugar donde escribí algo sin sentirme observado por una racha. Me salté tres semanas y no me castigó. Volví porque quería.",
-          "who": "Diseñadora, 34",
-          "duration": "4 meses adentro"
+        "date": {
+          "kind": "Fecha",
+          "name": "Papá cumple 70"
         },
-        "engineer": {
-          "body": "Usé la sección de Personas para escribir lo que necesitaba de mi hermano durante diez años. Tuvimos la conversación un mes después. Lloró. No sabía que lo sabía tan claro hasta que estuvo en la página.",
-          "who": "Ingeniero, 41",
-          "duration": "1 año adentro"
+        "group": {
+          "kind": "Grupo",
+          "name": "Familia"
         },
-        "therapist": {
-          "body": "Es la única app que usé que no me hace sentir un poquito peor conmigo mismo cuando la abro. La abro más.",
-          "who": "Terapeuta, 52",
-          "duration": "8 meses adentro"
-        },
-        "founder": {
-          "body": "Mis metas ya no se sienten como una lista de pendientes. Se sienten como preguntas que me hago. Lo del peso — donde la importancia se vuelve visible — me cambió cómo pienso la ambición.",
-          "who": "Fundadora, 29",
-          "duration": "6 meses adentro"
-        },
-        "writer": {
-          "body": "La página de Tú es algo que nunca hubiera escrito por mi cuenta. Los prompts son amables. “Cómo pido perdón.” “Cómo amo cuando amo bien.” Nunca lo hubiera preguntado. Me alegra que alguien lo hiciera.",
-          "who": "Escritora, 38",
-          "duration": "1 año adentro"
-        },
-        "director": {
-          "body": "Dirijo un equipo de 40 personas. anansi es el único software que tengo que es solo para mí. Esa distinción importa más de lo que esperaba.",
-          "who": "Directora, 46",
-          "duration": "2 años adentro"
+        "week": {
+          "kind": "Esta semana",
+          "name": "Páginas de la mañana"
         }
       }
     },
     "claude": {
-      "eyebrow": "Interludio · agentes",
-      "title1": "Hablale",
-      "title2": "<em>a través de Claude.</em>",
-      "intro": "anansi habla Model Context Protocol. Conectalo con Claude (Desktop, Code o claude.ai) y capturá metas, programá próximos gestos, editá tu retrato del Yo, todo conversando.",
-      "exampleLabel": "Probá decir:",
-      "examples": [
-        "Agendá un café con mamá el próximo martes.",
-        "Agregá 'pedirle perdón a Lucía' como próximo gesto, con vencimiento en dos semanas.",
-        "¿Qué tengo en mente para el año que viene?",
-        "Creá una meta para el maratón y etiquetala con salud y crecimiento."
-      ],
-      "howLabel": "Cómo",
-      "howBody": "Iniciá sesión una vez, pegá la URL de tu anansi en el diálogo de conector de Claude, y aprobá la pantalla de consentimiento que se abre en el navegador. La URL exacta y un snippet .mcp.json listo para copiar están en Configuración → Anansi para Claude.",
-      "safety": "Anansi es el servidor de autorización OAuth. Los tokens se limitan a tu cuenta, se renuevan cada 30 días y los revocás al instante desde tu cliente de Claude."
+      "eyebrow": "Con Claude",
+      "title": "Hablale a través de Claude.",
+      "intro": "anansi tiene su propio servidor MCP. Agregalo como conector en Claude Desktop, Claude Code o claude.ai, aprobá una vez en tu navegador, y Claude puede leer y escribir tus metas, tus personas y lo que escribiste sobre vos.",
+      "how": "En Perfil › Anansi para Claude están la URL y un fragmento de .mcp.json listo para copiar. Los tokens son de tu cuenta y se revocan desde tu cliente de Claude.",
+      "transcriptTitle": "Claude · conector de anansi",
+      "connected": "conectado",
+      "transcriptAria": "Una conversación con Claude. Le pedís que te recuerde mandarle a Amara el ensayo que le prometiste, para el domingo. Claude llama a list_people y después a create_next_bid, y responde que el gesto está en la página de Amara y en tu Pulso. Le preguntás qué viene este mes. Claude llama a list_upcoming_next_bids y list_important_dates, y responde que Papá cumple 70 en 11 días y que hay dos gestos abiertos, con Teo y con Lena.",
+      "you": "Vos",
+      "claude": "Claude",
+      "say1": "Recordame mandarle a Amara el ensayo que le prometí. Para el domingo.",
+      "reply1": "Listo. Está en la página de Amara y aparece en tu Pulso, en Próximas.",
+      "say2": "¿Qué viene este mes?",
+      "reply2": "Papá cumple 70 en 11 días. Hay dos gestos abiertos: preguntarle a Teo por el proyecto del jardín y reservar la cabaña con Lena."
     },
-    "spider": {
-      "eyebrow": "Capítulo V · el nombre",
-      "titlePre": "¿Por qué una",
-      "titleEm": "araña?",
-      "body1": "anansi lleva el nombre del trickster-araña de África Occidental, guardián de historias y tejedor de redes. La marca que viste a lo largo de esta página es <em>Ananse Ntontan,</em> el símbolo Adinkra de la telaraña. Representa <em>sabiduría, creatividad y la complejidad de la vida.</em>",
-      "body2": "La metáfora es estructural. anansi es un grafo: cada meta se conecta con otras metas, con valores, con personas, con tareas, con la reflexión semanal que está por encima de todo. Tirá de un hilo y los otros se mueven. Lo que importa es <em>ver los hilos.</em>",
-      "symbol": "Ananse Ntontan",
-      "lineage": "Adinkra · Ghana · Akan"
+    "faq": {
+      "eyebrow": "Preguntas",
+      "title": "Antes de empezar.",
+      "items": {
+        "free": {
+          "q": "¿Cuánto cuesta?",
+          "a": "Nada. anansi es gratis, sin plan pago y sin ninguno previsto."
+        },
+        "access": {
+          "q": "¿Cómo consigo una cuenta?",
+          "a": "Con un código de invitación de alguien que ya tenga una. Cada miembro tiene un código personal en su perfil para compartir."
+        },
+        "privacy": {
+          "q": "¿Quién puede leer lo que escribo?",
+          "a": "Vos, y quien administra el servidor. El tráfico va cifrado en tránsito; la base de datos no está cifrada en reposo. La <a>página de privacidad</a> dice exactamente qué se guarda y dónde."
+        },
+        "nudges": {
+          "q": "¿Me va a insistir?",
+          "a": "No. No hay notificaciones, ni emails, ni rachas. Está ahí cuando la abrís."
+        },
+        "export": {
+          "q": "¿Puedo llevarme mis datos?",
+          "a": "Sí. Perfil › Copias de seguridad exporta todo en un único archivo JSON, adjuntos incluidos, y ese mismo archivo se vuelve a importar."
+        },
+        "claude": {
+          "q": "¿Necesito Claude?",
+          "a": "No. Todo funciona en el navegador. Claude es una puerta más."
+        }
+      }
     },
     "coda": {
-      "kicker": "Coda",
-      "titlePre": "La vida que escribirías,",
-      "titleMid": "si confiaras en el",
-      "titleEm": "software lento.",
-      "body": "Esta es una app tranquila. No va a tirar de vos. Va a estar acá cuando vuelvas.",
-      "ctaSignedIn": "Ir a tu app",
-      "ctaSignedOut": "Empezá a escribir",
+      "title": "La vida que escribirías,<br/>si confiaras en el <em>software lento.</em>",
+      "body": "No va a tirar de vos. Va a estar acá cuando vuelvas.",
       "haveAccount": "Ya tengo una cuenta"
     },
     "footer": {
-      "tagline": "Un lugar tranquilo para metas, vínculos y valores. Hecho para el arco largo de una vida.",
-      "headingApp": "La app",
-      "headingTeam": "El equipo",
+      "tagline": "Metas, valores, personas y la semana que acabás de vivir, en una sola red.",
+      "headingPages": "Páginas",
       "headingSetIn": "Compuesta en",
-      "appPhilosophy": "Filosofía",
-      "appSurfaces": "Las seis superficies",
-      "appWhispers": "Susurros",
-      "teamAbout": "Sobre nosotros",
-      "teamContact": "Contacto",
-      "teamChangelog": "Novedades",
-      "teamPress": "Prensa",
-      "copy": "© {{year}} anansi · Privacidad · Términos",
+      "copy": "© {{year}} anansi",
       "lineage": "Ananse Ntontan · Adinkra · Ghana"
     }
   }

@@ -1,213 +1,71 @@
-// Public marketing landing page — port of Landing.html from the Anansi
-// design bundle. In order: hero, a look inside (the hand-built Pulse
-// demo window — AppDemo.tsx), manifesto, six surfaces, the Claude
-// interlude, whispers, why-the-spider, closing card + colophon footer.
+// Public landing page. One argument in five parts:
 //
-// Auth-aware: the top-right CTA flips between "Log in" (logged out) and
-// "Go to app →" (logged in). The session is resolved in the route loader, so
-// SSR renders the correct CTA on first paint — under Next this was a client
-// query and the button changed label after hydration.
+//   1. hero · the claim, the CTA, and the hand-built Pulse window right
+//      under it (AppDemo.tsx), so the product is in the first screen
+//   2. the web · the one section whose form is the argument: the Ananse
+//      Ntontan mark drawn large, real kinds of record on its ring, threads
+//      between the ones the app links (Web.tsx)
+//   3. with Claude · the MCP connector, shown as the conversation itself
+//      (Transcript.tsx)
+//   4. questions · cost, access, privacy, data out. Every answer is checked
+//      against code or the legal pages; keep them in step
+//   5. coda · the inverted bookend, then a short colophon
 //
-// i18n: prose lives in src/i18n/locales/{en,es}.json under the `landing`
-// namespace. Sentences that mix neutral text + brand-emphasis spans use
-// `<Trans>` with NAMED component placeholders (em, em1, em2 …) so a
-// translator can reorder Spanish word order without touching code.
+// The 2026-10 pass cut the manifesto, the six-surface card grid (it
+// restated the demo's sidebar), the "whispers" testimonials (they were
+// invented) and the separate "why a spider" chapter (folded into the web).
+// Do not bring back quotes from people who do not exist.
+//
+// Auth-aware: the CTAs flip between "Start writing" and "Go to your app".
+// The session is resolved in the route loader, so SSR paints the right one.
+//
+// i18n: prose lives under `landing.*` in src/i18n/locales/{en,es}.json.
+// Sentences with a brand-emphasis span use <Trans> with a named `em`
+// placeholder so Spanish can reorder freely.
 
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { ArrowRight, Heart, Shield, Clock, Plus, Sparkles } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
 import { sessionQueryOptions } from '~/lib/queries/session'
 import { AnansiMark, BrandLockup } from '~/components/goals/Brand'
 import AppDemo from '~/components/landing/AppDemo'
+import Transcript from '~/components/landing/Transcript'
+import Web from '~/components/landing/Web'
 
 export const Route = createFileRoute('/')({
-  // Resolved server-side, so the nav CTA is right in the SSR HTML rather than
-  // flipping after hydration.
   loader: ({ context }) => context.queryClient.ensureQueryData(sessionQueryOptions()),
   component: LandingPage,
 })
 
-// Surfaces in display order. Each entry pairs a stable `key` (used to
-// resolve translations under `landing.surfaces.items.<key>.*`) with the
-// visual props that don't translate (color token + SVG icon).
-type SurfaceKey = 'pulse' | 'self' | 'objectives' | 'people' | 'values' | 'bucket'
-
-const SURFACES: { key: SurfaceKey; color: string; icon: React.ReactNode }[] = [
-  {
-    key: 'pulse',
-    color: 'clay',
-    icon: (
-      <svg
-        width="26"
-        height="26"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M3 12h4l3-8 4 16 3-8h4" />
-      </svg>
-    ),
-  },
-  {
-    key: 'self',
-    color: 'moss',
-    icon: (
-      <svg
-        width="26"
-        height="26"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="12" cy="12" r="9" />
-        <circle cx="12" cy="10" r="3" />
-        <path d="M6.5 19a6 6 0 0 1 11 0" />
-      </svg>
-    ),
-  },
-  {
-    key: 'objectives',
-    color: 'plum',
-    icon: (
-      <svg
-        width="26"
-        height="26"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="6" cy="6" r="2.5" />
-        <circle cx="18" cy="6" r="2.5" />
-        <circle cx="12" cy="18" r="2.5" />
-        <path d="M7.7 7.8L10.6 16.2M16.3 7.8l-2.9 8.4M8.5 6h7" />
-      </svg>
-    ),
-  },
-  {
-    key: 'people',
-    color: 'indigo',
-    icon: (
-      <svg
-        width="26"
-        height="26"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="9" cy="8" r="3.5" />
-        <path d="M3 20a6 6 0 0 1 12 0" />
-        <path d="M16 5a3 3 0 0 1 0 6M21 20a6 6 0 0 0-4-5.6" />
-      </svg>
-    ),
-  },
-  {
-    key: 'values',
-    color: 'amber',
-    icon: (
-      <svg
-        width="26"
-        height="26"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 2-2 0-1.5-1-2-1-3 0-1 1-1 2-1h2a4 4 0 0 0 4-4c0-4.5-4-8-9-8z" />
-        <circle cx="7.5" cy="11.5" r="1" fill="currentColor" />
-        <circle cx="11.5" cy="7.5" r="1" fill="currentColor" />
-      </svg>
-    ),
-  },
-  {
-    key: 'bucket',
-    color: 'rust',
-    icon: (
-      <svg
-        width="26"
-        height="26"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M3 19l6-11 4 7 2-3 6 7H3z" />
-      </svg>
-    ),
-  },
-]
-
-type WhisperKey = 'designer' | 'engineer' | 'therapist' | 'founder' | 'writer' | 'director'
-
-const WHISPERS: { key: WhisperKey; dark?: boolean; compact?: boolean }[] = [
-  { key: 'designer' },
-  { key: 'engineer', dark: true },
-  { key: 'therapist', compact: true },
-  { key: 'founder', compact: true },
-  { key: 'writer', dark: true },
-  { key: 'director', compact: true },
-]
-
-// Manifesto "isn't" list. Each row resolves to a strike-through label +
-// pithy body line. We index into the translated array by position so a
-// Spanish translator can rewrite each row freely without touching code.
-type IsntEntry = readonly [strike: string, body: string]
+const FAQ_KEYS = ['free', 'access', 'privacy', 'nudges', 'export', 'claude'] as const
 
 function LandingPage() {
   const { data: session } = useSuspenseQuery(sessionQueryOptions())
   const isAuthenticated = session !== null
   const { t } = useTranslation()
   const ctaHref = isAuthenticated ? '/app' : '/register'
+  const ctaLabel = isAuthenticated ? t('landing.cta.signedIn') : t('landing.cta.signedOut')
   const loginHref = isAuthenticated ? '/app' : '/login'
   const loginLabel = isAuthenticated ? t('landing.nav.goToApp') : t('landing.nav.logIn')
 
-  // Manifesto isn't list — `returnObjects` resolves the JSON array. Fall back
-  // to an empty array if the locale entry isn't an array: a half-edited locale
-  // file is one way that happens, and an unresolved key is the other. i18next
-  // answers a miss with the key path (a string), so without this guard the
-  // whole page dies on `.map` — which is exactly what it did when translations
-  // became code-split and something rendered a frame too early.
-  const isntRaw = t('landing.manifesto.isnt', { returnObjects: true }) as unknown
-  const isntRows: IsntEntry[] = Array.isArray(isntRaw) ? (isntRaw as IsntEntry[]) : []
-
   return (
     <div style={{ background: 'var(--paper)', color: 'var(--ink)', minHeight: '100vh' }}>
-      {/* ============ NAV ============ */}
-      <nav className="mx-auto flex max-w-[1440px] items-center justify-between px-6 py-6 md:px-16 md:py-6">
+      <nav className="mx-auto flex max-w-[1440px] items-center justify-between px-6 py-6 md:px-16">
         <BrandLockup size={26} />
         <div className="flex items-center gap-4 md:gap-7">
-          <a
-            href="#philosophy"
-            className="hidden text-sm transition-colors md:inline"
-            style={{ color: 'var(--ink-2)' }}
-          >
-            {t('landing.nav.philosophy')}
+          <a href="#web" className="hidden text-sm md:inline" style={{ color: 'var(--ink-2)' }}>
+            {t('landing.nav.web')}
           </a>
-          <a href="#surfaces" className="hidden text-sm transition-colors md:inline" style={{ color: 'var(--ink-2)' }}>
-            {t('landing.nav.whatsInside')}
+          <a href="#claude" className="hidden text-sm md:inline" style={{ color: 'var(--ink-2)' }}>
+            {t('landing.nav.claude')}
           </a>
-          <a href="#whispers" className="hidden text-sm transition-colors md:inline" style={{ color: 'var(--ink-2)' }}>
-            {t('landing.nav.whispers')}
+          <a href="#faq" className="hidden text-sm md:inline" style={{ color: 'var(--ink-2)' }}>
+            {t('landing.nav.faq')}
           </a>
           <Link
             to={loginHref}
-            className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-medium transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-medium"
             style={{ background: 'var(--ink)', color: 'var(--paper)' }}
           >
             {loginLabel}
@@ -217,637 +75,234 @@ function LandingPage() {
       </nav>
 
       <main>
-        {/* ============ HERO ============ */}
-        <section className="relative overflow-hidden px-6 pt-8 pb-24 md:px-16 md:pt-14 md:pb-32">
-          {/* Faint web at 4.5% opacity in the top-right */}
+        {/* ============ HERO + the product ============ */}
+        <section className="relative overflow-hidden px-6 pt-8 md:px-16 md:pt-12">
           <div
             aria-hidden
-            style={{
-              position: 'absolute',
-              top: -100,
-              right: -160,
-              opacity: 0.045,
-              color: 'var(--ink)',
-              pointerEvents: 'none',
-            }}
+            className="pointer-events-none absolute hidden md:block"
+            style={{ top: -120, right: -180, opacity: 0.045, color: 'var(--ink)' }}
           >
-            <AnansiMark size={780} strokeWidth={1} />
+            <AnansiMark size={760} strokeWidth={1} />
           </div>
 
           <div className="relative mx-auto max-w-[1280px]">
-            <Eyebrow>{t('landing.hero.eyebrow')}</Eyebrow>
-
             <h1
-              className="mt-9"
               style={{
                 fontFamily: 'var(--font-display)',
-                // Fluid: 54px on a phone, the full 128 from ~910px up.
-                fontSize: 'clamp(54px, 14vw, 128px)',
+                fontSize: 'clamp(44px, 7.4vw, 104px)',
                 fontWeight: 400,
-                lineHeight: 0.96,
+                lineHeight: 0.98,
                 letterSpacing: '-0.03em',
-                maxWidth: 1100,
+                maxWidth: 1080,
+                textWrap: 'balance',
               }}
             >
-              {t('landing.hero.title1')}
-              <br />
-              {t('landing.hero.title2')}
-              <br />
-              {t('landing.hero.title3')}
-              <br />
-              <Trans i18nKey="landing.hero.title4" components={{ em: <BrandEm /> }} />
+              <Trans i18nKey="landing.hero.title" components={{ em: <BrandEm /> }} />
             </h1>
 
             <p
-              className="mt-9"
+              className="landing-rise mt-7 md:mt-9"
               style={{
+                ['--rise-delay' as string]: '80ms',
                 fontFamily: 'var(--font-text)',
                 fontStyle: 'italic',
-                fontSize: 'clamp(21px, 5.6vw, 26px)',
-                lineHeight: 1.32,
+                fontSize: 'clamp(20px, 2vw, 25px)',
+                lineHeight: 1.35,
                 color: 'var(--ink-2)',
-                maxWidth: 760,
+                maxWidth: 640,
               }}
             >
               {t('landing.hero.lead')}
             </p>
-
-            <p
-              className="mt-10"
-              style={{
-                fontFamily: 'var(--font-text)',
-                fontSize: 17,
-                lineHeight: 1.6,
-                color: 'var(--ink-2)',
-                maxWidth: 560,
-              }}
+            <div
+              className="landing-rise mt-8 flex flex-wrap items-center gap-x-7 gap-y-4"
+              style={{ ['--rise-delay' as string]: '160ms' }}
             >
-              {t('landing.hero.body')}
-            </p>
-
-            <div className="mt-11 flex flex-wrap items-center gap-4">
               <Link
                 to={ctaHref}
-                className="inline-flex h-[50px] items-center gap-2.5 rounded-full px-7 text-sm font-medium transition-colors"
+                className="inline-flex h-[50px] w-fit items-center gap-2.5 rounded-full px-7 text-sm font-medium"
                 style={{ background: 'var(--ink)', color: 'var(--paper)' }}
               >
-                {isAuthenticated ? t('landing.hero.ctaSignedIn') : t('landing.hero.ctaSignedOut')}
+                {ctaLabel}
                 <ArrowRight size={14} />
               </Link>
-              <a
-                href="#philosophy"
-                className="inline-flex h-[50px] items-center gap-2 px-3.5 text-sm transition-colors"
-                style={{ color: 'var(--ink-2)' }}
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: 'var(--ink-3)',
+                }}
               >
-                {t('landing.hero.readPhilosophy')}
-              </a>
+                {t('landing.hero.terms')}
+              </span>
             </div>
 
-            <div
-              className="mt-16 flex flex-wrap gap-x-9 gap-y-3"
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 11,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: 'var(--ink-3)',
-              }}
-            >
-              <span className="inline-flex items-center gap-2.5">
-                <Heart className="h-3 w-3" /> {t('landing.hero.badgePrivate')}
-              </span>
-              <span className="inline-flex items-center gap-2.5">
-                <Shield className="h-3 w-3" /> {t('landing.hero.badgeEncrypted')}
-              </span>
-              <span className="inline-flex items-center gap-2.5">
-                <Clock className="h-3 w-3" /> {t('landing.hero.badgeLongArc')}
-              </span>
-              <span className="inline-flex items-center gap-2.5">
-                <Plus className="h-3 w-3" /> {t('landing.hero.badgeNoNotifications')}
-              </span>
+            <div className="landing-rise mt-12 md:mt-14" style={{ ['--rise-delay' as string]: '240ms' }}>
+              <AppDemo />
+              <p
+                className="mt-5"
+                style={{
+                  fontFamily: 'var(--font-text)',
+                  fontStyle: 'italic',
+                  fontSize: 14,
+                  lineHeight: 1.55,
+                  color: 'var(--ink-3)',
+                  maxWidth: 720,
+                }}
+              >
+                <span className="mr-2.5 inline-block h-px w-4 align-middle" style={{ background: 'var(--ink-4)' }} />
+                {t('landing.demo.caption')}
+              </p>
             </div>
           </div>
         </section>
 
-        {/* ============ A LOOK INSIDE — the Pulse, drawn to scale ============
-            Hand-built demo window, not a screenshot (see AppDemo.tsx). Sits
-            between the hero and Chapter I; like the Claude interlude it is
-            deliberately NOT a numbered chapter, so the I–VI sequence never
-            needs renumbering in any locale. */}
-        <section className="px-6 pb-24 md:px-16">
-          <div className="mx-auto max-w-[1280px]">
-            <AppDemo />
-            <p
-              className="mt-6"
-              style={{
-                fontFamily: 'var(--font-text)',
-                fontStyle: 'italic',
-                fontSize: 14,
-                lineHeight: 1.55,
-                color: 'var(--ink-3)',
-                maxWidth: 720,
-              }}
-            >
-              <span className="mr-2.5 inline-block h-px w-4 align-middle" style={{ background: 'var(--ink-4)' }} />
-              {t('landing.demo.caption')}
-            </p>
+        {/* ============ THE WEB ============ */}
+        <section id="web" className="px-6 pt-24 pb-24 md:px-16 md:pt-32 md:pb-32">
+          <div className="mx-auto grid max-w-[1280px] gap-14 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-16">
+            <div className="md:pt-6">
+              <Eyebrow>{t('landing.web.eyebrow')}</Eyebrow>
+              <h2 className="mt-6" style={h2Style}>
+                <Trans i18nKey="landing.web.title" components={{ em: <BrandEm /> }} />
+              </h2>
+              <p className="mt-7" style={bodyStyle}>
+                {t('landing.web.body1')}
+              </p>
+              <p className="mt-5" style={bodyStyle}>
+                {t('landing.web.body2')}
+              </p>
+              <p
+                className="mt-8 pt-5"
+                style={{
+                  borderTop: '1px solid var(--hairline)',
+                  fontFamily: 'var(--font-text)',
+                  fontStyle: 'italic',
+                  fontSize: 15,
+                  lineHeight: 1.55,
+                  color: 'var(--ink-3)',
+                }}
+              >
+                <Trans i18nKey="landing.web.name" components={{ em: <BrandEm /> }} />
+              </p>
+            </div>
+            <Web />
           </div>
         </section>
 
-        {/* ============ I · MANIFESTO ============ */}
-        <section id="philosophy" className="px-6 py-24 md:px-16">
-          <div className="mx-auto max-w-[1280px]">
-            <ChapterHead
-              chapter={t('landing.manifesto.chapter')}
-              title={
-                <>
-                  {t('landing.manifesto.title1')}
-                  <br />
-                  <Trans i18nKey="landing.manifesto.title2" components={{ em: <BrandEm /> }} />
-                </>
-              }
-            >
-              {t('landing.manifesto.intro')}
-            </ChapterHead>
+        {/* ============ WITH CLAUDE ============ */}
+        <section
+          id="claude"
+          className="px-6 py-24 md:px-16 md:py-32"
+          style={{ background: 'var(--paper-deep)', borderBlock: '1px solid var(--hairline)' }}
+        >
+          <div className="mx-auto grid max-w-[1280px] gap-12 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-16">
+            <div>
+              <Eyebrow>{t('landing.claude.eyebrow')}</Eyebrow>
+              <h2 className="mt-6" style={h2Style}>
+                {t('landing.claude.title')}
+              </h2>
+              <p className="mt-7" style={bodyStyle}>
+                {t('landing.claude.intro')}
+              </p>
+              <p className="mt-5" style={{ ...bodyStyle, fontSize: 15, color: 'var(--ink-3)' }}>
+                {t('landing.claude.how')}
+              </p>
+            </div>
+            <Transcript />
+          </div>
+        </section>
 
-            <div
-              className="grid grid-cols-1 gap-20 pt-8 md:grid-cols-2"
-              style={{ borderTop: '1px solid var(--hairline-2)' }}
-            >
-              <div>
-                <h3
-                  className="mb-6"
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 34,
-                    fontWeight: 400,
-                    letterSpacing: '-0.015em',
-                    color: 'var(--clay-deep)',
-                  }}
+        {/* ============ QUESTIONS ============ */}
+        <section id="faq" className="px-6 py-24 md:px-16 md:py-32">
+          <div className="mx-auto grid max-w-[1280px] gap-12 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-16">
+            <div className="self-start md:sticky md:top-12">
+              <Eyebrow>{t('landing.faq.eyebrow')}</Eyebrow>
+              <h2 className="mt-6" style={h2Style}>
+                {t('landing.faq.title')}
+              </h2>
+            </div>
+            <dl className="m-0" style={{ borderTop: '1px solid var(--hairline-2)' }}>
+              {FAQ_KEYS.map((key) => (
+                <div
+                  key={key}
+                  className="grid gap-2 py-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:gap-8"
+                  style={{ borderBottom: '1px solid var(--hairline)' }}
                 >
-                  {t('landing.manifesto.isntHeading')}
-                </h3>
-                <ul className="m-0 list-none p-0">
-                  {isntRows.map(([strike, body], i) => (
-                    <li
-                      key={i}
-                      className="relative py-3.5 pl-7"
-                      style={{
-                        fontFamily: 'var(--font-text)',
-                        fontSize: 19,
-                        lineHeight: 1.45,
-                        color: 'var(--ink-2)',
-                        borderBottom: i === isntRows.length - 1 ? 'none' : '1px solid var(--hairline)',
-                      }}
-                    >
-                      <span style={{ position: 'absolute', left: 0, color: 'var(--ink-4)' }}>—</span>
-                      <span
-                        style={{
-                          textDecoration: 'line-through',
-                          textDecorationColor: 'var(--ink-4)',
-                          textDecorationThickness: 1,
+                  <dt
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontSize: 24,
+                      lineHeight: 1.2,
+                      letterSpacing: '-0.01em',
+                    }}
+                  >
+                    {t(`landing.faq.items.${key}.q`)}
+                  </dt>
+                  <dd className="m-0" style={{ ...bodyStyle, fontSize: 17 }}>
+                    {key === 'privacy' ? (
+                      <Trans
+                        i18nKey="landing.faq.items.privacy.a"
+                        components={{
+                          a: <Link to="/privacy" className="underline underline-offset-4" />,
                         }}
-                      >
-                        {strike}
-                      </span>{' '}
-                      — {body}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <h3
-                  className="mb-6"
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 34,
-                    fontWeight: 400,
-                    letterSpacing: '-0.015em',
-                    color: 'var(--ink)',
-                  }}
-                >
-                  {t('landing.manifesto.isHeading')}
-                </h3>
-                <p
-                  className="mb-4"
-                  style={{ fontFamily: 'var(--font-text)', fontSize: 19, lineHeight: 1.6, color: 'var(--ink)' }}
-                >
-                  <Trans i18nKey="landing.manifesto.isBody1" components={{ em: <BrandEm /> }} />
-                </p>
-                <p
-                  className="mb-4"
-                  style={{ fontFamily: 'var(--font-text)', fontSize: 19, lineHeight: 1.6, color: 'var(--ink)' }}
-                >
-                  <Trans i18nKey="landing.manifesto.isBody2" components={{ em: <BrandEm /> }} />
-                </p>
-                <p style={{ fontFamily: 'var(--font-text)', fontSize: 19, lineHeight: 1.6, color: 'var(--ink)' }}>
-                  {t('landing.manifesto.isBody3')}
-                </p>
-                <blockquote
-                  className="mt-8 px-7 py-6"
-                  style={{
-                    background: 'var(--canvas)',
-                    borderLeft: '2px solid var(--clay)',
-                    borderRadius: '0 14px 14px 0',
-                    fontFamily: 'var(--font-text)',
-                    fontStyle: 'italic',
-                    fontSize: 18,
-                    color: 'var(--ink-2)',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {t('landing.manifesto.quote')}
-                  <cite
-                    className="mt-2.5 block"
-                    style={{
-                      fontStyle: 'normal',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 10,
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase',
-                      color: 'var(--ink-3)',
-                    }}
-                  >
-                    {t('landing.manifesto.quoteCite')}
-                  </cite>
-                </blockquote>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ============ II · SIX SURFACES ============ */}
-        <section id="surfaces" className="px-6 py-24 md:px-16">
-          <div className="mx-auto max-w-[1280px]">
-            <ChapterHead chapter={t('landing.surfaces.chapter')} title={<>{t('landing.surfaces.title')}</>}>
-              {t('landing.surfaces.intro')}
-            </ChapterHead>
-
-            <div
-              className="grid grid-cols-1 overflow-hidden md:grid-cols-3"
-              style={{
-                gap: 1,
-                background: 'var(--hairline)',
-                border: '1px solid var(--hairline)',
-                borderRadius: 22,
-              }}
-            >
-              {SURFACES.map((s, i) => (
-                <div
-                  key={s.key}
-                  className="relative flex min-h-[320px] flex-col gap-3.5 transition-colors"
-                  style={{ background: 'var(--canvas)', padding: '40px 36px 36px' }}
-                >
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: 24,
-                      right: 28,
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 10,
-                      letterSpacing: '0.1em',
-                      color: 'var(--ink-4)',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {String(i + 1).padStart(3, '0')}
-                  </span>
-                  <div
-                    className="mb-1 flex h-14 w-14 items-center justify-center"
-                    style={{ borderRadius: 14, background: 'var(--paper-deep)', color: 'var(--ink)' }}
-                  >
-                    {s.icon}
-                  </div>
-                  <h4
-                    className="flex items-center"
-                    style={{
-                      fontFamily: 'var(--font-display)',
-                      fontSize: 28,
-                      lineHeight: 1.1,
-                      letterSpacing: '-0.015em',
-                    }}
-                  >
-                    <span
-                      className="mr-3 inline-block h-2 w-2 rounded-full"
-                      style={{ background: `var(--${s.color})` }}
-                    />
-                    {t(`landing.surfaces.items.${s.key}.name`)}
-                  </h4>
-                  <div
-                    style={{
-                      fontFamily: 'var(--font-text)',
-                      fontStyle: 'italic',
-                      fontSize: 14,
-                      color: 'var(--ink-3)',
-                      marginTop: -8,
-                    }}
-                  >
-                    {t(`landing.surfaces.items.${s.key}.cap`)}
-                  </div>
-                  <p style={{ fontFamily: 'var(--font-text)', fontSize: 15, lineHeight: 1.55, color: 'var(--ink-2)' }}>
-                    {t(`landing.surfaces.items.${s.key}.body`)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ============ III.5 · TALK TO IT THROUGH CLAUDE ============
-            Slim interlude between Surfaces and Whispers. Not a numbered
-            chapter — we don't want to renumber I-VI in every locale. The
-            visual is a single rounded panel with example prompts on the
-            left and the "how" copy on the right. */}
-        <section className="px-6 pb-8 md:px-16">
-          <div className="mx-auto max-w-[1280px]">
-            <div
-              className="overflow-hidden"
-              style={{
-                background: 'var(--canvas)',
-                border: '1px solid var(--hairline)',
-                borderRadius: 22,
-                padding: '44px 48px',
-              }}
-            >
-              <div className="grid grid-cols-1 gap-12 md:grid-cols-[1fr_1fr]">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <span
-                      className="inline-flex h-9 w-9 items-center justify-center"
-                      style={{ borderRadius: 10, background: 'var(--paper-deep)', color: 'var(--ink)' }}
-                    >
-                      <Sparkles className="h-4 w-4" />
-                    </span>
-                    <Eyebrow>{t('landing.claude.eyebrow')}</Eyebrow>
-                  </div>
-                  <h2
-                    className="mt-5"
-                    style={{
-                      fontFamily: 'var(--font-display)',
-                      fontSize: 'clamp(32px, 9vw, 42px)',
-                      fontWeight: 400,
-                      lineHeight: 1.05,
-                      letterSpacing: '-0.02em',
-                    }}
-                  >
-                    {t('landing.claude.title1')}
-                    <br />
-                    <Trans i18nKey="landing.claude.title2" components={{ em: <BrandEm /> }} />
-                  </h2>
-                  <p
-                    className="mt-5"
-                    style={{
-                      fontFamily: 'var(--font-text)',
-                      fontSize: 17,
-                      lineHeight: 1.55,
-                      color: 'var(--ink-2)',
-                      maxWidth: 500,
-                    }}
-                  >
-                    {t('landing.claude.intro')}
-                  </p>
-                </div>
-
-                <div>
-                  <div
-                    className="mb-3"
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 11,
-                      letterSpacing: '0.12em',
-                      textTransform: 'uppercase',
-                      color: 'var(--ink-3)',
-                    }}
-                  >
-                    {t('landing.claude.exampleLabel')}
-                  </div>
-                  <ul className="m-0 list-none space-y-2 p-0">
-                    {/* `returnObjects` + a typed defaultValue gives back string[]; no cast needed. */}
-                    {t('landing.claude.examples', { returnObjects: true, defaultValue: [] as string[] }).map(
-                      (ex, i) => (
-                        <li
-                          key={i}
-                          style={{
-                            fontFamily: 'var(--font-text)',
-                            fontStyle: 'italic',
-                            fontSize: 15,
-                            lineHeight: 1.5,
-                            color: 'var(--ink-2)',
-                            paddingLeft: 16,
-                            position: 'relative',
-                          }}
-                        >
-                          <span style={{ position: 'absolute', left: 0, color: 'var(--ink-4)' }}>›</span>
-                          {ex}
-                        </li>
-                      ),
+                      />
+                    ) : (
+                      t(`landing.faq.items.${key}.a`)
                     )}
-                  </ul>
-
-                  <div className="mt-6 pt-5" style={{ borderTop: '1px solid var(--hairline)' }}>
-                    <div
-                      className="mb-2"
-                      style={{
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: 11,
-                        letterSpacing: '0.12em',
-                        textTransform: 'uppercase',
-                        color: 'var(--ink-3)',
-                      }}
-                    >
-                      {t('landing.claude.howLabel')}
-                    </div>
-                    <p
-                      style={{
-                        fontFamily: 'var(--font-text)',
-                        fontSize: 14,
-                        lineHeight: 1.55,
-                        color: 'var(--ink-2)',
-                      }}
-                    >
-                      {t('landing.claude.howBody')}
-                    </p>
-                    <p
-                      className="mt-3"
-                      style={{
-                        fontFamily: 'var(--font-text)',
-                        fontSize: 13,
-                        lineHeight: 1.5,
-                        color: 'var(--ink-3)',
-                      }}
-                    >
-                      {t('landing.claude.safety')}
-                    </p>
-                  </div>
+                  </dd>
                 </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ============ IV · WHISPERS ============ */}
-        <section id="whispers" className="px-6 py-24 md:px-16">
-          <div className="mx-auto max-w-[1280px]">
-            <ChapterHead
-              chapter={t('landing.whispers.chapter')}
-              title={
-                <>
-                  {t('landing.whispers.title1')}
-                  <br />
-                  <Trans i18nKey="landing.whispers.title2" components={{ em: <BrandEm /> }} />
-                </>
-              }
-            >
-              {t('landing.whispers.intro')}
-            </ChapterHead>
-
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-              {WHISPERS.map((w) => (
-                <Whisper key={w.key} whisperKey={w.key} dark={w.dark} compact={w.compact} />
               ))}
-            </div>
-
-            <p
-              className="mt-12"
-              style={{
-                fontFamily: 'var(--font-text)',
-                fontStyle: 'italic',
-                fontSize: 14,
-                lineHeight: 1.55,
-                color: 'var(--ink-3)',
-                maxWidth: 720,
-              }}
-            >
-              <span className="mr-2.5 inline-block h-px w-4 align-middle" style={{ background: 'var(--ink-4)' }} />
-              {t('landing.whispers.disclaimer')}
-            </p>
+            </dl>
           </div>
         </section>
 
-        {/* ============ V · WHY THE SPIDER ============ */}
-        <section className="px-6 py-24 md:px-16">
-          <div className="mx-auto max-w-[1280px]">
-            <div className="grid grid-cols-1 items-center gap-20 md:grid-cols-[1.1fr_1fr]">
-              <div
-                className="relative mx-auto flex aspect-square max-w-[440px] items-center justify-center"
-                style={{ position: 'relative' }}
-              >
-                <span
-                  aria-hidden
-                  style={{
-                    position: 'absolute',
-                    inset: -20,
-                    background:
-                      'radial-gradient(circle, color-mix(in oklch, var(--clay) 14%, transparent) 0%, transparent 70%)',
-                    filter: 'blur(20px)',
-                    zIndex: 0,
-                  }}
-                />
-                {/* The svg carries width/height attrs; the CSS override lets
-                    it shrink with the column instead of forcing a 380px box
-                    (which was the page's one horizontal overflow on phones). */}
-                <span className="relative z-[1] w-full max-w-[380px] [&_svg]:h-auto [&_svg]:w-full">
-                  <AnansiMark size={380} strokeWidth={1.5} />
-                </span>
-              </div>
-
-              <div>
-                <Eyebrow>{t('landing.spider.eyebrow')}</Eyebrow>
-                <h2
-                  className="mt-6"
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 'clamp(36px, 10vw, 56px)',
-                    fontWeight: 400,
-                    lineHeight: 1.03,
-                    letterSpacing: '-0.02em',
-                  }}
-                >
-                  {t('landing.spider.titlePre')} <BrandEm>{t('landing.spider.titleEm')}</BrandEm>
-                </h2>
-                <p
-                  className="mt-6"
-                  style={{ fontFamily: 'var(--font-text)', fontSize: 19, lineHeight: 1.6, color: 'var(--ink-2)' }}
-                >
-                  <Trans i18nKey="landing.spider.body1" components={{ em: <BrandEm /> }} />
-                </p>
-                <p
-                  className="mt-6"
-                  style={{ fontFamily: 'var(--font-text)', fontSize: 19, lineHeight: 1.6, color: 'var(--ink-2)' }}
-                >
-                  <Trans i18nKey="landing.spider.body2" components={{ em: <BrandEm /> }} />
-                </p>
-                <div
-                  className="mt-7 flex gap-6 pt-4"
-                  style={{
-                    borderTop: '1px solid var(--hairline)',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 11,
-                    letterSpacing: '0.18em',
-                    textTransform: 'uppercase',
-                    color: 'var(--ink-3)',
-                  }}
-                >
-                  <span style={{ color: 'var(--clay-deep)' }}>{t('landing.spider.symbol')}</span>
-                  <span>{t('landing.spider.lineage')}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ============ CLOSING CARD ============ */}
+        {/* ============ CODA ============ */}
         <section className="px-6 pb-24 md:px-16">
           <div className="mx-auto max-w-[1280px]">
             <div
-              className="relative overflow-hidden px-12 py-24 md:px-18 md:py-24"
+              className="relative overflow-hidden px-8 py-20 md:px-18 md:py-24"
               style={{ background: 'var(--surface-inverse)', color: 'var(--on-inverse)', borderRadius: 32 }}
             >
               <div
                 aria-hidden
-                style={{ position: 'absolute', top: -100, right: -100, opacity: 0.07, color: 'var(--on-inverse)' }}
+                className="pointer-events-none absolute"
+                style={{ top: -100, right: -100, opacity: 0.08, color: 'var(--on-inverse)' }}
               >
                 <AnansiMark size={480} strokeWidth={1} />
               </div>
               <div className="relative">
-                <div
-                  className="mb-6"
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 11,
-                    letterSpacing: '0.16em',
-                    textTransform: 'uppercase',
-                    color: 'oklch(0.82 0.012 75)',
-                  }}
-                >
-                  {t('landing.coda.kicker')}
-                </div>
                 <h2
                   style={{
                     fontFamily: 'var(--font-display)',
-                    fontSize: 'clamp(40px, 11vw, 84px)',
+                    fontSize: 'clamp(40px, 7vw, 84px)',
                     fontWeight: 400,
                     lineHeight: 1.0,
                     letterSpacing: '-0.02em',
                     maxWidth: 920,
+                    textWrap: 'balance',
                   }}
                 >
-                  {t('landing.coda.titlePre')}
-                  <br />
-                  {t('landing.coda.titleMid')}{' '}
-                  <span style={{ fontFamily: 'var(--font-brand)', fontStyle: 'italic', color: 'var(--clay)' }}>
-                    {t('landing.coda.titleEm')}
-                  </span>
+                  <Trans
+                    i18nKey="landing.coda.title"
+                    components={{
+                      br: <br />,
+                      em: (
+                        <span style={{ fontFamily: 'var(--font-brand)', fontStyle: 'italic', color: 'var(--clay)' }} />
+                      ),
+                    }}
+                  />
                 </h2>
                 <p
                   className="mt-7"
                   style={{
                     fontFamily: 'var(--font-text)',
                     fontStyle: 'italic',
-                    fontSize: 22,
+                    fontSize: 'clamp(19px, 1.8vw, 22px)',
                     lineHeight: 1.4,
-                    color: 'oklch(0.82 0.012 75)',
-                    maxWidth: 660,
+                    color: 'color-mix(in oklch, var(--on-inverse) 78%, transparent)',
+                    maxWidth: 620,
                   }}
                 >
                   {t('landing.coda.body')}
@@ -855,21 +310,18 @@ function LandingPage() {
                 <div className="mt-12 flex flex-wrap items-center gap-3.5">
                   <Link
                     to={ctaHref}
-                    className="inline-flex h-[52px] items-center gap-2.5 rounded-full px-7 text-sm font-medium transition-colors"
+                    className="inline-flex h-[52px] items-center gap-2.5 rounded-full px-7 text-sm font-medium"
                     style={{ background: 'var(--clay)', color: 'var(--paper)' }}
                   >
-                    {isAuthenticated ? t('landing.coda.ctaSignedIn') : t('landing.coda.ctaSignedOut')}
+                    {ctaLabel}
                     <ArrowRight size={14} />
                   </Link>
                   {!isAuthenticated && (
                     <Link
                       to="/login"
-                      className="inline-flex h-[52px] items-center gap-2.5 rounded-full px-7 text-sm font-medium transition-colors"
-                      // Both values come from --on-inverse, because this button
-                      // sits on --surface-inverse. --paper is the PAGE background
-                      // and flips to near-black in dark mode, which rendered this
-                      // label invisible against the slab. Same class of bug the
-                      // WhisperCard rgba hardcode had.
+                      className="inline-flex h-[52px] items-center gap-2.5 rounded-full px-7 text-sm font-medium"
+                      // On --surface-inverse, so both values come from --on-inverse:
+                      // --paper flips to near-black in dark mode and vanished here.
                       style={{
                         border: '1px solid color-mix(in oklch, var(--on-inverse) 18%, transparent)',
                         color: 'var(--on-inverse)',
@@ -887,7 +339,7 @@ function LandingPage() {
 
       {/* ============ COLOPHON ============ */}
       <footer
-        className="mx-auto grid max-w-[1440px] grid-cols-1 gap-12 px-6 py-14 md:grid-cols-[1.4fr_1fr_1fr_1fr] md:px-16"
+        className="mx-auto grid max-w-[1440px] grid-cols-1 gap-10 px-6 py-12 md:grid-cols-[1.6fr_1fr_1fr] md:px-16"
         style={{ borderTop: '1px solid var(--hairline-2)' }}
       >
         <div>
@@ -901,37 +353,31 @@ function LandingPage() {
               fontSize: 14,
               color: 'var(--ink-3)',
               lineHeight: 1.55,
+              maxWidth: 360,
             }}
           >
             {t('landing.footer.tagline')}
           </p>
         </div>
-        <ColophonCol heading={t('landing.footer.headingApp')}>
-          <a href="#philosophy">{t('landing.footer.appPhilosophy')}</a>
-          <a href="#surfaces">{t('landing.footer.appSurfaces')}</a>
-          <a href="#whispers">{t('landing.footer.appWhispers')}</a>
-        </ColophonCol>
-        <ColophonCol heading={t('landing.footer.headingTeam')}>
-          <a href="#">{t('landing.footer.teamAbout')}</a>
-          <a href="#">{t('landing.footer.teamContact')}</a>
+        <ColophonCol heading={t('landing.footer.headingPages')}>
           {/* eslint-disable-next-line i18next/no-literal-string -- legal page links, EN-only until reviewed */}
           <Link to="/privacy">Privacy</Link>
           {/* eslint-disable-next-line i18next/no-literal-string -- legal page links, EN-only until reviewed */}
           <Link to="/terms">Terms</Link>
         </ColophonCol>
-        {/* Font family names are proper nouns — left untranslated by design. */}
+        {/* Font family names are proper nouns, left untranslated by design. */}
         <ColophonCol heading={t('landing.footer.headingSetIn')}>
-          {/* eslint-disable-next-line i18next/no-literal-string -- typeface name (proper noun) */}
-          <span>Cormorant Garamond</span>
           {/* eslint-disable-next-line i18next/no-literal-string -- typeface name (proper noun) */}
           <span>Instrument Serif</span>
           {/* eslint-disable-next-line i18next/no-literal-string -- typeface name (proper noun) */}
           <span>Newsreader</span>
           {/* eslint-disable-next-line i18next/no-literal-string -- typeface name (proper noun) */}
+          <span>Cormorant Garamond</span>
+          {/* eslint-disable-next-line i18next/no-literal-string -- typeface name (proper noun) */}
           <span>Geist · Geist Mono</span>
         </ColophonCol>
         <div
-          className="col-span-full mt-8 flex flex-wrap items-center justify-between gap-3 pt-6"
+          className="col-span-full flex flex-wrap items-center justify-between gap-3 pt-6"
           style={{
             borderTop: '1px solid var(--hairline)',
             fontFamily: 'var(--font-mono)',
@@ -949,7 +395,24 @@ function LandingPage() {
   )
 }
 
-// ---- Helper presentational components ----
+// ---- Shared type styles ----
+
+const h2Style: React.CSSProperties = {
+  fontFamily: 'var(--font-display)',
+  fontSize: 'clamp(38px, 5vw, 64px)',
+  fontWeight: 400,
+  lineHeight: 1.02,
+  letterSpacing: '-0.02em',
+  textWrap: 'balance',
+}
+
+const bodyStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-text)',
+  fontSize: 19,
+  lineHeight: 1.6,
+  color: 'var(--ink-2)',
+  maxWidth: 520,
+}
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
@@ -982,112 +445,6 @@ function BrandEm({ children }: { children?: React.ReactNode }) {
     >
       {children}
     </em>
-  )
-}
-
-function ChapterHead({
-  chapter,
-  title,
-  children,
-}: {
-  chapter: string
-  title: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <div className="mb-14 max-w-[800px]">
-      <Eyebrow>{chapter}</Eyebrow>
-      <h2
-        className="mt-6"
-        style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: 'clamp(38px, 10.5vw, 60px)',
-          fontWeight: 400,
-          lineHeight: 1.03,
-          letterSpacing: '-0.02em',
-        }}
-      >
-        {title}
-      </h2>
-      <p
-        className="mt-5"
-        style={{
-          fontFamily: 'var(--font-text)',
-          fontSize: 20,
-          lineHeight: 1.5,
-          color: 'var(--ink-2)',
-          fontStyle: 'italic',
-        }}
-      >
-        {children}
-      </p>
-    </div>
-  )
-}
-
-function Whisper({
-  whisperKey,
-  dark = false,
-  compact = false,
-}: {
-  whisperKey: WhisperKey
-  dark?: boolean
-  compact?: boolean
-}) {
-  const { t } = useTranslation()
-  return (
-    <div
-      className="flex min-h-[320px] flex-col gap-4 px-8 py-9"
-      style={{
-        background: dark ? 'var(--surface-inverse)' : 'var(--canvas)',
-        // hairline-2 reads as a subtle border on both the inverted
-        // (dark in light mode / paper-deep in dark mode) and canvas
-        // surfaces without the rgba hardcode that didn't theme-flip.
-        border: dark ? '1px solid var(--hairline-2)' : '1px solid var(--hairline)',
-        borderRadius: 20,
-        color: dark ? 'var(--on-inverse)' : undefined,
-      }}
-    >
-      <div
-        style={{
-          fontFamily: 'var(--font-brand)',
-          fontStyle: 'italic',
-          fontSize: 64,
-          lineHeight: 0.6,
-          color: 'var(--clay)',
-          fontWeight: 500,
-        }}
-      >
-        “
-      </div>
-      <p
-        style={{
-          fontFamily: 'var(--font-text)',
-          fontStyle: 'italic',
-          fontSize: compact ? 17 : 19,
-          lineHeight: 1.5,
-          color: dark ? 'var(--on-inverse)' : 'var(--ink)',
-        }}
-      >
-        {t(`landing.whispers.items.${whisperKey}.body`)}
-      </p>
-      <div
-        className="mt-auto flex justify-between pt-5"
-        style={{
-          borderTop: '1px solid var(--hairline)',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          // Tertiary text — ink-3 is the right value on both light-mode
-          // dark-ink and dark-mode paper-deep surfaces.
-          color: 'var(--ink-3)',
-        }}
-      >
-        <span>{t(`landing.whispers.items.${whisperKey}.who`)}</span>
-        <span>{t(`landing.whispers.items.${whisperKey}.duration`)}</span>
-      </div>
-    </div>
   )
 }
 

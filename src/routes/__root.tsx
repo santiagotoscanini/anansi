@@ -57,6 +57,12 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         name: 'description',
         content: "A thinking surface for what you want, who you love, and who you're becoming.",
       },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:title', content: 'anansi' },
+      {
+        property: 'og:description',
+        content: "A quiet place for what you want, who you love, and who you're becoming.",
+      },
     ],
     links: [
       { rel: 'stylesheet', href: fontsCss },

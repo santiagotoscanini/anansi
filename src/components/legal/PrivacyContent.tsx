@@ -25,7 +25,7 @@
 // leftover from the dual-stack migration and costs a full page load
 // between the three leaf legal pages; harmless, so left alone.
 //
-// Before accepting paid users or EU traffic, have a lawyer in your
+// Before accepting EU traffic, have a lawyer in your
 // jurisdiction review it.
 
 export const privacyMetadata = {

@@ -563,6 +563,12 @@ In Claude Code, run `/mcp` and pick `anansi` → it walks DCR + browser OAuth au
 - DCR is unauthenticated and publicly accessible — acceptable for a single-user personal app. For multi-tenant deployment, add an admin allow-list before exposing.
 - Audit log captures every OAuth state change (never tool calls — too noisy). Token hashes / raw codes are never logged.
 
+## Landing page
+
+`src/routes/index.tsx` is one argument in five parts: hero with the hand-built Pulse window (`components/landing/AppDemo.tsx`), the web (`Web.tsx`, the Ananse Ntontan mark drawn large with real record kinds and the threads the schema links), Claude as a transcript of real MCP tool calls (`Transcript.tsx`), an FAQ, and the inverted coda. The header comment of each file says what it must stay in step with.
+
+Copy rules, short form: every claim true today and checked against code or the legal pages (anansi is free, with no plans or pricing anywhere; nothing is encrypted at rest); never write a number the app has not computed; never invent quotes or users; no em or en dashes in user-visible strings (the separator is `·`); no exclamation marks, no hype words; the FAQ answers cost, access and privacy plainly and never talks about who runs the server or where. Keep `en.json` and `es.json` in step.
+
 ## i18n
 
 EN + ES via i18next. **Translation bundles are code-split per language** — they
@@ -575,7 +581,7 @@ from ever reaching a user:
 
 1. **Never call `i18n.changeLanguage` directly — call `switchLocale(locale)`** from
    `src/i18n/resources.ts`. It loads the chunk first. Switching first renders
-   `landing.nav.philosophy` until the fetch lands.
+   `landing.nav.web` until the fetch lands.
 2. **Both render entries await the bundle before rendering.** The server does it in
    `__root`'s loader; the client does it in `src/client.tsx` before `hydrateRoot`
    (the root loader does *not* re-run on hydration, so the client entry is the only

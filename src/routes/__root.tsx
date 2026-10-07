@@ -14,6 +14,16 @@ import { getShellPrefs } from '~/server/fn/shell.fn'
 // globals.css immediately reads to build --font-brand/display/text/ui/mono.
 import fontsCss from '~/styles/fonts.css?url'
 import globalsCss from '~/styles/globals.css?url'
+// The faces the first screen is set in, fetched with the stylesheet instead of
+// after it, so they usually land before the first paint.
+import cormorantItalicUrl from '@fontsource/cormorant-garamond/files/cormorant-garamond-latin-500-italic.woff2?url'
+import geistUrl from '@fontsource/geist/files/geist-latin-400-normal.woff2?url'
+import geistMediumUrl from '@fontsource/geist/files/geist-latin-500-normal.woff2?url'
+import geistMonoUrl from '@fontsource/geist-mono/files/geist-mono-latin-400-normal.woff2?url'
+import instrumentUrl from '@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2?url'
+import instrumentItalicUrl from '@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff2?url'
+import newsreaderItalicUrl from '@fontsource/newsreader/files/newsreader-latin-400-italic.woff2?url'
+import newsreaderUrl from '@fontsource/newsreader/files/newsreader-latin-400-normal.woff2?url'
 
 // The QueryClient is provided by getRouter() and flows through every route's
 // context, so loaders can call queryClient.ensureQueryData(...).
@@ -65,6 +75,22 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       },
     ],
     links: [
+      ...[
+        instrumentUrl,
+        instrumentItalicUrl,
+        cormorantItalicUrl,
+        newsreaderUrl,
+        newsreaderItalicUrl,
+        geistUrl,
+        geistMediumUrl,
+        geistMonoUrl,
+      ].map((href) => ({
+        rel: 'preload',
+        as: 'font',
+        type: 'font/woff2',
+        href,
+        crossOrigin: 'anonymous' as const,
+      })),
       { rel: 'stylesheet', href: fontsCss },
       { rel: 'stylesheet', href: globalsCss },
       { rel: 'icon', href: '/icon.svg', type: 'image/svg+xml' },

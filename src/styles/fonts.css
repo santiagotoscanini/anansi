@@ -81,6 +81,85 @@
 /* The five variables globals.css reads. Values are the family names verified
    above; the fallback chains are next/font's, minus its generated
    "X Fallback" metric-override faces, which have no self-hosted equivalent. */
+/* The fallbacks the first paint is set in until a face arrives: each is a
+   system font stretched to the web face's measured width and line box
+   (size-adjust, ascent/descent), so when the real face swaps in the lines
+   keep their breaks and nothing below them moves. Measured in a browser
+   against the loaded faces (Times New Roman / Arial / Courier New), at the
+   sizes the page sets them. */
+@font-face {
+  font-family: 'Instrument Fallback';
+  font-style: normal;
+  src: local('Times New Roman'), local('Times'), local('Liberation Serif');
+  size-adjust: 83.5%;
+  ascent-override: 118.5%;
+  descent-override: 37.4%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Instrument Fallback';
+  font-style: italic;
+  src: local('Times New Roman Italic'), local('Times Italic'), local('Liberation Serif Italic');
+  size-adjust: 88%;
+  ascent-override: 112%;
+  descent-override: 35.5%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Newsreader Fallback';
+  font-style: normal;
+  src: local('Times New Roman'), local('Times'), local('Liberation Serif');
+  size-adjust: 105%;
+  ascent-override: 67%;
+  descent-override: 28%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Newsreader Fallback';
+  font-style: italic;
+  src: local('Times New Roman Italic'), local('Times Italic'), local('Liberation Serif Italic');
+  size-adjust: 97.6%;
+  ascent-override: 74.5%;
+  descent-override: 28%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Cormorant Fallback';
+  font-style: normal;
+  src: local('Times New Roman'), local('Times'), local('Liberation Serif');
+  size-adjust: 96.7%;
+  ascent-override: 93%;
+  descent-override: 31%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Cormorant Fallback';
+  font-style: italic;
+  src: local('Times New Roman Italic'), local('Times Italic'), local('Liberation Serif Italic');
+  size-adjust: 86.3%;
+  ascent-override: 108%;
+  descent-override: 34.8%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Geist Fallback';
+  font-style: normal;
+  src: local('Arial'), local('Helvetica'), local('Liberation Sans');
+  size-adjust: 104.5%;
+  ascent-override: 95.7%;
+  descent-override: 25.5%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Geist Mono Fallback';
+  font-style: normal;
+  src: local('Courier New'), local('Courier'), local('Liberation Mono');
+  size-adjust: 106%;
+  ascent-override: 94.3%;
+  descent-override: 25.7%;
+  line-gap-override: 0%;
+}
+
 :root {
   --font-cormorant: 'Cormorant Garamond';
   --font-instrument-serif: 'Instrument Serif';

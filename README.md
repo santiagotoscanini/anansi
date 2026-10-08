@@ -39,7 +39,7 @@ The app sits at the intersection of "what do I want" (goals, tasks, values), "wh
 - **Database:** PostgreSQL via Drizzle ORM + Drizzle Kit migrations.
 - **Storage:** All uploads live in a `files` Postgres table as `bytea`, served by `/api/files/{id}` behind a session + owner check. No object store, no filesystem writes.
 
-Deeper architectural detail lives in [`CLAUDE.md`](./CLAUDE.md) — it's the single source of truth for schema, endpoints, and feature design intent.
+Deeper architectural detail lives in [`AGENTS.md`](./AGENTS.md) — it's the single source of truth for schema, endpoints, and feature design intent.
 
 ## Local development
 
@@ -150,7 +150,7 @@ Required env:
 
 ## Documentation
 
-- [`CLAUDE.md`](./CLAUDE.md) — architecture, schema, service surface, feature design notes. The canonical doc.
+- [`AGENTS.md`](./AGENTS.md) — architecture, schema, service surface, feature design notes. The canonical doc.
 - [`todo.md`](./todo.md) — backlog of outstanding features and follow-ups.
 - [`.golden/README.md`](./.golden/README.md) — the pre-migration baseline oracle (MCP tool catalog, `.well-known` documents, screenshots) and how to diff against it.
 

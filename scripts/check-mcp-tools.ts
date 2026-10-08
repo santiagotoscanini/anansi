@@ -1,5 +1,5 @@
 #!/usr/bin/env tsx
-// The MCP tool catalog must not drift. CLAUDE.md states the diff against
+// The MCP tool catalog must not drift. AGENTS.md states the diff against
 // .golden/mcp-tools.json "must be exactly zero after any change here" — this
 // is what enforces it.
 //

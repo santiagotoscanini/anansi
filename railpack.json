@@ -27,7 +27,7 @@
     "/*.png",
     "coverage",
     "README.md",
-    "CLAUDE.md",
+    "AGENTS.md",
     "docs"
   ],
   "steps": {

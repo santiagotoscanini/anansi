@@ -310,7 +310,7 @@ export const updateTaskSchema = taskSchema.partial().required({ id: true })
 // patch without refetching.
 //
 // Declared here rather than inline in tasks.fn.ts because a `.fn.ts` module may
-// export ONLY server functions (see CLAUDE.md), so a schema written there can
+// export ONLY server functions (see AGENTS.md), so a schema written there can
 // never be shared and is guaranteed to drift from whatever the client assumes.
 export const createTaskInputSchema = createTaskSchema.extend({ goalId: z.string() })
 export const updateTaskInputSchema = updateTaskSchema.extend({ goalId: z.string() })

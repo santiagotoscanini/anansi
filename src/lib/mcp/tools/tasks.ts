@@ -11,7 +11,7 @@ import * as tasks from '~/server/services/tasks'
 // Quarter / Year client-side based on how far out the date is, so we don't
 // ask the LLM to think in buckets, just dates.
 //
-// Per CLAUDE.md, every task mutation needs the goalId for the ownership check.
+// Per AGENTS.md, every task mutation needs the goalId for the ownership check.
 
 const emoji = z
   .string()

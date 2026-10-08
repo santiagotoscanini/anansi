@@ -36,7 +36,7 @@ registry: https://verdaccio.toscanini.me/
 #      young. So a lockfile written with the cooldown commented out will break
 #      the box's image build even though nothing is being resolved.
 #
-# ADDING A DEPENDENCY: see the "Supply-chain cooldown" note in CLAUDE.md.
+# ADDING A DEPENDENCY: see the "Supply-chain cooldown" note in AGENTS.md.
 # Comment the line below out, install, restore it, then confirm
 # `pnpm install --frozen-lockfile` still succeeds — that last step is the one
 # that catches a too-young transitive dependency pulled in by the new package.

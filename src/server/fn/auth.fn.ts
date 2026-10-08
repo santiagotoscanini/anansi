@@ -11,7 +11,7 @@ import * as authService from '~/server/services/auth'
 import { AppError } from '~/server/services/errors'
 
 // EXPORTS ONLY SERVER FUNCTIONS — see the `.fn.ts` convention note in
-// CLAUDE.md. Anything else exported from here makes the Start compiler treat
+// AGENTS.md. Anything else exported from here makes the Start compiler treat
 // the module as mixed and mis-register the function ids, which surfaces only as
 // "Invalid server function ID" the moment someone clicks the button.
 

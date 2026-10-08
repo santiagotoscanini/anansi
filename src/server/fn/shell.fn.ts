@@ -6,7 +6,7 @@ import { SIDEBAR_COOKIE, coerceSidebarGeometry, type SidebarGeometry } from '~/l
 import { THEME_COOKIE, coerceTheme, type Theme } from '~/lib/theme'
 
 // EXPORTS ONLY SERVER FUNCTIONS — see the `.fn.ts` convention note in
-// CLAUDE.md. A plain runtime value exported from this module makes the Start
+// AGENTS.md. A plain runtime value exported from this module makes the Start
 // compiler treat it as mixed and mis-register the function ids; `vite build`
 // tolerates it but `vite dev` throws "Invalid server function ID" at call
 // time, which hides until someone exercises the code path.

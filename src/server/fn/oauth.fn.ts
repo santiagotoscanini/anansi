@@ -10,7 +10,7 @@ import { hasExistingConsent } from '~/lib/mcp/oauth/consent'
 import { getServerSession } from '~/server/auth/session'
 
 // EXPORTS ONLY SERVER FUNCTIONS — see the `.fn.ts` convention note in
-// CLAUDE.md. A plain runtime value exported here makes the Start compiler treat
+// AGENTS.md. A plain runtime value exported here makes the Start compiler treat
 // the module as mixed and mis-register every function id in it.
 
 /**

@@ -12,7 +12,7 @@ export const Route = createFileRoute('/app/bucket')({
   // Written as an inline function literal, never a call to a generic helper:
   // this module is circular with routeTree.gen.ts, and TypeScript resolves that
   // for a literal but falls back to AnySchema for a generic call — which
-  // silently empties the search type at every navigation site. See CLAUDE.md.
+  // silently empties the search type at every navigation site. See AGENTS.md.
   validateSearch: (search: Record<string, unknown>): { item?: string } => ({
     item: typeof search.item === 'string' ? search.item : undefined,
   }),

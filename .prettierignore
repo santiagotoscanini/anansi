@@ -19,8 +19,8 @@ src/lib/data/db/migrations
 # golden diff report drift that isn't there.
 .golden
 
-# Hand-authored docs. CLAUDE.md is the project's source of truth and is
+# Hand-authored docs. AGENTS.md is the project's source of truth and is
 # structured deliberately; Prettier's markdown formatter reflows tables and
 # renumbers lists.
-CLAUDE.md
+AGENTS.md
 README.md

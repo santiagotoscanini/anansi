@@ -73,6 +73,11 @@ export const env = createEnv({
     // OIDC sign-in would then land on a users row an attacker controls.
     OIDC_EMAILS: z.string().optional(),
 
+    // The LLM gateway's way into the MCP server (lib/mcp/gateway.ts): its token
+    // and the account it acts for. Unset, only OAuth clients get in.
+    ANANSI_MCP_TOKEN: z.string().min(32).optional(),
+    MCP_USER_EMAIL: z.string().optional(),
+
     // The invite GATE, and a break-glass master code. SET = registration asks
     // for a code, and every member's personal `users.invite_code` opens the
     // door alongside this value (kept so the first user can ever exist, and as

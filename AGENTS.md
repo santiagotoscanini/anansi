@@ -777,10 +777,3 @@ Drizzle migrations live in `src/lib/data/db/migrations/`. There is currently **o
 ---
 
 _Single source of truth for Anansi's architecture, features, and implementation._
-
-### Through the LLM gateway
-
-Beside OAuth, `/api/mcp` takes one more caller: the box's LLM gateway, which dials
-the container behind its own Pocket ID sign-in with `ANANSI_MCP_TOKEN` and acts for
-`MCP_USER_EMAIL` (`src/lib/mcp/gateway.ts`). A request through the tunnel can never
-use that token, so the gateway's sign-in stays the only way to spend it from outside.

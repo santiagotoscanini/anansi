@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { checkRateLimit, clientIpFromHeaders } from '~/lib/rate-limit'
-import { gatewayUserId } from '~/lib/mcp/gateway'
 import { validateBearer } from '~/lib/mcp/oauth/tokens'
 import { resolveOrigin } from '~/lib/mcp/oauth/metadata'
 import { buildMcpServer } from '~/lib/mcp/server'
@@ -59,8 +58,7 @@ async function handle(req: Request): Promise<Response> {
   const bearer = authHeader?.toLowerCase().startsWith('bearer ') ? authHeader.slice(7).trim() : null
   if (!bearer) return unauthorized(req)
 
-  const gatewayUser = await gatewayUserId(req.headers, bearer)
-  const auth = gatewayUser ? { userId: gatewayUser, clientId: 'gateway', scope: 'mcp' } : await validateBearer(bearer)
+  const auth = await validateBearer(bearer)
   if (!auth) return unauthorized(req)
 
   // Build the per-request server. Stateless transport with JSON responses

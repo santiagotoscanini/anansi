@@ -102,7 +102,7 @@ export async function rotateRefreshToken(
       user_id: string
       client_id: string
       scope: string
-      expires_at: Date
+      expires_at: string
       revoked_at: Date | null
     }>(
       sql`SELECT id, user_id, client_id, scope, expires_at, revoked_at FROM mcp_refresh_tokens WHERE token_hash = ${presentedHash} FOR UPDATE`,
@@ -110,7 +110,8 @@ export async function rotateRefreshToken(
     if (!row) return null
     if (row.client_id !== clientId) return null
     if (row.revoked_at !== null) return null
-    if (row.expires_at <= now) return null
+    // A raw query leaves timestamps as strings, and `string <= Date` is always false.
+    if (new Date(row.expires_at) <= now) return null
 
     const [newRefresh] = await tx
       .insert(mcpRefreshTokens)

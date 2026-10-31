@@ -5,6 +5,7 @@ import { db } from '~/lib/data'
 import { users } from '~/lib/data/schema'
 import { appendAudit } from '~/lib/mcp/oauth/audit'
 import { buildRedirect, validateAuthorize } from '~/lib/mcp/oauth/authorize-validation'
+import { redirectTarget } from '~/lib/mcp/oauth/clients'
 import { mintAuthCode } from '~/lib/mcp/oauth/codes'
 import { hasExistingConsent } from '~/lib/mcp/oauth/consent'
 import { getServerSession } from '~/server/auth/session'
@@ -104,6 +105,9 @@ export const resolveAuthorize = createServerFn({ method: 'GET' })
       kind: 'consent' as const,
       clientName: client.clientName,
       scope,
+      // Registration is open, so the name proves nothing: anyone can register
+      // as "Claude" with their own callback. The host is what approving trusts.
+      returnsTo: redirectTarget(redirectUri),
       userEmail,
       hiddenFields: {
         client_id: client.clientId,

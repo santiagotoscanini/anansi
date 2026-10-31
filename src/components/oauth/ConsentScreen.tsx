@@ -15,11 +15,12 @@ import { AnansiMark } from '~/components/goals/Brand'
 interface Props {
   clientName: string
   scope: string
+  returnsTo: string
   hiddenFields: Record<string, string | null | undefined>
   userEmail: string
 }
 
-export function ConsentScreen({ clientName, scope, hiddenFields, userEmail }: Props) {
+export function ConsentScreen({ clientName, scope, returnsTo, hiddenFields, userEmail }: Props) {
   const scopeList = scope.split(/\s+/).filter(Boolean)
   return (
     <div
@@ -72,7 +73,8 @@ export function ConsentScreen({ clientName, scope, hiddenFields, userEmail }: Pr
             marginBottom: 24,
           }}
         >
-          This will let <strong>{clientName}</strong> read and modify your Anansi data on your behalf.
+          This will let <strong>{clientName}</strong> read and modify your Anansi data on your behalf. Approving sends
+          you back to <strong>{returnsTo}</strong>. If you did not start this, cancel.
         </p>
 
         <div

@@ -9,9 +9,11 @@
  *
  * Two rules, both necessary:
  *   - must start with `/`, which rules out any absolute URL with a scheme;
- *   - must not start with `//`, because browsers treat a protocol-relative
- *     URL as absolute — `//evil.com` passes the first check and is an
- *     off-site redirect.
+ *   - must resolve to this app, parsed the way a browser parses it. `//evil.com`
+ *     is protocol-relative, and browsers also read `/\evil.com` the same way and
+ *     drop tabs and newlines from `/<tab>/evil.com`, so a prefix check on `//`
+ *     alone leaves those open. The base host is a placeholder that nothing real
+ *     can match.
  *
  * Anything else falls back to `/app`.
  *
@@ -23,6 +25,5 @@
  */
 export function safeNext(next: string | null | undefined): string {
   if (!next?.startsWith('/')) return '/app'
-  if (next.startsWith('//')) return '/app'
-  return next
+  return new URL(next, 'https://anansi.invalid').host === 'anansi.invalid' ? next : '/app'
 }

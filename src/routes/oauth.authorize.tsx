@@ -46,6 +46,7 @@ function AuthorizePage() {
     <ConsentScreen
       clientName={result.clientName}
       scope={result.scope}
+      returnsTo={result.returnsTo}
       userEmail={result.userEmail}
       hiddenFields={result.hiddenFields}
     />

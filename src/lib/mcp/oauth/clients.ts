@@ -55,6 +55,12 @@ export async function getClient(clientId: string): Promise<RegisteredClient | nu
   }
 }
 
+/** Where approving sends the browser, as the consent screen shows it. */
+export function redirectTarget(uri: string): string {
+  const u = new URL(uri)
+  return /^https?:$/.test(u.protocol) ? u.host : u.protocol.replace(/:$/, '')
+}
+
 // Strict equality check — RFC 6749 §3.1.2 and OAuth 2.1 §1.5 both require
 // exact match (no path prefix matching, no scheme upgrades). MCP clients
 // pre-register their callback at /oauth/register so this is enforceable.

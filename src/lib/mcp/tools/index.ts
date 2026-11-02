@@ -15,6 +15,10 @@ import { registerImportantDatesTools } from './important_dates'
 import { registerGroupsTools } from './groups'
 import { registerBucketListTools } from './bucket_list'
 import { registerSelfTools } from './self'
+import { registerTrackingItemsTools } from './tracking_items'
+import { registerSyncTemplatesTools } from './sync_templates'
+import { registerWeeklySyncTools } from './weekly_sync'
+import { registerConnectionsTools } from './connections'
 import { registerSystemTools } from './system'
 
 // Single entry point — one call per domain. New domains add a new file and
@@ -30,4 +34,8 @@ export function registerAllTools(server: McpServer, ctx: McpCtx): void {
   registerGroupsTools(server, ctx)
   registerBucketListTools(server, ctx)
   registerSelfTools(server, ctx)
+  registerTrackingItemsTools(server, ctx)
+  registerSyncTemplatesTools(server, ctx)
+  registerWeeklySyncTools(server, ctx)
+  registerConnectionsTools(server, ctx)
 }

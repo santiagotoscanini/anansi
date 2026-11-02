@@ -7,7 +7,7 @@ import { z } from 'zod'
  * Zod 3 silently emitted `{ type: 'string', format: 'date-time' }` for it; zod 4
  * refuses and throws `Date cannot be represented in JSON Schema` — from inside
  * `tools/list`, which means the entire catalog 500s and every connected client
- * loses all 51 tools at once. Nothing in `tsc` or `vite build` sees it, because
+ * loses every tool at once. Nothing in `tsc` or `vite build` sees it, because
  * the failure is in a runtime schema conversion.
  *
  * `.meta({ format: 'date-time' })` on a plain string is what reproduces the zod 3
@@ -25,12 +25,22 @@ import { z } from 'zod'
 export const isoDate = z.string().meta({ format: 'date-time' })
 
 /**
+ * The user's own calendar day. The tools that work out "this week" take it rather
+ * than reading the clock, because the server's clock is UTC and the user's Sunday
+ * night is already its Monday. See `weekOfDay` in ~/lib/week.
+ */
+export const localDay = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, 'a calendar day, YYYY-MM-DD')
+  .describe("A day in the user's own time zone, YYYY-MM-DD. Usually today.")
+
+/**
  * Wrap a tool's field shape into the object the MCP SDK publishes.
  *
  * The SDK accepts either a raw shape or a whole Zod schema; passing a raw shape
  * makes it build a plain `z.object()` internally, and that is the problem. Zod 3
  * rendered `z.object()` as `additionalProperties: false`, zod 4 renders it as
- * nothing at all — so a bare shape silently drops that keyword from 44 of the 51
+ * nothing at all — so a bare shape silently drops that keyword from most of the
  * published `inputSchema`s. It is the annotation that tells a model not to
  * invent parameters, and several providers require it for strict tool calling.
  *

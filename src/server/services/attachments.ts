@@ -85,6 +85,25 @@ export async function upload(userId: string, input: UploadAttachment) {
   }
 }
 
+/** The attachment with its bytes, for a caller that has no session to reach /api/files with. */
+export async function read(userId: string, id: string) {
+  const [row] = await db
+    .select({
+      id: attachments.id,
+      fileName: attachments.fileName,
+      fileType: attachments.fileType,
+      mimeType: files.mimeType,
+      sizeBytes: files.sizeBytes,
+      data: files.data,
+    })
+    .from(attachments)
+    .innerJoin(files, eq(attachments.fileId, files.id))
+    .where(and(eq(attachments.id, id), eq(attachments.userId, userId)))
+    .limit(1)
+  if (!row) throw new AppError('NOT_FOUND', 'Attachment not found or access denied')
+  return row
+}
+
 export async function remove(userId: string, id: string) {
   const [existing] = await db
     .select({ id: attachments.id })

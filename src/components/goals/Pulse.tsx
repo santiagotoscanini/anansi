@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
-import { bucketForDate, formatScheduledShort } from '~/lib/horizon-period'
+import { formatScheduledShort } from '~/lib/horizon-period'
 import {
   useCreateWeeklySync,
   useDeleteAttachment,
@@ -24,6 +24,7 @@ import {
 } from '~/lib/mutations/weekly-sync'
 import { useGoalsData } from '~/lib/queries/goals'
 import { importantDatesQueryOptions, peopleQueryOptions, upcomingNextBidsQueryOptions } from '~/lib/queries/people'
+import { attentionOf, horizonsOf, isFilled, syncItemsOf, upcomingOf } from '~/lib/pulse'
 import { weeklyRetrospectiveQueryOptions, type WeeklyRetrospectiveData as WeeklyRetroData } from '~/lib/queries/sync'
 import { weekStartOf } from '~/lib/week'
 import Avatar from './Avatar'
@@ -54,168 +55,21 @@ export default function Pulse() {
   const data: WeeklyRetroData | undefined = query.data
   const weeklySync = data?.weeklySync
 
-  const items = useMemo(() => {
-    if (!data) return []
-    const flat = [
-      ...data.goals.flatMap((g) => g.items.map((it) => ({ ...it, goalTitle: g.title }))),
-      ...data.unscopedItems.map((it) => ({ ...it, goalTitle: null as string | null })),
-    ]
-    return flat.sort((a, b) => {
-      const order = a.orderIdx - b.orderIdx
-      return order !== 0 ? order : a.createdAt.getTime() - b.createdAt.getTime()
-    })
-  }, [data])
+  const items = useMemo(() => (data ? syncItemsOf(data) : []), [data])
 
-  const filled = items.filter((it) => (it.textContent ?? '').trim().length > 0 || it.attachments.length > 0)
+  const filled = items.filter(isFilled)
   const progress = items.length === 0 ? 0 : Math.round((filled.length / items.length) * 100)
 
-  // Horizon bucket math — see horizon-period.ts. month/quarter render
-  // inline, year stays collapsed by default.
-  const horizonBuckets = useMemo(() => {
-    type FlatTask = {
-      id: string
-      title: string
-      goalId: string
-      goalTitle: string
-      goalEmoji: string | undefined
-      scheduledAt: Date
-    }
-    const now = new Date()
-    const month: FlatTask[] = []
-    const quarter: FlatTask[] = []
-    const year: FlatTask[] = []
-    for (const g of goals) {
-      for (const task of g.tasks) {
-        if (task.completed || !task.scheduledAt) continue
-        const at = new Date(task.scheduledAt)
-        const b = bucketForDate(at, now)
-        const flat: FlatTask = {
-          id: task.id,
-          title: task.title,
-          goalId: g.id,
-          goalTitle: g.title,
-          goalEmoji: g.emoji,
-          scheduledAt: at,
-        }
-        if (b === 'month') month.push(flat)
-        else if (b === 'quarter') quarter.push(flat)
-        else if (b === 'year') year.push(flat)
-      }
-    }
-    const byDate = (a: FlatTask, b: FlatTask) =>
-      a.scheduledAt.getTime() - b.scheduledAt.getTime() || a.title.localeCompare(b.title)
-    month.sort(byDate)
-    quarter.sort(byDate)
-    year.sort(byDate)
-    return { month, quarter, year }
-  }, [goals])
+  // Everything below is the same reading `get_pulse` gives an MCP client:
+  // lib/pulse.ts. month/quarter render inline, year stays collapsed by default.
+  const horizonBuckets = useMemo(() => horizonsOf(goals, new Date()), [goals])
 
-  // People needing attention — same logic as before, just colored warm.
-  const peopleRows = people
-  type AttentionReason =
-    | { kind: 'overdue'; daysOverdue: number; decideBy: Date }
-    | { kind: 'due-soon'; daysUntil: number; decideBy: Date }
-    | { kind: 'exploring-no-date' }
-    | { kind: 'inbox' }
-  type AttentionRow = { person: (typeof peopleRows)[number]; reason: AttentionReason }
-  const attentionRows: AttentionRow[] = []
   // eslint-disable-next-line react-hooks/purity -- comparison only; intentional fresh `now`
-  const nowMs = Date.now()
-  const fortnightMs = 14 * 24 * 60 * 60 * 1000
-  for (const p of peopleRows) {
-    if (p.archivedAt !== null) continue
-    if (p.category === 'to_process') {
-      attentionRows.push({ person: p, reason: { kind: 'inbox' } })
-      continue
-    }
-    if (p.category === 'exploring') {
-      if (!p.decideBy) {
-        attentionRows.push({ person: p, reason: { kind: 'exploring-no-date' } })
-        continue
-      }
-      const decideBy = new Date(p.decideBy)
-      const diff = decideBy.getTime() - nowMs
-      if (diff < 0) {
-        attentionRows.push({
-          person: p,
-          reason: { kind: 'overdue', daysOverdue: Math.ceil(-diff / (24 * 60 * 60 * 1000)), decideBy },
-        })
-      } else if (diff <= fortnightMs) {
-        attentionRows.push({
-          person: p,
-          reason: { kind: 'due-soon', daysUntil: Math.round(diff / (24 * 60 * 60 * 1000)), decideBy },
-        })
-      }
-    }
-  }
-  const reasonRank = (r: AttentionReason): number => {
-    if (r.kind === 'overdue') return 0
-    if (r.kind === 'due-soon') return 1
-    if (r.kind === 'exploring-no-date') return 2
-    return 3
-  }
-  attentionRows.sort((a, b) => {
-    const r = reasonRank(a.reason) - reasonRank(b.reason)
-    if (r !== 0) return r
-    const aDate = 'decideBy' in a.reason ? a.reason.decideBy.getTime() : Number.POSITIVE_INFINITY
-    const bDate = 'decideBy' in b.reason ? b.reason.decideBy.getTime() : Number.POSITIVE_INFINITY
-    return aDate - bDate || a.person.name.localeCompare(b.person.name)
-  })
+  const attentionRows = attentionOf(people, Date.now())
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const personById = new Map(peopleRows.map((p) => [p.id, p]))
-  const upcomingDates = importantDates
-    .map((d) => {
-      const thisYear = new Date(today.getFullYear(), d.month - 1, d.day)
-      const next =
-        thisYear.getTime() < today.getTime() ? new Date(today.getFullYear() + 1, d.month - 1, d.day) : thisYear
-      const daysUntil = Math.round((next.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
-      const turning = d.year ? next.getFullYear() - d.year : null
-      return { ...d, next, daysUntil, turning, person: personById.get(d.personId) }
-    })
-    .filter((d) => d.daysUntil >= 0 && d.daysUntil <= 30 && d.person?.archivedAt === null)
-    .sort((a, b) => a.daysUntil - b.daysUntil)
-
-  type UpcomingRow =
-    | { kind: 'date'; id: string; date: Date; daysUntil: number; person: string; label: string; turning: number | null }
-    | {
-        kind: 'bid'
-        id: string
-        date: Date
-        daysUntil: number
-        person: string
-        personEmoji: string | null
-        content: string
-      }
-  const upcomingFeed: UpcomingRow[] = []
-  for (const d of upcomingDates) {
-    if (!d.person) continue
-    upcomingFeed.push({
-      kind: 'date',
-      id: `date:${d.id}`,
-      date: d.next,
-      daysUntil: d.daysUntil,
-      person: d.person.name,
-      label: d.label,
-      turning: d.turning,
-    })
-  }
-  for (const b of upcomingBids) {
-    if (!b.dueAt) continue
-    const due = new Date(b.dueAt)
-    const daysUntil = Math.round((due.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
-    upcomingFeed.push({
-      kind: 'bid',
-      id: `bid:${b.id}`,
-      date: due,
-      daysUntil,
-      person: b.personName,
-      personEmoji: b.personEmoji,
-      content: b.content,
-    })
-  }
-  upcomingFeed.sort((a, b) => a.date.getTime() - b.date.getTime())
+  const upcomingFeed = upcomingOf(importantDates, upcomingBids, people, today)
 
   const handleStart = async () => {
     try {

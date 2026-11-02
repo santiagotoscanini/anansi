@@ -28,7 +28,7 @@ The app sits at the intersection of "what do I want" (goals, tasks, values), "wh
 - **Values.** Named + colored tags on goals; values carry their own behavior list (short evidence sentences).
 - **Groups.** Cross-entity tags spanning both people and tasks. The same `Family` group can hold both your partner and the "call mom" task.
 - **Backup / Import.** Full per-user JSON+base64 export and transactional replace import.
-- **MCP server.** A remote Model Context Protocol server at `POST /api/mcp` exposing 51 tools, so Claude can read and write your goals, people, values and Self entries. It is its own OAuth 2.1 authorization server.
+- **MCP server.** A remote Model Context Protocol server at `POST /api/mcp` exposing 80 tools, so Claude can run the whole app: goals, tasks, people, values, Self, Pulse and the weekly sync. It is its own OAuth 2.1 authorization server.
 
 ## Stack
 

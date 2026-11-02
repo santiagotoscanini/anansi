@@ -110,7 +110,9 @@ export function ConsentScreen({ clientName, scope, returnsTo, hiddenFields, user
             Requested access
           </div>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, lineHeight: 1.6 }}>
-            {scopeList.includes('anansi:read') && <li>Read your goals, tasks, people, values, and reflections</li>}
+            {scopeList.includes('anansi:read') && (
+              <li>Read your goals, tasks, people, values, weekly syncs, and reflections</li>
+            )}
             {scopeList.includes('anansi:write') && <li>Create, update, and delete the same</li>}
           </ul>
         </div>

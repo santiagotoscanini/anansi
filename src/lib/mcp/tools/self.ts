@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
-import { toolInput } from './fields'
+import { closedObject, toolInput } from './fields'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
+import { reorderSelfListItemsSchema, selfListKindValues } from '~/lib/api/types'
 import * as self from '~/server/services/self'
 import * as selfListItems from '~/server/services/self-list-items'
 
@@ -145,6 +146,26 @@ export function registerSelfTools(server: McpServer, ctx: McpCtx): void {
     async ({ id }) => {
       try {
         return mcpJsonResult(await selfListItems.remove(ctx.userId, id))
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'reorder_self_items',
+    {
+      title: 'Reorder a Self list',
+      description: 'Set the order of the items in one `kind` of Self list.',
+      inputSchema: toolInput({
+        kind: z.enum(selfListKindValues),
+        ordering: z.array(closedObject({ id: z.string(), orderIdx: z.number().int() })),
+      }),
+      annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async (args) => {
+      try {
+        return mcpJsonResult(await selfListItems.reorder(ctx.userId, reorderSelfListItemsSchema.parse(args)))
       } catch (e) {
         return mcpErrorFromUnknown(e)
       }

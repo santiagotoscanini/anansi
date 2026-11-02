@@ -2,6 +2,36 @@
   {
     "annotations": {
       "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Put a tracking item on one week. Adding one that is already there returns it unchanged.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "trackingItemId": {
+          "type": "string"
+        },
+        "weeklySyncId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "weeklySyncId",
+        "trackingItemId"
+      ],
+      "type": "object"
+    },
+    "name": "add_sync_item",
+    "title": "Add an item to a sync"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
       "idempotentHint": false,
       "openWorldHint": false
     },
@@ -94,6 +124,43 @@
     },
     "name": "create_bucket_list_item",
     "title": "Add a bucket-list item"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Add a weighted edge from one goal to another. Both must be yours.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "weight": {
+          "description": "0 to 100.",
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "source",
+        "target",
+        "weight"
+      ],
+      "type": "object"
+    },
+    "name": "create_connection",
+    "title": "Connect two goals"
   },
   {
     "annotations": {
@@ -419,6 +486,37 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
+    "description": "Create an empty template; fill it with `set_sync_template_items`. `isDefault: true` makes it the one new weeks start from and clears the previous default.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "isDefault": {
+          "type": "boolean"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "name": "create_sync_template",
+    "title": "Create a sync template"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
     "description": "Add a task to a goal. Difficulty is a vibes-based 1 (easy) to 3 (hard). `scheduledAt` is the optional deadline — omit for backlog. `referentIds` are people the user is relying on for this task; `groupIds` tag the task with cross-entity groups.",
     "execution": {
       "taskSupport": "forbidden"
@@ -506,6 +604,62 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
+    "description": "Add an item to the library. It joins no sync on its own: use `add_sync_item` for this week, or `set_sync_template_items` to have future weeks start with it.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "goalId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Goal this tracks. Omit or null for unscoped."
+        },
+        "order": {
+          "description": "Position in the library. Default 0.",
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
+          "type": "integer"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "type": "object"
+    },
+    "name": "create_tracking_item",
+    "title": "Create a tracking item"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
     "description": "Create a new value tag. Color is any CSS-valid hex like #f97316.",
     "execution": {
       "taskSupport": "forbidden"
@@ -535,6 +689,38 @@
   },
   {
     "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Start the week containing `day`, with the items of `templateId` or of the default template, or empty when there is neither. A week has one sync: if it was already started, that sync comes back unchanged.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "day": {
+          "description": "A day in the user's own time zone, YYYY-MM-DD. Usually today.",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+          "type": "string"
+        },
+        "templateId": {
+          "description": "Template to start from. Omit for the default.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "day"
+      ],
+      "type": "object"
+    },
+    "name": "create_weekly_sync",
+    "title": "Start a weekly sync"
+  },
+  {
+    "annotations": {
       "destructiveHint": true,
       "idempotentHint": true,
       "openWorldHint": false
@@ -558,6 +744,32 @@
     },
     "name": "delete_bucket_list_item",
     "title": "Delete a bucket-list item"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Remove an edge between two goals. Both goals stay.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_connection",
+    "title": "Delete a connection"
   },
   {
     "annotations": {
@@ -669,6 +881,32 @@
       "idempotentHint": true,
       "openWorldHint": false
     },
+    "description": "Hard-delete a person and what hangs off them: their bids, dates and links. Only for entries made by mistake. To stop tracking someone, use `archive_person`, which can be undone.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_person",
+    "title": "Delete a person"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
     "description": "Remove a Self item entirely.",
     "execution": {
       "taskSupport": "forbidden"
@@ -688,6 +926,58 @@
     },
     "name": "delete_self_item",
     "title": "Delete a Self list item"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Delete a file from a sync item, bytes included.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_sync_attachment",
+    "title": "Delete a sync attachment"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Delete a template. Its tracking items and every existing sync stay as they are.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_sync_template",
+    "title": "Delete a sync template"
   },
   {
     "annotations": {
@@ -719,6 +1009,32 @@
     },
     "name": "delete_task",
     "title": "Delete a task"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Remove an item from the library. If a sync used it the row and its notes stay in the database (`soft_delete`), otherwise it goes for good (`hard_delete`). Either way it stops showing on every sync, past weeks included. To drop it from one week only, use `remove_sync_item`; to keep the history, leave it alone and stop adding it.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_tracking_item",
+    "title": "Delete a tracking item"
   },
   {
     "annotations": {
@@ -794,6 +1110,29 @@
     "title": "Get a person"
   },
   {
+    "description": "The daily landing page in one call: this week's sync and how much of it is filled, the upcoming feed (important dates and next bids), open tasks on the month, quarter and year horizons, and the people who need attention. Start here for a daily check-in.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "day": {
+          "description": "A day in the user's own time zone, YYYY-MM-DD. Usually today.",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "day"
+      ],
+      "type": "object"
+    },
+    "name": "get_pulse",
+    "title": "Get Pulse"
+  },
+  {
     "description": "Return the user's prose Self row (or null if not yet started).",
     "execution": {
       "taskSupport": "forbidden"
@@ -807,6 +1146,51 @@
     "title": "Get the user's self portrait"
   },
   {
+    "description": "The contents of a file on a sync item: an image as an image, a text file as text. The `url` on an attachment needs a browser session and cannot be fetched from here.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Attachment id, from `get_weekly_sync` or `get_pulse`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "get_sync_attachment",
+    "title": "Read a sync attachment"
+  },
+  {
+    "description": "One week's retrospective: `weeklySync` (null when the week has not been started), its items grouped by goal with notes and attachments, `unscopedItems`, and `allTrackingItems`, the library to add from.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "day": {
+          "description": "A day in the user's own time zone, YYYY-MM-DD. Usually today.",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "day"
+      ],
+      "type": "object"
+    },
+    "name": "get_weekly_sync",
+    "title": "Get a weekly sync"
+  },
+  {
     "description": "All bucket-list items oldest-first, with linked person ids hydrated.",
     "execution": {
       "taskSupport": "forbidden"
@@ -818,6 +1202,19 @@
     },
     "name": "list_bucket_list",
     "title": "List bucket-list items"
+  },
+  {
+    "description": "Every weighted edge between active goals: `source` goal id, `target` goal id, `weight`.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object"
+    },
+    "name": "list_connections",
+    "title": "List goal connections"
   },
   {
     "description": "Return every active goal the user owns, with embedded tasks, value tags, parent-child links, and canvas position. The primary read tool for goals; call before mutating to learn the available ids.",
@@ -981,6 +1378,37 @@
     "title": "List Self list items"
   },
   {
+    "description": "Every template with its items in order. At most one has `isDefault: true`.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object"
+    },
+    "name": "list_sync_templates",
+    "title": "List sync templates"
+  },
+  {
+    "description": "Every active item in the library, optionally for one goal. Items with `goalId: null` are unscoped. Call before adding items to a sync or a template, to learn the ids.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "goalId": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_tracking_items",
+    "title": "List tracking items"
+  },
+  {
     "description": "Open bids with a `dueAt` falling within the window, across every active person. Joined with person name + emoji. Default window 60 days.",
     "execution": {
       "taskSupport": "forbidden"
@@ -1034,6 +1462,190 @@
     },
     "name": "list_values",
     "title": "List values"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Delete your avatar image.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object"
+    },
+    "name": "remove_avatar",
+    "title": "Remove your avatar"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Take an item off one week, along with its notes and attachments. The tracking item stays in the library.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "weeklySyncItemId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "weeklySyncItemId"
+      ],
+      "type": "object"
+    },
+    "name": "remove_sync_item",
+    "title": "Remove an item from a sync"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Set the order of the items in one `kind` of Self list.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "energizer",
+            "drainer",
+            "just_for_me",
+            "proud",
+            "pattern",
+            "trigger",
+            "release",
+            "year_ahead"
+          ],
+          "type": "string"
+        },
+        "ordering": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "orderIdx": {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "orderIdx"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "ordering"
+      ],
+      "type": "object"
+    },
+    "name": "reorder_self_items",
+    "title": "Reorder a Self list"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Set the order of items within one sync. Each `id` is a sync item id.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "ordering": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "orderIdx": {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "orderIdx"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "weeklySyncId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "weeklySyncId",
+        "ordering"
+      ],
+      "type": "object"
+    },
+    "name": "reorder_sync_items",
+    "title": "Reorder a sync"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Use an image as your avatar, replacing the current one. `data` is base64.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "description": "The image, base64.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "fileName": {
+          "maxLength": 255,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "fileName",
+        "data"
+      ],
+      "type": "object"
+    },
+    "name": "set_avatar",
+    "title": "Set your avatar"
   },
   {
     "annotations": {
@@ -1105,6 +1717,122 @@
     },
     "name": "set_person_category",
     "title": "Move a person between board columns"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Use an image as this person's picture, in place of their emoji. `data` is base64 and must really be an image.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "description": "The image, base64.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "fileName": {
+          "maxLength": 255,
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "fileName",
+        "data"
+      ],
+      "type": "object"
+    },
+    "name": "set_person_photo",
+    "title": "Set a person's photo"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Replace the notes on one item of a sync. It replaces rather than appends, so read the item first when adding to what is there. `weeklySyncItemId` is the item's `id` in `get_weekly_sync` or `get_pulse`, not its `trackingItemId`.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "textContent": {
+          "type": "string"
+        },
+        "weeklySyncItemId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "weeklySyncItemId",
+        "textContent"
+      ],
+      "type": "object"
+    },
+    "name": "set_sync_item_text",
+    "title": "Write a sync item's notes"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Replace the whole item list, in order. Not a merge: anything left out is dropped from the template, so read it first with `list_sync_templates`.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "orderIdx": {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              "trackingItemId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "trackingItemId",
+              "orderIdx"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "templateId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "templateId",
+        "items"
+      ],
+      "type": "object"
+    },
+    "name": "set_sync_template_items",
+    "title": "Set a template's items"
   },
   {
     "annotations": {
@@ -1249,6 +1977,39 @@
     },
     "name": "update_bucket_list_item",
     "title": "Update a bucket-list item"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Set the weight of an edge. To change its ends, delete it and create another.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "weight": {
+          "description": "0 to 100.",
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "weight"
+      ],
+      "type": "object"
+    },
+    "name": "update_connection",
+    "title": "Change a connection weight"
   },
   {
     "annotations": {
@@ -1557,6 +2318,38 @@
   {
     "annotations": {
       "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Change your display name or the language of the app. Your email and password are changed in the app itself.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "locale": {
+          "enum": [
+            "en",
+            "es"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "update_profile",
+    "title": "Update your profile"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
       "idempotentHint": false,
       "openWorldHint": false
     },
@@ -1729,6 +2522,40 @@
   {
     "annotations": {
       "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Rename a template, or set `isDefault: true` to make it the default.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "isDefault": {
+          "type": "boolean"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_sync_template",
+    "title": "Update a sync template"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
       "idempotentHint": false,
       "openWorldHint": false
     },
@@ -1814,6 +2641,70 @@
   {
     "annotations": {
       "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Patch a library item. `goalId: null` unscopes it. `status: archived` retires it from the library, and it stops showing on every sync, past weeks included, until it is set back to active.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "goalId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "order": {
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "archived"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_tracking_item",
+    "title": "Update a tracking item"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
       "idempotentHint": false,
       "openWorldHint": false
     },
@@ -1844,6 +2735,54 @@
     },
     "name": "update_value",
     "title": "Update a value"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Add a file to one item of a sync. `data` is base64, and an image must really be one.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "description": "The file, base64.",
+          "type": "string"
+        },
+        "fileName": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "fileType": {
+          "enum": [
+            "image",
+            "document",
+            "video",
+            "audio",
+            "other"
+          ],
+          "type": "string"
+        },
+        "weeklySyncItemId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "weeklySyncItemId",
+        "fileName",
+        "fileType",
+        "data"
+      ],
+      "type": "object"
+    },
+    "name": "upload_sync_attachment",
+    "title": "Attach a file to a sync item"
   },
   {
     "description": "Return the Anansi profile of the user whose token is being used. Useful for verifying the MCP connection works.",

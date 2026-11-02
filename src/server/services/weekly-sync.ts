@@ -1,7 +1,7 @@
 // The weekly retrospective. A sync is a template-driven *snapshot* taken at
 // create time, then freely mutable for that week — editing a template later
 // never rewrites history.
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
 import { db } from '~/lib/data'
 import {
   attachments,
@@ -14,6 +14,7 @@ import {
   weeklySyncItems,
 } from '~/lib/data/schema'
 import { computeImportance } from '~/lib/computation/importance'
+import { WEEK_MATCH_MS } from '~/lib/week'
 import type { AddSyncItem, CreateWeeklySync, RemoveSyncItem, ReorderSyncItems, SetSyncItemText } from '~/lib/api/types'
 import { AppError } from './errors'
 import { fileUrl } from './file-refs'
@@ -29,12 +30,23 @@ async function assertOwnsSyncItem(userId: string, syncItemId: string) {
   if (!row) throw new AppError('NOT_FOUND', 'Sync item not found or access denied')
 }
 
+/**
+ * The user's sync for this week, by week rather than by instant.
+ *
+ * `week_date` holds whatever Monday the creator's clock said, so an exact match
+ * would miss a sync made on another clock, and the unique index would then let
+ * the same week be started twice. See WEEK_MATCH_MS.
+ */
+function sameWeek(userId: string, week: Date) {
+  return and(
+    eq(weeklySync.userId, userId),
+    gte(weeklySync.weekDate, new Date(week.getTime() - WEEK_MATCH_MS)),
+    lte(weeklySync.weekDate, new Date(week.getTime() + WEEK_MATCH_MS)),
+  )
+}
+
 export async function getByWeek(userId: string, weekStart: Date) {
-  const [row] = await db
-    .select()
-    .from(weeklySync)
-    .where(and(eq(weeklySync.userId, userId), eq(weeklySync.weekDate, weekStart)))
-    .limit(1)
+  const [row] = await db.select().from(weeklySync).where(sameWeek(userId, weekStart)).limit(1)
   return row ?? null
 }
 
@@ -55,7 +67,7 @@ export async function getWeeklyRetrospectiveData(userId: string, weekStart: Date
     db
       .select()
       .from(weeklySync)
-      .where(and(eq(weeklySync.userId, userId), eq(weeklySync.weekDate, weekStart)))
+      .where(sameWeek(userId, weekStart))
       .limit(1)
       .then((rows) => rows[0]),
     db
@@ -178,9 +190,14 @@ export async function getWeeklyRetrospectiveData(userId: string, weekStart: Date
  * Create a sync for the given week. If `templateId` is supplied — or omitted
  * and the user has a default template — the sync is populated by snapshotting
  * that template's items in their template-defined order.
+ *
+ * Asking again for a week that has a sync returns that sync, unchanged.
  */
 export async function create(userId: string, input: CreateWeeklySync) {
   return await db.transaction(async (tx) => {
+    const [existing] = await tx.select().from(weeklySync).where(sameWeek(userId, input.weekDate)).limit(1)
+    if (existing) return existing
+
     let templateId: string | null = input.templateId ?? null
     if (templateId === null) {
       const [defaultTemplate] = await tx

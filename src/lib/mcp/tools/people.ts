@@ -207,4 +207,46 @@ export function registerPeopleTools(server: McpServer, ctx: McpCtx): void {
       }
     },
   )
+
+  server.registerTool(
+    'delete_person',
+    {
+      title: 'Delete a person',
+      description:
+        'Hard-delete a person and what hangs off them: their bids, dates and links. Only for entries made by mistake. To stop tracking someone, use `archive_person`, which can be undone.',
+      inputSchema: toolInput({ id: z.string() }),
+      annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ id }) => {
+      try {
+        return mcpJsonResult(await people.remove(ctx.userId, id))
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'set_person_photo',
+    {
+      title: "Set a person's photo",
+      description:
+        "Use an image as this person's picture, in place of their emoji. `data` is base64 and must really be an image.",
+      inputSchema: toolInput({
+        id: z.string(),
+        fileName: z.string().min(1).max(255),
+        data: z.string().min(1).describe('The image, base64.'),
+      }),
+      annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    async ({ id, fileName, data }) => {
+      try {
+        await people.assertOwnsPerson(ctx.userId, id)
+        const { url } = await people.uploadImage(ctx.userId, { fileName, data })
+        return mcpJsonResult(await people.update(ctx.userId, { id, emoji: url }))
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
 }

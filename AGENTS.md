@@ -113,7 +113,7 @@ src/
       importance.ts
     api/types.ts             # ~726 lines of zod schemas, shared by services + fns + MCP
     data/                    # schema.ts, db connection, migrations/
-    mcp/                     # MCP server + 51 tools + the OAuth 2.1 provider
+    mcp/                     # MCP server + 80 tools + the OAuth 2.1 provider
     env.ts security-headers.ts horizon-period.ts week.ts image-upload.ts
     theme.ts color-palette.ts emoji-utils.ts
 
@@ -179,7 +179,7 @@ component  →  lib/queries/*.ts (queryOptions)  →  server/fn/*.fn.ts (createS
 MCP tool  ────────────────────────────────────────────↗  (direct, in-process)
 ```
 
-- **`server/services/*.ts`** holds all business logic as plain `(userId, input)` async functions. It imports `db`, the zod schemas and `AppError`, and nothing from `@tanstack/*`. That is what lets the 51 MCP tools call it directly: the MCP graph never touches the Start compiler, so there is no function-id registration, no CSRF, no Seroval, no HTTP hop.
+- **`server/services/*.ts`** holds all business logic as plain `(userId, input)` async functions. It imports `db`, the zod schemas and `AppError`, and nothing from `@tanstack/*`. That is what lets the 80 MCP tools call it directly: the MCP graph never touches the Start compiler, so there is no function-id registration, no CSRF, no Seroval, no HTTP hop.
 - Services **re-parse their input** with the shared zod schema. Two entry points means two independent validators; parsing inside the service is the only guarantee that covers both, and it makes each service callable from a script without ceremony.
 - **`server/fn/*.fn.ts`** wraps services for the browser. Every route loader prefetches with `queryClient.ensureQueryData(...)` and components read with `useSuspenseQuery`, so tab data is server-rendered and hydrated — there is no loading spinner to reintroduce.
 - **`lib/queries/keys.ts`** owns every query key (`qk.*`), replacing tRPC's `utils.*.invalidate()`. Invalidate by key **root** (`qk.people`), not by leaf — prefix matching covers the leaves.
@@ -501,9 +501,13 @@ Transport: Streamable HTTP via `@modelcontextprotocol/sdk`'s `WebStandardStreama
 
 ### MCP tool catalog
 
-`registerAllTools()` (in `src/lib/mcp/tools/index.ts`) wires **51 tools** across 10 domain files. All tool names are flat verb-first snake_case (`list_goals`, `update_person`, `set_next_bid_done`, …). Hand-written `title` + `description` drive LLM tool selection; Zod raw shapes give the SDK enough type info to both generate the inputSchema JSON Schema AND validate inputs at call-time.
+`registerAllTools()` (in `src/lib/mcp/tools/index.ts`) wires **80 tools** across 14 domain files. All tool names are flat verb-first snake_case (`list_goals`, `update_person`, `set_next_bid_done`, …). Hand-written `title` + `description` drive LLM tool selection; Zod raw shapes give the SDK enough type info to both generate the inputSchema JSON Schema AND validate inputs at call-time.
 
-Domains: `system` (1 — `whoami`), `goals` (4), `tasks` (4), `values` (7), `people` (9), `next_bids` (6), `important_dates` (4), `groups` (5), `bucket_list` (5), `self` (6). Out of scope for v1 (re-add when needed): connections (graph topology), tracking items / sync templates / weekly sync, attachments / images, backup / data export.
+Domains: `system` (4: `whoami`, `update_profile`, `set_avatar`, `remove_avatar`), `goals` (4), `tasks` (4), `values` (7), `people` (11), `next_bids` (6), `important_dates` (4), `groups` (5), `bucket_list` (5), `self` (7), `tracking_items` (4), `sync_templates` (5), `weekly_sync` (10, with `get_pulse` and the attachments), `connections` (4). The app is meant to be fully drivable from here. Left on the screens on purpose: password and email changes, because a connector must not be able to take over the account; backup export and import, because one is the whole account with file bytes and the other replaces it. A new feature gets its tools with it.
+
+**A week is named by a calendar day (`localDay`), never by the clock.** The server is in UTC and `week_date` holds whatever Monday the creator's clock said: Monday 03:00Z from a browser in Uruguay, 00:00Z from a naive server. The unique index cannot see those as one week, so a tool computing `weekStartOf(new Date())` would start a second sync that Pulse never shows. So the tools take the user's `day`, `weekOfDay` turns it into noon UTC on its Monday, and `weekly-sync.ts` matches by week within `WEEK_MATCH_MS` instead of by instant. That also keeps one sync for a user who opens the app on another clock. Starting a week that has a sync returns that sync.
+
+**Pulse is computed once**, in `lib/pulse.ts`: `Pulse.tsx` and `get_pulse` (`server/services/pulse.ts`) call the same pure functions, so a change to the attention rules reaches both.
 
 MCP-specific gates (not in the underlying service schemas): `create_person` / `update_person` reject URL emojis (an LLM can't construct a valid `/api/files/{id}` pointer anyway); `create_goal` omits the `tasks` array (use `create_task` after the goal exists) so the LLM doesn't have to think about pre-cast task ids.
 
@@ -535,7 +539,7 @@ components/oauth/ConsentScreen.tsx             # Consent UI (EN-only for v1)
 lib/mcp/server.ts                              # Per-request McpServer factory
 lib/mcp/types.ts                               # McpCtx = { userId }
 lib/mcp/errors.ts                              # AppError → MCP error result + mcpJsonResult
-lib/mcp/tools/{system,goals,tasks,values,people,next_bids,important_dates,groups,bucket_list,self}.ts
+lib/mcp/tools/{system,goals,tasks,values,people,next_bids,important_dates,groups,bucket_list,self,tracking_items,sync_templates,weekly_sync,connections}.ts
 lib/mcp/tools/fields.ts                        # isoDate + toolInput/closedObject (zod 4 JSON Schema)
 lib/mcp/oauth/{store,clients,codes,tokens,pkce,consent,metadata,scopes,audit,authorize-validation}.ts
 ```
@@ -742,7 +746,7 @@ Rules:
 
 > **A green `pnpm build` is not evidence that the app runs.** Three separate defects during the migration passed `vite build` and failed on the first real request: `import 'server-only'` (500 on every SSR pass), a mis-registered server-function id (`Invalid server function ID`, only at call time), and a dnd-kit hydration mismatch. **Exercise changes in `pnpm dev` from a real browser**, and include *client-side* navigation — a hard reload runs loaders on the server where a server fn is a direct call, so only client-side navigation tests the RPC path.
 
-`.golden/` holds the pre-migration oracle and is the reference for anything that must not drift: the 51-tool `tools/list` JSON, both `.well-known` documents, the MCP 401 response (which doubles as the security-header baseline), and 29 screenshots. `.golden/README.md` documents the diff procedure, the one deliberate re-baseline (zod 4), and its known false positives (`objectives-*` always differ — React Flow animates its dashed edges).
+`.golden/` holds the pre-migration oracle and is the reference for anything that must not drift: the 80-tool `tools/list` JSON, both `.well-known` documents, the MCP 401 response (which doubles as the security-header baseline), and 29 screenshots. `.golden/README.md` documents the diff procedure, the one deliberate re-baseline (zod 4), and its known false positives (`objectives-*` always differ — React Flow animates its dashed edges).
 
 ## Infrastructure
 

@@ -1,0 +1,71 @@
+name: iOS CI
+
+# The iPhone app in ios/. Only changes under ios/ (or to the iOS workflows) run it; the web app ships
+# through daedalus and never through GitHub Actions. Every branch builds, so a branch's app is checked
+# before it reaches main; a green main is what ios-deploy.yml ships to TestFlight.
+on:
+  pull_request:
+    paths: ['ios/**', '.github/workflows/ios-*.yml', '!ios/**.md', '!ios/docs/**', '!ios/scripts/**']
+  push:
+    paths: ['ios/**', '.github/workflows/ios-*.yml', '!ios/**.md', '!ios/docs/**', '!ios/scripts/**']
+  workflow_dispatch:
+
+concurrency:
+  group: ios-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  XCODE_VERSION: '27.0' # keep in sync with local Xcode
+
+defaults:
+  run:
+    working-directory: ios
+
+jobs:
+  test:
+    name: Build & test
+    runs-on: xcode-27 # GitHub's arm64 image with Xcode 27; move to macos-27 when it ships
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+          xcodebuild -version
+
+      - name: Pick simulator
+        id: sim
+        run: |
+          # Prefer the runtime that ships with the selected Xcode (e.g. iOS-27-0).
+          RUNTIME="iOS-${XCODE_VERSION//./-}"
+          UDID=$(xcrun simctl list devices available -j | jq -r --arg rt "$RUNTIME" \
+            '[.devices | to_entries[] | select(.key | endswith($rt)) | .value[] | select(.name | startswith("iPhone"))][0].udid // empty')
+          [ -n "$UDID" ] || { xcrun simctl list runtimes; exit 1; }
+          echo "Using simulator $UDID ($RUNTIME)"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Build app
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Anansi.xcodeproj \
+            -scheme Anansi \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            CODE_SIGNING_ALLOWED=NO
+
+      # The package's auto-generated scheme picks up every test target automatically.
+      - name: Test AnansiKit
+        working-directory: ios/Packages/AnansiKit
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -scheme AnansiKit \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -resultBundlePath "$GITHUB_WORKSPACE/build/Tests.xcresult"
+
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: test-results
+          path: build/Tests.xcresult

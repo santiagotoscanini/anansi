@@ -52,7 +52,7 @@ jobs:
             -project Anansi.xcodeproj \
             -scheme Anansi \
             -destination "id=${{ steps.sim.outputs.udid }}" \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/build.log"
 
       # The package's auto-generated scheme picks up every test target automatically.
       - name: Test AnansiKit
@@ -62,7 +62,12 @@ jobs:
           xcodebuild test \
             -scheme AnansiKit \
             -destination "id=${{ steps.sim.outputs.udid }}" \
-            -resultBundlePath "$GITHUB_WORKSPACE/build/Tests.xcresult"
+            -resultBundlePath "$GITHUB_WORKSPACE/build/Tests.xcresult" 2>&1 | tee "$RUNNER_TEMP/test.log"
+
+      # The tail of a failed xcodebuild log is its command list, not the reason: print the errors last.
+      - name: Errors
+        if: failure()
+        run: grep -hE "(: error: |recorded an issue|✘|\*\* .* FAILED)" "$RUNNER_TEMP"/*.log | sort -u | head -150 || true
 
       - uses: actions/upload-artifact@v5
         if: failure()

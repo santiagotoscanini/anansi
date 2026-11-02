@@ -4,6 +4,7 @@ import {
   CalendarDays,
   ChevronDown,
   ChevronRight,
+  FileText,
   Gift,
   Hourglass,
   ImagePlus,
@@ -489,7 +490,7 @@ interface PulseItemProps {
     title: string
     description: string | null
     textContent: string | null
-    attachments: { id: string; fileName: string; url: string; createdAt: Date }[]
+    attachments: { id: string; fileName: string; fileType: string; url: string; createdAt: Date }[]
     goalTitle: string | null
   }
   weeklySyncId: string
@@ -632,7 +633,19 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
                 {/* `fill` + `sizes` were next/image's way of saying "stretch to
                     the positioned parent". On a plain <img> that is
                     absolute inset-0 with full width and height. */}
-                <img src={a.url} alt={a.fileName} className="absolute inset-0 h-full w-full object-cover" />
+                {a.fileType === 'image' ? (
+                  <img src={a.url} alt={a.fileName} className="absolute inset-0 h-full w-full object-cover" />
+                ) : (
+                  <a
+                    href={a.url}
+                    title={a.fileName}
+                    aria-label={a.fileName}
+                    className="absolute inset-0 flex items-center justify-center"
+                    style={{ color: 'var(--ink-3)' }}
+                  >
+                    <FileText className="h-4 w-4" />
+                  </a>
+                )}
                 <button
                   onClick={() => void onDeleteAttachment(a.id)}
                   className="absolute top-0.5 right-0.5 rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100"

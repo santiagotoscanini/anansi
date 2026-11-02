@@ -1,0 +1,17 @@
+// Single source of truth for app identity and versioning.
+// CI overrides CURRENT_PROJECT_VERSION with the workflow run number.
+
+DEVELOPMENT_TEAM = H8M3SN9RDZ
+PRODUCT_BUNDLE_IDENTIFIER = com.santiagotoscanini.anansi
+INFOPLIST_KEY_CFBundleDisplayName = Anansi
+INFOPLIST_KEY_LSApplicationCategoryType = public.app-category.lifestyle
+
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+
+IPHONEOS_DEPLOYMENT_TARGET = 27.0
+TARGETED_DEVICE_FAMILY = 1,2
+
+// Privacy
+INFOPLIST_KEY_NSCameraUsageDescription = Anansi uses the camera to take pictures for your weekly sync.
+INFOPLIST_KEY_NSPhotoLibraryUsageDescription = Anansi attaches pictures from your library to your weekly sync.

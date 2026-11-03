@@ -17,7 +17,10 @@ export const Route = createFileRoute('/api/v1/weeks/$day')({
       POST: ({ request, params }) =>
         withApiKey(request, async ({ userId }) => {
           const body = await readJson(request, z.object({ templateId: z.string().optional() }).default({}))
-          return weeklySync.create(userId, { weekDate: weekOfDay(dayParam.parse(params.day)), templateId: body.templateId })
+          return weeklySync.create(userId, {
+            weekDate: weekOfDay(dayParam.parse(params.day)),
+            templateId: body.templateId,
+          })
         }),
     },
   },

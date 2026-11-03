@@ -12,7 +12,10 @@ export const Route = createFileRoute('/api/v1/tracking-items/$id')({
         withApiKey(request, async ({ userId }) =>
           trackingItems.update(
             userId,
-            await readJson(request, updateTrackingItemSchema.omit({ id: true }).transform((b) => ({ ...b, id: params.id }))),
+            await readJson(
+              request,
+              updateTrackingItemSchema.omit({ id: true }).transform((b) => ({ ...b, id: params.id })),
+            ),
           ),
         ),
       DELETE: ({ request, params }) => withApiKey(request, ({ userId }) => trackingItems.remove(userId, params.id)),

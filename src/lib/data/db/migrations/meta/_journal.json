@@ -15,6 +15,13 @@
       "when": 1787479019065,
       "tag": "0001_quiet_slayback",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793674369384,
+      "tag": "0002_phone_api_keys_and_overlays",
+      "breakpoints": true
     }
   ]
 }

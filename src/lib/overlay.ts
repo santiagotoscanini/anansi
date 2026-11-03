@@ -16,7 +16,10 @@ const MAX_POINTS = 20_000
 const coordinate = z.number().min(0).max(1)
 
 export const overlayStrokeSchema = z.object({
-  points: z.array(z.tuple([coordinate, coordinate])).min(1).max(4000),
+  points: z
+    .array(z.tuple([coordinate, coordinate]))
+    .min(1)
+    .max(4000),
   /** Line width as a fraction of the frame's width. */
   width: z.number().min(0.001).max(0.1),
 })

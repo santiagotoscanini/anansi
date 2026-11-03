@@ -79,7 +79,10 @@ export async function authenticate(raw: string): Promise<{ userId: string; keyId
   if (!row) return null
   const now = Date.now()
   if (!row.lastUsedAt || now - row.lastUsedAt.getTime() > TOUCH_EVERY_MS) {
-    await db.update(apiKeys).set({ lastUsedAt: new Date(now) }).where(eq(apiKeys.id, row.id))
+    await db
+      .update(apiKeys)
+      .set({ lastUsedAt: new Date(now) })
+      .where(eq(apiKeys.id, row.id))
   }
   return { userId: row.userId, keyId: row.id }
 }

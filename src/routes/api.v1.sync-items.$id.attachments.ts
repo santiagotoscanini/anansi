@@ -24,10 +24,15 @@ export const Route = createFileRoute('/api/v1/sync-items/$id/attachments')({
           const fileType = fileTypeParam.parse(
             url.searchParams.get('fileType') ?? (contentType.startsWith('image/') ? 'image' : 'other'),
           )
-          const fileName = z.string().min(1).max(500).parse(url.searchParams.get('fileName') ?? 'upload')
+          const fileName = z
+            .string()
+            .min(1)
+            .max(500)
+            .parse(url.searchParams.get('fileName') ?? 'upload')
           const bytes = Buffer.from(await request.arrayBuffer())
           if (bytes.length === 0) throw new AppError('BAD_REQUEST', 'Empty upload')
-          if (bytes.length > MAX_UPLOAD_BYTES) throw new AppError('BAD_REQUEST', `Upload exceeds ${MAX_UPLOAD_BYTES} bytes`)
+          if (bytes.length > MAX_UPLOAD_BYTES)
+            throw new AppError('BAD_REQUEST', `Upload exceeds ${MAX_UPLOAD_BYTES} bytes`)
           return attachments.upload(userId, {
             parentType: 'weekly_sync_item',
             parentId: params.id,

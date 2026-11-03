@@ -96,7 +96,8 @@
     "devicesRevoke": "Revoke the key for {{name}}",
     "devicesRevokeConfirm": "Revoke the key for {{name}}? That device stops syncing until you connect it again.",
     "devicesRevoked": "Key revoked",
-    "devicesRevokeFailed": "Couldn't revoke the key"
+    "devicesRevokeFailed": "Couldn't revoke the key",
+    "devicesKeyLine": "{{prefix}}… · {{used}}"
   },
   "dashboard": {
     "nav": {

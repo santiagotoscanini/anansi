@@ -19,9 +19,7 @@ export interface ApiContext {
 }
 
 /** The user's calendar day, `YYYY-MM-DD`: weeks are named by it (see `weekOfDay`). */
-export const dayParam = z
-  .string()
-  .regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, 'a calendar day, YYYY-MM-DD')
+export const dayParam = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, 'a calendar day, YYYY-MM-DD')
 
 export function errorResponse(code: AppErrorCode, message: string, status: number, headers?: Record<string, string>) {
   return Response.json({ error: { code, message } }, { status, headers: { 'cache-control': 'no-store', ...headers } })

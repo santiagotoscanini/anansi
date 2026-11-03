@@ -96,7 +96,8 @@
     "devicesRevoke": "Revocar la clave de {{name}}",
     "devicesRevokeConfirm": "¿Revocar la clave de {{name}}? Ese dispositivo deja de sincronizar hasta que lo vuelvas a conectar.",
     "devicesRevoked": "Clave revocada",
-    "devicesRevokeFailed": "No se pudo revocar la clave"
+    "devicesRevokeFailed": "No se pudo revocar la clave",
+    "devicesKeyLine": "{{prefix}}… · {{used}}"
   },
   "dashboard": {
     "nav": {

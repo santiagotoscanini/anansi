@@ -158,10 +158,12 @@ export default function DevicesSection({ fieldLabel, inputClass, sectionClass }:
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm text-[var(--ink)]">{k.name}</div>
                 <div className="font-mono text-[11px] text-[var(--ink-3)]">
-                  {k.prefix}… ·{' '}
-                  {k.lastUsedAt
-                    ? t('profile.devicesLastUsed', { date: new Date(k.lastUsedAt).toLocaleDateString() })
-                    : t('profile.devicesNeverUsed')}
+                  {t('profile.devicesKeyLine', {
+                    prefix: k.prefix,
+                    used: k.lastUsedAt
+                      ? t('profile.devicesLastUsed', { date: new Date(k.lastUsedAt).toLocaleDateString() })
+                      : t('profile.devicesNeverUsed'),
+                  })}
                 </div>
               </div>
               <button

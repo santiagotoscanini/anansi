@@ -1,15 +1,12 @@
 # What the phone would like from Anansi
 
-The phone uses only what the MCP server already offers. These are the places where it works around a gap; none of
-them block the app.
+The phone talks to `/api/v1` (see `src/routes/api.v1.*.ts`). Remaining rough edges, none blocking:
 
-- **Attachment bytes need a browser session.** `/api/files/{id}` is cookie-only, so the phone reads pictures through
-  `get_sync_attachment`, which base64s the whole file into a JSON-RPC answer and refuses anything over 5 MB. A
-  bearer-accepting file route (or a thumbnail size on the tool) would make the picture grid cheaper.
-- **Uploads are base64 in one JSON body.** `upload_sync_attachment` takes the file inline, so a 3 MB picture is a
-  4 MB request that cannot use a background `URLSession`. The phone scales pictures to 2048 px JPEG and keeps them in
-  an on-disk outbox instead. A plain `PUT` upload route would let iOS send them while the app is suspended.
-- **Uploads aren't idempotent.** A picture whose answer is lost on the way back is sent again and lands twice. A
-  client-chosen id on `upload_sync_attachment` would let the server drop the duplicate.
+- **Uploads aren't idempotent.** A picture whose answer is lost on the way back is sent again and lands twice. An
+  `Idempotency-Key` header on `POST /api/v1/sync-items/{id}/attachments` would let the server drop the duplicate.
+- **Uploads are foreground.** The body is the file, so a background `URLSession` could send it while the app is
+  suspended; today the outbox sends from the foreground (with a short background task) and retries on the next launch.
+- **No thumbnails.** `GET /api/v1/attachments/{id}` returns the full picture (≤ 10 MB, usually ~1 MB after the
+  phone's 2048 px scaling); a `?size=` thumbnail would make the grid cheaper.
 - **No change feed.** The phone re-reads Pulse when it comes forward, on pull-to-refresh and after the outbox lands
   something. There are no push notifications.

@@ -6,22 +6,23 @@ see Pulse at a glance, and set up the items every week starts with.
 - **iOS 27+**, Swift 6 (strict concurrency, MainActor by default), SwiftUI, Observation, Swift Testing
 - **Xcode 27**, synchronized folders: adding files never touches the `.xcodeproj`
 - **CI/CD**: GitHub Actions, only for `ios/`. Every push that touches `ios/` runs the tests, and every green `main`
-  ships to TestFlight. The web app keeps shipping through daedalus, untouched.
+  ships to TestFlight. The web app (including the phone's API) keeps shipping through daedalus.
 
 ## How it talks to Anansi
 
-The phone is an MCP client, exactly like Claude: it calls Anansi's tools at `POST /api/mcp` and signs in through
-Anansi's own OAuth 2.1 server. Nothing on the server was added for it.
+The phone has its own REST API on the server, `/api/v1/*` (`src/routes/api.v1.*.ts`), private to keys you create
+after signing in on the web. Each route calls the same service layer the web app and the MCP tools use. MCP stays
+for Claude; the phone doesn't use it.
 
-1. **Sign in**: discovery (`/.well-known/oauth-authorization-server`), a one-time Dynamic Client Registration as a
-   public client with the redirect `anansi://oauth/callback`, then `/oauth/authorize` with PKCE S256 in the system
-   browser sheet (it shares Safari's Anansi session, so you are usually signed in already). The access token lasts an
-   hour and refreshes on its own; refresh tokens rotate, so only one refresh ever runs at a time. Tokens live in the
-   Keychain. Disconnect the phone from Anansi like any other connector.
-2. **Read**: `get_pulse` and `get_weekly_sync` with the phone's own calendar day (`YYYY-MM-DD`), because Anansi names
-   a week by the user's day, not the server's clock.
-3. **Write**: `set_sync_item_text`, `upload_sync_attachment`, `add_sync_item`, `remove_sync_item`,
-   `reorder_sync_items`, `create_weekly_sync`, the `*_tracking_item` tools and the sync template tools.
+1. **Connect**: on the web, open your profile → **Devices** → **Create key**. The key is shown once, as text and as a
+   QR code of `anansi://connect?server=…&key=…`. Scan it in the app (Connect → Scan the QR code) or with the iPhone
+   Camera app, open the link on the phone, or type the key. The app checks it against `GET /api/v1/me` before
+   keeping it in the Keychain. Revoke the key on the web to cut the phone off.
+2. **Read**: `GET /api/v1/pulse?day=` and `GET /api/v1/weeks/{day}` with the phone's own calendar day (`YYYY-MM-DD`),
+   because Anansi names a week by the user's day, not the server's clock.
+3. **Write**: notes (`PATCH /api/v1/sync-items/{id}`), pictures (`POST /api/v1/sync-items/{id}/attachments`, the
+   JPEG itself as the body), the week's items and order, the library, the default template, and each item's camera
+   outline (`PUT /api/v1/tracking-items/{id}/overlay`).
 
 ## What it does
 
@@ -30,13 +31,19 @@ Anansi's own OAuth 2.1 server. Nothing on the server was added for it.
   horizon (month, quarter, year), and the people needing attention. "Start this week" when the week has no sync yet.
   Pull down to refresh; it also refreshes when the app comes forward and after uploads land.
 - **An item**: notes saved as you type, pictures in a grid (tap to view full screen, long-press to delete), "Take a
-  picture" or "Choose from library" (up to 10 at once).
+  picture" (the pose camera) or "Choose from library" (up to 10 at once).
+- **Pose camera**: for pictures you retake every week (face, chest, side, back). A 3:4 live preview with the item's
+  **outline** drawn over it and **last time's picture** faded underneath (opacity slider), a 3 or 10 second
+  **self-timer**, and the front/back switch. Front-camera pictures are saved mirrored, as previewed, so the outline,
+  the ghost and the picture share one frame. **Draw outline** turns the same screen into the editor: draw with a
+  finger over the live camera (thin, medium, thick; undo; clear) and save it on the tracking item, where every phone
+  finds it. Also reachable from Sync setup → an item → Camera outline.
 - **Weekly sync**: any week, back and forth, grouped by goal with the goal's importance as on the web. Start a week,
   add an item from the library (or a new one) to that week only, swipe to take one off, change the order.
 - **Sync setup**: the library of tracking items (create, edit title/description/goal, delete; an item past weeks used
   is archived by the server instead) and the **default items**, the template every new week starts with: add, remove,
   reorder.
-- **Settings**: server, the account, what is still being sent (with retry/discard for anything Anansi refused), the
+- **Settings**: the connection (server, account, connect again, disconnect), what is still being sent (with retry/discard for anything Anansi refused), the
   picture cache.
 
 ### Offline and uploads
@@ -56,9 +63,9 @@ ios/
   Packages/AnansiKit/
     Sources/AppFeature/      RootView (shows Pulse) + the app delegate hook
     Sources/AnansiFeature/   Everything else
-      Core/                  Pure logic, no UI imports: contract models, LocalDay, MCP envelope, OAuth, outbox, wording
+      Core/                  Pure logic, no UI imports: contract models, LocalDay, API, connect link, overlay, outbox
       Theme.swift            Anansi's warm paper look (tokens from src/styles/globals.css), light and dark
-      AuthStore.swift ...    Sign-in, the MCP client, stores, screens
+      APIClient.swift ...    The connection, the API client, stores, camera, screens
     Tests/AnansiFeatureTests/  Swift Testing suites for Core
   docs/contract-needs.md     Where the phone works around the server
   scripts/setup-ci.sh        One-time TestFlight secrets
@@ -75,7 +82,7 @@ cd ios/Packages/AnansiKit && xcodebuild test -scheme AnansiKit -destination 'pla
 cd ios && xcodebuild build -project Anansi.xcodeproj -scheme Anansi -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
 ```
 
-The server defaults to `https://anansi.toscanini.me`; point Settings at `http://localhost:5173` for a dev server
+For a dev server, create a key at `http://localhost:5173` and use "Enter a key instead" with that server
 (loopback `http://` is allowed for the simulator).
 
 ## Releasing

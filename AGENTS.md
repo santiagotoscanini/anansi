@@ -314,6 +314,10 @@ Image, document, and other binary uploads on weekly-sync items; built-in inline 
 ### trackingItems
 User-owned library for weekly syncs. Goal-link is optional — items with `goalId IS NULL` show as "Unscoped". Goal deletion sets `goalId` to NULL (not cascade), so the item survives.
 - `userId` (NOT NULL, cascade), `goalId` (nullable, ON DELETE SET NULL), `title`, `description` (nullable), `order`, `status` (enum `active|archived`, default `active`), `deletedAt` (nullable — set when referenced by an existing sync at delete time)
+- `overlay` (jsonb, nullable) — the camera outline the phone draws for pictures retaken every week (face, chest, side, back). Shape and limits: `overlaySchema` in `src/lib/overlay.ts` (strokes of `[x, y]` points normalized to the 3:4 camera frame). Written only through `PUT/DELETE /api/v1/tracking-items/{id}/overlay`; carried by backups.
+
+### apiKeys
+Per-device keys for the phone app's REST API (see "Phone API"). `userId` (cascade), `name`, `prefix` (first 12 characters of the raw key, for the list), `tokenHash` (SHA-256 hex, UNIQUE — the raw `ank_…` key is shown once and never stored), `lastUsedAt` (written at most once a minute), `revokedAt`, `createdAt`.
 
 ### syncTemplates + syncTemplateItems (junction)
 Named bundles of tracking items. **Partial unique index** enforces "at most one default per user". The default auto-snapshots into each new weekly sync.
@@ -566,6 +570,30 @@ In Claude Code, run `/mcp` and pick `anansi` → it walks DCR + browser OAuth au
 - Rate limits: 5/min/IP on `/oauth/register`, 20/min/IP on `/oauth/token`, 300/min/IP on `/api/mcp`.
 - DCR is unauthenticated and publicly accessible — acceptable for a single-user personal app. For multi-tenant deployment, add an admin allow-list before exposing.
 - Audit log captures every OAuth state change (never tool calls — too noisy). Token hashes / raw codes are never logged.
+
+## Phone API (/api/v1)
+
+The iPhone app (`ios/`) has its own small REST API instead of driving MCP. Every route file is `src/routes/api.v1.*.ts` and wraps **each** handler in `withApiKey` (`src/server/api/v1.ts`), which rate-limits per IP (600/min, before the key check), resolves `Authorization: Bearer ank_…` through `src/server/services/api-keys.ts`, and turns `AppError`/`ZodError` into `{ "error": { code, message } }` with the matching status. Handlers call the service layer in-process, like the MCP tools; no business rule lives in a route. `surface.test.ts` lists every route as `apikey` and checks one `withApiKey(` per handler.
+
+Keys: created and revoked by the signed-in user in Profile → Devices (`src/server/fn/api-keys.fn.ts`, `DevicesSection.tsx`). A new key is shown once, as text and as a QR code (rendered by `uqr`) of `anansi://connect?server=<origin>&key=<key>`, which the app (or the iPhone camera) opens to connect. At most 20 live keys per user; no expiry; no scopes.
+
+| Route | Methods | Service |
+| --- | --- | --- |
+| `/api/v1/me` | GET | `auth.me` (id, name, email) |
+| `/api/v1/pulse?day=YYYY-MM-DD` | GET | `pulse.get` |
+| `/api/v1/weeks/{day}` | GET, POST `{templateId?}` | `weeklySync.getWeeklyRetrospectiveData` / `create` (by `weekOfDay`) |
+| `/api/v1/syncs/{id}/items` | POST `{trackingItemId}` | `weeklySync.addItem` |
+| `/api/v1/syncs/{id}/order` | PUT `{ids}` | `weeklySync.reorderItems` |
+| `/api/v1/sync-items/{id}` | PATCH `{textContent}`, DELETE | `setItemText` / `removeItem` |
+| `/api/v1/sync-items/{id}/attachments` | POST (body = the file; `?fileName=&fileType=`) | `attachments.upload` |
+| `/api/v1/attachments/{id}` | GET (the bytes, immutable), DELETE | `attachments.read` / `remove` |
+| `/api/v1/tracking-items` | GET, POST | `trackingItems.list` / `create` |
+| `/api/v1/tracking-items/{id}` | PATCH, DELETE | `update` / `remove` |
+| `/api/v1/tracking-items/{id}/overlay` | PUT `{overlay}`, DELETE | `setOverlay` |
+| `/api/v1/tracking-items/{id}/latest-picture?exclude=` | GET | `latestPicture` (newest image of any week, or null) |
+| `/api/v1/templates` | GET, POST | `syncTemplates.list` / `create` |
+| `/api/v1/templates/{id}/items` | PUT `{trackingItemIds}` | `syncTemplates.setItems` |
+| `/api/v1/goals` | GET | `goals.list` (id, title, emoji) |
 
 ## Landing page
 

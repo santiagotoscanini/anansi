@@ -13,5 +13,7 @@ IPHONEOS_DEPLOYMENT_TARGET = 27.0
 TARGETED_DEVICE_FAMILY = 1,2
 
 // Privacy
-INFOPLIST_KEY_NSCameraUsageDescription = Anansi uses the camera to take pictures for your weekly sync.
+INFOPLIST_KEY_NSCameraUsageDescription = Anansi uses the camera for the pictures in your weekly sync and to scan the QR code that connects it.
 INFOPLIST_KEY_NSPhotoLibraryUsageDescription = Anansi attaches pictures from your library to your weekly sync.
+// anansi://connect links (the web's Devices QR code) open the app.
+INFOPLIST_FILE = Config/Info.plist

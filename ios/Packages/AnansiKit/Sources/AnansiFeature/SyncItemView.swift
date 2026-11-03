@@ -170,7 +170,7 @@ struct SyncItemView: View {
                     }
                 }
             }
-            AddPictureButton(itemId: itemId, itemTitle: item.title)
+            AddPictureButton(itemId: itemId, itemTitle: item.title, trackingItemId: item.trackingItemId)
 
             if !files.isEmpty {
                 Eyebrow(text: "Other files").padding(.top, 6)
@@ -200,7 +200,7 @@ struct SyncItemView: View {
 
     private func delete(_ attachment: SyncAttachment) async {
         do {
-            try await MCPClient.shared.deleteAttachment(attachment.id)
+            try await APIClient.shared.deleteAttachment(attachment.id)
             AttachmentCache.shared.forget(attachment.id)
             await data.refreshLoaded()
         } catch {

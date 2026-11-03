@@ -1,4 +1,3 @@
-import AuthenticationServices
 import SwiftUI
 
 struct ItemRoute: Hashable { var id: String }
@@ -9,7 +8,7 @@ struct SetupRoute: Hashable {}
 /// people who need a decision. Pull down to refresh; the app also asks Anansi when it comes forward and after
 /// the outbox lands something.
 struct HomeView: View {
-    @State private var auth = AuthStore.shared
+    @State private var connection = Connection.shared
     @State private var data = SyncData.shared
     @State private var outbox = OutboxStore.shared
     @State private var path = NavigationPath()
@@ -23,7 +22,7 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header
-                    if auth.isSignedIn {
+                    if connection.isConnected {
                         signedInContent
                     } else {
                         ConnectCard()
@@ -41,7 +40,7 @@ struct HomeView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Settings", systemImage: "gearshape") { isShowingSettings = true }
                 }
-                if auth.isSignedIn {
+                if connection.isConnected {
                     ToolbarItem(placement: .primaryAction) {
                         Menu("More", systemImage: "ellipsis.circle") {
                             Button("Weekly sync", systemImage: "calendar") {
@@ -81,27 +80,25 @@ struct HomeView: View {
             do { try await Task.sleep(for: .seconds(1.5)) } catch { return }
             await data.refreshLoaded()
         }
-        .onChange(of: auth.phase) { _, phase in
-            switch phase {
-            case .signedIn:
+        .onChange(of: connection.isConnected) { _, connected in
+            if connected {
                 outbox.resume()
-                Task {
-                    await refresh()
-                    await auth.loadMe()
-                }
-            case .signedOut:
+                Task { await refresh() }
+            } else {
                 data.clear()
-            case .signingIn:
-                break
             }
+        }
+        .onOpenURL { url in
+            guard let link = ConnectLink(url) else { return }
+            Task { await connection.connect(link) }
         }
     }
 
     private func refresh() async {
-        guard auth.isSignedIn else { return }
+        guard connection.isConnected else { return }
         outbox.kick()
         await data.refreshPulse()
-        if auth.me == nil { await auth.loadMe() }
+        await LibraryStore.shared.load()
     }
 
     // MARK: Header
@@ -232,50 +229,120 @@ struct HomeView: View {
     }
 }
 
-/// Sign in: shown on Pulse until the phone is connected.
+/// Shown on Pulse until the phone is connected (or when its key was revoked).
 struct ConnectCard: View {
+    @State private var connection = Connection.shared
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             WebMark(size: 40)
             Text("Connect this phone").font(AN.display(.title2)).foregroundStyle(AN.ink)
-            Text("Sign in to Anansi to fill your weekly sync from here: notes, pictures from the camera or the library, and the default items every week starts with.")
+            Text("On Anansi on the web, open your profile, then Devices, and create a key for this phone. Scan its QR code here (or with the iPhone camera), or open its link on the phone.")
                 .font(AN.text(.body))
                 .foregroundStyle(AN.ink2)
-            SignInButton()
-            Text("Server: \(AnansiSettings.server?.host() ?? AnansiSettings.serverString). Change it in Settings.")
-                .font(AN.mono(.caption2))
-                .foregroundStyle(AN.ink3)
+            ConnectButtons()
         }
         .anansiCard(padding: 20)
     }
 }
 
-/// Runs the OAuth flow in the system browser sheet, showing its error in place.
-struct SignInButton: View {
-    @State private var auth = AuthStore.shared
-    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
+/// "Scan the QR code" and "Enter a key", with the connection's error in place.
+struct ConnectButtons: View {
+    @State private var connection = Connection.shared
+    @State private var isScanning = false
+    @State private var isEntering = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Button {
-                Task {
-                    await auth.signIn { url in
-                        try await webAuthenticationSession.authenticate(using: url,
-                                                                        callbackURLScheme: OAuth.callbackScheme,
-                                                                        preferredBrowserSession: .shared)
-                    }
-                }
+                isScanning = true
             } label: {
-                if auth.phase == .signingIn {
+                if connection.isConnecting {
                     ProgressView().tint(AN.onClay)
                 } else {
-                    Text("Sign in to Anansi")
+                    Label("Scan the QR code", systemImage: "qrcode.viewfinder")
                 }
             }
             .buttonStyle(.anansiPrimary)
-            .disabled(auth.phase == .signingIn)
-            if let error = auth.lastError {
+            .disabled(connection.isConnecting)
+            Button("Enter a key instead") { isEntering = true }
+                .buttonStyle(.anansiOutline)
+            if let error = connection.lastError {
                 Text(error).font(AN.text(.footnote)).foregroundStyle(AN.rust)
+            }
+        }
+        .fullScreenCover(isPresented: $isScanning) {
+            QRScannerView { link in
+                isScanning = false
+                Task { await connection.connect(link) }
+            } onCancel: {
+                isScanning = false
+            }
+        }
+        .sheet(isPresented: $isEntering) {
+            EnterKeyView()
+        }
+    }
+}
+
+/// Server and key typed or pasted by hand.
+struct EnterKeyView: View {
+    @State private var connection = Connection.shared
+    @State private var server = Connection.shared.server?.absoluteString ?? Connection.defaultServer
+    @State private var key = ""
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("https://anansi.example.com", text: $server)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } header: {
+                    Eyebrow(text: "Server")
+                }
+                .anansiRow()
+                Section {
+                    TextField("ank_…", text: $key)
+                        .font(AN.mono(.body))
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    // PasteButton reads the clipboard only when tapped, so iOS doesn't ask on every redraw.
+                    PasteButton(payloadType: String.self) { strings in
+                        if let first = strings.first { key = first.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    }
+                } header: {
+                    Eyebrow(text: "Key")
+                } footer: {
+                    Text("Create it on the web: your profile, then Devices. It is shown once.")
+                }
+                .anansiRow()
+                if let error = connection.lastError {
+                    Section { Text(error).foregroundStyle(AN.rust) }.anansiRow()
+                }
+            }
+            .anansiList()
+            .navigationTitle("Connect")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    if connection.isConnecting {
+                        ProgressView()
+                    } else {
+                        Button("Connect") {
+                            Task {
+                                guard let url = API.parseServer(server) else { return }
+                                if await connection.connect(server: url, key: key) { dismiss() }
+                            }
+                        }
+                        .disabled(API.parseServer(server) == nil || !API.isKey(key))
+                    }
+                }
             }
         }
     }

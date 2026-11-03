@@ -21,12 +21,12 @@ final class SyncData {
     /// Every sync item by id, newest copy.
     private(set) var items: [String: SyncItem] = [:]
 
-    private var client: MCPClient { .shared }
+    private var client: APIClient { .shared }
 
     // MARK: Pulse
 
     func refreshPulse(today: LocalDay = .today()) async {
-        guard AuthStore.shared.isSignedIn else { return }
+        guard Connection.shared.isConnected else { return }
         isLoadingPulse = true
         defer { isLoadingPulse = false }
         do {
@@ -51,7 +51,7 @@ final class SyncData {
 
     /// `weekStart` must be a Monday (`LocalDay.weekStart`).
     func refreshWeek(_ weekStart: LocalDay) async {
-        guard AuthStore.shared.isSignedIn else { return }
+        guard Connection.shared.isConnected else { return }
         loadingWeeks.insert(weekStart)
         defer { loadingWeeks.remove(weekStart) }
         do {

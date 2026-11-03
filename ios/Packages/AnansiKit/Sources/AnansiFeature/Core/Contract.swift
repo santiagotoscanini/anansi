@@ -1,13 +1,13 @@
 import Foundation
 
-// The shapes Anansi's tools answer with, as far as the phone reads them. Unknown keys are ignored, so the server
+// The shapes Anansi's /api/v1 answers with, as far as the phone reads them. Unknown keys are ignored, so the server
 // can grow fields freely; a field the phone needs and the server drops shows up as a decoding error with its name.
 // Timestamps stay strings (ISO 8601 from JSON.stringify) and are parsed where they are shown: see `ISODate`.
 
 // MARK: Weekly sync
 
 /// A file on a sync item. `url` is `/api/files/{id}`, which needs a browser session: the phone reads the bytes
-/// through `get_sync_attachment` instead.
+/// from `/api/v1/attachments/{id}` instead.
 nonisolated struct SyncAttachment: Codable, Hashable, Sendable, Identifiable {
     var id: String
     var fileName: String
@@ -65,7 +65,7 @@ nonisolated struct SyncGoalGroup: Codable, Hashable, Sendable, Identifiable {
     var items: [SyncItem]
 }
 
-/// `get_weekly_sync`: one week, grouped by goal.
+/// `GET /api/v1/weeks/{day}`: one week, grouped by goal.
 nonisolated struct WeeklyRetro: Codable, Hashable, Sendable {
     var weeklySync: WeeklySyncRow?
     var allTrackingItems: [LibraryEntry]
@@ -150,7 +150,7 @@ nonisolated struct AttentionRow: Codable, Hashable, Sendable, Identifiable {
     var id: String { personId }
 }
 
-/// `get_pulse`: the daily landing page in one call.
+/// `GET /api/v1/pulse`: the daily landing page in one call.
 nonisolated struct Pulse: Codable, Hashable, Sendable {
     var day: String
     var weekStartsOn: String
@@ -162,7 +162,7 @@ nonisolated struct Pulse: Codable, Hashable, Sendable {
 
 // MARK: Library and the default items
 
-/// `list_tracking_items`: a library entry with its place and state.
+/// `GET /api/v1/tracking-items`: a library entry with its place and state.
 nonisolated struct TrackingItem: Codable, Hashable, Sendable, Identifiable {
     var id: String
     var title: String
@@ -170,6 +170,16 @@ nonisolated struct TrackingItem: Codable, Hashable, Sendable, Identifiable {
     var goalId: String?
     var order: Int?
     var status: String?
+    /// The camera outline drawn for this item, if any.
+    var overlay: Overlay?
+}
+
+/// The newest picture of a tracking item from any week: the camera's "last time" ghost.
+nonisolated struct LatestPicture: Codable, Hashable, Sendable {
+    var id: String
+    var fileName: String
+    var weeklySyncItemId: String?
+    var weekDate: String?
 }
 
 nonisolated struct SyncTemplateItem: Codable, Hashable, Sendable, Identifiable {
@@ -178,7 +188,7 @@ nonisolated struct SyncTemplateItem: Codable, Hashable, Sendable, Identifiable {
     var orderIdx: Int
 }
 
-/// `list_sync_templates`. At most one is the default, and the default is what a new week starts with.
+/// `GET /api/v1/templates`. At most one is the default, and the default is what a new week starts with.
 nonisolated struct SyncTemplate: Codable, Hashable, Sendable, Identifiable {
     var id: String
     var name: String
@@ -192,7 +202,7 @@ nonisolated struct SyncTemplate: Codable, Hashable, Sendable, Identifiable {
         self.items = items
     }
 
-    /// `create_sync_template` answers with the bare row, no `items`.
+    /// Creating one answers with the bare row, no `items`.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
@@ -214,7 +224,7 @@ nonisolated struct GoalSummary: Codable, Hashable, Sendable, Identifiable {
     var emoji: String?
 }
 
-/// `whoami`.
+/// `GET /api/v1/me`.
 nonisolated struct Me: Codable, Hashable, Sendable {
     var id: String
     var name: String?

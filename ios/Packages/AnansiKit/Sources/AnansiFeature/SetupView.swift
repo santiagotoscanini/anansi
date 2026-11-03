@@ -4,8 +4,8 @@ import SwiftUI
 /// The library of tracking items and the default template ("default items"): what every new week starts with.
 /// The web keeps one default per user and hides the rest of the template machinery; so does the phone.
 @Observable
-final class SetupStore {
-    static let shared = SetupStore()
+final class LibraryStore {
+    static let shared = LibraryStore()
 
     private(set) var items: [TrackingItem] = []
     private(set) var templates: [SyncTemplate] = []
@@ -14,7 +14,7 @@ final class SetupStore {
     private(set) var isLoading = false
     private(set) var hasLoaded = false
 
-    private var client: MCPClient { .shared }
+    private var client: APIClient { .shared }
 
     var defaultTemplate: SyncTemplate? { templates.first(where: \.isDefault) }
 
@@ -32,13 +32,26 @@ final class SetupStore {
         defaultTemplate?.items.contains(where: { $0.trackingItemId == item.id }) ?? false
     }
 
+    /// The camera outline drawn for a library item, if any.
+    func overlay(for trackingItemId: String) -> Overlay? {
+        items.first(where: { $0.id == trackingItemId })?.overlay
+    }
+
+    /// Saves (or clears, with nil) an item's camera outline and keeps the answer.
+    func setOverlay(_ overlay: Overlay?, for trackingItemId: String) async throws {
+        let updated = try await client.setOverlay(trackingItemId, overlay: overlay)
+        if let index = items.firstIndex(where: { $0.id == trackingItemId }) {
+            items[index].overlay = updated.overlay
+        }
+    }
+
     func goalTitle(_ goalId: String?) -> String? {
         guard let goalId else { return nil }
         return goals.first(where: { $0.id == goalId })?.title
     }
 
     func load() async {
-        guard AuthStore.shared.isSignedIn else { return }
+        guard Connection.shared.isConnected else { return }
         isLoading = true
         defer { isLoading = false }
         do {
@@ -105,7 +118,7 @@ final class SetupStore {
 }
 
 struct SetupView: View {
-    @State private var store = SetupStore.shared
+    @State private var store = LibraryStore.shared
     @State private var isOrdering = false
     @State private var editing: TrackingItem?
     @State private var isCreating = false
@@ -242,6 +255,7 @@ struct SetupView: View {
                             Text(store.goalTitle(item.goalId) ?? "Unscoped").font(AN.ui(.caption)).foregroundStyle(AN.ink3)
                         }
                         Spacer()
+                        if item.overlay != nil { Tag(text: "Outline", tone: .relation) }
                         if store.isDefault(item) { Tag(text: "Default", tone: .accent) }
                     }
                 }
@@ -273,12 +287,13 @@ struct TrackingItemEditor: View {
     let item: TrackingItem?
     var afterCreate: ((TrackingItem) async throws -> Void)?
 
-    @State private var store = SetupStore.shared
+    @State private var store = LibraryStore.shared
     @State private var title = ""
     @State private var description = ""
     @State private var goalId: String?
     @State private var isSaving = false
     @State private var error: String?
+    @State private var isDrawingOutline = false
     @Environment(\.dismiss) private var dismiss
 
     init(item: TrackingItem?, afterCreate: ((TrackingItem) async throws -> Void)? = nil) {
@@ -313,6 +328,17 @@ struct TrackingItemEditor: View {
                     Text("An item can track a goal, or stand on its own.")
                 }
                 .anansiRow()
+                if let item {
+                    Section {
+                        Button(store.overlay(for: item.id) == nil ? "Draw an outline" : "Edit the outline",
+                               systemImage: "figure.stand") { isDrawingOutline = true }
+                    } header: {
+                        Eyebrow(text: "Camera outline")
+                    } footer: {
+                        Text("For pictures you retake every week (face, chest, side, back): draw where your body goes, over the live camera, and the camera shows it each time so the pictures line up.")
+                    }
+                    .anansiRow()
+                }
                 if let error {
                     Section { Text(error).foregroundStyle(AN.rust) }.anansiRow()
                 }
@@ -335,6 +361,11 @@ struct TrackingItemEditor: View {
             }
             .task {
                 if store.goals.isEmpty { await store.load() }
+            }
+            .fullScreenCover(isPresented: $isDrawingOutline) {
+                if let item {
+                    PoseCameraView(trackingItemId: item.id, title: item.title, startDrawing: true)
+                }
             }
         }
     }

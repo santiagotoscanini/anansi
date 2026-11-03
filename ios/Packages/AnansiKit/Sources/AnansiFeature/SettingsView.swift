@@ -2,56 +2,44 @@ import SwiftUI
 
 /// Server, account, what is waiting to send, the picture cache.
 struct SettingsView: View {
-    @State private var auth = AuthStore.shared
+    @State private var connection = Connection.shared
     @State private var outbox = OutboxStore.shared
     @State private var cache = AttachmentCache.shared
-    @State private var server = AnansiSettings.serverString
-    @State private var serverError: String?
     @State private var cacheBytes = 0
-    @State private var isConfirmingSignOut = false
+    @State private var isConfirmingDisconnect = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("https://anansi.example.com", text: $server)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .onSubmit(applyServer)
-                    if let serverError {
-                        Text(serverError).font(AN.text(.footnote)).foregroundStyle(AN.rust)
-                    }
-                    if server != AnansiSettings.serverString {
-                        Button("Use this server", action: applyServer)
-                    }
-                } header: {
-                    Eyebrow(text: "Server")
-                } footer: {
-                    Text("Your Anansi's address. Changing it signs this phone out of the previous one.")
-                }
-                .anansiRow()
-
-                Section {
-                    if auth.isSignedIn {
-                        LabeledContent("Signed in as") {
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text(auth.me?.name ?? "…")
-                                if let email = auth.me?.email {
-                                    Text(email).font(AN.ui(.caption)).foregroundStyle(AN.ink3)
+                    if let host = connection.host {
+                        LabeledContent("Server", value: host)
+                        if let me = connection.me {
+                            LabeledContent("Account") {
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text(me.name ?? "…")
+                                    if let email = me.email {
+                                        Text(email).font(AN.ui(.caption)).foregroundStyle(AN.ink3)
+                                    }
                                 }
                             }
                         }
-                        Button("Sign out", role: .destructive) { isConfirmingSignOut = true }
-                    } else {
-                        SignInButton()
+                        if connection.keyRejected {
+                            Text(connection.lastError ?? "The key was revoked.").font(AN.text(.footnote)).foregroundStyle(AN.rust)
+                        }
+                    }
+                    if !connection.isConnected || connection.keyRejected {
+                        ConnectButtons()
                             .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                     }
+                    if connection.host != nil {
+                        Button("Disconnect this phone", role: .destructive) { isConfirmingDisconnect = true }
+                    }
                 } header: {
-                    Eyebrow(text: "Account")
+                    Eyebrow(text: "Connection")
                 } footer: {
-                    Text("The phone connects like Claude does: through Anansi's MCP server, with its own sign-in. You can revoke it from Anansi at any time.")
+                    Text("This phone uses its own API key, created on the web in your profile under Devices. Revoke it there to cut this phone off.")
                 }
                 .anansiRow()
 
@@ -118,32 +106,20 @@ struct SettingsView: View {
             }
             .task {
                 cacheBytes = cache.diskBytes
-                if auth.isSignedIn, auth.me == nil { await auth.loadMe() }
+                await connection.refreshMe()
             }
-            .confirmationDialog("Sign out of Anansi?", isPresented: $isConfirmingSignOut, titleVisibility: .visible) {
-                Button("Sign out", role: .destructive) {
-                    Task { await auth.signOut() }
+            .confirmationDialog("Disconnect this phone?", isPresented: $isConfirmingDisconnect, titleVisibility: .visible) {
+                Button("Disconnect", role: .destructive) {
+                    connection.disconnect()
+                    SyncData.shared.clear()
+                    cache.clear()
                 }
             } message: {
                 Text(outbox.outbox.isEmpty
-                     ? "You can sign in again at any time."
-                     : "Notes and pictures not sent yet stay on this phone and go out after you sign in again.")
+                     ? "The key is forgotten on this phone. Revoke it on the web too if you won't use it again."
+                     : "Notes and pictures not sent yet stay on this phone and go out after you connect again.")
             }
         }
-    }
-
-    private func applyServer() {
-        guard let url = OAuth.parseServer(server) else {
-            serverError = "Enter an https:// address."
-            return
-        }
-        serverError = nil
-        server = url.absoluteString
-        guard url.absoluteString != AnansiSettings.server?.absoluteString else { return }
-        UserDefaults.standard.set(url.absoluteString, forKey: AnansiSettings.serverKey)
-        auth.reload()
-        SyncData.shared.clear()
-        cache.clear()
     }
 
     private static var version: String {

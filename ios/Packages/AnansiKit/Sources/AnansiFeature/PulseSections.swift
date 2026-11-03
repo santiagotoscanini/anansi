@@ -52,7 +52,7 @@ struct SyncItemCard: View {
                     Label("Saving", systemImage: "arrow.up.circle").font(AN.mono(.caption2)).foregroundStyle(AN.ink3)
                 }
                 Spacer()
-                AddPictureButton(itemId: item.id, itemTitle: item.title, compact: true)
+                AddPictureButton(itemId: item.id, itemTitle: item.title, trackingItemId: item.trackingItemId, compact: true)
             }
         }
         .anansiCard()

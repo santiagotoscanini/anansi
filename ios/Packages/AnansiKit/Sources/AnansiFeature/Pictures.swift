@@ -4,8 +4,8 @@ import Observation
 import UIKit
 import UniformTypeIdentifiers
 
-/// Attachment pictures, fetched once through `get_sync_attachment` (the `/api/files` URL needs a browser session)
-/// and kept on disk by attachment id: an attachment never changes, it is only deleted.
+/// Attachment pictures, fetched once from `/api/v1/attachments/{id}` and kept on disk by attachment id: an
+/// attachment never changes, it is only deleted.
 @Observable
 final class AttachmentCache {
     static let shared = AttachmentCache()
@@ -33,7 +33,8 @@ final class AttachmentCache {
         inFlight[id] = Task {
             defer { inFlight[id] = nil }
             do {
-                guard let data = try await MCPClient.shared.attachmentImage(id), let image = UIImage(data: data) else {
+                let data = try await APIClient.shared.attachmentData(id)
+                guard let image = UIImage(data: data) else {
                     unavailable.insert(id)
                     return
                 }

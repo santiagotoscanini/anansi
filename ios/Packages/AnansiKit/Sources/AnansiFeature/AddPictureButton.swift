@@ -2,12 +2,13 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
-/// "Add picture": take one with the camera or choose several from the library. Each becomes an upright JPEG
-/// (long side ≤ 2048 px) kept on the phone and queued in the outbox, so it uploads even if the app is closed or
-/// offline right now.
+/// "Add picture": take one with the pose camera (outline, last time's ghost, timer) or choose several from the
+/// library. Each becomes an upright JPEG (long side ≤ 2048 px) kept on the phone and queued in the outbox, so it
+/// uploads even if the app is closed or offline right now.
 struct AddPictureButton: View {
     let itemId: String
     let itemTitle: String
+    let trackingItemId: String
     var compact = false
 
     @State private var selection: [PhotosPickerItem] = []
@@ -46,12 +47,8 @@ struct AddPictureButton: View {
         .disabled(isPreparing)
         .photosPicker(isPresented: $isShowingLibrary, selection: $selection, maxSelectionCount: 10, matching: .images)
         .fullScreenCover(isPresented: $isShowingCamera) {
-            CameraPicker { data in
-                isShowingCamera = false
-                guard let data else { return }
-                Task { await add([data]) }
-            }
-            .ignoresSafeArea()
+            PoseCameraView(trackingItemId: trackingItemId, title: itemTitle,
+                           target: PictureTarget(itemId: itemId, itemTitle: itemTitle))
         }
         .onChange(of: selection) { _, items in
             guard !items.isEmpty else { return }
@@ -91,41 +88,6 @@ struct AddPictureButton: View {
             } catch {
                 self.error = error.localizedDescription
             }
-        }
-    }
-}
-
-/// The system camera, handing back the picture as JPEG data (nil when cancelled).
-struct CameraPicker: UIViewControllerRepresentable {
-    let completion: (Data?) -> Void
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.sourceType = .camera
-        picker.cameraCaptureMode = .photo
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ controller: UIImagePickerController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
-
-    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let completion: (Data?) -> Void
-
-        init(completion: @escaping (Data?) -> Void) {
-            self.completion = completion
-        }
-
-        func imagePickerController(_ picker: UIImagePickerController,
-                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            let image = info[.originalImage] as? UIImage
-            completion(image?.jpegData(compressionQuality: 0.92))
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            completion(nil)
         }
     }
 }

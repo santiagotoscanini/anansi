@@ -315,7 +315,7 @@ struct AddToWeekSheet: View {
             .sheet(isPresented: $isCreating) {
                 TrackingItemEditor(item: nil) { created in
                     guard let syncId = data.weeks[week]?.weeklySync?.id else { return }
-                    try await MCPClient.shared.addSyncItem(weeklySyncId: syncId, trackingItemId: created.id)
+                    try await APIClient.shared.addSyncItem(weeklySyncId: syncId, trackingItemId: created.id)
                     await data.refreshWeek(week)
                     if week == LocalDay.today().weekStart { await data.refreshPulse() }
                 }

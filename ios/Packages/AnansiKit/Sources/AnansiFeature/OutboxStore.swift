@@ -80,7 +80,7 @@ final class OutboxStore {
     }
 
     private func pump() {
-        guard !isSending, AuthStore.shared.isSignedIn else { return }
+        guard !isSending, Connection.shared.isConnected else { return }
         guard let op = outbox.next(now: .now) else {
             scheduleWake()
             return
@@ -96,18 +96,20 @@ final class OutboxStore {
         do {
             switch op.kind {
             case .setText(let text):
-                try await MCPClient.shared.setSyncItemText(op.itemId, text: text)
+                try await APIClient.shared.setSyncItemText(op.itemId, text: text)
             case .upload(let local, let fileName, let fileType, _):
-                guard let data = try? Data(contentsOf: fileURL(local)) else {
+                let url = fileURL(local)
+                guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
                     throw OutboxFileMissing()
                 }
-                try await MCPClient.shared.uploadAttachment(itemId: op.itemId, fileName: fileName, fileType: fileType, data: data)
+                try await APIClient.shared.uploadAttachment(itemId: op.itemId, fileName: fileName, fileType: fileType,
+                                                            contentType: "image/jpeg", fileURL: url)
             }
             outbox.didSucceed(op.id)
             landed += 1
         } catch is OutboxFileMissing {
             outbox.didFailPermanently(op.id, message: "The picture's file is gone from this phone.")
-        } catch let error as MCPError where !error.isRetryable {
+        } catch let error as APIError where !error.isRetryable {
             outbox.didFailPermanently(op.id, message: error.localizedDescription)
         } catch {
             outbox.didFailRetryably(op.id, message: error.localizedDescription, now: .now)

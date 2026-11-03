@@ -1181,16 +1181,70 @@
     },
     "iphone": {
       "eyebrow": "On your iPhone",
-      "title": "The week, filled <em>where it happens.</em>",
-      "body1": "The iPhone app is Pulse in your pocket: this week's items, the notes as you type them, pictures from the camera or the library, and the items every week starts with. What you write waits on the phone until it reaches anansi, so a lost signal costs nothing.",
-      "body2": "For the pictures you retake every week, draw an outline once, right over the camera. It is there every time after, with last week's picture faded underneath, so this week lines up with the last.",
-      "how": "Profile › Devices makes a key for each phone and shows it as a QR code. Scan it and the phone is connected; revoke the key there to disconnect it.",
-      "itemTitle": "Face",
-      "lineUp": "Line up and shoot",
-      "chipOutline": "Outline",
-      "chipGhost": "Last time",
-      "chipTimer": "Timer",
-      "figureAria": "The anansi iPhone app taking this week's Face picture. The camera shows a white outline of a head and shoulders drawn once by hand, and last week's picture faded underneath, slightly off the outline. Below the viewfinder are the Outline and Last time toggles, both on, a Timer button and the shutter."
+      "chapters": {
+        "pocket": {
+          "title": "The week, in your pocket.",
+          "body": "The iPhone app is Pulse on your phone: this week's items, what is filled and what isn't, the goal each one answers to."
+        },
+        "write": {
+          "title": "Write it as it happens.",
+          "body": "Notes save as you type. Without a signal they wait on the phone and go out when it is back, so nothing you wrote is lost."
+        },
+        "scan": {
+          "title": "Scan the week, not just the words.",
+          "body": "For the pictures you retake every week, draw an outline once over the camera. It is there every time after, with last week's picture faded underneath, so this week lines up with the last."
+        },
+        "threads": {
+          "title": "Every capture lands on the web.",
+          "body": "A note, a picture, a call you made: each one lands where it belongs, next to the goal, the value and the people it touches."
+        },
+        "web": {
+          "title": "Pull one thread and the others move.",
+          "body": "The week you lived, measured as you went. Connect the phone from Profile › Devices: scan the QR code, and revoke it there whenever you want."
+        }
+      },
+      "kinds": {
+        "note": "Note",
+        "photo": "Picture",
+        "goal": "Goal",
+        "value": "Value",
+        "group": "Group",
+        "date": "Date"
+      },
+      "nodes": {
+        "pages": "Morning pages",
+        "face": "Face",
+        "sleep": "Sleep",
+        "papa": "Call Papá",
+        "health": "Health",
+        "craft": "Craft",
+        "family": "Family",
+        "birthday": "Papá turns 70"
+      },
+      "screen": {
+        "eyebrow": "Pulse · this week",
+        "greeting": "Good morning,",
+        "thisWeek": "this week.",
+        "filled": "{{filled}} of {{total}} filled",
+        "placeholder": "What happened this week?",
+        "items": {
+          "sleep": "Sleep",
+          "pages": "Morning pages",
+          "face": "Face",
+          "papa": "Call Papá"
+        },
+        "pagesNote": "Three pages before coffee.",
+        "sleepNote": "7 h 20 most nights.",
+        "faceNote": "Front, by the window.",
+        "papaNote": "Sunday, an hour. Plans for the 70th.",
+        "scanning": "Scanning",
+        "lineUp": "Line up and shoot",
+        "chips": {
+          "outline": "Outline",
+          "ghost": "Last time",
+          "timer": "Timer"
+        }
+      }
     }
   }
 }

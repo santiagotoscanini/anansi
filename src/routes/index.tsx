@@ -5,9 +5,9 @@
 //   2. the web · the one section whose form is the argument: the Ananse
 //      Ntontan mark drawn large, real kinds of record on its ring, threads
 //      between the ones the app links (Web.tsx)
-//   3. on your iPhone · the phone app (ios/), shown as its pose camera
-//      (Phone.tsx): notes and pictures for the week, an outline to line up
-//      with, last week's picture faded underneath
+//   3. on your iPhone · the phone app (ios/) as a scroll-driven story in a
+//      sticky stage (ScanStory.tsx, timeline in scan-story.ts): a note typed,
+//      the pose camera scanning a point cloud, captures flying onto the web
 //   4. with Claude · the MCP connector, shown as the conversation itself
 //      (Transcript.tsx)
 //   5. questions · cost, access, privacy, data out. Every answer is checked
@@ -33,7 +33,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { sessionQueryOptions } from '~/lib/queries/session'
 import { AnansiMark, BrandLockup } from '~/components/goals/Brand'
 import AppDemo from '~/components/landing/AppDemo'
-import Phone from '~/components/landing/Phone'
+import ScanStory from '~/components/landing/ScanStory'
 import Transcript from '~/components/landing/Transcript'
 import Web from '~/components/landing/Web'
 
@@ -199,26 +199,7 @@ function LandingPage() {
         </section>
 
         {/* ============ ON YOUR IPHONE ============ */}
-        <section id="iphone" className="px-6 pb-24 md:px-16 md:pb-32">
-          <div className="mx-auto grid max-w-[1280px] items-center gap-14 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] md:gap-16">
-            <div>
-              <Eyebrow>{t('landing.iphone.eyebrow')}</Eyebrow>
-              <h2 className="mt-6" style={h2Style}>
-                <Trans i18nKey="landing.iphone.title" components={{ em: <BrandEm /> }} />
-              </h2>
-              <p className="mt-7" style={bodyStyle}>
-                {t('landing.iphone.body1')}
-              </p>
-              <p className="mt-5" style={bodyStyle}>
-                {t('landing.iphone.body2')}
-              </p>
-              <p className="mt-5" style={{ ...bodyStyle, fontSize: 15, color: 'var(--ink-3)' }}>
-                {t('landing.iphone.how')}
-              </p>
-            </div>
-            <Phone />
-          </div>
-        </section>
+        <ScanStory />
 
         {/* ============ WITH CLAUDE ============ */}
         <section

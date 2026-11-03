@@ -1181,16 +1181,70 @@
     },
     "iphone": {
       "eyebrow": "En tu iPhone",
-      "title": "La semana, escrita <em>donde pasa.</em>",
-      "body1": "La app para iPhone es tu Pulse en el bolsillo: los elementos de esta semana, las notas mientras las escribes, fotos de la cámara o de la fototeca, y los elementos con los que empieza cada semana. Lo que escribes espera en el teléfono hasta llegar a anansi, así que perder la señal no cuesta nada.",
-      "body2": "Para las fotos que repites cada semana, dibuja un contorno una vez, sobre la cámara. Aparece cada vez, con la foto de la semana pasada atenuada debajo, para que esta semana coincida con la anterior.",
-      "how": "Perfil › Dispositivos crea una clave para cada teléfono y la muestra como código QR. Escanéalo y el teléfono queda conectado; revoca la clave ahí para desconectarlo.",
-      "itemTitle": "Cara",
-      "lineUp": "Alinea y dispara",
-      "chipOutline": "Contorno",
-      "chipGhost": "La última vez",
-      "chipTimer": "Temporizador",
-      "figureAria": "La app de anansi para iPhone tomando la foto de Cara de esta semana. La cámara muestra un contorno blanco de cabeza y hombros dibujado a mano una vez, y la foto de la semana pasada atenuada debajo, un poco desplazada del contorno. Debajo del visor están los botones Contorno y La última vez, ambos activos, un botón de Temporizador y el obturador."
+      "chapters": {
+        "pocket": {
+          "title": "La semana, en el bolsillo.",
+          "body": "La app para iPhone es Pulse en tu teléfono: los elementos de esta semana, lo que está escrito y lo que no, el objetivo al que responde cada uno."
+        },
+        "write": {
+          "title": "Escríbelo cuando pasa.",
+          "body": "Las notas se guardan mientras escribes. Sin señal esperan en el teléfono y salen cuando vuelve, así que nada de lo que escribiste se pierde."
+        },
+        "scan": {
+          "title": "Escanea la semana, no solo las palabras.",
+          "body": "Para las fotos que repites cada semana, dibuja un contorno una vez sobre la cámara. Aparece cada vez, con la foto de la semana pasada atenuada debajo, para que esta semana coincida con la anterior."
+        },
+        "threads": {
+          "title": "Cada captura cae en la red.",
+          "body": "Una nota, una foto, una llamada: cada una cae donde corresponde, junto al objetivo, el valor y las personas que toca."
+        },
+        "web": {
+          "title": "Tira de un hilo y los demás se mueven.",
+          "body": "La semana que viviste, medida sobre la marcha. Conecta el teléfono desde Perfil › Dispositivos: escanea el código QR, y revócalo ahí cuando quieras."
+        }
+      },
+      "kinds": {
+        "note": "Nota",
+        "photo": "Foto",
+        "goal": "Objetivo",
+        "value": "Valor",
+        "group": "Grupo",
+        "date": "Fecha"
+      },
+      "nodes": {
+        "pages": "Páginas de la mañana",
+        "face": "Cara",
+        "sleep": "Sueño",
+        "papa": "Llamar a papá",
+        "health": "Salud",
+        "craft": "Oficio",
+        "family": "Familia",
+        "birthday": "Papá cumple 70"
+      },
+      "screen": {
+        "eyebrow": "Pulse · esta semana",
+        "greeting": "Buenos días,",
+        "thisWeek": "esta semana.",
+        "filled": "{{filled}} de {{total}} escritos",
+        "placeholder": "¿Qué pasó esta semana?",
+        "items": {
+          "sleep": "Sueño",
+          "pages": "Páginas de la mañana",
+          "face": "Cara",
+          "papa": "Llamar a papá"
+        },
+        "pagesNote": "Tres páginas antes del café.",
+        "sleepNote": "7 h 20 casi todas las noches.",
+        "faceNote": "De frente, junto a la ventana.",
+        "papaNote": "Domingo, una hora. Planes para los 70.",
+        "scanning": "Escaneando",
+        "lineUp": "Alinea y dispara",
+        "chips": {
+          "outline": "Contorno",
+          "ghost": "La última vez",
+          "timer": "Temporizador"
+        }
+      }
     }
   }
 }

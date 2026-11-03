@@ -11,7 +11,8 @@ import { describe, test } from 'node:test'
 //   - Every file under src/routes that declares server `handlers` is named in
 //     SERVER_ROUTES with the guard it uses, and actually calls it: `session`
 //     (getServerSession, the browser cookie), `bearer` (validateBearer, the MCP
-//     token) or `open` (no caller identity, and the reason why).
+//     token), `apikey` (withApiKey, the phone app's key, once per handler) or
+//     `open` (no caller identity, and the reason why).
 
 const ROUTES = 'src/routes'
 const FNS = 'src/server/fn'
@@ -28,12 +29,28 @@ const OPEN_FNS: Record<string, readonly string[]> = {
   'oauth.fn.ts': ['resolveAuthorize'],
 }
 
-type Guard = 'session' | 'bearer' | 'open'
+type Guard = 'session' | 'bearer' | 'apikey' | 'open'
 
 /** Every server route, and how it knows who is calling. */
 const SERVER_ROUTES: Record<string, Guard> = {
   'api.files.$id.ts': 'session',
   'api.mcp.ts': 'bearer',
+  // The phone app's REST API, every handler wrapped in withApiKey.
+  'api.v1.attachments.$id.ts': 'apikey',
+  'api.v1.goals.ts': 'apikey',
+  'api.v1.me.ts': 'apikey',
+  'api.v1.pulse.ts': 'apikey',
+  'api.v1.sync-items.$id.attachments.ts': 'apikey',
+  'api.v1.sync-items.$id.ts': 'apikey',
+  'api.v1.syncs.$id.items.ts': 'apikey',
+  'api.v1.syncs.$id.order.ts': 'apikey',
+  'api.v1.templates.$id.items.ts': 'apikey',
+  'api.v1.templates.ts': 'apikey',
+  'api.v1.tracking-items.$id.latest-picture.ts': 'apikey',
+  'api.v1.tracking-items.$id.overlay.ts': 'apikey',
+  'api.v1.tracking-items.$id.ts': 'apikey',
+  'api.v1.tracking-items.ts': 'apikey',
+  'api.v1.weeks.$day.ts': 'apikey',
   'oauth.authorize.decision.ts': 'session', // plus its own same-origin check
   // Auth.js, cut to session/csrf/providers/signin/error, POST signout and the
   // OIDC door; the credentials doors 404 (the file says why).
@@ -54,6 +71,7 @@ const SERVER_ROUTES: Record<string, Guard> = {
 const GUARD_CALL: Record<Exclude<Guard, 'open'>, RegExp> = {
   session: /\bgetServerSession\(\)/,
   bearer: /\bvalidateBearer\(/,
+  apikey: /\bwithApiKey\(/,
 }
 
 const read = (dir: string, name: string) => fs.readFileSync(path.join(dir, name), 'utf8')
@@ -85,6 +103,19 @@ describe('the HTTP surface', () => {
     if (guard === 'open') continue
     test(`${name} calls its ${guard} guard`, () => {
       assert.match(read(ROUTES, name), GUARD_CALL[guard])
+    })
+  }
+
+  // One key check per handler: a second method added to a file without the
+  // wrapper would otherwise pass the single match above.
+  for (const [name, guard] of Object.entries(SERVER_ROUTES)) {
+    if (guard !== 'apikey') continue
+    test(`${name} wraps every handler in withApiKey`, () => {
+      const src = read(ROUTES, name)
+      const handlers = (src.match(/\b(GET|POST|PUT|PATCH|DELETE):/g) ?? []).length
+      const guarded = (src.match(/\bwithApiKey\(/g) ?? []).length
+      assert.ok(handlers > 0, 'no handlers found')
+      assert.equal(guarded, handlers, `${handlers} handlers, ${guarded} withApiKey calls`)
     })
   }
 

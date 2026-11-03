@@ -1,10 +1,12 @@
 import { createId } from '@paralleldrive/cuid2'
 import { relations, sql } from 'drizzle-orm'
+import type { Overlay } from '../overlay'
 import {
   boolean,
   customType,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   real,
@@ -303,6 +305,10 @@ export const trackingItems = pgTable(
     order: integer('order').notNull().default(0),
     status: trackingItemStatusEnum('status').notNull().default('active'),
     deletedAt: timestamp('deleted_at'),
+    // A drawing to line the camera up with (a pose outline for body pictures),
+    // in coordinates normalized to the camera frame. Set from the phone app;
+    // null for almost every item. Shape: `overlaySchema` in ~/lib/overlay.
+    overlay: jsonb('overlay').$type<Overlay>(),
     ...timestamps,
   },
   (t) => [index('tracking_items_user_idx').on(t.userId)],
@@ -1074,3 +1080,27 @@ export const goalValuesRelations = relations(goalValues, ({ one }) => ({
     references: [values.id],
   }),
 }))
+
+// API keys for the phone app's REST API (/api/v1/*). Created by the signed-in
+// user on the web (Profile → Devices), shown once, and stored only as a
+// SHA-256 hash. A key is the whole credential: no scopes, no expiry, revoked
+// by the user. `prefix` is the first characters of the raw key so the list can
+// tell keys apart without holding anything secret.
+export const apiKeys = pgTable(
+  'api_keys',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    prefix: text('prefix').notNull(),
+    tokenHash: text('token_hash').notNull().unique(), // SHA-256 hex of the raw key
+    lastUsedAt: timestamp('last_used_at'),
+    revokedAt: timestamp('revoked_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('api_keys_user_idx').on(t.userId)],
+)

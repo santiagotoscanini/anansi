@@ -20,6 +20,8 @@ export const qk = {
   session: ['session'] as const,
   /** The live `users` row: name, email, avatar, locale. */
   me: ['me'] as const,
+  /** The user's API keys for the phone app (Profile → Devices). */
+  apiKeys: ['api-keys'] as const,
   /** SSO or password form. Fixed by server env, so nothing ever invalidates it. */
   authMode: ['auth-mode'] as const,
 

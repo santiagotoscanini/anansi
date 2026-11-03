@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isEmojiGlyph, isOurStorageImageUrl } from '../emoji-utils'
+import { overlaySchema } from '../overlay'
 
 // `emoji` columns accept ONE of two shapes:
 //   1. A short Unicode glyph (✨, 👨‍👩‍👧‍👦, …)
@@ -553,6 +554,8 @@ export const backupTrackingItemSchema = z.object({
   order: z.number().int(),
   status: z.enum(['active', 'archived']),
   deletedAt: z.coerce.date().nullable(),
+  // Optional so backups written before overlays existed still import.
+  overlay: overlaySchema.nullable().optional(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 })

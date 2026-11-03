@@ -26,6 +26,7 @@ import {
 } from '~/server/fn/auth.fn'
 import { exportBackup } from '~/server/fn/backup.fn'
 import Avatar from './Avatar'
+import DevicesSection from './DevicesSection'
 import { useTheme, type ThemePref } from '~/lib/theme'
 import { useLocale } from '~/i18n/useLocale'
 
@@ -623,6 +624,8 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
             <p className="text-xs text-[var(--ink-3)]">{t('profile.mcpClaudeDesktopHelp')}</p>
           </div>
         </div>
+
+        <DevicesSection fieldLabel={fieldLabel} inputClass={inputClass} sectionClass={sectionClass} />
       </div>
     </div>
   )

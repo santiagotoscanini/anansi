@@ -1,10 +1,11 @@
 // The user's library of things they track week to week. Goal-link is optional:
 // items with `goalId IS NULL` render as "Unscoped", and goal deletion sets the
 // column to NULL rather than cascading, so the item survives its goal.
-import { and, asc, eq, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull, ne } from 'drizzle-orm'
 import { db } from '~/lib/data'
-import { goals, trackingItems, weeklySyncItems } from '~/lib/data/schema'
+import { attachments, goals, trackingItems, weeklySync, weeklySyncItems } from '~/lib/data/schema'
 import type { CreateTrackingItem, UpdateTrackingItem } from '~/lib/api/types'
+import type { Overlay } from '~/lib/overlay'
 import { AppError } from './errors'
 
 /** Throws NOT_FOUND unless the tracking item exists and is the caller's. */
@@ -102,4 +103,48 @@ export async function remove(userId: string, id: string) {
 
   await db.delete(trackingItems).where(eq(trackingItems.id, id))
   return { success: true, type: 'hard_delete' as const }
+}
+
+/** Sets or clears (`null`) the camera overlay drawn for an item. */
+export async function setOverlay(userId: string, id: string, overlay: Overlay | null) {
+  await assertOwnsItem(userId, id)
+  const [updated] = await db
+    .update(trackingItems)
+    .set({ overlay, updatedAt: new Date() })
+    .where(eq(trackingItems.id, id))
+    .returning()
+  return updated
+}
+
+/**
+ * The newest picture attached to any week's copy of this item, for the camera's
+ * "last time" ghost. `excludeSyncItemId` leaves out the week being filled, so
+ * the ghost is the previous picture rather than the one just taken.
+ */
+export async function latestPicture(userId: string, id: string, excludeSyncItemId?: string) {
+  await assertOwnsItem(userId, id)
+  const conditions = [
+    eq(weeklySyncItems.trackingItemId, id),
+    eq(weeklySync.userId, userId),
+    eq(attachments.parentType, 'weekly_sync_item'),
+    eq(attachments.fileType, 'image'),
+  ]
+  if (excludeSyncItemId) conditions.push(ne(weeklySyncItems.id, excludeSyncItemId))
+  const [row] = await db
+    .select({
+      id: attachments.id,
+      fileName: attachments.fileName,
+      fileType: attachments.fileType,
+      sizeBytes: attachments.sizeBytes,
+      createdAt: attachments.createdAt,
+      weeklySyncItemId: weeklySyncItems.id,
+      weekDate: weeklySync.weekDate,
+    })
+    .from(attachments)
+    .innerJoin(weeklySyncItems, eq(attachments.parentId, weeklySyncItems.id))
+    .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
+    .where(and(...conditions))
+    .orderBy(desc(weeklySync.weekDate), desc(attachments.createdAt))
+    .limit(1)
+  return row ?? null
 }

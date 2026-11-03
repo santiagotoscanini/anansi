@@ -1026,6 +1026,7 @@
   "landing": {
     "nav": {
       "web": "La red",
+      "iphone": "En tu iPhone",
       "claude": "Con Claude",
       "faq": "Preguntas",
       "logIn": "Iniciar sesión",
@@ -1038,7 +1039,7 @@
     "hero": {
       "title": "Un lugar tranquilo para lo que querés, a quienes querés, y <em>en quién te estás convirtiendo.</em>",
       "lead": "anansi es el diario que escribirías si tu diario pudiera ver los hilos entre las cosas.",
-      "terms": "Gratis · Sin notificaciones · Funciona con Claude"
+      "terms": "Gratis · Sin notificaciones · App para iPhone · Funciona con Claude"
     },
     "demo": {
       "ariaLabel": "Una ventana de la app anansi en la pantalla Pulso. Una barra lateral de papel cálido lista Pulso y luego las secciones Brújula, Metas, Sync y Conexiones con sus doce superficies, más un grupo Familia. El panel principal dice “Buenas tardes, esta semana.” sobre tres consignas de diario (páginas de la mañana, una conversación de verdad y movimiento), cada una con una entrada breve, mientras una columna a la derecha lleva las fechas próximas y las tareas del horizonte de este mes.",
@@ -1156,9 +1157,13 @@
           "q": "¿Puedo llevarme mis datos?",
           "a": "Sí. Perfil › Copias de seguridad exporta todo en un único archivo JSON, adjuntos incluidos, y ese mismo archivo se vuelve a importar."
         },
+        "iphone": {
+          "q": "¿Hay app para el teléfono?",
+          "a": "Sí, para iPhone. Llena el sync semanal desde el teléfono, con notas, fotos y la cámara con contorno. Por ahora está en beta en TestFlight."
+        },
         "claude": {
           "q": "¿Necesito Claude?",
-          "a": "No. Todo funciona en el navegador. Claude es una puerta más."
+          "a": "No. Todo funciona en el navegador y en la app para iPhone. Claude es una puerta más."
         }
       }
     },
@@ -1173,6 +1178,19 @@
       "headingSetIn": "Compuesta en",
       "copy": "© {{year}} anansi",
       "lineage": "Ananse Ntontan · Adinkra · Ghana"
+    },
+    "iphone": {
+      "eyebrow": "En tu iPhone",
+      "title": "La semana, escrita <em>donde pasa.</em>",
+      "body1": "La app para iPhone es tu Pulse en el bolsillo: los elementos de esta semana, las notas mientras las escribes, fotos de la cámara o de la fototeca, y los elementos con los que empieza cada semana. Lo que escribes espera en el teléfono hasta llegar a anansi, así que perder la señal no cuesta nada.",
+      "body2": "Para las fotos que repites cada semana, dibuja un contorno una vez, sobre la cámara. Aparece cada vez, con la foto de la semana pasada atenuada debajo, para que esta semana coincida con la anterior.",
+      "how": "Perfil › Dispositivos crea una clave para cada teléfono y la muestra como código QR. Escanéalo y el teléfono queda conectado; revoca la clave ahí para desconectarlo.",
+      "itemTitle": "Cara",
+      "lineUp": "Alinea y dispara",
+      "chipOutline": "Contorno",
+      "chipGhost": "La última vez",
+      "chipTimer": "Temporizador",
+      "figureAria": "La app de anansi para iPhone tomando la foto de Cara de esta semana. La cámara muestra un contorno blanco de cabeza y hombros dibujado a mano una vez, y la foto de la semana pasada atenuada debajo, un poco desplazada del contorno. Debajo del visor están los botones Contorno y La última vez, ambos activos, un botón de Temporizador y el obturador."
     }
   }
 }

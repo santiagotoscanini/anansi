@@ -1,15 +1,18 @@
-// Public landing page. One argument in five parts:
+// Public landing page. One argument in six parts:
 //
 //   1. hero · the claim, the CTA, and the hand-built Pulse window right
 //      under it (AppDemo.tsx), so the product is in the first screen
 //   2. the web · the one section whose form is the argument: the Ananse
 //      Ntontan mark drawn large, real kinds of record on its ring, threads
 //      between the ones the app links (Web.tsx)
-//   3. with Claude · the MCP connector, shown as the conversation itself
+//   3. on your iPhone · the phone app (ios/), shown as its pose camera
+//      (Phone.tsx): notes and pictures for the week, an outline to line up
+//      with, last week's picture faded underneath
+//   4. with Claude · the MCP connector, shown as the conversation itself
 //      (Transcript.tsx)
-//   4. questions · cost, access, privacy, data out. Every answer is checked
+//   5. questions · cost, access, privacy, data out. Every answer is checked
 //      against code or the legal pages; keep them in step
-//   5. coda · the inverted bookend, then a short colophon
+//   6. coda · the inverted bookend, then a short colophon
 //
 // The 2026-10 pass cut the manifesto, the six-surface card grid (it
 // restated the demo's sidebar), the "whispers" testimonials (they were
@@ -30,6 +33,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { sessionQueryOptions } from '~/lib/queries/session'
 import { AnansiMark, BrandLockup } from '~/components/goals/Brand'
 import AppDemo from '~/components/landing/AppDemo'
+import Phone from '~/components/landing/Phone'
 import Transcript from '~/components/landing/Transcript'
 import Web from '~/components/landing/Web'
 
@@ -38,7 +42,7 @@ export const Route = createFileRoute('/')({
   component: LandingPage,
 })
 
-const FAQ_KEYS = ['free', 'access', 'privacy', 'nudges', 'export', 'claude'] as const
+const FAQ_KEYS = ['free', 'access', 'privacy', 'nudges', 'export', 'iphone', 'claude'] as const
 
 function LandingPage() {
   const { data: session } = useSuspenseQuery(sessionQueryOptions())
@@ -56,6 +60,9 @@ function LandingPage() {
         <div className="flex items-center gap-4 md:gap-7">
           <a href="#web" className="hidden text-sm md:inline" style={{ color: 'var(--ink-2)' }}>
             {t('landing.nav.web')}
+          </a>
+          <a href="#iphone" className="hidden text-sm md:inline" style={{ color: 'var(--ink-2)' }}>
+            {t('landing.nav.iphone')}
           </a>
           <a href="#claude" className="hidden text-sm md:inline" style={{ color: 'var(--ink-2)' }}>
             {t('landing.nav.claude')}
@@ -188,6 +195,28 @@ function LandingPage() {
               </p>
             </div>
             <Web />
+          </div>
+        </section>
+
+        {/* ============ ON YOUR IPHONE ============ */}
+        <section id="iphone" className="px-6 pb-24 md:px-16 md:pb-32">
+          <div className="mx-auto grid max-w-[1280px] items-center gap-14 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] md:gap-16">
+            <div>
+              <Eyebrow>{t('landing.iphone.eyebrow')}</Eyebrow>
+              <h2 className="mt-6" style={h2Style}>
+                <Trans i18nKey="landing.iphone.title" components={{ em: <BrandEm /> }} />
+              </h2>
+              <p className="mt-7" style={bodyStyle}>
+                {t('landing.iphone.body1')}
+              </p>
+              <p className="mt-5" style={bodyStyle}>
+                {t('landing.iphone.body2')}
+              </p>
+              <p className="mt-5" style={{ ...bodyStyle, fontSize: 15, color: 'var(--ink-3)' }}>
+                {t('landing.iphone.how')}
+              </p>
+            </div>
+            <Phone />
           </div>
         </section>
 

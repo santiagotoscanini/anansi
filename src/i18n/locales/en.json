@@ -1026,6 +1026,7 @@
   "landing": {
     "nav": {
       "web": "The web",
+      "iphone": "On your iPhone",
       "claude": "With Claude",
       "faq": "Questions",
       "logIn": "Log in",
@@ -1038,7 +1039,7 @@
     "hero": {
       "title": "A quiet place for what you want, who you love, and <em>who you're becoming.</em>",
       "lead": "anansi is the journal you'd write if your journal could see the threads between things.",
-      "terms": "Free · No notifications · Works with Claude"
+      "terms": "Free · No notifications · iPhone app · Works with Claude"
     },
     "demo": {
       "ariaLabel": "A window of the anansi app on the Pulse screen. A warm paper sidebar lists Pulse, then the Compass, Goals, Sync and Connections sections with their twelve surfaces, and a Family group. The main pane reads “Good afternoon, this week.” above three journal prompts, morning pages, one real conversation and movement, each holding a short written entry, while a right column carries upcoming dates and this month's horizon tasks.",
@@ -1156,9 +1157,13 @@
           "q": "Can I take my data with me?",
           "a": "Yes. Profile › Backups exports everything as one JSON file, attachments included, and the same file imports back."
         },
+        "iphone": {
+          "q": "Is there a phone app?",
+          "a": "Yes, for iPhone. It fills the weekly sync from the phone, with notes, pictures and the pose camera. It is in beta on TestFlight for now."
+        },
         "claude": {
           "q": "Do I need Claude?",
-          "a": "No. Everything works in the browser. Claude is one more way in."
+          "a": "No. Everything works in the browser and in the iPhone app. Claude is one more way in."
         }
       }
     },
@@ -1173,6 +1178,19 @@
       "headingSetIn": "Set in",
       "copy": "© {{year}} anansi",
       "lineage": "Ananse Ntontan · Adinkra · Ghana"
+    },
+    "iphone": {
+      "eyebrow": "On your iPhone",
+      "title": "The week, filled <em>where it happens.</em>",
+      "body1": "The iPhone app is Pulse in your pocket: this week's items, the notes as you type them, pictures from the camera or the library, and the items every week starts with. What you write waits on the phone until it reaches anansi, so a lost signal costs nothing.",
+      "body2": "For the pictures you retake every week, draw an outline once, right over the camera. It is there every time after, with last week's picture faded underneath, so this week lines up with the last.",
+      "how": "Profile › Devices makes a key for each phone and shows it as a QR code. Scan it and the phone is connected; revoke the key there to disconnect it.",
+      "itemTitle": "Face",
+      "lineUp": "Line up and shoot",
+      "chipOutline": "Outline",
+      "chipGhost": "Last time",
+      "chipTimer": "Timer",
+      "figureAria": "The anansi iPhone app taking this week's Face picture. The camera shows a white outline of a head and shoulders drawn once by hand, and last week's picture faded underneath, slightly off the outline. Below the viewfinder are the Outline and Last time toggles, both on, a Timer button and the shutter."
     }
   }
 }

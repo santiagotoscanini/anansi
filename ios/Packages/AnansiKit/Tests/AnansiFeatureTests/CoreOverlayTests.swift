@@ -17,7 +17,8 @@ struct CoreOverlayTests {
 
     @Test func addsAClampedRoundedStroke() {
         var overlay = Overlay(camera: "front")
-        #expect(overlay.add([OverlayPoint(x: -0.2, y: 0.123456), OverlayPoint(x: 1.4, y: 0.123456)], width: 0.5))
+        let added = overlay.add([OverlayPoint(x: -0.2, y: 0.123456), OverlayPoint(x: 1.4, y: 0.123456)], width: 0.5)
+        #expect(added)
         #expect(overlay.strokes.count == 1)
         #expect(overlay.strokes[0].points == [[0, 0.1235], [1, 0.1235]])
         #expect(overlay.strokes[0].width == 0.1)
@@ -26,11 +27,13 @@ struct CoreOverlayTests {
 
     @Test func refusesWhatTheServerWouldRefuse() {
         var overlay = Overlay()
-        #expect(!overlay.add([], width: 0.006))
+        let addedEmpty = overlay.add([], width: 0.006)
+        #expect(!addedEmpty)
         let zigzag = (0..<4000).map { OverlayPoint(x: Double($0 % 2), y: Double($0) / 4000) }
         for _ in 0..<5 { overlay.add(zigzag, width: 0.006) }
         #expect(overlay.pointCount <= Overlay.maxPoints)
-        #expect(!overlay.add(zigzag, width: 0.006))
+        let addedPastTheLimit = overlay.add(zigzag, width: 0.006)
+        #expect(!addedPastTheLimit)
         #expect(overlay.isValid)
     }
 

@@ -63,13 +63,20 @@ export async function withApiKey(request: Request, handler: (ctx: ApiContext) =>
   }
 }
 
-/** The JSON body, validated. A body that isn't JSON is a 400 like any other bad input. */
+/**
+ * The JSON body, validated. A body that isn't JSON is a 400 like any other bad
+ * input. An empty body reaches the schema as `undefined`, so a schema with a
+ * `.default()` makes the body optional (`POST /weeks/{day}` with no options).
+ */
 export async function readJson<T extends z.ZodType>(request: Request, schema: T): Promise<z.infer<T>> {
+  const text = await request.text()
   let body: unknown
-  try {
-    body = await request.json()
-  } catch {
-    throw new AppError('BAD_REQUEST', 'The body must be JSON')
+  if (text.trim() !== '') {
+    try {
+      body = JSON.parse(text)
+    } catch {
+      throw new AppError('BAD_REQUEST', 'The body must be JSON')
+    }
   }
   return schema.parse(body)
 }

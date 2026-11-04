@@ -63,7 +63,9 @@ const apps = await get(`/v1/apps?filter[bundleId]=${BUNDLE_ID}`)
 const app = apps.data[0]
 if (!app) throw new Error(`No app with bundle ID ${BUNDLE_ID}`)
 
-const builds = await all(`/v1/builds?filter[app]=${app.id}&limit=200&fields[builds]=version,uploadedDate`)
+const builds = await all(
+  `/v1/builds?filter[app]=${app.id}&sort=-uploadedDate&limit=200&fields[builds]=version,uploadedDate,processingState`,
+)
 const buildVersion = new Map(builds.map((b) => [b.id, b.attributes.version]))
 
 const crashes = await all(`/v1/apps/${app.id}/betaFeedbackCrashSubmissions?limit=100&include=build`)
@@ -71,6 +73,14 @@ const screenshots = await all(`/v1/apps/${app.id}/betaFeedbackScreenshotSubmissi
 
 mkdirSync(outDir, { recursive: true })
 const lines = [`# TestFlight feedback for ${BUNDLE_ID}`, '']
+
+// VALID is a build testers can install; PROCESSING is still on Apple's side after the upload.
+lines.push('## Latest builds', '')
+for (const build of builds.slice(0, 5)) {
+  const a = build.attributes
+  lines.push(`- build ${a.version} · ${a.processingState} · uploaded ${a.uploadedDate}`)
+}
+lines.push('')
 
 function describe(row) {
   const a = row.attributes

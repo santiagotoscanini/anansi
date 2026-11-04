@@ -86,7 +86,8 @@ final class SyncData {
     func reorder(_ weekStart: LocalDay, orderedIds: [String]) async throws {
         guard let syncId = weeks[weekStart]?.weeklySync?.id else { return }
         if var retro = weeks[weekStart] {
-            let position = Dictionary(uniqueKeysWithValues: orderedIds.enumerated().map { ($1, $0) })
+            // Not `uniqueKeysWithValues`: that traps on a repeated id, and a list is no reason to crash.
+            let position = Dictionary(orderedIds.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
             func renumber(_ list: [SyncItem]) -> [SyncItem] {
                 list.map { item in
                     var item = item

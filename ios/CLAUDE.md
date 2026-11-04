@@ -20,6 +20,12 @@
   automatically.
 - Targets: iOS 27, Swift 6 language mode, default MainActor isolation. Use `@Observable`, not ObservableObject. Use
   Swift Testing (`@Test`, `#expect`), not XCTest.
+- **A closure that UIKit or SwiftUI may call off the main thread must be `@Sendable` and take plain values.** With
+  default MainActor isolation, any other closure handed to them is compiled as main-actor code, and Swift 6 traps
+  (`_dispatch_assert_queue_fail`) when it runs elsewhere. Nothing warns at compile time. SwiftUI's async render
+  thread resolves colors and draws `Canvas` while anything animates, so `UIColor { traits in … }` providers and
+  `Canvas` renderers are the known cases. Build 102 crashed on every screen transition through `Color(light:dark:)`.
+  `ThemeThreadingTests` guards it. `PasteButton` was replaced for the same reason.
 - Test: `cd ios/Packages/AnansiKit && xcodebuild test -scheme AnansiKit -destination 'platform=iOS Simulator,name=<an available iPhone>'`
 - Build app: `cd ios && xcodebuild build -project Anansi.xcodeproj -scheme Anansi -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO`
 - App identity/versioning lives only in `Config/App.xcconfig`.

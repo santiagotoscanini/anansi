@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ItemRoute: Hashable { var id: String }
 struct WeekRoute: Hashable { var weekStart: LocalDay }
@@ -309,10 +310,9 @@ struct EnterKeyView: View {
                         .font(AN.mono(.body))
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    // PasteButton reads the clipboard only when tapped, so iOS doesn't ask on every redraw.
-                    PasteButton(payloadType: String.self) { strings in
-                        if let first = strings.first { key = first.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    }
+                    // A plain button, read on the main thread: PasteButton hands its items over from wherever it loaded
+                    // them, and a main-actor closure (this package's default) traps off the main thread.
+                    Button("Paste", systemImage: "doc.on.clipboard") { paste() }
                 } header: {
                     Eyebrow(text: "Key")
                 } footer: {
@@ -344,6 +344,18 @@ struct EnterKeyView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// The clipboard as a key, or as a whole `anansi://connect` link (server and key at once).
+    private func paste() {
+        guard let text = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty
+        else { return }
+        if let link = ConnectLink(string: text) {
+            server = link.server.absoluteString
+            key = link.key
+        } else {
+            key = text
         }
     }
 }

@@ -116,7 +116,12 @@ struct OverlayStrokes: View {
     var color: Color = .white
 
     var body: some View {
-        Canvas { context, size in
+        // The renderer can run off the main thread (see `Color(light:dark:)`): plain values only, never `self`.
+        let strokes = self.strokes
+        let current = self.current
+        let currentWidth = self.currentWidth
+        let color = self.color
+        Canvas { @Sendable context, size in
             func path(_ points: [OverlayPoint]) -> Path {
                 var path = Path()
                 guard let first = points.first else { return path }

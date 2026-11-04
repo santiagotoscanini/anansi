@@ -55,8 +55,12 @@ enum AN {
 
 extension Color {
     /// A color that follows the light/dark appearance, from two `0xRRGGBB` values.
-    init(light: UInt32, dark: UInt32, opacity: Double = 1, darkOpacity: Double? = nil) {
-        self.init(uiColor: UIColor { traits in
+    ///
+    /// The provider must stay `@Sendable` (nonisolated). SwiftUI resolves colors on its async render thread while
+    /// something animates (a push, a spinner); a provider inferred as main-actor code (this package's default
+    /// isolation) traps there with `_dispatch_assert_queue_fail`, which crashed every screen transition in build 102.
+    nonisolated init(light: UInt32, dark: UInt32, opacity: Double = 1, darkOpacity: Double? = nil) {
+        self.init(uiColor: UIColor { @Sendable traits in
             let isDark = traits.userInterfaceStyle == .dark
             let hex = isDark ? dark : light
             return UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255,
@@ -75,7 +79,11 @@ struct WebMark: View {
     var lineWidth: CGFloat?
 
     var body: some View {
-        Canvas { context, canvas in
+        // The renderer can run off the main thread too: it takes plain values, never `self` or `AN`.
+        let ink = AN.ink
+        let clay = AN.clay
+        let fixedWidth = self.lineWidth
+        Canvas { @Sendable context, canvas in
             let s = min(canvas.width, canvas.height) / 100
             func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x * s, y: y * s) }
             let outer = [p(50, 10), p(78.3, 21.7), p(90, 50), p(78.3, 78.3), p(50, 90), p(21.7, 78.3), p(10, 50), p(21.7, 21.7)]
@@ -89,10 +97,10 @@ struct WebMark: View {
                 web.addLines(ring)
                 web.closeSubpath()
             }
-            let width = lineWidth ?? max(1, 4 * s)
-            context.stroke(web, with: .color(AN.ink), style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+            let width = fixedWidth ?? max(1, 4 * s)
+            context.stroke(web, with: .color(ink), style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
             let r = 4.5 * s
-            context.fill(Path(ellipseIn: CGRect(x: 50 * s - r, y: 50 * s - r, width: 2 * r, height: 2 * r)), with: .color(AN.clay))
+            context.fill(Path(ellipseIn: CGRect(x: 50 * s - r, y: 50 * s - r, width: 2 * r, height: 2 * r)), with: .color(clay))
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)

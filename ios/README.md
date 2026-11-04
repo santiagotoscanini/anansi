@@ -91,6 +91,13 @@ Push to `main`. When iOS CI passes, `ios-deploy.yml` archives the app with cloud
 TestFlight. The build number is `github.run_number + 100`. Bump `MARKETING_VERSION` in `Config/App.xcconfig` for a
 new version.
 
+## Crash reports
+
+When the app crashes on a TestFlight build, iOS offers to share the crash: tap **Share** (a comment helps). Then
+run the **TestFlight feedback** workflow (`gh workflow run testflight-feedback.yml`). It reads the shared crashes
+with the App Store Connect key and lists them in the job log. The full crash logs are in its `testflight-feedback`
+artifact. No Mac needed.
+
 One-time setup:
 
 1. In App Store Connect, create the app with the bundle ID `com.santiagotoscanini.anansi` (Apps → + → New App).

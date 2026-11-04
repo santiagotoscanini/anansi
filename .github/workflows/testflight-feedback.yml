@@ -1,0 +1,33 @@
+name: TestFlight feedback
+
+# Downloads the crash reports (with their crash logs) and the screenshot feedback testers shared from TestFlight,
+# so a crash can be read without a Mac. Run it by hand; the results are the job log and the artifact.
+on:
+  workflow_dispatch:
+
+jobs:
+  feedback:
+    name: Read TestFlight feedback
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install App Store Connect API key
+        run: echo "${{ secrets.ASC_KEY_P8_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Download feedback
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ runner.temp }}/AuthKey.p8
+        run: node ios/scripts/testflight-feedback.mjs "$RUNNER_TEMP/feedback"
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: testflight-feedback
+          path: ${{ runner.temp }}/feedback
+
+      - name: Clean up key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"

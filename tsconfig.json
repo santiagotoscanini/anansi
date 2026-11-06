@@ -16,7 +16,7 @@
     /* Bundled projects */
     "lib": ["dom", "dom.iterable", "esnext"],
     /* "node" is not in gpu-rig's list but is required here: image-upload.ts and
-       the `bytea` customType in schema.ts use Buffer, and several server files
+       the backup service use Buffer, and several server files
        read `process` / `path`. Vite's own client types come in through the
        triple-slash reference in src/vite-env.d.ts. */
     "types": ["node"],

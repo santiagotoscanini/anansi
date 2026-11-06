@@ -5,9 +5,6 @@
 // that point at one (users.avatarUrl, people.emoji when an image was uploaded)
 // store the URL *string*, not the id — so writing and reading that string has
 // to agree, and both live here. So does the object's key.
-//
-// No imports, on purpose: scripts/migrate-bytea-to-s3.ts uses `fileKey`
-// without pulling in the database or the env schema.
 
 /**
  * Where a file's bytes live in the bucket: `files/<id>`, derived from the row,

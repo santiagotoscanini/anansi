@@ -29,6 +29,13 @@
       "when": 1793995898009,
       "tag": "0003_files_data_nullable",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793996571105,
+      "tag": "0004_drop_files_data",
+      "breakpoints": true
     }
   ]
 }

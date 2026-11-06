@@ -299,7 +299,7 @@ Image, document, and other binary uploads on weekly-sync items; built-in inline 
 
 ### files
 - One row per uploaded file (avatars, person photos, sync attachments): the record half. The bytes are an object in the app's bucket at `files/<id>`, a key derived from the row (`fileKey` in `services/file-refs.ts`), so no column stores a path. Served by `/api/files/$id`, which auth-gates by session cookie + owner match.
-- `id` (cuid2, PK), `ownerId` (uuid, FK → users.id, cascade), `fileName`, `mimeType`, `sizeBytes` (int), `data` (bytea, **nullable and retired**: where the bytes lived until November 2026; new rows leave it NULL, only `scripts/migrate-bytea-to-s3.ts` reads it, and a later migration drops it), `createdAt`
+- `id` (cuid2, PK), `ownerId` (uuid, FK → users.id, cascade), `fileName`, `mimeType`, `sizeBytes` (int), `createdAt` (until November 2026 the bytes lived in a bytea `data` column; `0004` dropped it)
 
 ### values
 - `name`, `color`, `userId`
@@ -484,8 +484,6 @@ How callers reference uploaded files:
 - `users.avatarUrl` holds `/api/files/{fileId}` (or null for the initials fallback). On re-upload the new file is stored first, the pointer moves, then the old file is released.
 - `people.emoji` accepts either an emoji glyph or `/api/files/{fileId}` (the `Avatar.tsx` component branches on it via `isEmojiUrl`). The Zod schema validates the URL shape via `isOurStorageImageUrl`. A photo uploaded and never saved onto a person (a cancelled modal) stays behind unnamed.
 - `attachments.fileId` is a NOT NULL FK on `files.id`, cascading from the file to the attachment.
-
-**Moving off bytea (November 2026).** The bytes used to live in `files.data`. The column is nullable now and nothing writes it; `scripts/migrate-bytea-to-s3.ts` (bundled to `.output/scripts/migrate-bytea-to-s3.mjs` by `vite.scripts.config.ts`, the second half of `pnpm build`) copies what the old rows still hold, read-only on the database: `podman exec app-anansi node .output/scripts/migrate-bytea-to-s3.mjs --dry-run`, then without `--dry-run`. It skips objects already there at the same size, verifies counts, bytes and a sha256 sample on both sides, prints ids/keys/sizes only and exits 1 on any failure. The bundle is self-contained, so it also runs in an older container (`podman cp` it in). A follow-up migration drops the column and deletes the script, its core `scripts/bytea-to-s3.ts` + test, and `vite.scripts.config.ts`.
 
 **Supported types:** images (PNG/JPG/JPEG/GIF/WebP), documents (TXT/PDF/...), video, audio, other. Image MIME is sniffed via magic bytes in `image-upload.ts`; non-image extensions are clamped to a safe-extension allow-list in `_shared.safeExtension`.
 
@@ -759,7 +757,7 @@ pnpm lint             # ESLint — must end with zero warnings AND zero errors
 pnpm typecheck        # tsr generate && tsc --noEmit
 pnpm check:mcp-tools  # MCP catalog vs .golden/mcp-tools.json — must be zero diff
 pnpm test             # node's runner (via tsx) for our tests, then vitest for src/server/object-store.test.ts alone
-pnpm build            # vite build (client + SSR + nitro), then the one-off script bundle (vite.scripts.config.ts)
+pnpm build            # vite build (client + SSR + nitro)
 ```
 
 `pnpm ci` is five of those six in their check form — `format:check`, `lint`,
@@ -794,7 +792,7 @@ Rules:
 ## Infrastructure
 
 - **`start.mjs`** is the container entry: apply Drizzle migrations, then `import('./.output/server/index.mjs')` (Nitro's bundle listens on import and reads `PORT`/`HOST`). It preflights `DATABASE_URL`, `AUTH_SECRET` and the bucket's five `S3_*` variables and exits 1 if any is missing. **`MIGRATE_ONLY=1` short-circuits before the server starts and exits 0** — that is a hard external contract, used as a NixOS `ExecStartPre`. Do not split this into a separate migration container.
-- **`railpack.json`** is the WHOLE build definition — there is no Dockerfile. `provider: node` + `.tool-versions` pick the toolchain; `steps.build` extends Railpack's own build step; `deploy.inputs` is the complete list of what the runtime image contains — the mise runtime, `/app/.output` (which carries the S3 SDK inside Nitro's server bundle, and the self-contained `.output/scripts/`), `start.mjs`, the Drizzle migrations, and the bare `node_modules/drizzle-orm` + `node_modules/postgres` that `start.mjs` imports. Nothing else ships: an image that needs another file needs another `deploy.inputs` entry, not a copy step. Rolling a build definition back is `git revert` of the commit that changed it.
+- **`railpack.json`** is the WHOLE build definition — there is no Dockerfile. `provider: node` + `.tool-versions` pick the toolchain; `steps.build` extends Railpack's own build step; `deploy.inputs` is the complete list of what the runtime image contains — the mise runtime, `/app/.output` (which carries the S3 SDK inside Nitro's server bundle), `start.mjs`, the Drizzle migrations, and the bare `node_modules/drizzle-orm` + `node_modules/postgres` that `start.mjs` imports. Nothing else ships: an image that needs another file needs another `deploy.inputs` entry, not a copy step. Rolling a build definition back is `git revert` of the commit that changed it.
   - The registry is **not** named here either: `pnpm-workspace.yaml` is in the build context and pins `registry:`, so the box's build inherits the same gate as local dev. See "Package registry" for the emergency override and for why `--config.registry` is the only spelling pnpm honours.
   - There is **no `HEALTHCHECK`** in a Railpack image, so nothing container-side round-trips `SELECT 1` any more. `/api/healthz` still exists and is what gatus probes from outside; a green systemd unit has never meant a live container here.
 - **`railpack.json`'s `exclude`** is the build-context filter, in `.dockerignore` syntax with `!` negation — Railpack read `.dockerignore` and merged it into this same field, so folding the file in changed nothing except leaving exactly one list. Two entries carry real history: the `*.png` exclusion is written `/*.png`, anchored to the context root, because a bare `*.png` matches at every depth and would silently drop `public/icon.png` and `public/apple-icon.png`, breaking the favicon with no error anywhere; and **`.golden/` is deliberately NOT excluded** — `pnpm ci` runs `check:mcp-tools`, which reads `.golden/mcp-tool-names.tsv` as its oracle, and the checks run against this same context. Excluding something the build or the checks need breaks them; excluding something only the image does not need buys nothing, because `deploy.inputs` already decides that.
@@ -806,7 +804,7 @@ Rules:
 
 ## Database migrations
 
-Drizzle migrations live in `src/lib/data/db/migrations/`. `0000_perpetual_scream.sql` is the squashed 23-migration history; `0001`–`0003` came after it (`0003_files_data_nullable` made `files.data` nullable when the bytes moved to the bucket).
+Drizzle migrations live in `src/lib/data/db/migrations/`. `0000_perpetual_scream.sql` is the squashed 23-migration history; `0001`–`0004` came after it (`0003_files_data_nullable` and `0004_drop_files_data` retired `files.data` when the bytes moved to the bucket).
 
 1. **One migration per PR.** Schema changes land as a single consolidated file, not a chain of fixups. Reviewers shouldn't replay your iteration history; squashing after the fact is a merge-conflict magnet.
 2. **If you change schema during a PR and the previous migration isn't committed yet, roll it back before regenerating:**

@@ -3,7 +3,6 @@ import { relations, sql } from 'drizzle-orm'
 import type { Overlay } from '../overlay'
 import {
   boolean,
-  customType,
   index,
   integer,
   jsonb,
@@ -44,13 +43,6 @@ export const selfPatternCategoryEnum = pgEnum('self_pattern_category', [
   'body_state',
   'choice',
 ])
-// Postgres `bytea`, for the retired `files.data` column only (see `files`).
-// drizzle-orm doesn't ship a built-in helper so we declare one here.
-const bytea = customType<{ data: Buffer; default: false }>({
-  dataType() {
-    return 'bytea'
-  },
-})
 
 /**
  * The audit columns carried by every non-junction table, declared once.
@@ -159,12 +151,8 @@ export const accounts = pgTable(
 // column stores a path. services/files.ts writes, reads and deletes both
 // halves together. The metadata (filename, mime, size) drives the
 // `/api/files/[id]` serving route; ownership is enforced at read time by
-// matching `ownerId` against the current session user.
-//
-// `data` is the bytea column the bytes lived in until November 2026. Nothing
-// writes it any more (new rows leave it NULL) and nothing reads it but
-// scripts/migrate-bytea-to-s3.ts, which copies the old rows' bytes into the
-// bucket. A later migration drops it.
+// matching `ownerId` against the current session user. (Until November 2026
+// the bytes lived here, in a bytea `data` column; 0004 dropped it.)
 export const files = pgTable(
   'files',
   {
@@ -177,7 +165,6 @@ export const files = pgTable(
     fileName: text('file_name').notNull(),
     mimeType: text('mime_type').notNull(),
     sizeBytes: integer('size_bytes').notNull(),
-    data: bytea('data'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => [index('files_owner_idx').on(t.ownerId)],

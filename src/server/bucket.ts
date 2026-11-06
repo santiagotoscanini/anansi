@@ -7,8 +7,7 @@ import { memoryObjectStore, objectStoreFromEnv, type ObjectStore } from './objec
 // The platform injects the five S3_* variables when Object storage is on.
 // They are read from process.env here, not declared in ~/lib/env:
 // `objectStoreFromEnv` checks them itself (all five or none, and a partial set
-// throws naming the missing ones), and scripts/migrate-bytea-to-s3.ts builds
-// its store the same way without importing the env schema.
+// throws naming the missing ones).
 
 const globalForBucket = globalThis as unknown as { anansiBucket?: ObjectStore }
 

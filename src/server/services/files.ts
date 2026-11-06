@@ -15,8 +15,7 @@
 //     `files → attachments` FK cascades, so an attachment's row goes with its
 //     file's row.
 //   - A read comes from the bucket only. A row whose object is missing is a
-//     missing file, logged by key, and never answered from the old `data`
-//     column.
+//     missing file, logged by key.
 import { createId } from '@paralleldrive/cuid2'
 import { and, eq, inArray, like, or, type AnyColumn } from 'drizzle-orm'
 import { db } from '~/lib/data'

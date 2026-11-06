@@ -13,12 +13,14 @@ import { memoryObjectStore, objectStoreFromEnv, type ObjectStore } from './objec
 const globalForBucket = globalThis as unknown as { anansiBucket?: ObjectStore }
 
 /**
- * The bucket the platform injected, or an in-memory store in dev and tests.
+ * The bucket the platform injected, or an in-memory store when there is none
+ * (`pnpm dev`, the tests).
  *
- * ⚠ NO FALLBACK IN PRODUCTION. Without the S3_* variables a production build
- * throws here instead of keeping uploads in memory, where the next restart
- * would lose them. start.mjs refuses to boot without them first, so this is
- * the second line, not the first.
+ * ⚠ The production refusal is start.mjs's, not this function's: the image's
+ * only entry point refuses to boot without the five S3_* variables, so a
+ * deployed server never reaches the memory store. It is deliberately not keyed
+ * on NODE_ENV here — the box runs `pnpm run ci` inside the image, after the
+ * build, with NODE_ENV=production and no bucket, and the tests must pass there.
  *
  * Cached on globalThis for the same reason as the database client: vite dev's
  * HMR re-evaluates this module, and a fresh memory store per edit would forget
@@ -26,11 +28,7 @@ const globalForBucket = globalThis as unknown as { anansiBucket?: ObjectStore }
  */
 export function bucket(): ObjectStore {
   if (globalForBucket.anansiBucket) return globalForBucket.anansiBucket
-  const fromEnv = objectStoreFromEnv(process.env)
-  if (!fromEnv && process.env.NODE_ENV === 'production') {
-    throw new Error('object storage is not configured: the S3_* variables are unset')
-  }
-  const store = fromEnv ?? memoryObjectStore()
+  const store = objectStoreFromEnv(process.env) ?? memoryObjectStore()
   globalForBucket.anansiBucket = store
   return store
 }

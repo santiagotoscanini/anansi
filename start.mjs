@@ -36,8 +36,9 @@ if (!process.env.AUTH_SECRET) {
 
 // Every uploaded file's bytes live in the app's bucket (S3_*, injected by the
 // platform with Object storage on). Without one there is nowhere to keep them
-// or read them from (src/server/bucket.ts throws in production rather than
-// keep them in memory). Refuse here rather than on the first file request.
+// or read them from. This is THE production refusal: src/server/bucket.ts
+// falls back to an in-memory store (for dev and the tests), so a server that
+// got past here without a bucket would lose every upload at the next restart.
 for (const name of ['S3_ENDPOINT', 'S3_REGION', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY']) {
   if (!process.env[name]) {
     console.error(`[start] ${name} is not set — refusing to boot (the app's object storage)`)

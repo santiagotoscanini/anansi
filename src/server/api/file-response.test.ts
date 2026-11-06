@@ -2,9 +2,14 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 // The HTTP answer both file routes give, against the in-memory bucket (what
-// `bucket()` is outside production). The env is set before the import:
-// services/files.ts reaches ~/lib/env through the database client, which
-// validates at import and connects lazily, so nothing here touches Postgres.
+// `bucket()` is without the S3_* variables, whatever NODE_ENV says: the box
+// runs this inside the image with NODE_ENV=production). The env is set before
+// the import: services/files.ts reaches ~/lib/env through the database client,
+// which validates at import and connects lazily, so nothing here touches
+// Postgres, and the S3_* variables are cleared so it never touches a bucket.
+for (const name of ['S3_ENDPOINT', 'S3_REGION', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY']) {
+  delete process.env[name]
+}
 process.env.DATABASE_URL ??= 'postgresql://test:test@localhost:5432/test'
 process.env.AUTH_SECRET ??= 'file-response-test-placeholder-secret-not-real'
 const { fileResponse } = await import('./file-response')

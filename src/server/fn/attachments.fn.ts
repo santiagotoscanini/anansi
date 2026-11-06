@@ -17,7 +17,7 @@ export const uploadAttachment = createServerFn({ method: 'POST' })
   .validator(uploadAttachmentSchema)
   .handler(({ data, context }) => attachments.upload(context.userId, data))
 
-/** Cascades to the `files` row, so the bytes go with the metadata. */
+/** Deletes the file too: its bytes leave the bucket, then its row, and the attachment row with it. */
 export const deleteAttachment = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .validator(z.object({ id: z.string() }))

@@ -1,9 +1,21 @@
 // Helpers shared by every service that stores a reference to an uploaded file.
 //
-// Bytes live in the `files` table and are served by the /api/files/[id] route.
-// Columns that point at one (users.avatarUrl, people.emoji when an image was
-// uploaded, attachments) store the URL *string*, not the id — so writing and
-// reading that string has to agree, and both live here.
+// A file is a row in the `files` table (owner, name, type, size) and an object
+// in the app's bucket (the bytes), served by the /api/files/[id] route. Columns
+// that point at one (users.avatarUrl, people.emoji when an image was uploaded)
+// store the URL *string*, not the id — so writing and reading that string has
+// to agree, and both live here. So does the object's key.
+//
+// No imports, on purpose: scripts/migrate-bytea-to-s3.ts uses `fileKey`
+// without pulling in the database or the env schema.
+
+/**
+ * Where a file's bytes live in the bucket: `files/<id>`, derived from the row,
+ * so the database stores no path. Changing it orphans every stored object.
+ */
+export function fileKey(fileId: string): string {
+  return `files/${fileId}`
+}
 
 /**
  * The one place the public file URL shape is constructed.

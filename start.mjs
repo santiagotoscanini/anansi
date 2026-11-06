@@ -34,6 +34,17 @@ if (!process.env.AUTH_SECRET) {
   process.exit(1)
 }
 
+// Every uploaded file's bytes live in the app's bucket (S3_*, injected by the
+// platform with Object storage on). Without one there is nowhere to keep them
+// or read them from (src/server/bucket.ts throws in production rather than
+// keep them in memory). Refuse here rather than on the first file request.
+for (const name of ['S3_ENDPOINT', 'S3_REGION', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY']) {
+  if (!process.env[name]) {
+    console.error(`[start] ${name} is not set — refusing to boot (the app's object storage)`)
+    process.exit(1)
+  }
+}
+
 // A Railpack image keeps the repo layout; ./drizzle/migrations is the legacy location images
 // built before the Railpack cutover used. Pick whichever actually holds a journal so the app
 // can never boot having silently skipped its migrations.

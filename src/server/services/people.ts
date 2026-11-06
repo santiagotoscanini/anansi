@@ -10,7 +10,6 @@ import { db } from '~/lib/data'
 import {
   bucketListItemPeople,
   bucketListItems,
-  files,
   goals,
   people,
   peopleToGroups,
@@ -22,6 +21,7 @@ import { decodeImageUpload, UploadValidationError } from '~/lib/image-upload'
 import { checkRateLimit } from '~/lib/rate-limit'
 import { AppError } from './errors'
 import { fileUrl } from './file-refs'
+import { releaseFile, saveFile } from './files'
 
 /**
  * Two ownership guards, because the callers genuinely want different things and
@@ -96,9 +96,20 @@ export async function create(userId: string, input: CreatePerson) {
   return newPerson
 }
 
-/** `groupIds` is replace-set: omit to leave memberships untouched, `[]` clears. */
+/**
+ * `groupIds` is replace-set: omit to leave memberships untouched, `[]` clears.
+ * A new `emoji` that replaces an uploaded photo releases the old photo's file.
+ */
 export async function update(userId: string, input: UpdatePerson) {
   const { id, groupIds, ...updateData } = input
+  const [prev] =
+    updateData.emoji === undefined
+      ? []
+      : await db
+          .select({ emoji: people.emoji })
+          .from(people)
+          .where(and(eq(people.id, id), eq(people.userId, userId)))
+          .limit(1)
   const [updated] = await db
     .update(people)
     // updatedAt restated — see services/connections.ts update.
@@ -112,6 +123,7 @@ export async function update(userId: string, input: UpdatePerson) {
       await db.insert(peopleToGroups).values(groupIds.map((groupId) => ({ personId: id, groupId })))
     }
   }
+  if (updated && prev && prev.emoji !== updated.emoji) await releaseFile(userId, prev.emoji)
   return updated
 }
 
@@ -134,8 +146,13 @@ export async function unarchive(userId: string, id: string) {
   return updated
 }
 
+/** Hard delete. An uploaded photo goes with the person: its file, bytes included. */
 export async function remove(userId: string, id: string) {
-  await db.delete(people).where(and(eq(people.id, id), eq(people.userId, userId)))
+  const [removed] = await db
+    .delete(people)
+    .where(and(eq(people.id, id), eq(people.userId, userId)))
+    .returning({ emoji: people.emoji })
+  if (removed) await releaseFile(userId, removed.emoji)
   return { success: true }
 }
 
@@ -203,11 +220,11 @@ export async function getBucketListItemsAsParticipant(userId: string, personId: 
 }
 
 /**
- * Upload a picture for a person. Persisted to the `files` table; the returned
+ * Upload a picture for a person, as a file (services/files.ts); the returned
  * URL is a `/api/files/{id}` pointer the caller stashes in `people.emoji` (the
- * column already accepts URL-typed values via Avatar.tsx). Old photos become
- * orphan rows on re-upload — acceptable for a personal app, and a future
- * cleanup pass can sweep them.
+ * column already accepts URL-typed values via Avatar.tsx). The photo it
+ * replaces is released by `update`; a photo uploaded and never saved onto a
+ * person (a modal cancelled after the pick) stays behind unnamed.
  */
 export async function uploadImage(userId: string, input: { fileName: string; data: string }) {
   const rl = checkRateLimit('people.uploadImage', `user:${userId}`, { limit: 20, windowMs: 60_000 })
@@ -221,16 +238,10 @@ export async function uploadImage(userId: string, input: { fileName: string; dat
     throw err
   }
 
-  const [file] = await db
-    .insert(files)
-    .values({
-      ownerId: userId,
-      fileName: input.fileName,
-      mimeType: decoded.mime ?? 'application/octet-stream',
-      sizeBytes: decoded.buffer.length,
-      data: decoded.buffer,
-    })
-    .returning({ id: files.id })
-  if (!file) throw new AppError('INTERNAL_SERVER_ERROR', 'Failed to store image')
+  const file = await saveFile(userId, {
+    fileName: input.fileName,
+    mimeType: decoded.mime ?? 'application/octet-stream',
+    bytes: decoded.buffer,
+  })
   return { url: fileUrl(file.id) }
 }

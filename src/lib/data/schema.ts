@@ -44,8 +44,8 @@ export const selfPatternCategoryEnum = pgEnum('self_pattern_category', [
   'body_state',
   'choice',
 ])
-// Postgres `bytea` for file blobs. drizzle-orm doesn't ship a built-in
-// helper so we declare one here. `data` is the only column that uses it.
+// Postgres `bytea`, for the retired `files.data` column only (see `files`).
+// drizzle-orm doesn't ship a built-in helper so we declare one here.
 const bytea = customType<{ data: Buffer; default: false }>({
   dataType() {
     return 'bytea'
@@ -153,11 +153,18 @@ export const accounts = pgTable(
   (t) => [uniqueIndex('accounts_provider_account_unique').on(t.provider, t.providerAccountId)],
 )
 
-// Binary file storage — replaces Supabase Storage. One row per uploaded
-// blob (avatars, person photos, sync attachments). Bytes live inline in the
-// `data` column; metadata (filename, mime, size) drives the `/api/files/[id]`
-// serving route. Ownership is enforced at read time by joining on `ownerId`
-// against the current session user.
+// Uploaded files (avatars, person photos, sync attachments): one row per file,
+// the record half. The BYTES live in the app's bucket at `files/<id>` — the key
+// derives from this row's id (`fileKey`, server/services/file-refs.ts), so no
+// column stores a path. services/files.ts writes, reads and deletes both
+// halves together. The metadata (filename, mime, size) drives the
+// `/api/files/[id]` serving route; ownership is enforced at read time by
+// matching `ownerId` against the current session user.
+//
+// `data` is the bytea column the bytes lived in until November 2026. Nothing
+// writes it any more (new rows leave it NULL) and nothing reads it but
+// scripts/migrate-bytea-to-s3.ts, which copies the old rows' bytes into the
+// bucket. A later migration drops it.
 export const files = pgTable(
   'files',
   {
@@ -170,7 +177,7 @@ export const files = pgTable(
     fileName: text('file_name').notNull(),
     mimeType: text('mime_type').notNull(),
     sizeBytes: integer('size_bytes').notNull(),
-    data: bytea('data').notNull(),
+    data: bytea('data'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => [index('files_owner_idx').on(t.ownerId)],
@@ -409,8 +416,10 @@ export const syncTemplateItems = pgTable(
 
 // Generic polymorphic attachments table. parent_type discriminates
 // ('weekly_sync_item' is the only producer today; designed to extend to other
-// entities later). Bytes live in the `files` table — `fileId` FK with cascade
-// means deleting an attachment row removes the underlying blob in the same tx.
+// entities later). The bytes are a file (`files` row + its object in the
+// bucket). The `fileId` FK cascades from `files` to here: deleting the file row
+// removes the attachment row, never the other way round, so a delete goes
+// through services/files.ts `deleteFiles` (bytes, then the file row).
 export const attachments = pgTable(
   'attachments',
   {

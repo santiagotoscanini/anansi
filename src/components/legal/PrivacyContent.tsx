@@ -8,11 +8,12 @@
 // It was rewritten on 2026-08-22 to replace a starter document that still
 // described Supabase Auth, Supabase Storage, Vercel hosting and Vercel
 // analytics, none of which this app has ever used since the Auth.js +
-// `files` table + self-hosted migration. If you change any of the
+// self-hosted migration. Files moved from a database table to the app's
+// bucket on the same server in November 2026. If you change any of the
 // following, this page goes stale and has to move with it:
 //
 //   - the auth provider          → src/server/auth/config.ts
-//   - where uploaded bytes go    → src/lib/data/schema.ts (`files`)
+//   - where uploaded bytes go    → src/server/services/files.ts (the bucket)
 //   - who may read a file        → src/routes/api.files.$id.ts
 //   - outbound browser requests  → any new CDN / font host / SDK
 //   - the MCP surface            → src/routes/api.mcp.ts, src/lib/mcp/**
@@ -117,14 +118,16 @@ export default function PrivacyContent() {
             Your rows are keyed to your user id and every query filters on it.
           </li>
           <li>
-            <strong>Files:</strong> your avatar, photos of people, and sync attachments are stored as raw bytes in a
-            database table. There is no uploads directory, no object store, no bucket, public or otherwise.
+            <strong>Files:</strong> your avatar, photos of people, and sync attachments are stored in a private bucket
+            on an object store running on the same server, one bucket per app; the database keeps a row for each file
+            naming its owner. There is no uploads directory, and nothing in the bucket is public.
           </li>
           <li>
             <strong>Serving those files:</strong> one route, <code>/api/files/&#123;id&#125;</code>. It requires a
             signed-in session and matches the file against your user id in the same lookup, so a file belonging to
-            someone else returns the same not-found response as a file that does not exist. There are no signed URLs and
-            no unguessable public links, because there is nothing public to link to.
+            someone else returns the same not-found response as a file that does not exist. No browser is ever handed a
+            link into the bucket; reading it directly takes a key that only the app and the server's operator hold.
+            There are no signed URLs and no unguessable public links, because there is nothing public to link to.
           </li>
         </ul>
       </Section>
@@ -167,8 +170,8 @@ export default function PrivacyContent() {
         <p>In transit, traffic is TLS, and the session cookie is encrypted on top of that.</p>
         <p>
           At rest, nothing is encrypted. The database is plain Postgres on an unencrypted filesystem, and your uploaded
-          files sit as plain bytes in a table with no encryption applied to them. Anyone holding the disks, or holding
-          root on the server, can read all of it. This page is not going to imply otherwise.
+          files sit in the object store on that same filesystem with no encryption applied to them. Anyone holding the
+          disks, or holding root on the server, can read all of it. This page is not going to imply otherwise.
         </p>
       </Section>
 

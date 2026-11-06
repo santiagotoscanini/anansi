@@ -1,6 +1,6 @@
-// Full-fidelity backup: export everything the user owns (DB rows + file bytes),
-// import wipes their data wholesale inside a transaction and rewrites it under
-// the importing user's id.
+// Full-fidelity backup: export everything the user owns (DB rows + the bytes of
+// their sync attachments, read from the bucket), import wipes their data
+// wholesale inside a transaction and rewrites it under the importing user's id.
 //
 // The format is strict — no back-compat shims. `version: 1` is the contract.
 import { and, eq, inArray } from 'drizzle-orm'
@@ -34,6 +34,7 @@ import {
 import { isEmojiGlyph, isOurStorageImageUrl } from '~/lib/emoji-utils'
 import type { Backup } from '~/lib/api/types'
 import { AppError } from './errors'
+import { discardFiles, readFile, removeObjectsOf, saveFile } from './files'
 
 /**
  * On import a backup is user-supplied JSON — never trust its emoji columns. An
@@ -167,23 +168,20 @@ export async function exportAll(userId: string) {
         .where(inArray(tasks.goalId, goalIds))
     : []
 
-  // Pull the underlying bytes for every attachment and base64-encode them.
-  // A missing file row is skipped rather than fatal — a partial backup beats
-  // no backup. attachments.fileId is NOT NULL, so this only happens if a file
-  // was deleted out of band, which the API doesn't allow.
-  const fileIds = attachmentRows.map((a) => a.fileId)
-  const fileRows = fileIds.length
-    ? await db.select({ id: files.id, data: files.data }).from(files).where(inArray(files.id, fileIds))
-    : []
-  const fileById = new Map(fileRows.map((f) => [f.id, f] as const))
+  // Pull the bytes of every attachment out of the bucket and base64-encode
+  // them, one at a time (each is at most an upload's 10 MB). A file whose bytes
+  // are missing is skipped rather than fatal — a partial backup beats no
+  // backup. attachments.fileId is a NOT NULL FK, so the row always exists; the
+  // object is missing only if it was deleted out of band, which the API
+  // doesn't allow.
   const exportedFiles: { attachmentId: string; data: string }[] = []
   for (const a of attachmentRows) {
-    const f = fileById.get(a.fileId)
-    if (!f) {
+    const bytes = await readFile(a.fileId)
+    if (!bytes) {
       console.warn(`[backup.export] missing file skipped for attachment ${a.id} (fileId ${a.fileId})`)
       continue
     }
-    exportedFiles.push({ attachmentId: a.id, data: Buffer.from(f.data).toString('base64') })
+    exportedFiles.push({ attachmentId: a.id, data: Buffer.from(bytes).toString('base64') })
   }
 
   return {
@@ -235,133 +233,152 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
   }
   const b = input.backup
 
-  await db.transaction(async (tx) => {
-    // Nuke. Cascades handle the children: tasks, connections, goalValues,
-    // weeklySyncItems, syncTemplateItems, attachments, etc.
-    await tx.delete(goals).where(eq(goals.userId, userId))
-    await tx.delete(values).where(eq(values.userId, userId))
-    await tx.delete(weeklySync).where(eq(weeklySync.userId, userId))
-    await tx.delete(syncTemplates).where(eq(syncTemplates.userId, userId))
-    await tx.delete(trackingItems).where(eq(trackingItems.userId, userId))
-    await tx.delete(attachments).where(eq(attachments.userId, userId))
-    await tx.delete(people).where(eq(people.userId, userId))
-    await tx.delete(userSelf).where(eq(userSelf.userId, userId))
-    await tx.delete(selfListItems).where(eq(selfListItems.userId, userId))
-    await tx.delete(personGroups).where(eq(personGroups.userId, userId))
-    await tx.delete(bucketListItems).where(eq(bucketListItems.userId, userId))
+  // The files of the attachments being replaced. Their rows go inside the
+  // transaction; their bytes leave the bucket only once it has committed, so a
+  // rolled-back import still has every attachment it started with. Photos of
+  // people and the avatar are not in a backup and are left alone: the
+  // restored people still name their photos by URL.
+  const replaced = (
+    await db.select({ fileId: attachments.fileId }).from(attachments).where(eq(attachments.userId, userId))
+  ).map((a) => a.fileId)
+  // The files this import writes, bytes first and rows in the transaction. If
+  // it rolls back, their bytes are discarded with it.
+  const written: string[] = []
 
-    if (b.values.length) {
-      await tx.insert(values).values(b.values.map((v) => ({ ...v, userId })))
-    }
+  try {
+    await db.transaction(async (tx) => {
+      // Nuke. Cascades handle the children: tasks, connections, goalValues,
+      // weeklySyncItems, syncTemplateItems, etc. The replaced attachments' file
+      // rows go too; their bytes leave the bucket after the commit.
+      await tx.delete(goals).where(eq(goals.userId, userId))
+      await tx.delete(values).where(eq(values.userId, userId))
+      await tx.delete(weeklySync).where(eq(weeklySync.userId, userId))
+      await tx.delete(syncTemplates).where(eq(syncTemplates.userId, userId))
+      await tx.delete(trackingItems).where(eq(trackingItems.userId, userId))
+      await tx.delete(attachments).where(eq(attachments.userId, userId))
+      if (replaced.length) await tx.delete(files).where(inArray(files.id, replaced))
+      await tx.delete(people).where(eq(people.userId, userId))
+      await tx.delete(userSelf).where(eq(userSelf.userId, userId))
+      await tx.delete(selfListItems).where(eq(selfListItems.userId, userId))
+      await tx.delete(personGroups).where(eq(personGroups.userId, userId))
+      await tx.delete(bucketListItems).where(eq(bucketListItems.userId, userId))
 
-    // Goals go in with parentId nulled, then parents are fixed up in a second
-    // pass — the export has no topological ordering, so a child can reference
-    // a parent that hasn't been inserted yet.
-    if (b.goals.length) {
-      await tx.insert(goals).values(
-        b.goals.map((g) => ({
-          id: g.id,
-          title: g.title,
-          description: g.description,
-          emoji: safeEmoji(g.emoji),
-          parentId: null,
-          positionX: g.positionX,
-          positionY: g.positionY,
-          status: g.status,
-          userId,
-          createdAt: g.createdAt,
-          updatedAt: g.updatedAt,
-        })),
-      )
-      for (const g of b.goals) {
-        if (g.parentId) {
-          // `updatedAt` is restated deliberately. Goals are inserted with
-          // parentId null and re-linked in this second pass, so without it
-          // `timestamps.$onUpdate` would stamp every parented goal with the
-          // import time and the restore would quietly lose the backed-up value.
-          // An explicit value always beats $onUpdate, which is what makes this
-          // work.
-          await tx.update(goals).set({ parentId: g.parentId, updatedAt: g.updatedAt }).where(eq(goals.id, g.id))
+      if (b.values.length) {
+        await tx.insert(values).values(b.values.map((v) => ({ ...v, userId })))
+      }
+
+      // Goals go in with parentId nulled, then parents are fixed up in a second
+      // pass — the export has no topological ordering, so a child can reference
+      // a parent that hasn't been inserted yet.
+      if (b.goals.length) {
+        await tx.insert(goals).values(
+          b.goals.map((g) => ({
+            id: g.id,
+            title: g.title,
+            description: g.description,
+            emoji: safeEmoji(g.emoji),
+            parentId: null,
+            positionX: g.positionX,
+            positionY: g.positionY,
+            status: g.status,
+            userId,
+            createdAt: g.createdAt,
+            updatedAt: g.updatedAt,
+          })),
+        )
+        for (const g of b.goals) {
+          if (g.parentId) {
+            // `updatedAt` is restated deliberately. Goals are inserted with
+            // parentId null and re-linked in this second pass, so without it
+            // `timestamps.$onUpdate` would stamp every parented goal with the
+            // import time and the restore would quietly lose the backed-up value.
+            // An explicit value always beats $onUpdate, which is what makes this
+            // work.
+            await tx.update(goals).set({ parentId: g.parentId, updatedAt: g.updatedAt }).where(eq(goals.id, g.id))
+          }
         }
       }
-    }
 
-    if (b.tasks.length) {
-      await tx.insert(tasks).values(b.tasks.map((t) => ({ ...t, emoji: safeEmoji(t.emoji) })))
-    }
-    if (b.goalValues.length) await tx.insert(goalValues).values(b.goalValues)
-    if (b.connections.length) await tx.insert(connections).values(b.connections)
-    if (b.trackingItems.length) await tx.insert(trackingItems).values(b.trackingItems.map((t) => ({ ...t, userId })))
-    if (b.syncTemplates.length) await tx.insert(syncTemplates).values(b.syncTemplates.map((t) => ({ ...t, userId })))
-    if (b.syncTemplateItems.length) await tx.insert(syncTemplateItems).values(b.syncTemplateItems)
-    if (b.weeklySync.length) await tx.insert(weeklySync).values(b.weeklySync.map((ws) => ({ ...ws, userId })))
-    if (b.weeklySyncItems.length) await tx.insert(weeklySyncItems).values(b.weeklySyncItems)
+      if (b.tasks.length) {
+        await tx.insert(tasks).values(b.tasks.map((t) => ({ ...t, emoji: safeEmoji(t.emoji) })))
+      }
+      if (b.goalValues.length) await tx.insert(goalValues).values(b.goalValues)
+      if (b.connections.length) await tx.insert(connections).values(b.connections)
+      if (b.trackingItems.length) await tx.insert(trackingItems).values(b.trackingItems.map((t) => ({ ...t, userId })))
+      if (b.syncTemplates.length) await tx.insert(syncTemplates).values(b.syncTemplates.map((t) => ({ ...t, userId })))
+      if (b.syncTemplateItems.length) await tx.insert(syncTemplateItems).values(b.syncTemplateItems)
+      if (b.weeklySync.length) await tx.insert(weeklySync).values(b.weeklySync.map((ws) => ({ ...ws, userId })))
+      if (b.weeklySyncItems.length) await tx.insert(weeklySyncItems).values(b.weeklySyncItems)
 
-    // Attachments: for every blob in b.files, insert a fresh files row owned by
-    // the importing user and point the attachment at it. Attachments without a
-    // matching blob are dropped — partial backups stay partial, no dangling FKs.
-    if (b.attachments.length) {
-      const blobByAttachmentId = new Map(b.files.map((f) => [f.attachmentId, f.data] as const))
-      type AttachmentInsert = typeof attachments.$inferInsert
-      const attachmentRows: AttachmentInsert[] = []
-      for (const a of b.attachments) {
-        const base64 = blobByAttachmentId.get(a.id)
-        if (!base64) {
-          console.warn(`[backup.import] attachment ${a.id} skipped — no file blob in backup`)
-          continue
-        }
-        const buf = Buffer.from(base64.replace(/^data:[^;]+;base64,/, ''), 'base64')
-        const [file] = await tx
-          .insert(files)
-          .values({
-            ownerId: userId,
+      // Attachments: for every blob in b.files, store a fresh file owned by the
+      // importing user (bytes in the bucket, row in this transaction) and point
+      // the attachment at it. Attachments without a matching blob are dropped —
+      // partial backups stay partial, no dangling FKs.
+      if (b.attachments.length) {
+        const blobByAttachmentId = new Map(b.files.map((f) => [f.attachmentId, f.data] as const))
+        type AttachmentInsert = typeof attachments.$inferInsert
+        const attachmentRows: AttachmentInsert[] = []
+        for (const a of b.attachments) {
+          const base64 = blobByAttachmentId.get(a.id)
+          if (!base64) {
+            console.warn(`[backup.import] attachment ${a.id} skipped — no file blob in backup`)
+            continue
+          }
+          const buf = Buffer.from(base64.replace(/^data:[^;]+;base64,/, ''), 'base64')
+          const file = await saveFile(
+            userId,
+            {
+              fileName: a.fileName,
+              // The backup format predates a mime column on attachments — fall
+              // back to octet-stream; the file route serves what it's given.
+              mimeType: 'application/octet-stream',
+              bytes: buf,
+            },
+            tx,
+          )
+          written.push(file.id)
+          attachmentRows.push({
+            id: a.id,
+            userId,
+            parentType: a.parentType,
+            parentId: a.parentId,
             fileName: a.fileName,
-            // The backup format predates a mime column on attachments — fall
-            // back to octet-stream; the file route serves what it's given.
-            mimeType: 'application/octet-stream',
-            sizeBytes: a.sizeBytes ?? buf.length,
-            data: buf,
+            fileType: a.fileType,
+            fileId: file.id,
+            sizeBytes: a.sizeBytes,
+            createdAt: a.createdAt,
           })
-          .returning({ id: files.id })
-        if (!file) continue
-        attachmentRows.push({
-          id: a.id,
-          userId,
-          parentType: a.parentType,
-          parentId: a.parentId,
-          fileName: a.fileName,
-          fileType: a.fileType,
-          fileId: file.id,
-          sizeBytes: a.sizeBytes,
-          createdAt: a.createdAt,
-        })
+        }
+        if (attachmentRows.length) await tx.insert(attachments).values(attachmentRows)
       }
-      if (attachmentRows.length) await tx.insert(attachments).values(attachmentRows)
-    }
 
-    if (b.people.length) {
-      await tx.insert(people).values(b.people.map((p) => ({ ...p, emoji: safeEmoji(p.emoji), userId })))
-    }
-    if (b.userSelf) await tx.insert(userSelf).values({ ...b.userSelf, userId })
-    if (b.taskReferents.length) await tx.insert(taskReferents).values(b.taskReferents)
-    if (b.personGroups.length) await tx.insert(personGroups).values(b.personGroups.map((g) => ({ ...g, userId })))
-    if (b.peopleToGroups.length) await tx.insert(peopleToGroups).values(b.peopleToGroups)
-    if (b.tasksToGroups.length) await tx.insert(tasksToGroups).values(b.tasksToGroups)
-    if (b.nextBids.length) await tx.insert(nextBids).values(b.nextBids)
-    if (b.importantDates.length) await tx.insert(importantDates).values(b.importantDates)
-    if (b.bucketListItems.length) {
-      await tx.insert(bucketListItems).values(b.bucketListItems.map((it) => ({ ...it, userId })))
-    }
-    if (b.bucketListItemPeople.length) await tx.insert(bucketListItemPeople).values(b.bucketListItemPeople)
-    if (b.selfListItems.length) {
-      await tx.insert(selfListItems).values(b.selfListItems.map((it) => ({ ...it, userId })))
-    }
-  })
+      if (b.people.length) {
+        await tx.insert(people).values(b.people.map((p) => ({ ...p, emoji: safeEmoji(p.emoji), userId })))
+      }
+      if (b.userSelf) await tx.insert(userSelf).values({ ...b.userSelf, userId })
+      if (b.taskReferents.length) await tx.insert(taskReferents).values(b.taskReferents)
+      if (b.personGroups.length) await tx.insert(personGroups).values(b.personGroups.map((g) => ({ ...g, userId })))
+      if (b.peopleToGroups.length) await tx.insert(peopleToGroups).values(b.peopleToGroups)
+      if (b.tasksToGroups.length) await tx.insert(tasksToGroups).values(b.tasksToGroups)
+      if (b.nextBids.length) await tx.insert(nextBids).values(b.nextBids)
+      if (b.importantDates.length) await tx.insert(importantDates).values(b.importantDates)
+      if (b.bucketListItems.length) {
+        await tx.insert(bucketListItems).values(b.bucketListItems.map((it) => ({ ...it, userId })))
+      }
+      if (b.bucketListItemPeople.length) await tx.insert(bucketListItemPeople).values(b.bucketListItemPeople)
+      if (b.selfListItems.length) {
+        await tx.insert(selfListItems).values(b.selfListItems.map((it) => ({ ...it, userId })))
+      }
+    })
+  } catch (err) {
+    await discardFiles(written)
+    throw err
+  }
+  await removeObjectsOf(replaced)
 
-  // File blobs land in the same `files` table the attachments reference, so
-  // there's no post-commit upload step — the transaction above is the entire
-  // write. `fileFailures` is therefore always empty; it stays in the response
-  // because the import UI reads the key.
+  // `fileFailures` is always empty: a blob that cannot be stored fails the
+  // whole import, which then leaves the user's data as it was. It stays in the
+  // response because the import UI reads the key.
   const fileFailures: string[] = []
 
   return {

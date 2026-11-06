@@ -45,6 +45,7 @@ Local dev DB only — do not reuse credentials in production.
 - **UI:** Tailwind **v4** (`@tailwindcss/vite`, no PostCSS step), React Flow (`@xyflow/react`), Lucide, dnd-kit, react-hot-toast, i18next
 - **Backend:** Auth.js v5 core (`@auth/core` + `@auth/drizzle-adapter`), bcryptjs, **Zod 4**
 - **Database:** PostgreSQL + Drizzle ORM + Drizzle Kit
+- **Files:** the app's private S3 bucket on the box's Garage store, through the platform's canonical client (`src/server/object-store.ts`) — see "File storage"
 - **Tooling:** pnpm 11 (with a supply-chain cooldown), ESLint flat config, Prettier (single quotes, no semicolons), `@t3-oss/env-core`
 
 ### React Compiler
@@ -97,9 +98,12 @@ src/
     services/                # plain async (userId, input) fns. NO @tanstack imports.
       errors.ts              #   the AppError taxonomy
       auth.ts values.ts value-behaviors.ts goals.ts tasks.ts connections.ts data.ts
-      tracking-items.ts sync-templates.ts weekly-sync.ts attachments.ts file-refs.ts
+      tracking-items.ts sync-templates.ts weekly-sync.ts attachments.ts file-refs.ts files.ts
       people.ts groups.ts next-bids.ts important-dates.ts bucket-list.ts
       self.ts self-list-items.ts backup.ts
+    bucket.ts                # the app's bucket from S3_* (memory store outside production)
+    object-store.ts          # the platform's S3 client, a VERBATIM copy (+ its vitest test)
+    api/                     # v1.ts (the phone API's withApiKey) + file-response.ts
     fn/                      # createServerFn wrappers. EXPORT ONLY SERVER FNS (see below).
       values.fn.ts goals.fn.ts … + auth.fn.ts + locale.fn.ts + oauth.fn.ts
     middleware/auth.ts       # createMiddleware — a runtime value, so NOT in fn/
@@ -133,7 +137,7 @@ src/
 public/                      # icon.svg, icon.png, apple-icon.png
 ```
 
-There is **no `uploads/` directory**. Every uploaded byte lives in the `files` Postgres table — see "File storage".
+There is **no `uploads/` directory** and no disk. Every uploaded file is a `files` row in Postgres whose bytes live in the app's bucket — see "File storage".
 
 ## Routing
 
@@ -210,7 +214,7 @@ MCP tool  ───────────────────────�
 Sync items + unified Upcoming feed (next bids + important dates) + On the Horizon (Month/Quarter/Year, year collapsed by default).
 
 ### Weekly retrospectives
-User-owned tracking-items library (goal optional → "Unscoped"), reusable sync templates (one default per user auto-snapshots into each new sync), inline `text_content` per sync item, and binary attachments (rows in `attachments`, bytes in `files`).
+User-owned tracking-items library (goal optional → "Unscoped"), reusable sync templates (one default per user auto-snapshots into each new sync), inline `text_content` per sync item, and binary attachments (rows in `attachments`, each pointing at a file: a `files` row whose bytes are in the bucket).
 
 ### Personal CRM (People + Self)
 - People are a **reflection surface**, not a contact manager — phone/email/birthday/last-contact/vCard import were intentionally removed.
@@ -294,8 +298,8 @@ Image, document, and other binary uploads on weekly-sync items; built-in inline 
 - Created by `@auth/drizzle-adapter`. Empty under the Credentials provider (it doesn't write here); one row per user under OIDC, linking `provider`/`provider_account_id` to the existing `users.id`. **Two `users` rows with the same email means `allowDangerousEmailAccountLinking` didn't take.**
 
 ### files
-- Generic binary blob store. One row per uploaded file (avatars, person photos, sync attachments). Bytes live in `data` (bytea); served by `/api/files/$id`, which auth-gates by session cookie + owner match.
-- `id` (cuid2, PK), `ownerId` (uuid, FK → users.id, cascade), `fileName`, `mimeType`, `sizeBytes` (int), `data` (bytea), `createdAt`
+- One row per uploaded file (avatars, person photos, sync attachments): the record half. The bytes are an object in the app's bucket at `files/<id>`, a key derived from the row (`fileKey` in `services/file-refs.ts`), so no column stores a path. Served by `/api/files/$id`, which auth-gates by session cookie + owner match.
+- `id` (cuid2, PK), `ownerId` (uuid, FK → users.id, cascade), `fileName`, `mimeType`, `sizeBytes` (int), `data` (bytea, **nullable and retired**: where the bytes lived until November 2026; new rows leave it NULL, only `scripts/migrate-bytea-to-s3.ts` reads it, and a later migration drops it), `createdAt`
 
 ### values
 - `name`, `color`, `userId`
@@ -329,7 +333,7 @@ Named bundles of tracking items. **Partial unique index** enforces "at most one 
 - `weeklySyncItems`: `weeklySyncId` (cascade), `trackingItemId` (cascade), `textContent` (nullable, inline notes — replaces old notes.txt files), `orderIdx` (NOT NULL, default 0)
 
 ### attachments
-Polymorphic file metadata, keyed on `(parentType, parentId)`. Today's only producer is `parentType = 'weekly_sync_item'`, but the schema is permissive so other entities can opt in without a migration. Bytes live in the `files` table; `fileId` FK cascades, so deleting an attachment removes the blob in the same tx.
+Polymorphic file metadata, keyed on `(parentType, parentId)`. Today's only producer is `parentType = 'weekly_sync_item'`, but the schema is permissive so other entities can opt in without a migration. The bytes are a file (`files` row + bucket object). The `fileId` FK cascades **from `files` to `attachments`**: deleting the file row removes the attachment row, never the other way round — so every delete goes through `files.deleteFiles` (bytes first, then the file row, and the cascade takes the attachment).
 - `userId` (cascade), `parentType` (NOT NULL discriminator), `parentId` (NOT NULL), `fileName`, `fileType` (enum: image|document|video|audio|other), `fileId` (NOT NULL, FK → files.id, cascade), `sizeBytes` (nullable). Indexed on `(parentType, parentId)` and `userId`.
 
 ### goalValues (junction)
@@ -391,7 +395,7 @@ One file per domain in `src/server/services/`, one thin `.fn.ts` wrapper per fil
 `signIn` / `signUp` / `signOut` / `changePassword` are server fns in `auth.fn.ts` returning `{ ok: true } | { ok: false, error }`; the first three are pre-auth by definition, `changePassword` runs behind `authMiddleware` and bcrypt-compares the current password first. The rest are ordinary profile reads/writes against the local users row:
 - `me` — `{ id, name, email, avatarUrl, locale }` from `public.users`
 - `updateProfile` (rejects email collisions)
-- `uploadAvatar` (base64 → `files` table, sets `users.avatarUrl` to `/api/files/{id}`; previous avatar's blob deleted after the update), `removeAvatar` (clears the pointer + deletes the blob)
+- `uploadAvatar` (base64 → a new file, sets `users.avatarUrl` to `/api/files/{id}`; the previous avatar's file is released after the update), `removeAvatar` (clears the pointer, then releases the file)
 - `setLocale` (persists the BCP-47 locale code)
 
 `session` and `me` are deliberately **separate queries**: the cookie carries name/email but a stale `avatarUrl` and no `locale`. `sessionQueryOptions` is cookie-only, `staleTime: Infinity`, and drives the route guard; `meQueryOptions` reads the live row and drives ProfileModal, Avatar and `useLocale`.
@@ -422,17 +426,18 @@ One file per domain in `src/server/services/`, one thin `.fn.ts` wrapper per fil
 ### weeklySync
 - `getByWeek({ weekStart })`, `getWeeklyRetrospectiveData({ weekStart })` (hydrates everything: sync row, full library, goal-grouped items + attachments, top-level `unscopedItems[]`)
 - `create({ weekDate, templateId? })` — snapshots from explicit/default template, empty otherwise
-- `addItem` (idempotent), `removeItem` (drops from this sync only; library row stays; hand-deletes attachments to unlink files), `setItemText`, `reorderItems`
+- `addItem` (idempotent), `removeItem` (drops from this sync only; library row stays; deletes its attachments' files, bytes included — attachments are polymorphic, so no FK does it), `setItemText`, `reorderItems`
 
 ### attachments
-- `upload({ parentType: 'weekly_sync_item', parentId, fileName, fileType, data })` — base64; inserts the file blob into `files`, then the attachment metadata row. Metadata-insert failure rolls back the file row (no orphan bytes). Returns `{ url }` as a `/api/files/{id}` path.
-- `delete({ id })` — single attachment delete; cascades the `files` row via FK.
+- `upload({ parentType: 'weekly_sync_item', parentId, fileName, fileType, data })` — base64; stores a file (bytes to the bucket, then the `files` row), then the attachment metadata row. Metadata-insert failure discards the file, bytes included. Returns `{ url }` as a `/api/files/{id}` path.
+- `find` (metadata + the file's type and size, no bytes: what `/api/v1/attachments/{id}` streams from), `read` (the same with the bytes, for MCP's `get_sync_attachment`)
+- `remove({ id })` — deletes the file (bytes, then row); the FK cascade takes the attachment row.
 
 ### images
 - `upload`, `uploadMultiple` — single-image / multi-image upload (used outside the weekly-sync flow)
 
 ### people
-- `getAll({ includeArchived? })`, `getById`, `create`, `update`, `archive`/`unarchive` (preferred), `delete` (hard, only for wrong entries)
+- `getAll({ includeArchived? })`, `getById`, `create`, `update` (a new `emoji` that replaces an uploaded photo releases the old photo's file), `archive`/`unarchive` (preferred), `delete` (hard, only for wrong entries; an uploaded photo's file goes with it)
 - `setCategory` — drag-drop, updates only category + boardOrder
 - `getTasksAsReferent` (with goal context), `getBucketListItemsAsParticipant` (read-only, shown in PersonModal)
 
@@ -458,28 +463,37 @@ One file per domain in `src/server/services/`, one thin `.fn.ts` wrapper per fil
 
 ### Data export
 - `data.getAll` — all user data (values, goals, connections). Shares `src/lib/data/queries/load-goals.ts` with `goals.getAll` — the 6-query hydration lives there once.
-- `backup.export` / `backup.import` — full user backup including people + userSelf. `import` re-parses its (large, untrusted) payload inside the service; that is not optional there.
+- `backup.export` / `backup.import` — full user backup including people + userSelf and the attachments' bytes (read from / written to the bucket). `import` re-parses its (large, untrusted) payload inside the service; that is not optional there. Its new files' bytes go to the bucket before their rows join the transaction (and are discarded if it rolls back); the replaced attachments' files lose their rows in the transaction and their bytes only after it commits. Person photos and the avatar are not in a backup and are left alone.
 
 ## File storage
 
-All binary uploads live in the **`files`** Postgres table — bytes stored as `bytea`, served by the `/api/files/$id` route. No external object store, no signed URLs, no RLS dance: the route auth-gates by Auth.js session cookie + `ownerId` match, full stop. Sync-item text notes are inline in `weekly_sync_items.text_content` (DB-only).
+Records in Postgres, bytes in the bucket. Every upload (avatar, person photo, sync attachment) is a **`files`** row — owner, name, type, size — and an object in the app's private bucket on the box's Garage store at **`files/<id>`**, a key derived from the row so no column stores a path. Sync-item text notes are inline in `weekly_sync_items.text_content` (DB-only).
+
+**The pieces.** `src/server/object-store.ts` is the platform's canonical S3 client, copied **verbatim** from daedalus (`nix/modules/garage/client/`) with its vitest test beside it: never edit it here — change the canonical copy and copy it back in. Both files are in `.prettierignore` (they carry the platform's formatting). `src/server/bucket.ts` builds the store from the five `S3_*` variables the platform injects with Object storage on (not declared in `env.ts`: the client checks them itself, all five or none), and gives an in-memory store outside production — `pnpm dev` and the tests keep uploads in memory, gone on restart. In production there is **no fallback**: `start.mjs` refuses to boot without the five variables, and `bucket()` throws. `src/server/services/files.ts` is the only code that touches both halves:
+
+- **Write**: the object first (always with its Content-Type), then the row. A row never names bytes that were not written; a crash in between leaves an object nothing names.
+- **Delete** (`deleteFiles`): the objects first (one batched remove), then the rows. A failed removal throws before any row goes, so the caller sees it and a retry finishes the job. `files → attachments` cascades, so an attachment row goes with its file row.
+- **Release** (`releaseFile`): a column that named a file (`users.avatarUrl`, `people.emoji`) no longer does — after an avatar replace/remove or a person's photo change/delete. The file is deleted unless another row still names it; this runs after the change landed, so a failure is logged, not thrown.
+- **Read**: from the bucket only. A row whose object is missing is answered as not found and logged by key — never served from the old `data` column.
 
 > **The route path must stay exactly `/api/files/$id`.** The literal string `/api/files/{id}` is persisted in `users.avatar_url` and `people.emoji`, so moving the route orphans every stored reference.
 
-The route is auth-gated on every request and returns 404 for both "not found" and "not owned by caller" so no enumeration leaks. `Cache-Control: private, max-age=300` lets the browser keep the bytes for the session without persisting them in a shared cache.
+The bucket is private and unreachable from a browser or the phone; bytes leave only through the app's routes, never as a presigned URL. `/api/files/$id` (session) and `/api/v1/attachments/{id}` (API key) share `server/api/file-response.ts`: the row names the Content-Type, the object gives Content-Length and an ETag, and a single `bytes=` Range is passed on and answered 206 (a range past the end is a 416). The route is auth-gated on every request and returns 404 for "not found", "not owned by caller" and "no object" alike, so no enumeration leaks. `Cache-Control: private, max-age=300` lets the browser keep the bytes for the session without persisting them in a shared cache; the phone route keeps its `private, max-age=31536000, immutable`.
 
 How callers reference uploaded files:
-- `users.avatarUrl` holds `/api/files/{fileId}` (or null for the initials fallback). Replaced atomically on re-upload, old file row deleted after the update lands.
-- `people.emoji` accepts either an emoji glyph or `/api/files/{fileId}` (the `Avatar.tsx` component branches on it via `isEmojiUrl`). The Zod schema validates the URL shape via `isOurStorageImageUrl`.
-- `attachments.fileId` is a NOT NULL FK on `files.id` with cascade — one delete removes the metadata row + blob in the same tx.
+- `users.avatarUrl` holds `/api/files/{fileId}` (or null for the initials fallback). On re-upload the new file is stored first, the pointer moves, then the old file is released.
+- `people.emoji` accepts either an emoji glyph or `/api/files/{fileId}` (the `Avatar.tsx` component branches on it via `isEmojiUrl`). The Zod schema validates the URL shape via `isOurStorageImageUrl`. A photo uploaded and never saved onto a person (a cancelled modal) stays behind unnamed.
+- `attachments.fileId` is a NOT NULL FK on `files.id`, cascading from the file to the attachment.
+
+**Moving off bytea (November 2026).** The bytes used to live in `files.data`. The column is nullable now and nothing writes it; `scripts/migrate-bytea-to-s3.ts` (bundled to `.output/scripts/migrate-bytea-to-s3.mjs` by `vite.scripts.config.ts`, the second half of `pnpm build`) copies what the old rows still hold, read-only on the database: `podman exec app-anansi node .output/scripts/migrate-bytea-to-s3.mjs --dry-run`, then without `--dry-run`. It skips objects already there at the same size, verifies counts, bytes and a sha256 sample on both sides, prints ids/keys/sizes only and exits 1 on any failure. The bundle is self-contained, so it also runs in an older container (`podman cp` it in). A follow-up migration drops the column and deletes the script, its core `scripts/bytea-to-s3.ts` + test, and `vite.scripts.config.ts`.
 
 **Supported types:** images (PNG/JPG/JPEG/GIF/WebP), documents (TXT/PDF/...), video, audio, other. Image MIME is sniffed via magic bytes in `image-upload.ts`; non-image extensions are clamped to a safe-extension allow-list in `_shared.safeExtension`.
 
 **Security:**
 - The serving route requires an authenticated session AND matches `files.ownerId` against the session user. Nothing else.
-- Upload services (`auth.uploadAvatar`, `people.uploadImage`, `attachments.upload`) build the `ownerId` from the `userId` that `authMiddleware` resolved server-side — no user-supplied path segments anywhere.
-- Base64 envelope decoded + validated (size + image magic-bytes if `fileType === 'image'`) before any DB write.
-- Attachment upload inserts the `files` row first, then the `attachments` metadata row. If the metadata insert throws, the file row is rolled back via a follow-up delete (no orphan bytes).
+- Upload services (`auth.uploadAvatar`, `people.uploadImage`, `attachments.upload`) build the `ownerId` from the `userId` that `authMiddleware` resolved server-side — no user-supplied path segments anywhere, and the object key is the server-minted id.
+- Base64 envelope decoded + validated (size + image magic-bytes if `fileType === 'image'`) before anything is written.
+- Attachment upload stores the file first, then the `attachments` metadata row. If the metadata insert throws, the file is discarded, bytes included (no orphan bytes).
 - `isOurStorageImageUrl` rejects anything that isn't a clean `/api/files/{id}` path so user-pasted external URLs can't be smuggled through the emoji/avatar fields.
 
 ## MCP server (talk-to-Anansi via Claude)
@@ -586,7 +600,7 @@ Keys: created and revoked by the signed-in user in Profile → Devices (`src/ser
 | `/api/v1/syncs/{id}/order` | PUT `{ids}` | `weeklySync.reorderItems` |
 | `/api/v1/sync-items/{id}` | PATCH `{textContent}`, DELETE | `setItemText` / `removeItem` |
 | `/api/v1/sync-items/{id}/attachments` | POST (body = the file; `?fileName=&fileType=`) | `attachments.upload` |
-| `/api/v1/attachments/{id}` | GET (the bytes, immutable), DELETE | `attachments.read` / `remove` |
+| `/api/v1/attachments/{id}` | GET (the bytes, streamed from the bucket, immutable; one Range honoured), DELETE | `attachments.find` + `file-response.ts` / `remove` |
 | `/api/v1/tracking-items` | GET, POST | `trackingItems.list` / `create` |
 | `/api/v1/tracking-items/{id}` | PATCH, DELETE | `update` / `remove` |
 | `/api/v1/tracking-items/{id}/overlay` | PUT `{overlay}`, DELETE | `setOverlay` |
@@ -744,11 +758,12 @@ pnpm format           # Prettier, formats in place
 pnpm lint             # ESLint — must end with zero warnings AND zero errors
 pnpm typecheck        # tsr generate && tsc --noEmit
 pnpm check:mcp-tools  # MCP catalog vs .golden/mcp-tools.json — must be zero diff
-pnpm build            # vite build (client + SSR + nitro)
+pnpm test             # node's runner (via tsx) for our tests, then vitest for src/server/object-store.test.ts alone
+pnpm build            # vite build (client + SSR + nitro), then the one-off script bundle (vite.scripts.config.ts)
 ```
 
-`pnpm ci` is four of those five in their check form — `format:check`, `lint`,
-`typecheck`, `check:mcp-tools` — plus `check:bundle`, and the box runs exactly
+`pnpm ci` is five of those six in their check form — `format:check`, `lint`,
+`typecheck`, `test`, `check:mcp-tools` — plus `check:bundle`, and the box runs exactly
 that inside the image build on every push to `main`, after the build step. A
 failure there fails the build, so nothing ships past them.
 `check:mcp-tools` needs no server, database or token — it builds the MCP server
@@ -778,20 +793,20 @@ Rules:
 
 ## Infrastructure
 
-- **`start.mjs`** is the container entry: apply Drizzle migrations, then `import('./.output/server/index.mjs')` (Nitro's bundle listens on import and reads `PORT`/`HOST`). It preflights `DATABASE_URL` and `AUTH_SECRET` and exits 1 if either is missing. **`MIGRATE_ONLY=1` short-circuits before the server starts and exits 0** — that is a hard external contract, used as a NixOS `ExecStartPre`. Do not split this into a separate migration container.
-- **`railpack.json`** is the WHOLE build definition — there is no Dockerfile. `provider: node` + `.tool-versions` pick the toolchain; `steps.build` extends Railpack's own build step; `deploy.inputs` is the complete list of what the runtime image contains — the mise runtime, `/app/.output`, `start.mjs`, the Drizzle migrations, and the bare `node_modules/drizzle-orm` + `node_modules/postgres` that `start.mjs` imports. Nothing else ships: an image that needs another file needs another `deploy.inputs` entry, not a copy step. Rolling a build definition back is `git revert` of the commit that changed it.
+- **`start.mjs`** is the container entry: apply Drizzle migrations, then `import('./.output/server/index.mjs')` (Nitro's bundle listens on import and reads `PORT`/`HOST`). It preflights `DATABASE_URL`, `AUTH_SECRET` and the bucket's five `S3_*` variables and exits 1 if any is missing. **`MIGRATE_ONLY=1` short-circuits before the server starts and exits 0** — that is a hard external contract, used as a NixOS `ExecStartPre`. Do not split this into a separate migration container.
+- **`railpack.json`** is the WHOLE build definition — there is no Dockerfile. `provider: node` + `.tool-versions` pick the toolchain; `steps.build` extends Railpack's own build step; `deploy.inputs` is the complete list of what the runtime image contains — the mise runtime, `/app/.output` (which carries the S3 SDK inside Nitro's server bundle, and the self-contained `.output/scripts/`), `start.mjs`, the Drizzle migrations, and the bare `node_modules/drizzle-orm` + `node_modules/postgres` that `start.mjs` imports. Nothing else ships: an image that needs another file needs another `deploy.inputs` entry, not a copy step. Rolling a build definition back is `git revert` of the commit that changed it.
   - The registry is **not** named here either: `pnpm-workspace.yaml` is in the build context and pins `registry:`, so the box's build inherits the same gate as local dev. See "Package registry" for the emergency override and for why `--config.registry` is the only spelling pnpm honours.
   - There is **no `HEALTHCHECK`** in a Railpack image, so nothing container-side round-trips `SELECT 1` any more. `/api/healthz` still exists and is what gatus probes from outside; a green systemd unit has never meant a live container here.
 - **`railpack.json`'s `exclude`** is the build-context filter, in `.dockerignore` syntax with `!` negation — Railpack read `.dockerignore` and merged it into this same field, so folding the file in changed nothing except leaving exactly one list. Two entries carry real history: the `*.png` exclusion is written `/*.png`, anchored to the context root, because a bare `*.png` matches at every depth and would silently drop `public/icon.png` and `public/apple-icon.png`, breaking the favicon with no error anywhere; and **`.golden/` is deliberately NOT excluded** — `pnpm ci` runs `check:mcp-tools`, which reads `.golden/mcp-tool-names.tsv` as its oracle, and the checks run against this same context. Excluding something the build or the checks need breaks them; excluding something only the image does not need buys nothing, because `deploy.inputs` already decides that.
 - **Security headers** — the six headers that used to be `next.config.js`'s `headers()` now live in `src/lib/security-headers.ts` and are applied by a global **request** middleware in `src/start.ts`. Request middleware wraps every request Start handles — pages, server functions, server routes, redirects, 404s — which is what `source: '/:path*'` meant. Nitro `routeRules` would only exist in the built output and silently vanish under `vite dev`. (The one gap: a server function that *throws* produces Start's own 500 outside this middleware, so that response has no headers.)
-- **Build** — the box builds this repo; there are no `.github/workflows` files and no `REGISTRY_PASSWORD` secret. On every push to `main` daedalus's GitHub App builds the image with rootless BuildKit + Railpack from `railpack.json`, running `pnpm ci` (format:check → lint → typecheck → check:mcp-tools → check:bundle) inside that build, and pushes `sha-<sha>` and `latest` to the box's own zot registry (`registry.toscanini.me/anansi`). `app-anansi-deploy.timer` sees the new digest and restarts the container — live in ~2 minutes, and nothing leaves the network. The result shows up on GitHub as a check run named `daedalus` plus a Deployment.
+- **Build** — the box builds this repo; there are no `.github/workflows` files and no `REGISTRY_PASSWORD` secret. On every push to `main` daedalus's GitHub App builds the image with rootless BuildKit + Railpack from `railpack.json`, running `pnpm ci` (format:check → lint → typecheck → test → check:mcp-tools → check:bundle) inside that build, and pushes `sha-<sha>` and `latest` to the box's own zot registry (`registry.toscanini.me/anansi`). `app-anansi-deploy.timer` sees the new digest and restarts the container — live in ~2 minutes, and nothing leaves the network. The result shows up on GitHub as a check run named `daedalus` plus a Deployment.
   - The build reads no env vars: `src/lib/env.ts` validates when the server first imports it, which `vite build` never does, so `railpack.json` declares no `secrets` and the build needs no placeholders. All that matters is a runnable image listening on 3000.
   - Dependencies resolve through the self-hosted **Verdaccio** and there is **no fallback to npmjs** — see "Package registry" below. Verdaccio being unreachable fails the build, by design.
   - To verify a change to the build definition: `pnpm ci` locally for the checks, and for a **real** image without shipping it, set the app's publish mode to *Candidate* in daedalus and press *Build now* — same Railpack build, pushed as `candidate-<sha>`, deployed nowhere.
 
 ## Database migrations
 
-Drizzle migrations live in `src/lib/data/db/migrations/`. There is currently **one** file, `0000_perpetual_scream.sql` — the 23-migration history was squashed.
+Drizzle migrations live in `src/lib/data/db/migrations/`. `0000_perpetual_scream.sql` is the squashed 23-migration history; `0001`–`0003` came after it (`0003_files_data_nullable` made `files.data` nullable when the bytes moved to the bucket).
 
 1. **One migration per PR.** Schema changes land as a single consolidated file, not a chain of fixups. Reviewers shouldn't replay your iteration history; squashing after the fact is a merge-conflict magnet.
 2. **If you change schema during a PR and the previous migration isn't committed yet, roll it back before regenerating:**

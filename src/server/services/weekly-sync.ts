@@ -18,6 +18,7 @@ import { WEEK_MATCH_MS } from '~/lib/week'
 import type { AddSyncItem, CreateWeeklySync, RemoveSyncItem, ReorderSyncItems, SetSyncItemText } from '~/lib/api/types'
 import { AppError } from './errors'
 import { fileUrl } from './file-refs'
+import { deleteFiles } from './files'
 
 /** Throws NOT_FOUND unless the sync item's parent sync belongs to the user. */
 async function assertOwnsSyncItem(userId: string, syncItemId: string) {
@@ -296,11 +297,14 @@ export async function removeItem(userId: string, input: RemoveSyncItem) {
   await assertOwnsSyncItem(userId, input.weeklySyncItemId)
 
   // Attachments are polymorphic — there's no FK from attachments.parentId to
-  // weeklySyncItems.id, so they have to be hand-deleted. attachments → files
-  // cascades on fileId, so the blob goes away with the row.
-  await db
-    .delete(attachments)
+  // weeklySyncItems.id, so they have to be hand-deleted. Deleting their files
+  // does it: the bytes leave the bucket first, then the file rows, and
+  // files → attachments cascades on fileId.
+  const attached = await db
+    .select({ fileId: attachments.fileId })
+    .from(attachments)
     .where(and(eq(attachments.parentType, 'weekly_sync_item'), eq(attachments.parentId, input.weeklySyncItemId)))
+  await deleteFiles(attached.map((a) => a.fileId))
   await db.delete(weeklySyncItems).where(eq(weeklySyncItems.id, input.weeklySyncItemId))
   return { success: true }
 }

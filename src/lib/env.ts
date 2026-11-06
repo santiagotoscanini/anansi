@@ -27,6 +27,10 @@ import { z } from 'zod'
  *     anything. It keeps its own plain `process.env` reads and its own
  *     preflight checks.
  *   - AUTH_TRUST_HOST, read by Auth.js internally rather than by our code.
+ *   - The bucket's five S3_* variables. The platform's client
+ *     (~/server/object-store, the same file in every app) checks them itself
+ *     through `objectStoreFromEnv`, all five or none, and src/server/bucket.ts
+ *     is where this app asks for them. start.mjs refuses to boot without them.
  */
 export const env = createEnv({
   server: {

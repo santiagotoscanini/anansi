@@ -7,19 +7,20 @@
 // than signing in so the seam stays clean and the whole thing stays callable
 // from a script.
 //
-// Avatar bytes live in the `files` table and are served by /api/files/[id];
-// users.avatarUrl holds a `/api/files/{id}` pointer, or null for the initials
-// fallback in Avatar.tsx.
+// An avatar is a file (services/files.ts: a `files` row, its bytes in the
+// bucket), served by /api/files/[id]; users.avatarUrl holds a `/api/files/{id}`
+// pointer, or null for the initials fallback in Avatar.tsx.
 import { randomInt } from 'node:crypto'
 import bcrypt from 'bcryptjs'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { db } from '~/lib/data'
-import { accounts, files, users } from '~/lib/data/schema'
+import { accounts, users } from '~/lib/data/schema'
 import { env, isOidcEmail } from '~/lib/env'
 import { decodeImageUpload, UploadValidationError } from '~/lib/image-upload'
 import { checkRateLimit } from '~/lib/rate-limit'
 import { AppError } from './errors'
-import { fileUrl, parseFileId } from './file-refs'
+import { fileUrl } from './file-refs'
+import { releaseFile, saveFile } from './files'
 
 /**
  * The exact column set every profile-returning endpoint exposes. Declared once
@@ -272,9 +273,9 @@ export async function updateProfile(userId: string, input: { name?: string; emai
 }
 
 /**
- * Insert the new blob first, repoint users.avatarUrl at it, and only then drop
- * the old blob — so a partial failure leaves the avatar pointing at something
- * that still exists rather than at a deleted row.
+ * Store the new file first, repoint users.avatarUrl at it, and only then drop
+ * the old file — so a partial failure leaves the avatar pointing at something
+ * that still exists rather than at deleted bytes.
  */
 export async function uploadAvatar(userId: string, input: { fileName: string; data: string }) {
   const rl = checkRateLimit('auth.uploadAvatar', `user:${userId}`, { limit: 10, windowMs: 60_000 })
@@ -288,17 +289,11 @@ export async function uploadAvatar(userId: string, input: { fileName: string; da
     throw err
   }
 
-  const [file] = await db
-    .insert(files)
-    .values({
-      ownerId: userId,
-      fileName: input.fileName,
-      mimeType: decoded.mime ?? 'application/octet-stream',
-      sizeBytes: decoded.buffer.length,
-      data: decoded.buffer,
-    })
-    .returning({ id: files.id })
-  if (!file) throw new AppError('INTERNAL_SERVER_ERROR', 'Failed to store avatar')
+  const file = await saveFile(userId, {
+    fileName: input.fileName,
+    mimeType: decoded.mime ?? 'application/octet-stream',
+    bytes: decoded.buffer,
+  })
 
   const [prev] = await db.select({ avatarUrl: users.avatarUrl }).from(users).where(eq(users.id, userId)).limit(1)
 
@@ -308,7 +303,7 @@ export async function uploadAvatar(userId: string, input: { fileName: string; da
     .where(eq(users.id, userId))
     .returning(PROFILE_COLUMNS)
 
-  await deleteOwnedFile(userId, prev?.avatarUrl ?? null)
+  await releaseFile(userId, prev?.avatarUrl ?? null)
   return updated
 }
 
@@ -321,7 +316,7 @@ export async function removeAvatar(userId: string) {
     .where(eq(users.id, userId))
     .returning(PROFILE_COLUMNS)
 
-  await deleteOwnedFile(userId, prev?.avatarUrl ?? null)
+  await releaseFile(userId, prev?.avatarUrl ?? null)
   return updated
 }
 
@@ -332,11 +327,4 @@ export async function removeAvatar(userId: string) {
 export async function setLocale(userId: string, locale: 'en' | 'es') {
   const [updated] = await db.update(users).set({ locale }).where(eq(users.id, userId)).returning(PROFILE_COLUMNS)
   return updated
-}
-
-/** Drop a previously-referenced blob, ownership-gated. No-op for foreign URLs. */
-async function deleteOwnedFile(userId: string, url: string | null) {
-  const fileId = parseFileId(url)
-  if (!fileId) return
-  await db.delete(files).where(and(eq(files.id, fileId), eq(files.ownerId, userId)))
 }

@@ -37,7 +37,7 @@ The app sits at the intersection of "what do I want" (goals, tasks, values), "wh
 - **UI:** Tailwind v4 (no PostCSS step), React Flow (`@xyflow/react`), Lucide, dnd-kit, i18next (EN + ES).
 - **Auth:** Auth.js v5 on `@auth/core` directly, Credentials provider, bcrypt password hashing, JWT session cookie. The browser bundle contains no auth SDK.
 - **Database:** PostgreSQL via Drizzle ORM + Drizzle Kit migrations.
-- **Storage:** All uploads live in a `files` Postgres table as `bytea`, served by `/api/files/{id}` behind a session + owner check. No object store, no filesystem writes.
+- **Storage:** Every upload is a `files` row in Postgres whose bytes live in the app's private S3 bucket (Garage, on the same box) at `files/<id>`, served by `/api/files/{id}` behind a session + owner check. No presigned URLs, no filesystem writes.
 
 Deeper architectural detail lives in [`AGENTS.md`](./AGENTS.md) — it's the single source of truth for schema, endpoints, and feature design intent.
 

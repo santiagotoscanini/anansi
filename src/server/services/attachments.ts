@@ -2,8 +2,9 @@
 // producer is `weekly_sync_item`, but the schema is permissive so other
 // entities can opt in without a migration.
 //
-// Bytes live in the `files` table; `attachments.fileId` is a cascading FK, so
-// deleting the metadata row removes the blob in the same transaction.
+// The bytes are a file (services/files.ts: a `files` row, an object in the
+// bucket). `attachments.fileId` → `files.id` cascades, so deleting the file
+// row removes the attachment row with it; `remove` deletes the bytes first.
 import { and, eq } from 'drizzle-orm'
 import { db } from '~/lib/data'
 import { attachments, files, weeklySync, weeklySyncItems } from '~/lib/data/schema'
@@ -12,6 +13,7 @@ import { checkRateLimit } from '~/lib/rate-limit'
 import type { UploadAttachment } from '~/lib/api/types'
 import { AppError } from './errors'
 import { fileUrl } from './file-refs'
+import { deleteFiles, discardFiles, readFile, saveFile } from './files'
 
 export async function upload(userId: string, input: UploadAttachment) {
   // 30 attachments per minute per user — generous for batch uploads, tight
@@ -39,19 +41,13 @@ export async function upload(userId: string, input: UploadAttachment) {
     if (err instanceof UploadValidationError) throw new AppError('BAD_REQUEST', err.message)
     throw err
   }
-  const sizeBytes = decoded.buffer.length
 
-  const [file] = await db
-    .insert(files)
-    .values({
-      ownerId: userId,
-      fileName: input.fileName,
-      mimeType: decoded.mime ?? 'application/octet-stream',
-      sizeBytes,
-      data: decoded.buffer,
-    })
-    .returning({ id: files.id })
-  if (!file) throw new AppError('INTERNAL_SERVER_ERROR', 'Failed to store attachment bytes')
+  const file = await saveFile(userId, {
+    fileName: input.fileName,
+    mimeType: decoded.mime ?? 'application/octet-stream',
+    bytes: decoded.buffer,
+  })
+  const sizeBytes = file.sizeBytes
 
   let row: typeof attachments.$inferSelect | undefined
   try {
@@ -68,9 +64,9 @@ export async function upload(userId: string, input: UploadAttachment) {
       })
       .returning()
   } catch (err) {
-    // Roll the blob back so a failed metadata insert (constraint, race, …)
+    // Roll the file back so a failed metadata insert (constraint, race, …)
     // doesn't leave orphan bytes behind.
-    await db.delete(files).where(eq(files.id, file.id))
+    await discardFiles([file.id])
     throw err
   }
   if (!row) throw new AppError('INTERNAL_SERVER_ERROR', 'Failed to create attachment row')
@@ -85,16 +81,16 @@ export async function upload(userId: string, input: UploadAttachment) {
   }
 }
 
-/** The attachment with its bytes, for a caller that has no session to reach /api/files with. */
-export async function read(userId: string, id: string) {
+/** The attachment and its file's record, without the bytes. */
+export async function find(userId: string, id: string) {
   const [row] = await db
     .select({
       id: attachments.id,
       fileName: attachments.fileName,
       fileType: attachments.fileType,
+      fileId: attachments.fileId,
       mimeType: files.mimeType,
       sizeBytes: files.sizeBytes,
-      data: files.data,
     })
     .from(attachments)
     .innerJoin(files, eq(attachments.fileId, files.id))
@@ -104,14 +100,22 @@ export async function read(userId: string, id: string) {
   return row
 }
 
+/** The attachment with its bytes, for a caller that has no session to reach /api/files with. */
+export async function read(userId: string, id: string) {
+  const { fileId, ...row } = await find(userId, id)
+  const data = await readFile(fileId)
+  if (!data) throw new AppError('NOT_FOUND', 'Attachment not found or access denied')
+  return { ...row, data }
+}
+
 export async function remove(userId: string, id: string) {
   const [existing] = await db
-    .select({ id: attachments.id })
+    .select({ fileId: attachments.fileId })
     .from(attachments)
     .where(and(eq(attachments.id, id), eq(attachments.userId, userId)))
     .limit(1)
   if (!existing) throw new AppError('NOT_FOUND', 'Attachment not found or access denied')
-  // attachments.fileId cascades to files.id — one delete removes both rows.
-  await db.delete(attachments).where(eq(attachments.id, id))
+  // The bytes, then the file row; the cascade takes the attachment row with it.
+  await deleteFiles([existing.fileId])
   return { success: true }
 }

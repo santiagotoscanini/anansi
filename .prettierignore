@@ -24,3 +24,10 @@ src/lib/data/db/migrations
 # renumbers lists.
 AGENTS.md
 README.md
+
+# The platform's canonical object-store module and its test, copied VERBATIM
+# from daedalus (nix/modules/garage/client/). They are formatted to the
+# platform's style (width 100, trailing commas), not this repo's; reformatting
+# them here would make them drift from the canonical copy.
+src/server/object-store.ts
+src/server/object-store.test.ts

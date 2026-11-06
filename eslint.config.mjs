@@ -115,7 +115,7 @@ export default tseslint.config(
   // node:test's describe()/test() return promises the runner itself tracks;
   // awaiting them at the top level is not how the API is used.
   {
-    files: ['src/**/*.test.ts'],
+    files: ['src/**/*.test.ts', 'scripts/*.test.ts'],
     rules: { '@typescript-eslint/no-floating-promises': 'off' },
   },
 

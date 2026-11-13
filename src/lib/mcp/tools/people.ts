@@ -40,7 +40,8 @@ export function registerPeopleTools(server: McpServer, ctx: McpCtx): void {
     'get_person',
     {
       title: 'Get a person',
-      description: 'Full record for one person — reflection prompts, category, groups.',
+      description:
+        'Full record for one person — reflection prompts, category, groups. For the days the journal mentions them, call `list_journal_entries` with their id as `personId`.',
       inputSchema: toolInput({ id: z.string() }),
     },
     async ({ id }) => {

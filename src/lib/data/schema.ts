@@ -3,6 +3,7 @@ import { relations, sql } from 'drizzle-orm'
 import type { Overlay } from '../overlay'
 import {
   boolean,
+  date,
   index,
   integer,
   jsonb,
@@ -402,7 +403,7 @@ export const syncTemplateItems = pgTable(
 )
 
 // Generic polymorphic attachments table. parent_type discriminates
-// ('weekly_sync_item' is the only producer today; designed to extend to other
+// ('weekly_sync_item' and 'journal_entry' today; designed to extend to other
 // entities later). The bytes are a file (`files` row + its object in the
 // bucket). The `fileId` FK cascades from `files` to here: deleting the file row
 // removes the attachment row, never the other way round, so a delete goes
@@ -452,6 +453,52 @@ export const people = pgTable(
     ...timestamps,
   },
   (t) => [index('people_user_idx').on(t.userId)],
+)
+
+// The journal: one entry per user per calendar day. `day` is the user's own
+// day (a date, no instant), named by whoever writes: the browser, the phone or
+// an MCP tool. `content` is the diary prose and `highlights` the day's short
+// list; both can mention people as `@[Name](person:<id>)` (grammar in
+// ~/lib/journal). Pictures are `attachments` rows with
+// parentType = 'journal_entry'.
+export const journalEntries = pgTable(
+  'journal_entries',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    day: date('day', { mode: 'string' }).notNull(),
+    content: text('content').notNull().default(''),
+    highlights: jsonb('highlights').$type<string[]>().notNull().default([]),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('journal_entries_user_day_unique').on(t.userId, t.day)],
+)
+
+// Who an entry mentions: derived from the tokens in its text on every write,
+// never edited by hand. It is the index behind "where did I write about this
+// person". Deleting a person drops the rows; the entry's text keeps the name.
+export const journalMentions = pgTable(
+  'journal_mentions',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    entryId: text('entry_id')
+      .notNull()
+      .references(() => journalEntries.id, { onDelete: 'cascade' }),
+    personId: text('person_id')
+      .notNull()
+      .references(() => people.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('journal_mentions_pair_unique').on(t.entryId, t.personId),
+    index('journal_mentions_person_idx').on(t.personId),
+  ],
 )
 
 // Bucket list — things the user wants to do before dying. Flat list, scoped to user.

@@ -19,6 +19,7 @@ import {
   ListTodo,
   Activity,
   Hourglass,
+  NotebookPen,
   UserCircle2,
 } from 'lucide-react'
 import { getRouteApi, useNavigate, useRouterState } from '@tanstack/react-router'
@@ -58,6 +59,7 @@ type TabType =
   | 'horizons'
   | 'tasks'
   | 'pulse'
+  | 'journal'
   | 'sync'
   | 'tracking-items'
   | 'self'
@@ -72,6 +74,7 @@ const TAB_SLUGS: ReadonlySet<TabType> = new Set([
   'horizons',
   'tasks',
   'pulse',
+  'journal',
   'sync',
   'tracking-items',
   'self',
@@ -105,6 +108,7 @@ type NavNameKey =
   | 'dashboard.nav.horizons'
   | 'dashboard.nav.tasks'
   | 'dashboard.nav.progress'
+  | 'dashboard.nav.journal'
   | 'dashboard.nav.sync'
   | 'dashboard.nav.trackingItems'
   | 'dashboard.nav.people'
@@ -115,7 +119,7 @@ type NavItem = { id: TabType; nameKey: NavNameKey; icon: typeof Target }
 // sidebar, above all other sections, no header. The other sections are:
 //   Compass — the "why" / aspirational surfaces (Values, Bucket List)
 //   Goals   — the "what" / active objective work (Objectives, Progress)
-//   Sync    — the "when/how" weekly cadence (Sync, Tracking Items)
+//   Sync    — the "when/how" cadence: the daily Journal, the weekly Sync, Tracking Items
 const pulseNavItem: NavItem = { id: 'pulse', nameKey: 'dashboard.nav.pulse', icon: Activity }
 
 const compassSection: NavItem[] = [
@@ -132,6 +136,7 @@ const goalsSection: NavItem[] = [
 ]
 
 const syncSection: NavItem[] = [
+  { id: 'journal', nameKey: 'dashboard.nav.journal', icon: NotebookPen },
   { id: 'sync', nameKey: 'dashboard.nav.sync', icon: Calendar },
   { id: 'tracking-items', nameKey: 'dashboard.nav.trackingItems', icon: ListChecks },
 ]
@@ -649,6 +654,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (activeTab === 'horizons') return t('dashboard.nav.horizons')
     if (activeTab === 'tasks') return t('dashboard.nav.tasks')
     if (activeTab === 'pulse') return t('dashboard.nav.pulse')
+    if (activeTab === 'journal') return t('dashboard.nav.journal')
     if (activeTab === 'sync') return t('dashboard.nav.sync')
     if (activeTab === 'tracking-items') return t('dashboard.nav.trackingItems')
     if (activeTab === 'self') return t('dashboard.nav.self')

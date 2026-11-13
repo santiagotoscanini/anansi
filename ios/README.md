@@ -1,7 +1,7 @@
 # Anansi for iPhone
 
 The iPhone side of Anansi: fill the weekly sync from the phone (notes, pictures from the camera or the library),
-see Pulse at a glance, and set up the items every week starts with.
+keep the daily journal, see Pulse at a glance, and set up the items every week starts with.
 
 - **iOS 27+**, Swift 6 (strict concurrency, MainActor by default), SwiftUI, Observation, Swift Testing
 - **Xcode 27**, synchronized folders: adding files never touches the `.xcodeproj`
@@ -23,6 +23,10 @@ for Claude; the phone doesn't use it.
 3. **Write**: notes (`PATCH /api/v1/sync-items/{id}`), pictures (`POST /api/v1/sync-items/{id}/attachments`, the
    JPEG itself as the body), the week's items and order, the library, the default template, and each item's camera
    outline (`PUT /api/v1/tracking-items/{id}/overlay`).
+4. **Journal**: one entry per calendar day, named like the weeks by the phone's own day. `GET /api/v1/journal/{day}`
+   (`null` when nothing was written), `PUT` with `content` and/or `highlights` (a field left out stays as it is),
+   `GET /api/v1/journal?q=&limit=` for the list, `POST /api/v1/journal/{day}/attachments` for pictures, and
+   `GET /api/v1/people` for the mention picker.
 
 ## What it does
 
@@ -43,6 +47,12 @@ for Claude; the phone doesn't use it.
 - **Sync setup**: the library of tracking items (create, edit title/description/goal, delete; an item past weeks used
   is archived by the server instead) and the **default items**, the template every new week starts with: add, remove,
   reorder.
+- **Journal**: a diary, one entry a day. Pulse shows today's (the first highlights and lines, its pictures, "Add
+  picture"); the day screen has the highlights (add, tap to edit or delete), the prose (tap to edit), the pictures
+  (camera or library, tap to view, long-press to delete) and the people mentioned, with previous/next day (never
+  past today). **Past entries** lists the recent days and searches their text. A person is mentioned by writing
+  `@Name` or picking them: the phone shows the stored token `@[Name](person:<id>)` as `@Name` (tinted when read),
+  sends plain text back, and the server links each `@Name` to the person of that name (`Core/JournalText.swift`).
 - **Settings**: the connection (server, account, connect again, disconnect), what is still being sent (with retry/discard for anything Anansi refused), the
   picture cache.
 
@@ -54,6 +64,11 @@ everything goes out one op at a time, in order, with backoff when offline. Scree
 server's answer, so what you typed is what you see. A refusal for good (the item was removed from the week, the file
 was rejected) is kept with Anansi's sentence until you retry or discard it.
 
+The journal rides the same outbox: a day's text is a write that carries only the fields that changed (the prose,
+the highlights), unsent writes for one day merge field by field, and its pictures upload like any other. Because a
+write replaces the whole prose or the whole list of highlights, a day's text can be edited only after the phone has
+read that day (pictures can be added at any time).
+
 ## Layout
 
 ```
@@ -63,7 +78,8 @@ ios/
   Packages/AnansiKit/
     Sources/AppFeature/      RootView (shows Pulse) + the app delegate hook
     Sources/AnansiFeature/   Everything else
-      Core/                  Pure logic, no UI imports: contract models, LocalDay, API, connect link, overlay, outbox
+      Core/                  Pure logic, no UI imports: contract models, LocalDay, API, connect link, overlay, outbox,
+                             the journal's mention grammar
       Theme.swift            Anansi's warm paper look (tokens from src/styles/globals.css), light and dark
       APIClient.swift ...    The connection, the API client, stores, camera, screens
     Tests/AnansiFeatureTests/  Swift Testing suites for Core

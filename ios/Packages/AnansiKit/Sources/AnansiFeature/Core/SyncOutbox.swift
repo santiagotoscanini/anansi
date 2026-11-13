@@ -14,10 +14,13 @@ nonisolated struct OutboxOp: Codable, Hashable, Sendable, Identifiable {
         case setText(String)
         /// Upload a file kept on disk under the outbox folder by `localFile` name.
         case upload(localFile: String, fileName: String, fileType: String, byteCount: Int)
+        /// Write one day of the journal. A nil field is left as the day holds it.
+        case setJournal(content: String?, highlights: [String]?)
     }
 
     var id: UUID
-    /// The sync item (`weeklySyncItemId`) the op writes to.
+    /// The sync item (`weeklySyncItemId`) the op writes to, or `journal:YYYY-MM-DD` for a day of the journal
+    /// (`journalItemId`): a journal day's text and pictures ride the same queue as a sync item's.
     var itemId: String
     /// The item's title when queued, so a failure can say which item it was.
     var itemTitle: String
@@ -41,6 +44,32 @@ nonisolated struct OutboxOp: Codable, Hashable, Sendable, Identifiable {
         if case .upload(let file, _, _, _) = kind { return file }
         return nil
     }
+
+    // MARK: The journal
+
+    private static let journalPrefix = "journal:"
+
+    /// The `itemId` of ops that write to a day of the journal.
+    static func journalItemId(_ day: LocalDay) -> String { journalPrefix + day.string }
+
+    /// The journal day this op writes to, or nil for a sync item's op.
+    var journalDay: LocalDay? {
+        guard itemId.hasPrefix(Self.journalPrefix) else { return nil }
+        return LocalDay(string: String(itemId.dropFirst(Self.journalPrefix.count)))
+    }
+
+    var isJournalText: Bool {
+        if case .setJournal = kind { return true }
+        return false
+    }
+}
+
+/// What the outbox still has to write to one journal day: the fields that are set replace the server's.
+nonisolated struct JournalEdit: Hashable, Sendable {
+    var content: String?
+    var highlights: [String]?
+
+    var isEmpty: Bool { content == nil && highlights == nil }
 }
 
 /// An op that Anansi refused for good (the item was removed from the week, the file was rejected…).
@@ -66,6 +95,19 @@ nonisolated struct SyncOutbox: Codable, Hashable, Sendable {
 
     /// Queues an op. New text for an item replaces text for it that hasn't gone out yet.
     mutating func enqueue(_ op: OutboxOp) {
+        var op = op
+        if case .setJournal(var content, var highlights) = op.kind {
+            // A journal write carries only the fields that changed, so the unsent one it replaces hands over the
+            // fields the new one doesn't set (the newest unsent value of each wins).
+            for existing in pending.reversed() where existing.id != inFlight && existing.itemId == op.itemId {
+                if case .setJournal(let oldContent, let oldHighlights) = existing.kind {
+                    content = content ?? oldContent
+                    highlights = highlights ?? oldHighlights
+                }
+            }
+            pending.removeAll { $0.id != inFlight && $0.itemId == op.itemId && $0.isJournalText }
+            op.kind = .setJournal(content: content, highlights: highlights)
+        }
         if case .setText = op.kind {
             pending.removeAll { existing in
                 guard existing.id != inFlight, existing.itemId == op.itemId else { return false }
@@ -166,5 +208,31 @@ nonisolated struct SyncOutbox: Codable, Hashable, Sendable {
     /// Whether an item counts as answered once the outbox has gone out.
     func isFilled(_ item: SyncItem) -> Bool {
         overlay(item).isFilled || !pendingUploads(for: item.id).isEmpty
+    }
+
+    // MARK: The journal's optimistic view
+
+    /// What is still to be written to a journal day: for each field, its newest unsent value.
+    func pendingJournal(for day: LocalDay) -> JournalEdit {
+        let itemId = OutboxOp.journalItemId(day)
+        var edit = JournalEdit()
+        for op in pending where op.itemId == itemId {
+            if case .setJournal(let content, let highlights) = op.kind {
+                if let content { edit.content = content }
+                if let highlights { edit.highlights = highlights }
+            }
+        }
+        return edit
+    }
+
+    /// A journal day with the outbox laid over it, as the screens show it. Text not sent yet has its mentions as
+    /// the plain `@Name` the user typed; the server links them when it lands.
+    func overlay(_ entry: JournalEntry?, day: LocalDay) -> JournalEntry? {
+        let edit = pendingJournal(for: day)
+        guard !edit.isEmpty else { return entry }
+        var shown = entry ?? JournalEntry(id: "", day: day.string)
+        if let content = edit.content { shown.content = content }
+        if let highlights = edit.highlights { shown.highlights = highlights }
+        return shown
     }
 }

@@ -93,6 +93,54 @@ nonisolated enum Wording {
     static func uploading(_ count: Int) -> String {
         count == 1 ? "Uploading 1 picture" : "Uploading \(count) pictures"
     }
+
+    // MARK: Journal
+
+    static let weekdayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    static func weekday(_ day: LocalDay) -> String {
+        weekdayNames[max(0, min(6, day.isoWeekday - 1))]
+    }
+
+    /// "Thursday, Nov 12", or with the year when it isn't `currentYear`.
+    static func journalDate(_ day: LocalDay, currentYear: Int) -> String {
+        let date = "\(weekday(day)), \(shortDay(day))"
+        return day.year == currentYear ? date : "\(date), \(day.year)"
+    }
+
+    /// "Today", "Yesterday", "3 days ago" (and "In 2 days" for a day still to come).
+    static func journalDistance(from today: LocalDay, to day: LocalDay) -> String {
+        let days = day.days(until: today)
+        switch days {
+        case 0: return "Today"
+        case 1: return "Yesterday"
+        case -1: return "Tomorrow"
+        case ..<0: return "In \(-days) days"
+        default: return "\(days) days ago"
+        }
+    }
+
+    /// How a journal day is named where the outbox reports on it: "Journal, Nov 12".
+    static func journalTitle(_ day: LocalDay) -> String {
+        "Journal, \(shortDay(day))"
+    }
+
+    /// "1 picture", "3 pictures".
+    static func pictures(_ count: Int) -> String {
+        count == 1 ? "1 picture" : "\(count) pictures"
+    }
+
+    /// "1 person", "3 people".
+    static func people(_ count: Int) -> String {
+        count == 1 ? "1 person" : "\(count) people"
+    }
+}
+
+/// The journal's limits (`src/server/services/journal.ts`).
+nonisolated enum JournalLimits {
+    static let contentCharacters = 50000
+    static let highlightCharacters = 500
+    static let highlights = 50
 }
 
 /// Picture sizing before upload: Anansi takes 10 MB at most and the screens never show more than a phone's width.

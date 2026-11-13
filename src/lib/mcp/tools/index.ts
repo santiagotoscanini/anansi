@@ -18,6 +18,7 @@ import { registerSelfTools } from './self'
 import { registerTrackingItemsTools } from './tracking_items'
 import { registerSyncTemplatesTools } from './sync_templates'
 import { registerWeeklySyncTools } from './weekly_sync'
+import { registerJournalTools } from './journal'
 import { registerConnectionsTools } from './connections'
 import { registerSystemTools } from './system'
 
@@ -37,5 +38,6 @@ export function registerAllTools(server: McpServer, ctx: McpCtx): void {
   registerTrackingItemsTools(server, ctx)
   registerSyncTemplatesTools(server, ctx)
   registerWeeklySyncTools(server, ctx)
+  registerJournalTools(server, ctx)
   registerConnectionsTools(server, ctx)
 }

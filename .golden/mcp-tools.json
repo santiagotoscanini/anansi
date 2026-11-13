@@ -64,6 +64,49 @@
   {
     "annotations": {
       "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Add to one day of the journal without reading it first, creating the entry when the day has none. `content` becomes a new paragraph after the text that is there; each of `highlights` joins the end of the list unless it is already on it. Nothing already written is changed. Name a person as `@[Name](person:<id>)` with an id from `list_people`, or as `@[Name]` when exactly one person has that name. A mention is what makes the day show up under that person, so mention everyone the day was about; a name that matches nobody is refused, not guessed.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "description": "A paragraph to add at the end.",
+          "maxLength": 50000,
+          "type": "string"
+        },
+        "day": {
+          "description": "A day in the user's own time zone, YYYY-MM-DD. Usually today.",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+          "type": "string"
+        },
+        "highlights": {
+          "description": "Highlights to add to the list.",
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 50,
+          "type": "array"
+        }
+      },
+      "required": [
+        "day"
+      ],
+      "type": "object"
+    },
+    "name": "append_journal_entry",
+    "title": "Add to a journal day"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false
     },
@@ -855,6 +898,60 @@
       "idempotentHint": true,
       "openWorldHint": false
     },
+    "description": "Delete a file from a journal day, bytes included.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_journal_attachment",
+    "title": "Delete a journal attachment"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Delete one day's entry: its text, its highlights and its attachments, bytes included.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "day": {
+          "description": "A day in the user's own time zone, YYYY-MM-DD. Usually today.",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "day"
+      ],
+      "type": "object"
+    },
+    "name": "delete_journal_entry",
+    "title": "Delete a journal day"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
     "description": "Hard-delete. Only use for entries that were captured incorrectly — prefer `set_next_bid_done`.",
     "execution": {
       "taskSupport": "forbidden"
@@ -1089,7 +1186,52 @@
     "title": "Delete a value behavior"
   },
   {
-    "description": "Full record for one person — reflection prompts, category, groups.",
+    "description": "The contents of a file on a journal day: an image as an image, a text file as text. The `url` on an attachment needs a browser session and cannot be fetched from here.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Attachment id, from `get_journal_entry`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "get_journal_attachment",
+    "title": "Read a journal attachment"
+  },
+  {
+    "description": "One day of the journal: `content` (the diary text), `highlights` (the day's short list), `mentions` (the people it names) and `attachments` (its pictures and files). Null when nothing was written that day.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "day": {
+          "description": "A day in the user's own time zone, YYYY-MM-DD. Usually today.",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "day"
+      ],
+      "type": "object"
+    },
+    "name": "get_journal_entry",
+    "title": "Read a journal day"
+  },
+  {
+    "description": "Full record for one person — reflection prompts, category, groups. For the days the journal mentions them, call `list_journal_entries` with their id as `personId`.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -1280,6 +1422,48 @@
     },
     "name": "list_important_dates",
     "title": "List important dates"
+  },
+  {
+    "description": "Journal entries, newest day first, each in full. Narrow by a range of days, by `personId` (the days that mention that person: where the user wrote about them), or by `query` (words in the text or the highlights). Days with nothing written are not listed.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "description": "First day to include, YYYY-MM-DD.",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+          "type": "string"
+        },
+        "limit": {
+          "default": 30,
+          "description": "How many days at most. Default 30.",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "personId": {
+          "description": "Only days that mention this person.",
+          "type": "string"
+        },
+        "query": {
+          "description": "Only days whose text contains this.",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "to": {
+          "description": "Last day to include, YYYY-MM-DD.",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_journal_entries",
+    "title": "List journal entries"
   },
   {
     "description": "All open + completed bids for one person, ordered oldest-first.",
@@ -2742,6 +2926,56 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
+    "description": "Add a picture or a file to one day of the journal, creating the entry when the day has none. `data` is base64, and an image must really be one.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "description": "The file, base64.",
+          "type": "string"
+        },
+        "day": {
+          "description": "A day in the user's own time zone, YYYY-MM-DD. Usually today.",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+          "type": "string"
+        },
+        "fileName": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "fileType": {
+          "enum": [
+            "image",
+            "document",
+            "video",
+            "audio",
+            "other"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "day",
+        "fileName",
+        "fileType",
+        "data"
+      ],
+      "type": "object"
+    },
+    "name": "upload_journal_attachment",
+    "title": "Attach a file to a journal day"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
     "description": "Add a file to one item of a sync. `data` is base64, and an image must really be one.",
     "execution": {
       "taskSupport": "forbidden"
@@ -2796,5 +3030,48 @@
     },
     "name": "whoami",
     "title": "Who am I?"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Write the journal entry of one day, creating it when the day has none. `content` is the diary text, in the user's own voice and language, with blank lines between paragraphs; `highlights` is the day's short list, one line each. A field you pass replaces what the day holds and a field you leave out stays, so to add to a day use `append_journal_entry` instead. Name a person as `@[Name](person:<id>)` with an id from `list_people`, or as `@[Name]` when exactly one person has that name. A mention is what makes the day show up under that person, so mention everyone the day was about; a name that matches nobody is refused, not guessed. For an end-of-day reflection, talk the day through first, then write it once.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "description": "The diary text. Replaces the text the day holds.",
+          "maxLength": 50000,
+          "type": "string"
+        },
+        "day": {
+          "description": "A day in the user's own time zone, YYYY-MM-DD. Usually today.",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+          "type": "string"
+        },
+        "highlights": {
+          "description": "The day's highlights. Replaces the list the day holds.",
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 50,
+          "type": "array"
+        }
+      },
+      "required": [
+        "day"
+      ],
+      "type": "object"
+    },
+    "name": "write_journal_entry",
+    "title": "Write a journal day"
   }
 ]

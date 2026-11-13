@@ -1,9 +1,9 @@
 @preconcurrency import AVFoundation
 import SwiftUI
 
-/// Where a picture goes: one item of one week.
+/// Where a picture goes: one item of one week, or one day of the journal.
 struct PictureTarget: Equatable {
-    /// The sync item (`weeklySyncItemId`) the picture is attached to.
+    /// The sync item (`weeklySyncItemId`) the picture is attached to, or `OutboxOp.journalItemId` of a day.
     var itemId: String
     var itemTitle: String
 }
@@ -15,7 +15,9 @@ struct PictureTarget: Equatable {
 ///
 /// With no `target` it only edits the outline (opened from Sync setup).
 struct PoseCameraView: View {
-    let trackingItemId: String
+    /// The library entry whose outline and last picture frame the shot. Nil for a picture that is no pose (a
+    /// journal day): a plain camera with the timer and the front/back switch.
+    let trackingItemId: String?
     let title: String
     var target: PictureTarget?
     var startDrawing = false
@@ -44,7 +46,7 @@ struct PoseCameraView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    private var overlay: Overlay? { library.overlay(for: trackingItemId) }
+    private var overlay: Overlay? { trackingItemId.flatMap { library.overlay(for: $0) } }
 
     private struct LineWidth {
         var width: Double
@@ -182,10 +184,12 @@ struct PoseCameraView: View {
                 } label: {
                     chip(timer == 0 ? "Timer" : "\(timer)s", systemImage: "timer", active: timer > 0)
                 }
-                Button {
-                    beginDrawing()
-                } label: {
-                    chip(overlay == nil ? "Draw outline" : "Edit outline", systemImage: "scribble", active: false)
+                if trackingItemId != nil {
+                    Button {
+                        beginDrawing()
+                    } label: {
+                        chip(overlay == nil ? "Draw outline" : "Edit outline", systemImage: "scribble", active: false)
+                    }
                 }
             }
             if showGhost, ghostId != nil {
@@ -302,7 +306,9 @@ struct PoseCameraView: View {
     }
 
     private func loadGhost() async {
-        guard let latest = try? await APIClient.shared.latestPicture(trackingItemId, excluding: target?.itemId) else { return }
+        guard let trackingItemId,
+              let latest = try? await APIClient.shared.latestPicture(trackingItemId, excluding: target?.itemId)
+        else { return }
         ghostId = latest.id
         cache.load(latest.id)
     }
@@ -352,6 +358,7 @@ struct PoseCameraView: View {
     }
 
     private func saveOutline() async {
+        guard let trackingItemId else { return }
         isSaving = true
         defer { isSaving = false }
         do {

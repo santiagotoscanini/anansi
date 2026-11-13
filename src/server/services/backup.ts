@@ -1,5 +1,5 @@
 // Full-fidelity backup: export everything the user owns (DB rows + the bytes of
-// their sync attachments, read from the bucket), import wipes their data
+// their sync and journal attachments, read from the bucket), import wipes their data
 // wholesale inside a transaction and rewrites it under the importing user's id.
 //
 // The format is strict — no back-compat shims. `version: 1` is the contract.
@@ -14,6 +14,8 @@ import {
   goalValues,
   goals,
   importantDates,
+  journalEntries,
+  journalMentions,
   nextBids,
   people,
   peopleToGroups,
@@ -32,6 +34,7 @@ import {
   weeklySyncItems,
 } from '~/lib/data/schema'
 import { isEmojiGlyph, isOurStorageImageUrl } from '~/lib/emoji-utils'
+import { mentionedIds } from '~/lib/journal'
 import type { Backup } from '~/lib/api/types'
 import { AppError } from './errors'
 import { discardFiles, readFile, removeObjectsOf, saveFile } from './files'
@@ -95,18 +98,27 @@ export async function exportAll(userId: string) {
     ? await db.select().from(syncTemplateItems).where(inArray(syncTemplateItems.templateId, syncTemplateIds))
     : []
 
-  const attachmentRows = weeklySyncItemIds.length
-    ? await db
-        .select()
-        .from(attachments)
-        .where(
-          and(
-            eq(attachments.userId, userId),
-            eq(attachments.parentType, 'weekly_sync_item'),
-            inArray(attachments.parentId, weeklySyncItemIds),
-          ),
-        )
-    : []
+  const journalEntryRows = await db.select().from(journalEntries).where(eq(journalEntries.userId, userId))
+  const journalEntryIds = journalEntryRows.map((e) => e.id)
+
+  // An attachment is exported with its parent: a sync item or a journal entry.
+  const attachmentsOf = (parentType: string, parentIds: string[]) =>
+    parentIds.length
+      ? db
+          .select()
+          .from(attachments)
+          .where(
+            and(
+              eq(attachments.userId, userId),
+              eq(attachments.parentType, parentType),
+              inArray(attachments.parentId, parentIds),
+            ),
+          )
+      : Promise.resolve([] as (typeof attachments.$inferSelect)[])
+  const attachmentRows = [
+    ...(await attachmentsOf('weekly_sync_item', weeklySyncItemIds)),
+    ...(await attachmentsOf('journal_entry', journalEntryIds)),
+  ]
 
   const peopleRows = await db.select().from(people).where(eq(people.userId, userId))
   const [userSelfRow] = await db.select().from(userSelf).where(eq(userSelf.userId, userId)).limit(1)
@@ -211,6 +223,7 @@ export async function exportAll(userId: string) {
     bucketListItems: bucketListRows.map(stripUser),
     bucketListItemPeople: bucketListItemPeopleRows,
     selfListItems: selfListItemRows.map(stripUser),
+    journalEntries: journalEntryRows.map(stripUser),
     // Touched-but-unused — harmless extra context for a future v2 importer.
     // Part of the shipped payload shape, so it stays.
     _trackingItemIds: trackingItemIds,
@@ -255,6 +268,7 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       await tx.delete(weeklySync).where(eq(weeklySync.userId, userId))
       await tx.delete(syncTemplates).where(eq(syncTemplates.userId, userId))
       await tx.delete(trackingItems).where(eq(trackingItems.userId, userId))
+      await tx.delete(journalEntries).where(eq(journalEntries.userId, userId))
       await tx.delete(attachments).where(eq(attachments.userId, userId))
       if (replaced.length) await tx.delete(files).where(inArray(files.id, replaced))
       await tx.delete(people).where(eq(people.userId, userId))
@@ -309,6 +323,9 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       if (b.syncTemplateItems.length) await tx.insert(syncTemplateItems).values(b.syncTemplateItems)
       if (b.weeklySync.length) await tx.insert(weeklySync).values(b.weeklySync.map((ws) => ({ ...ws, userId })))
       if (b.weeklySyncItems.length) await tx.insert(weeklySyncItems).values(b.weeklySyncItems)
+      if (b.journalEntries.length) {
+        await tx.insert(journalEntries).values(b.journalEntries.map((e) => ({ ...e, userId })))
+      }
 
       // Attachments: for every blob in b.files, store a fresh file owned by the
       // importing user (bytes in the bucket, row in this transaction) and point
@@ -355,6 +372,15 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       if (b.people.length) {
         await tx.insert(people).values(b.people.map((p) => ({ ...p, emoji: safeEmoji(p.emoji), userId })))
       }
+      // Who each journal entry mentions, read back out of its text. A mention
+      // of someone the backup does not hold stays as text and is not indexed.
+      const restoredPeople = new Set(b.people.map((p) => p.id))
+      const mentionRows = b.journalEntries.flatMap((e) =>
+        mentionedIds([e.content, ...e.highlights].join('\n'))
+          .filter((personId) => restoredPeople.has(personId))
+          .map((personId) => ({ entryId: e.id, personId })),
+      )
+      if (mentionRows.length) await tx.insert(journalMentions).values(mentionRows)
       if (b.userSelf) await tx.insert(userSelf).values({ ...b.userSelf, userId })
       if (b.taskReferents.length) await tx.insert(taskReferents).values(b.taskReferents)
       if (b.personGroups.length) await tx.insert(personGroups).values(b.personGroups.map((g) => ({ ...g, userId })))
@@ -404,6 +430,7 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       tasksToGroups: b.tasksToGroups.length,
       selfListItems: b.selfListItems.length,
       importantDates: b.importantDates.length,
+      journalEntries: b.journalEntries.length,
       // NOTE: nextBids, bucketListItems and bucketListItemPeople are imported
       // but deliberately absent from `counts` — that's the shipped shape and
       // the UI renders whatever keys it finds. Adding them is a UI change.

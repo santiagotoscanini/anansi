@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isEmojiGlyph, isOurStorageImageUrl } from '../emoji-utils'
+import { isCalendarDay } from '../journal'
 import { overlaySchema } from '../overlay'
 
 // `emoji` columns accept ONE of two shapes:
@@ -392,10 +393,10 @@ export const reorderSyncItemsSchema = z.object({
 })
 
 // Generic attachments upload — base64 binary data into a polymorphic parent.
-// Today only `parent_type = 'weekly_sync_item'` is supported, but the schema
-// is permissive so we can extend later without another migration.
+// The parents today are a weekly sync item and a journal entry; the schema
+// is permissive so another can join without a migration.
 export const uploadAttachmentSchema = z.object({
-  parentType: z.literal('weekly_sync_item'),
+  parentType: z.enum(['weekly_sync_item', 'journal_entry']),
   parentId: z.string(),
   fileName: z.string().min(1).max(500),
   fileType: z.enum(['image', 'document', 'video', 'audio', 'other']),
@@ -480,6 +481,43 @@ export type UpdateImportantDate = z.infer<typeof updateImportantDateSchema>
 export type BucketListItem = z.infer<typeof bucketListItemSchema>
 export type CreateBucketListItem = z.infer<typeof createBucketListItemSchema>
 export type UpdateBucketListItem = z.infer<typeof updateBucketListItemSchema>
+
+// ── Journal ─────────────────────────────────────────────────────────────────
+// One entry per calendar day. `day` is the user's own day, named by the caller
+// (the server's clock is UTC and must never decide what "today" is).
+export const journalDaySchema = z.string().refine(isCalendarDay, 'a calendar day, YYYY-MM-DD')
+
+const journalContentSchema = z.string().max(50_000)
+const journalHighlightsSchema = z.array(z.string().trim().min(1).max(500)).max(50)
+
+/** Replace-set: a field that is passed replaces what the day holds; one that is not stays. */
+export const writeJournalEntrySchema = z.object({
+  day: journalDaySchema,
+  content: journalContentSchema.optional(),
+  highlights: journalHighlightsSchema.optional(),
+})
+
+/** Additive: `content` becomes a new paragraph at the end, `highlights` join the list. */
+export const appendJournalEntrySchema = writeJournalEntrySchema
+
+export const listJournalEntriesSchema = z.object({
+  from: journalDaySchema.optional(),
+  to: journalDaySchema.optional(),
+  personId: z.string().optional(),
+  query: z.string().trim().min(1).max(200).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+})
+
+export const uploadJournalAttachmentSchema = z.object({
+  day: journalDaySchema,
+  fileName: z.string().min(1).max(500),
+  fileType: z.enum(['image', 'document', 'video', 'audio', 'other']),
+  data: z.string(), // base64
+})
+
+export type WriteJournalEntry = z.infer<typeof writeJournalEntrySchema>
+export type ListJournalEntries = z.infer<typeof listJournalEntriesSchema>
+export type UploadJournalAttachment = z.infer<typeof uploadJournalAttachmentSchema>
 
 // Data format for file operations (for compatibility)
 export const goalsDataSchema = z.object({
@@ -600,7 +638,9 @@ export const backupAttachmentSchema = z.object({
   parentId: z.string(),
   fileName: z.string(),
   fileType: z.enum(['image', 'document', 'video', 'audio', 'other']),
-  storagePath: z.string(),
+  // Where the bytes once lived on disk. Backups from that era carry it; an
+  // export made since does not, and the import never read it.
+  storagePath: z.string().optional(),
   sizeBytes: z.number().int().nullable(),
   createdAt: z.coerce.date(),
 })
@@ -712,6 +752,15 @@ export const backupSelfListItemSchema = z.object({
   updatedAt: z.coerce.date(),
 })
 
+export const backupJournalEntrySchema = z.object({
+  id: z.string(),
+  day: journalDaySchema,
+  content: z.string(),
+  highlights: z.array(z.string()),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+})
+
 // Files in the backup are now keyed by attachment id (not file path).
 export const backupFileSchema = z.object({
   attachmentId: z.string(),
@@ -753,6 +802,9 @@ export const backupSchema = z.object({
   bucketListItems: z.array(backupBucketListItemSchema),
   bucketListItemPeople: z.array(backupBucketListItemPeopleSchema),
   selfListItems: z.array(backupSelfListItemSchema),
+  // The journal joined later; a backup written before it restores no entries.
+  // Who each entry mentions is not stored: the import reads it from the text.
+  journalEntries: z.array(backupJournalEntrySchema).default([]),
 })
 
 export type Backup = z.infer<typeof backupSchema>

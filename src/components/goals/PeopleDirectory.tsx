@@ -43,7 +43,7 @@ function CategoryPill({ category }: { category: PersonCategory }) {
 // not survive a query string, so the two are validated independently.
 export default function PeopleDirectory() {
   const { t } = useTranslation()
-  const { filter, groupId } = Route.useSearch()
+  const { filter, groupId, person: personParam } = Route.useSearch()
   const navigate = Route.useNavigate()
   const queryClient = useQueryClient()
 
@@ -56,7 +56,11 @@ export default function PeopleDirectory() {
   const updateGroupMutation = useUpdateGroup()
   const deleteGroupMutation = useDeleteGroup()
   const [search, setSearch] = useState('')
-  const [editingPerson, setEditingPerson] = useState<PersonRow | null>(null)
+  // The open person lives in the URL (`?person=<id>`), so a mention in the
+  // journal can link straight to them and the modal survives a reload. Derived
+  // from the live list: an id that no longer resolves leaves the modal shut.
+  const editingPerson = personParam ? (people.find((p) => p.id === personParam) ?? null) : null
+  const setEditingPerson = (p: PersonRow | null) => void navigate({ search: (prev) => ({ ...prev, person: p?.id }) })
   const [creating, setCreating] = useState(false)
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [editGroupName, setEditGroupName] = useState('')

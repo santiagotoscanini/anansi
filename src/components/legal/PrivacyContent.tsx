@@ -84,9 +84,9 @@ export default function PrivacyContent() {
 
       <Section title="What you put in">
         <p>
-          Everything you write into Anansi: goals, tasks, weekly retrospectives, the people you reflect on, appreciation
-          notes, &ldquo;my needs&rdquo; entries, legacy messages, self-reflection prompts, the Self page, bucket-list
-          items, group tags, and any file you attach to a weekly sync.
+          Everything you write into Anansi: goals, tasks, weekly retrospectives, journal days, the people you reflect
+          on, appreciation notes, &ldquo;my needs&rdquo; entries, legacy messages, self-reflection prompts, the Self
+          page, bucket-list items, group tags, and any file you attach to a weekly sync or a journal day.
         </p>
         <p>
           Nothing reads it except the app rendering your own pages. There is no model training on your content, no
@@ -118,9 +118,9 @@ export default function PrivacyContent() {
             Your rows are keyed to your user id and every query filters on it.
           </li>
           <li>
-            <strong>Files:</strong> your avatar, photos of people, and sync attachments are stored in a private bucket
-            on an object store running on the same server, one bucket per app; the database keeps a row for each file
-            naming its owner. There is no uploads directory, and nothing in the bucket is public.
+            <strong>Files:</strong> your avatar, photos of people, and sync and journal attachments are stored in a
+            private bucket on an object store running on the same server, one bucket per app; the database keeps a row
+            for each file naming its owner. There is no uploads directory, and nothing in the bucket is public.
           </li>
           <li>
             <strong>Serving those files:</strong> one route, <code>/api/files/&#123;id&#125;</code>. It requires a

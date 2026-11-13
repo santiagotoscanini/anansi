@@ -133,6 +133,39 @@ nonisolated enum API {
 
     static func goals() -> Endpoint { get("api/v1/goals") }
 
+    // MARK: Journal
+
+    static func journal(day: LocalDay) -> Endpoint { get("api/v1/journal/\(day.string)") }
+
+    /// A field passed replaces what the day holds; a nil one is left out of the body and stays as it is.
+    static func writeJournal(day: LocalDay, content: String?, highlights: [String]?) -> Endpoint {
+        send("PUT", "api/v1/journal/\(day.string)", JournalFields(content: content, highlights: highlights))
+    }
+
+    static func deleteJournal(day: LocalDay) -> Endpoint { bare("DELETE", "api/v1/journal/\(day.string)") }
+
+    /// Entries, newest day first. `personId` keeps the days that mention that person, `query` the days whose text
+    /// has those words.
+    static func journalList(from: LocalDay? = nil, to: LocalDay? = nil, personId: String? = nil, query: String? = nil,
+                            limit: Int? = nil) -> Endpoint {
+        var items: [URLQueryItem] = []
+        if let from { items.append(URLQueryItem(name: "from", value: from.string)) }
+        if let to { items.append(URLQueryItem(name: "to", value: to.string)) }
+        if let personId { items.append(URLQueryItem(name: "personId", value: personId)) }
+        if let query, !query.isEmpty { items.append(URLQueryItem(name: "q", value: query)) }
+        if let limit { items.append(URLQueryItem(name: "limit", value: String(limit))) }
+        return get("api/v1/journal", query: items)
+    }
+
+    /// The body is the file, sent separately (from disk). Starts the day's entry when there is none.
+    static func uploadJournalAttachment(day: LocalDay, fileName: String, fileType: String, contentType: String) -> Endpoint {
+        Endpoint(method: "POST", path: "api/v1/journal/\(day.string)/attachments",
+                 query: [URLQueryItem(name: "fileName", value: fileName), URLQueryItem(name: "fileType", value: fileType)],
+                 contentType: contentType)
+    }
+
+    static func people() -> Endpoint { get("api/v1/people") }
+
     // MARK: Bodies
 
     struct StartWeek: Encodable {
@@ -142,6 +175,12 @@ nonisolated enum API {
     struct NewTemplate: Encodable {
         var name: String
         var isDefault: Bool
+    }
+
+    /// A journal write: only the fields that are set are sent.
+    struct JournalFields: Encodable {
+        var content: String?
+        var highlights: [String]?
     }
 
     /// Title, description and goal; a nil description or goal is sent as `null`, which clears it.

@@ -43,6 +43,16 @@ final class OutboxStore {
         pump()
     }
 
+    /// Queues a write to one day of the journal: the fields that are set replace what the day holds (and what an
+    /// unsent write for that day was going to set).
+    func setJournal(day: LocalDay, content: String? = nil, highlights: [String]? = nil) {
+        guard content != nil || highlights != nil else { return }
+        outbox.enqueue(OutboxOp(itemId: OutboxOp.journalItemId(day), itemTitle: Wording.journalTitle(day),
+                                kind: .setJournal(content: content, highlights: highlights), queuedAt: .now))
+        save()
+        pump()
+    }
+
     /// Keeps a prepared JPEG on disk and queues its upload.
     func addPicture(itemId: String, title: String, jpeg: Data, fileName: String) throws {
         let local = "\(UUID().uuidString).jpg"
@@ -102,8 +112,20 @@ final class OutboxStore {
                 guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
                     throw OutboxFileMissing()
                 }
-                try await APIClient.shared.uploadAttachment(itemId: op.itemId, fileName: fileName, fileType: fileType,
-                                                            contentType: "image/jpeg", fileURL: url)
+                if let day = op.journalDay {
+                    let attachment = try await APIClient.shared.uploadJournalAttachment(
+                        day: day, fileName: fileName, fileType: fileType, contentType: "image/jpeg", fileURL: url)
+                    JournalStore.shared.didUpload(day, attachment: attachment)
+                } else {
+                    try await APIClient.shared.uploadAttachment(itemId: op.itemId, fileName: fileName, fileType: fileType,
+                                                                contentType: "image/jpeg", fileURL: url)
+                }
+            case .setJournal(let content, let highlights):
+                guard let day = op.journalDay else {
+                    throw APIError(status: 400, code: "BAD_DAY", message: "This journal entry has no day.")
+                }
+                let entry = try await APIClient.shared.writeJournal(day: day, content: content, highlights: highlights)
+                JournalStore.shared.didWrite(day, entry: entry)
             }
             outbox.didSucceed(op.id)
             landed += 1

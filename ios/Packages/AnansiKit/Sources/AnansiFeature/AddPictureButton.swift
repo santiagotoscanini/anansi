@@ -8,7 +8,8 @@ import UIKit
 struct AddPictureButton: View {
     let itemId: String
     let itemTitle: String
-    let trackingItemId: String
+    /// The library entry behind the item (its outline and last picture frame the camera), or nil for a journal day.
+    let trackingItemId: String?
     var compact = false
 
     @State private var selection: [PhotosPickerItem] = []

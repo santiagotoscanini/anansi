@@ -44,6 +44,9 @@ struct HomeView: View {
                 if connection.isConnected {
                     ToolbarItem(placement: .primaryAction) {
                         Menu("More", systemImage: "ellipsis.circle") {
+                            Button("Journal", systemImage: "book.closed") {
+                                path.append(JournalRoute(day: LocalDay.today()))
+                            }
                             Button("Weekly sync", systemImage: "calendar") {
                                 path.append(WeekRoute(weekStart: LocalDay.today().weekStart))
                             }
@@ -57,6 +60,12 @@ struct HomeView: View {
             }
             .navigationDestination(for: WeekRoute.self) { route in
                 WeekView(initialWeek: route.weekStart)
+            }
+            .navigationDestination(for: JournalRoute.self) { route in
+                JournalDayView(initialDay: route.day)
+            }
+            .navigationDestination(for: JournalListRoute.self) { _ in
+                JournalListView()
             }
             .navigationDestination(for: SetupRoute.self) { _ in
                 SetupView()
@@ -87,6 +96,7 @@ struct HomeView: View {
                 Task { await refresh() }
             } else {
                 data.clear()
+                JournalStore.shared.clear()
             }
         }
         .onOpenURL { url in
@@ -99,6 +109,7 @@ struct HomeView: View {
         guard connection.isConnected else { return }
         outbox.kick()
         await data.refreshPulse()
+        await JournalStore.shared.refresh(.today())
         await LibraryStore.shared.load()
     }
 
@@ -151,6 +162,12 @@ struct HomeView: View {
             ProblemCard(message: "Couldn't reach Anansi: \(error)") { Task { await refresh() } }
         }
         OutboxStatusView()
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeading(title: "Today")
+            JournalCard {
+                path.append(JournalRoute(day: LocalDay.today()))
+            }
+        }
         weekSection
         if let pulse = data.pulse {
             if !pulse.upcoming.isEmpty { UpcomingSection(rows: pulse.upcoming) }

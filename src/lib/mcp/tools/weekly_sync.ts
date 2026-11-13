@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
+import { attachmentResult } from './attachment-result'
 import { closedObject, localDay, toolInput } from './fields'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
 import {
@@ -18,9 +19,6 @@ import * as weeklySync from '~/server/services/weekly-sync'
 // The weekly sync and Pulse. A sync is one week's snapshot of tracking items,
 // each with its notes and files. Weeks are named by a calendar day the caller
 // supplies; see `localDay`.
-
-/** Past this a file is no use in a tool result, and the app is the place to open it. */
-const READABLE_BYTES = 5 * 1024 * 1024
 
 export function registerWeeklySyncTools(server: McpServer, ctx: McpCtx): void {
   server.registerTool(
@@ -161,25 +159,7 @@ export function registerWeeklySyncTools(server: McpServer, ctx: McpCtx): void {
     },
     async ({ id }) => {
       try {
-        const file = await attachments.read(ctx.userId, id)
-        const about = { id: file.id, fileName: file.fileName, fileType: file.fileType, sizeBytes: file.sizeBytes }
-        if (file.sizeBytes > READABLE_BYTES) {
-          return mcpJsonResult({ ...about, note: 'Too large to read here. Open it in the app.' })
-        }
-        if (file.mimeType.startsWith('image/')) {
-          return {
-            content: [
-              { type: 'image' as const, data: Buffer.from(file.data).toString('base64'), mimeType: file.mimeType },
-              { type: 'text' as const, text: file.fileName },
-            ],
-          }
-        }
-        try {
-          const text = new TextDecoder('utf-8', { fatal: true }).decode(file.data)
-          return mcpJsonResult({ ...about, text })
-        } catch {
-          return mcpJsonResult({ ...about, note: 'A binary file. Open it in the app.' })
-        }
+        return await attachmentResult(ctx.userId, id)
       } catch (e) {
         return mcpErrorFromUnknown(e)
       }

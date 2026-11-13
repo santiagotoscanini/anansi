@@ -8,14 +8,20 @@
   `Sources/AnansiFeature` (UI, stores, networking) and `Sources/AppFeature` (RootView + app delegate hooks).
 - `Sources/AnansiFeature/Core/` is pure logic: Foundation only, no UIKit/SwiftUI/CryptoKit imports. The contract
   models, `LocalDay` week maths, the API endpoints and errors, the connect link, the overlay (outline) model, the
-  outbox and the wording live there so they can be tested without a simulator. New logic that can be pure goes in
-  `Core/`.
+  journal text grammar, the outbox and the wording live there so they can be tested without a simulator. New logic
+  that can be pure goes in `Core/`.
 - The server contract is `/api/v1` with `Authorization: Bearer ank_…`, a per-device key the user creates on the web
   (Profile → Devices, shown once as text and as a QR of `anansi://connect?server=…&key=…`). Errors are
   `{ "error": { code, message } }`. `Core/API.swift` mirrors every route; the camera outline's shape is
   `src/lib/overlay.ts` on the server and `Core/Overlay.swift` here, limits included.
 - Weeks are named by the user's calendar day (`LocalDay`, `YYYY-MM-DD`), never by an instant: see
   `weekOfDay` in `src/lib/week.ts`.
+- The journal is one entry per `LocalDay` (`/api/v1/journal/{day}`). Its text names a person with the token
+  `@[Name](person:<id>)`; the grammar is `src/lib/journal.ts` on the server and `Core/JournalText.swift` here. The
+  phone only reads tokens (shown as `@Name`) and sends plain `@Name` back: the server links it on every write, so
+  never build tokens on the phone. Journal text and pictures go through the outbox under the item id
+  `journal:YYYY-MM-DD` (`OutboxOp.journalItemId`), and a write replaces the whole prose or the whole highlight list,
+  so the day screen only edits a day it has read.
 - Don't hand-edit `project.pbxproj` to add files: `Anansi/` is a synchronized folder, and package files are picked up
   automatically.
 - Targets: iOS 27, Swift 6 language mode, default MainActor isolation. Use `@Observable`, not ObservableObject. Use

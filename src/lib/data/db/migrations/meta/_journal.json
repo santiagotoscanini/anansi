@@ -36,6 +36,13 @@
       "when": 1793996571105,
       "tag": "0004_drop_files_data",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794543700756,
+      "tag": "0005_journal",
+      "breakpoints": true
     }
   ]
 }

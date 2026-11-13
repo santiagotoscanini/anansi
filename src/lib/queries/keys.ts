@@ -68,6 +68,11 @@ export const qk = {
 
   bucketList: ['bucket-list'] as const,
 
+  journal: ['journal'] as const,
+  journalDay: (day: string) => ['journal', 'day', day] as const,
+  journalRecent: (query?: string) => ['journal', 'recent', query ?? null] as const,
+  journalMentionsOf: (personId: string) => ['journal', 'person', personId] as const,
+
   self: ['self'] as const,
   selfListItems: ['self-list-items'] as const,
 } as const

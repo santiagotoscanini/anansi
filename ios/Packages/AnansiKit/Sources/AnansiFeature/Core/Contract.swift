@@ -236,6 +236,86 @@ nonisolated struct Success: Codable, Hashable, Sendable {
     var success: Bool?
 }
 
+// MARK: Journal
+
+/// A person the phone can mention (`GET /api/v1/people`).
+nonisolated struct PersonRef: Codable, Hashable, Sendable, Identifiable {
+    var id: String
+    var name: String
+    var emoji: String?
+
+    /// The emoji when it is a glyph the phone can draw.
+    var glyph: String? { Self.glyph(emoji) }
+
+    /// A person's emoji can also be an uploaded photo, `/api/files/…`, which needs a browser session: that is no
+    /// glyph.
+    static func glyph(_ emoji: String?) -> String? {
+        guard let trimmed = emoji?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty,
+              !trimmed.hasPrefix("/")
+        else { return nil }
+        return trimmed
+    }
+}
+
+/// A person one day's entry mentions, with their name as it is now.
+nonisolated struct JournalMention: Codable, Hashable, Sendable, Identifiable {
+    var personId: String
+    var name: String
+    var emoji: String?
+
+    var id: String { personId }
+    var glyph: String? { PersonRef.glyph(emoji) }
+}
+
+/// One day of the journal (`GET /api/v1/journal/{day}`, which answers `null` for a day with nothing written).
+/// `content` and `highlights` are stored text: a mention is the token `@[Name](person:<id>)`, see `JournalText`.
+nonisolated struct JournalEntry: Codable, Hashable, Sendable, Identifiable {
+    var id: String
+    /// The user's calendar day, `YYYY-MM-DD`.
+    var day: String
+    var content: String
+    var highlights: [String]
+    var mentions: [JournalMention]
+    var attachments: [SyncAttachment]
+    var createdAt: String?
+    var updatedAt: String?
+
+    init(id: String, day: String, content: String = "", highlights: [String] = [], mentions: [JournalMention] = [],
+         attachments: [SyncAttachment] = [], createdAt: String? = nil, updatedAt: String? = nil) {
+        self.id = id
+        self.day = day
+        self.content = content
+        self.highlights = highlights
+        self.mentions = mentions
+        self.attachments = attachments
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        day = try container.decode(String.self, forKey: .day)
+        content = try container.decodeIfPresent(String.self, forKey: .content) ?? ""
+        highlights = try container.decodeIfPresent([String].self, forKey: .highlights) ?? []
+        mentions = try container.decodeIfPresent([JournalMention].self, forKey: .mentions) ?? []
+        attachments = try container.decodeIfPresent([SyncAttachment].self, forKey: .attachments) ?? []
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+    }
+
+    var localDay: LocalDay? { LocalDay(string: String(day.prefix(10))) }
+
+    var hasText: Bool {
+        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !highlights.isEmpty
+    }
+
+    /// Nothing written and nothing attached: the server keeps no such entry.
+    var isBlank: Bool { !hasText && attachments.isEmpty }
+
+    var pictureCount: Int { attachments.filter(\.isImage).count }
+}
+
 // MARK: Dates
 
 nonisolated enum ISODate {

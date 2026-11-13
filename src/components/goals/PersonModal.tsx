@@ -20,6 +20,7 @@ import ColorPicker from './ColorPicker'
 import DatePicker from './DatePicker'
 import PersonBidsSection from './PersonBidsSection'
 import PersonImportantDatesSection from './PersonImportantDatesSection'
+import PersonJournalSection from './PersonJournalSection'
 
 export type PersonRow = {
   id: string
@@ -499,6 +500,9 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
             <PersonBidsSection personId={person?.id} />
 
             <PersonImportantDatesSection personId={person?.id} />
+
+            {/* The journal days that mention this person */}
+            {isEdit && person && <PersonJournalSection personId={person.id} personName={person.name} />}
 
             {/* Tasks where this person is a referent */}
             {isEdit && (

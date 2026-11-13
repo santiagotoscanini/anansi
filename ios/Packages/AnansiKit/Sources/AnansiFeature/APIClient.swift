@@ -163,3 +163,34 @@ extension APIClient {
         try await call(API.goals(), as: [GoalSummary].self)
     }
 }
+
+// MARK: Journal
+
+extension APIClient {
+    /// One day of the journal, or nil when nothing was written that day.
+    func journalEntry(day: LocalDay) async throws -> JournalEntry? {
+        try await call(API.journal(day: day), as: JournalEntry?.self)
+    }
+
+    /// Writes the fields that are set. The answer is the day as it now stands, or nil when it ended up empty.
+    @discardableResult
+    func writeJournal(day: LocalDay, content: String?, highlights: [String]?) async throws -> JournalEntry? {
+        try await call(API.writeJournal(day: day, content: content, highlights: highlights), as: JournalEntry?.self)
+    }
+
+    func journalEntries(query: String? = nil, personId: String? = nil, limit: Int? = nil) async throws -> [JournalEntry] {
+        try await call(API.journalList(personId: personId, query: query, limit: limit), as: [JournalEntry].self)
+    }
+
+    @discardableResult
+    func uploadJournalAttachment(day: LocalDay, fileName: String, fileType: String, contentType: String,
+                                 fileURL: URL) async throws -> SyncAttachment {
+        let body = try await upload(API.uploadJournalAttachment(day: day, fileName: fileName, fileType: fileType,
+                                                                contentType: contentType), fileURL: fileURL)
+        return try API.decode(SyncAttachment.self, from: body)
+    }
+
+    func people() async throws -> [PersonRef] {
+        try await call(API.people(), as: [PersonRef].self)
+    }
+}

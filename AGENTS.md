@@ -2,7 +2,7 @@
 
 Personal operating system for goals, relationships, and values. Named after Anansi — the West African spider trickster — whose Adinkra symbol **Ananse Ntontan** (the spider's web) represents wisdom, creativity, and the complexity of life. The app's icon is that web.
 
-Feature surface: visual goal hierarchies with weighted connections, weekly progress retrospectives, a Personal CRM for reflecting on relationships, user-defined values that tag goals, and custom groups that span both people and tasks (e.g. "Family" can hold both my partner and the "call mom" task).
+Feature surface: visual goal hierarchies with weighted connections, weekly progress retrospectives, a daily journal, a Personal CRM for reflecting on relationships, user-defined values that tag goals, and custom groups that span both people and tasks (e.g. "Family" can hold both my partner and the "call mom" task).
 
 ## Local dev
 
@@ -98,7 +98,7 @@ src/
     services/                # plain async (userId, input) fns. NO @tanstack imports.
       errors.ts              #   the AppError taxonomy
       auth.ts values.ts value-behaviors.ts goals.ts tasks.ts connections.ts data.ts
-      tracking-items.ts sync-templates.ts weekly-sync.ts attachments.ts file-refs.ts files.ts
+      tracking-items.ts sync-templates.ts weekly-sync.ts journal.ts attachments.ts file-refs.ts files.ts
       people.ts groups.ts next-bids.ts important-dates.ts bucket-list.ts
       self.ts self-list-items.ts backup.ts
     bucket.ts                # the app's bucket from S3_* (memory store outside production)
@@ -117,8 +117,9 @@ src/
       importance.ts
     api/types.ts             # ~726 lines of zod schemas, shared by services + fns + MCP
     data/                    # schema.ts, db connection, migrations/
-    mcp/                     # MCP server + 80 tools + the OAuth 2.1 provider
+    mcp/                     # MCP server + 88 tools + the OAuth 2.1 provider
     env.ts security-headers.ts horizon-period.ts week.ts image-upload.ts
+    journal.ts               # the journal's mention grammar (pure, shared by server, editors and tests)
     theme.ts color-palette.ts emoji-utils.ts
 
   components/
@@ -152,6 +153,7 @@ app.tsx             /app LAYOUT — beforeLoad auth guard, { modal?: 'profile'|'
 app.index.tsx       /app { goal? } renders the graph directly (NOT a redirect to /app/objectives)
 app.objectives.tsx { goal? }      app.horizons.tsx { task?, goal? }
 app.tasks.tsx      { task?, goal? }  app.sync.tsx { week? }
+app.journal.tsx    { day? }  (absent = today, resolved in the browser)
 app.people.tsx     { filter?, groupId?, person? }   app.bucket.tsx { item? }
                     (`goal`/`item`/`task` accept an id, or the literal `new` to open the create form)
 app.pulse.tsx  app.tracking-items.tsx  app.self.tsx  app.values.tsx
@@ -183,7 +185,7 @@ component  →  lib/queries/*.ts (queryOptions)  →  server/fn/*.fn.ts (createS
 MCP tool  ────────────────────────────────────────────↗  (direct, in-process)
 ```
 
-- **`server/services/*.ts`** holds all business logic as plain `(userId, input)` async functions. It imports `db`, the zod schemas and `AppError`, and nothing from `@tanstack/*`. That is what lets the 80 MCP tools call it directly: the MCP graph never touches the Start compiler, so there is no function-id registration, no CSRF, no Seroval, no HTTP hop.
+- **`server/services/*.ts`** holds all business logic as plain `(userId, input)` async functions. It imports `db`, the zod schemas and `AppError`, and nothing from `@tanstack/*`. That is what lets the 88 MCP tools call it directly: the MCP graph never touches the Start compiler, so there is no function-id registration, no CSRF, no Seroval, no HTTP hop.
 - Services **re-parse their input** with the shared zod schema. Two entry points means two independent validators; parsing inside the service is the only guarantee that covers both, and it makes each service callable from a script without ceremony.
 - **`server/fn/*.fn.ts`** wraps services for the browser. Every route loader prefetches with `queryClient.ensureQueryData(...)` and components read with `useSuspenseQuery`, so tab data is server-rendered and hydrated — there is no loading spinner to reintroduce.
 - **`lib/queries/keys.ts`** owns every query key (`qk.*`), replacing tRPC's `utils.*.invalidate()`. Invalidate by key **root** (`qk.people`), not by leaf — prefix matching covers the leaves.
@@ -215,6 +217,14 @@ Sync items + unified Upcoming feed (next bids + important dates) + On the Horizo
 
 ### Weekly retrospectives
 User-owned tracking-items library (goal optional → "Unscoped"), reusable sync templates (one default per user auto-snapshots into each new sync), inline `text_content` per sync item, and binary attachments (rows in `attachments`, each pointing at a file: a `files` row whose bytes are in the bucket).
+
+### Journal
+One entry per user per calendar day, written like a diary: `highlights` (the day in a few lines), `content` (prose), pictures (attachments with `parentType = 'journal_entry'`) and the people the day mentions. Built agent-first: the expected writer is a conversation with Claude at the end of the day (`write_journal_entry` / `append_journal_entry`), and the web tab and the phone read and edit the same days.
+
+- **The day is the user's own, `YYYY-MM-DD`, always named by the caller.** The server's clock is UTC and never decides what "today" is: for a user in UTC-3 its day turns over at 21:00, exactly when a day gets written down. The web tab gets today from `useLocalToday` (null on the server and during hydration, the browser's day after), which is also why the route prefetches nothing.
+- **An entry that holds nothing does not exist.** Writing a day empty deletes its row (unless pictures still hang on it), deleting a day's last picture does the same, and a read answers null.
+- **Mentions.** Stored text names a person as `@[Name](person:<id>)`; `journal_mentions` is the index derived from those tokens on every write, and what a person's page reads ("In the journal"). `linkMentions` in `src/lib/journal.ts` is the one place the looser forms become tokens, and the service runs it on every write: a plain `@Name` is linked when exactly one person has that name (and otherwise left as text), an explicit `@[Name]` must resolve or the write is refused with the reason, an unknown id is refused, and every token's label is rewritten to the person's current name. So every editor edits plain text with `@Name` in it (`toEditable`) and sends it back as typed.
+- `?person=<id>` on `/app/people` opens that person's modal, which is what a mention links to.
 
 ### Personal CRM (People + Self)
 - People are a **reflection surface**, not a contact manager — phone/email/birthday/last-contact/vCard import were intentionally removed.
@@ -333,11 +343,15 @@ Named bundles of tracking items. **Partial unique index** enforces "at most one 
 - `weeklySyncItems`: `weeklySyncId` (cascade), `trackingItemId` (cascade), `textContent` (nullable, inline notes — replaces old notes.txt files), `orderIdx` (NOT NULL, default 0)
 
 ### attachments
-Polymorphic file metadata, keyed on `(parentType, parentId)`. Today's only producer is `parentType = 'weekly_sync_item'`, but the schema is permissive so other entities can opt in without a migration. The bytes are a file (`files` row + bucket object). The `fileId` FK cascades **from `files` to `attachments`**: deleting the file row removes the attachment row, never the other way round — so every delete goes through `files.deleteFiles` (bytes first, then the file row, and the cascade takes the attachment).
+Polymorphic file metadata, keyed on `(parentType, parentId)`. The parents today are `'weekly_sync_item'` and `'journal_entry'`; the schema is permissive so other entities can opt in without a migration. Nothing cascades from a parent to its attachments: whoever deletes a parent deletes its files first. The bytes are a file (`files` row + bucket object). The `fileId` FK cascades **from `files` to `attachments`**: deleting the file row removes the attachment row, never the other way round — so every delete goes through `files.deleteFiles` (bytes first, then the file row, and the cascade takes the attachment).
 - `userId` (cascade), `parentType` (NOT NULL discriminator), `parentId` (NOT NULL), `fileName`, `fileType` (enum: image|document|video|audio|other), `fileId` (NOT NULL, FK → files.id, cascade), `sizeBytes` (nullable). Indexed on `(parentType, parentId)` and `userId`.
 
 ### goalValues (junction)
 - `goalId` (FK), `valueId` (FK)
+
+### journal_entries + journal_mentions
+- `journal_entries`: `userId` (cascade), `day` (**date**, the user's calendar day), `content` (text, NOT NULL, default ''), `highlights` (jsonb string array, NOT NULL, default []). UNIQUE(userId, day).
+- `journal_mentions`: `entryId` (cascade), `personId` (cascade); UNIQUE(entryId, personId), indexed on `personId`. Derived from the entry's text on every write, never edited by hand. Deleting a person drops their rows; the text keeps the name.
 
 ### people (Personal CRM — reflection only)
 - `userId` (cascade), `name`, `emoji` (nullable), `category` (enum **NOT NULL**: `to_process|exploring|long_term|context_bound`), `boardOrder`
@@ -379,6 +393,7 @@ One table for every list-shaped Self section. Server enforces `patternCategory` 
 - Goals → many child goals (self-FK), many tasks, optional tracking items; many-to-many goals via connections; many-to-many values via goalValues.
 - Tasks → many referent people via taskReferents; many groups via tasksToGroups.
 - Weekly syncs → many syncItems → optional textContent + many attachments (polymorphic, parentType='weekly_sync_item').
+- Journal entries → many people via journalMentions; many attachments (polymorphic, parentType='journal_entry').
 
 ## Computed (not stored)
 
@@ -429,9 +444,15 @@ One file per domain in `src/server/services/`, one thin `.fn.ts` wrapper per fil
 - `addItem` (idempotent), `removeItem` (drops from this sync only; library row stays; deletes its attachments' files, bytes included — attachments are polymorphic, so no FK does it), `setItemText`, `reorderItems`
 
 ### attachments
-- `upload({ parentType: 'weekly_sync_item', parentId, fileName, fileType, data })` — base64; stores a file (bytes to the bucket, then the `files` row), then the attachment metadata row. Metadata-insert failure discards the file, bytes included. Returns `{ url }` as a `/api/files/{id}` path.
+- `upload({ parentType: 'weekly_sync_item' | 'journal_entry', parentId, fileName, fileType, data })` — base64; stores a file (bytes to the bucket, then the `files` row), then the attachment metadata row. Metadata-insert failure discards the file, bytes included. Returns `{ url }` as a `/api/files/{id}` path.
 - `find` (metadata + the file's type and size, no bytes: what `/api/v1/attachments/{id}` streams from), `read` (the same with the bytes, for MCP's `get_sync_attachment`)
-- `remove({ id })` — deletes the file (bytes, then row); the FK cascade takes the attachment row.
+- `remove({ id })` — deletes the file (bytes, then row); the FK cascade takes the attachment row. A journal day left with nothing goes with it.
+
+### journal
+- `get({ day })` (the entry with its `mentions` and `attachments`, or null), `list({ from?, to?, personId?, query?, limit? })` (newest day first; `personId` = the days that mention that person)
+- `write({ day, content?, highlights? })` — upsert; a field passed replaces, a field left out stays; a day written empty is deleted and null comes back
+- `append({ day, content?, highlights? })` — a new paragraph at the end, highlights joined without repeats; what the agent uses to add to a day without reading it
+- `remove({ day })` (files first, then the row), `uploadAttachment({ day, fileName, fileType, data })` (starts the day's entry when there is none)
 
 ### images
 - `upload`, `uploadMultiple` — single-image / multi-image upload (used outside the weekly-sync flow)
@@ -463,11 +484,11 @@ One file per domain in `src/server/services/`, one thin `.fn.ts` wrapper per fil
 
 ### Data export
 - `data.getAll` — all user data (values, goals, connections). Shares `src/lib/data/queries/load-goals.ts` with `goals.getAll` — the 6-query hydration lives there once.
-- `backup.export` / `backup.import` — full user backup including people + userSelf and the attachments' bytes (read from / written to the bucket). `import` re-parses its (large, untrusted) payload inside the service; that is not optional there. Its new files' bytes go to the bucket before their rows join the transaction (and are discarded if it rolls back); the replaced attachments' files lose their rows in the transaction and their bytes only after it commits. Person photos and the avatar are not in a backup and are left alone.
+- `backup.export` / `backup.import` — full user backup including people + userSelf, the journal (its mentions are read back out of the text on import) and the attachments' bytes (read from / written to the bucket). `import` re-parses its (large, untrusted) payload inside the service; that is not optional there. Its new files' bytes go to the bucket before their rows join the transaction (and are discarded if it rolls back); the replaced attachments' files lose their rows in the transaction and their bytes only after it commits. Person photos and the avatar are not in a backup and are left alone.
 
 ## File storage
 
-Records in Postgres, bytes in the bucket. Every upload (avatar, person photo, sync attachment) is a **`files`** row — owner, name, type, size — and an object in the app's private bucket on the box's Garage store at **`files/<id>`**, a key derived from the row so no column stores a path. Sync-item text notes are inline in `weekly_sync_items.text_content` (DB-only).
+Records in Postgres, bytes in the bucket. Every upload (avatar, person photo, sync or journal attachment) is a **`files`** row — owner, name, type, size — and an object in the app's private bucket on the box's Garage store at **`files/<id>`**, a key derived from the row so no column stores a path. Sync-item text notes are inline in `weekly_sync_items.text_content` (DB-only).
 
 **The pieces.** `src/server/object-store.ts` is the platform's canonical S3 client, copied **verbatim** from daedalus (`nix/modules/garage/client/`) with its vitest test beside it: never edit it here — change the canonical copy and copy it back in. Both files are in `.prettierignore` (they carry the platform's formatting). `src/server/bucket.ts` builds the store from the five `S3_*` variables the platform injects with Object storage on (not declared in `env.ts`: the client checks them itself, all five or none), and gives an in-memory store when they are absent — `pnpm dev` and the tests keep uploads in memory, gone on restart. In production there is **no fallback**: `start.mjs`, the image's only entry point, refuses to boot without the five variables. `bucket()` deliberately does not key on `NODE_ENV`: the box runs `pnpm run ci` inside the image after the build, with `NODE_ENV=production` and no bucket, and the tests must pass there. `src/server/services/files.ts` is the only code that touches both halves:
 
@@ -517,11 +538,13 @@ Transport: Streamable HTTP via `@modelcontextprotocol/sdk`'s `WebStandardStreama
 
 ### MCP tool catalog
 
-`registerAllTools()` (in `src/lib/mcp/tools/index.ts`) wires **80 tools** across 14 domain files. All tool names are flat verb-first snake_case (`list_goals`, `update_person`, `set_next_bid_done`, …). Hand-written `title` + `description` drive LLM tool selection; Zod raw shapes give the SDK enough type info to both generate the inputSchema JSON Schema AND validate inputs at call-time.
+`registerAllTools()` (in `src/lib/mcp/tools/index.ts`) wires **88 tools** across 15 domain files. All tool names are flat verb-first snake_case (`list_goals`, `update_person`, `set_next_bid_done`, …). Hand-written `title` + `description` drive LLM tool selection; Zod raw shapes give the SDK enough type info to both generate the inputSchema JSON Schema AND validate inputs at call-time.
 
-Domains: `system` (4: `whoami`, `update_profile`, `set_avatar`, `remove_avatar`), `goals` (4), `tasks` (4), `values` (7), `people` (11), `next_bids` (6), `important_dates` (4), `groups` (5), `bucket_list` (5), `self` (7), `tracking_items` (4), `sync_templates` (5), `weekly_sync` (10, with `get_pulse` and the attachments), `connections` (4). The app is meant to be fully drivable from here. Left on the screens on purpose: password and email changes, because a connector must not be able to take over the account; backup export and import, because one is the whole account with file bytes and the other replaces it. A new feature gets its tools with it.
+Domains: `system` (4: `whoami`, `update_profile`, `set_avatar`, `remove_avatar`), `goals` (4), `tasks` (4), `values` (7), `people` (11), `next_bids` (6), `important_dates` (4), `groups` (5), `bucket_list` (5), `self` (7), `tracking_items` (4), `sync_templates` (5), `weekly_sync` (10, with `get_pulse` and the attachments), `journal` (8, with its attachments), `connections` (4). The app is meant to be fully drivable from here. Left on the screens on purpose: password and email changes, because a connector must not be able to take over the account; backup export and import, because one is the whole account with file bytes and the other replaces it. A new feature gets its tools with it.
 
 **A week is named by a calendar day (`localDay`), never by the clock.** The server is in UTC and `week_date` holds whatever Monday the creator's clock said: Monday 03:00Z from a browser in Uruguay, 00:00Z from a naive server. The unique index cannot see those as one week, so a tool computing `weekStartOf(new Date())` would start a second sync that Pulse never shows. So the tools take the user's `day`, `weekOfDay` turns it into noon UTC on its Monday, and `weekly-sync.ts` matches by week within `WEEK_MATCH_MS` instead of by instant. That also keeps one sync for a user who opens the app on another clock. Starting a week that has a sync returns that sync.
+
+**A journal day is named the same way**, and for the same reason. The journal tools are the ones written for a conversation rather than a form: `write_journal_entry` takes the whole day, `append_journal_entry` adds to it without a read first, and a person can be named `@[Name]` without looking up an id (see "Journal" above for what is linked and what is refused).
 
 **Pulse is computed once**, in `lib/pulse.ts`: `Pulse.tsx` and `get_pulse` (`server/services/pulse.ts`) call the same pure functions, so a change to the attention rules reaches both.
 
@@ -555,7 +578,8 @@ components/oauth/ConsentScreen.tsx             # Consent UI (EN-only for v1)
 lib/mcp/server.ts                              # Per-request McpServer factory
 lib/mcp/types.ts                               # McpCtx = { userId }
 lib/mcp/errors.ts                              # AppError → MCP error result + mcpJsonResult
-lib/mcp/tools/{system,goals,tasks,values,people,next_bids,important_dates,groups,bucket_list,self,tracking_items,sync_templates,weekly_sync,connections}.ts
+lib/mcp/tools/{system,goals,tasks,values,people,next_bids,important_dates,groups,bucket_list,self,tracking_items,sync_templates,weekly_sync,journal,connections}.ts
+lib/mcp/tools/attachment-result.ts             # an attachment as a tool result (image, text, or a note)
 lib/mcp/tools/fields.ts                        # isoDate + toolInput/closedObject (zod 4 JSON Schema)
 lib/mcp/oauth/{store,clients,codes,tokens,pkce,consent,metadata,scopes,audit,authorize-validation}.ts
 ```
@@ -606,6 +630,10 @@ Keys: created and revoked by the signed-in user in Profile → Devices (`src/ser
 | `/api/v1/templates` | GET, POST | `syncTemplates.list` / `create` |
 | `/api/v1/templates/{id}/items` | PUT `{trackingItemIds}` | `syncTemplates.setItems` |
 | `/api/v1/goals` | GET | `goals.list` (id, title, emoji) |
+| `/api/v1/journal?from=&to=&personId=&q=&limit=` | GET | `journal.list` |
+| `/api/v1/journal/{day}` | GET (the entry or `null`), PUT `{content?, highlights?}`, DELETE | `journal.get` / `write` / `remove` |
+| `/api/v1/journal/{day}/attachments` | POST (body = the file; `?fileName=&fileType=`) | `journal.uploadAttachment` (read and deleted at `/api/v1/attachments/{id}`) |
+| `/api/v1/people` | GET | `people.list`, cut to id, name, emoji (the mention picker) |
 
 ## Landing page
 
@@ -787,7 +815,7 @@ Rules:
 
 > **A green `pnpm build` is not evidence that the app runs.** Three separate defects during the migration passed `vite build` and failed on the first real request: `import 'server-only'` (500 on every SSR pass), a mis-registered server-function id (`Invalid server function ID`, only at call time), and a dnd-kit hydration mismatch. **Exercise changes in `pnpm dev` from a real browser**, and include *client-side* navigation — a hard reload runs loaders on the server where a server fn is a direct call, so only client-side navigation tests the RPC path.
 
-`.golden/` holds the pre-migration oracle and is the reference for anything that must not drift: the 80-tool `tools/list` JSON, both `.well-known` documents, the MCP 401 response (which doubles as the security-header baseline), and 29 screenshots. `.golden/README.md` documents the diff procedure, the one deliberate re-baseline (zod 4), and its known false positives (`objectives-*` always differ — React Flow animates its dashed edges).
+`.golden/` holds the pre-migration oracle and is the reference for anything that must not drift: the 88-tool `tools/list` JSON, both `.well-known` documents, the MCP 401 response (which doubles as the security-header baseline), and 29 screenshots. `.golden/README.md` documents the diff procedure, the one deliberate re-baseline (zod 4), and its known false positives (`objectives-*` always differ — React Flow animates its dashed edges).
 
 ## Infrastructure
 

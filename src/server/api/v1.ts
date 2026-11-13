@@ -9,6 +9,7 @@
 // Errors are `{ "error": { "code": "NOT_FOUND", "message": "…" } }` with the
 // matching status. Codes are the service layer's AppErrorCode set.
 import { z, ZodError } from 'zod'
+import { MAX_UPLOAD_BYTES } from '~/lib/image-upload'
 import { checkRateLimit, clientIpFromHeaders } from '~/lib/rate-limit'
 import * as apiKeys from '~/server/services/api-keys'
 import { AppError, type AppErrorCode } from '~/server/services/errors'
@@ -79,4 +80,32 @@ export async function readJson<T extends z.ZodType>(request: Request, schema: T)
     }
   }
   return schema.parse(body)
+}
+
+const fileTypeParam = z.enum(['image', 'document', 'video', 'audio', 'other'])
+
+/**
+ * An upload whose body is the file itself (not JSON, not base64), so the phone
+ * can send it from disk with a background upload. `?fileName=` names it and
+ * `?fileType=` classifies it (default: image for an image/* Content-Type,
+ * other otherwise). The size is checked here; what the bytes are is checked by
+ * the service, like every upload.
+ */
+export async function readUpload(request: Request) {
+  const declared = Number(request.headers.get('content-length') ?? '0')
+  if (declared > MAX_UPLOAD_BYTES) throw new AppError('BAD_REQUEST', `Upload exceeds ${MAX_UPLOAD_BYTES} bytes`)
+  const url = new URL(request.url)
+  const contentType = request.headers.get('content-type') ?? ''
+  const fileType = fileTypeParam.parse(
+    url.searchParams.get('fileType') ?? (contentType.startsWith('image/') ? 'image' : 'other'),
+  )
+  const fileName = z
+    .string()
+    .min(1)
+    .max(500)
+    .parse(url.searchParams.get('fileName') ?? 'upload')
+  const bytes = Buffer.from(await request.arrayBuffer())
+  if (bytes.length === 0) throw new AppError('BAD_REQUEST', 'Empty upload')
+  if (bytes.length > MAX_UPLOAD_BYTES) throw new AppError('BAD_REQUEST', `Upload exceeds ${MAX_UPLOAD_BYTES} bytes`)
+  return { fileName, fileType, data: bytes.toString('base64') }
 }

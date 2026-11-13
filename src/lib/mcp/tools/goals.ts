@@ -92,6 +92,24 @@ export function registerGoalsTools(server: McpServer, ctx: McpCtx): void {
   )
 
   server.registerTool(
+    'arrange_goals',
+    {
+      title: 'Arrange the goal graph',
+      description:
+        'Tidy the canvas: lay every goal out from its connections, left to right in the direction the edges point, with unconnected goals in rows underneath. Nothing but positions changes. Use it after creating or connecting several goals, or when the user asks to organize the graph. Answers the goals that moved, each with `from` and `to`; to undo, set each one back with `update_goal` and its `from` as `position`.',
+      inputSchema: toolInput({}),
+      annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async () => {
+      try {
+        return mcpJsonResult(await goals.arrange(ctx.userId))
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
+
+  server.registerTool(
     'delete_goal',
     {
       title: 'Delete a goal',

@@ -382,8 +382,9 @@
     "categoryLongTermHint": "Familia, amistades más cercanas. Se erosionan por descuido, no por drama.",
     "categoryToProcess": "Por procesar",
     "categoryToProcessHint": "Algo para resolver: reparar, soltar o terminar. Nombrá cuál en 'Si me muriera mañana'.",
-    "journalSection": "En el diario",
-    "journalEmpty": "Todavía no aparece en ningún día del diario. Escribí @ y su nombre en un día."
+    "mentionsSection": "Menciones",
+    "mentionsEmpty": "Todavía no hay menciones. Escribí @ y su nombre en un día del diario, una nota del sync o una tarea.",
+    "mentionsWeekOf": "semana del {{date}}"
   },
   "lifeProgress": {
     "eyebrow": "Metas · progreso",
@@ -552,21 +553,17 @@
     "defaultName": "Por defecto"
   },
   "weeklySyncRow": {
-    "savingStatus": "Guardando...",
-    "savedStatus": "✓ Guardado",
-    "addText": "Agregar texto",
-    "addImages": "Agregar imágenes",
+    "savingStatus": "Guardando…",
+    "savedStatus": "Guardado",
+    "addImages": "Agregar fotos",
     "removeFromSync": "Quitar del sync",
     "removeFromSyncTitle": "Quitar de este sync. El item queda en tu librería",
-    "notesPlaceholder": "Agregá tus notas para este item…",
+    "notesPlaceholder": "Escribí tus notas…",
     "done": "Listo",
-    "content": "Contenido",
-    "savedNotes": "Notas guardadas",
-    "clearNotes": "Borrar notas",
     "clickToEdit": "Hacé clic para editar",
-    "savedImages": "Imágenes guardadas ({{count}})",
     "savedAlt": "Guardada {{index}}",
-    "deleteTitle": "Eliminar {{name}}"
+    "deleteTitle": "Eliminar {{name}}",
+    "mentionHint": "Escribí @ para mencionar a alguien."
   },
   "weeklySync": {
     "eyebrow": "Sync · retrospectiva semanal",
@@ -615,8 +612,6 @@
     "noFileData": "No hay datos de archivo",
     "readFileFailed": "No se pudo leer el archivo",
     "saveTextFailed": "No se pudo guardar el texto",
-    "notesCleared": "Notas borradas",
-    "clearNotesFailed": "No se pudieron borrar las notas",
     "fileDeleted": "{{name}} eliminado",
     "fileDeleteFailed": "No se pudo eliminar {{name}}",
     "importanceHigh": "Alta",
@@ -886,7 +881,13 @@
     "deletedGoals_other": "{{count}} metas eliminadas",
     "deleteGoalsFailed": "No se pudieron eliminar las metas",
     "deletedConnections_one": "{{count}} conexión eliminada",
-    "deletedConnections_other": "{{count}} conexiones eliminadas"
+    "deletedConnections_other": "{{count}} conexiones eliminadas",
+    "arrange": "Ordenar",
+    "arrangeTitle": "Acomodar el grafo según sus conexiones",
+    "arranged_one": "Se movió {{count}} meta.",
+    "arranged_other": "Se movieron {{count}} metas.",
+    "alreadyArranged": "Ya está en orden.",
+    "undo": "Deshacer"
   },
   "pulse": {
     "loading": "Cargando…",

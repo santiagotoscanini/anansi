@@ -35,6 +35,13 @@ export const localDay = z
   .describe("A day in the user's own time zone, YYYY-MM-DD. Usually today.")
 
 /**
+ * How a tool's text names a person. One sentence, the same on every tool whose
+ * text is linked (journal days, sync notes, tasks), so a model learns it once.
+ */
+export const MENTIONS =
+  'Name a person as `@[Name](person:<id>)` with an id from `list_people`, or as `@[Name]` when exactly one person has that name. A mention is what makes the text show up under that person (`list_person_mentions`); a name that matches nobody is refused, not guessed.'
+
+/**
  * Wrap a tool's field shape into the object the MCP SDK publishes.
  *
  * The SDK accepts either a raw shape or a whole Zod schema; passing a raw shape

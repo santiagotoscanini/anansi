@@ -24,10 +24,3 @@ export const journalRecentQueryOptions = (query?: string) =>
     queryFn: ({ signal }) =>
       listJournalEntries({ data: { limit: 60, query: query === '' ? undefined : query }, signal }),
   })
-
-/** The days that mention one person: "where did I write about them". */
-export const journalMentionsOfQueryOptions = (personId: string) =>
-  queryOptions({
-    queryKey: qk.journalMentionsOf(personId),
-    queryFn: ({ signal }) => listJournalEntries({ data: { personId, limit: 100 }, signal }),
-  })

@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
 import { attachmentResult } from './attachment-result'
-import { localDay, toolInput } from './fields'
+import { localDay, MENTIONS, toolInput } from './fields'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
 import * as attachments from '~/server/services/attachments'
 import * as journal from '~/server/services/journal'
@@ -12,9 +12,6 @@ import * as journal from '~/server/services/journal'
 // an entry. So the tools are few and forgiving. A day is named by the caller
 // (see `localDay`), an entry is written whole or added to without reading it
 // first, and a person can be named by id or just by name.
-
-const MENTIONS =
-  'Name a person as `@[Name](person:<id>)` with an id from `list_people`, or as `@[Name]` when exactly one person has that name. A mention is what makes the day show up under that person, so mention everyone the day was about; a name that matches nobody is refused, not guessed.'
 
 const content = z.string().max(50_000)
 const highlights = z.array(z.string().min(1).max(500)).max(50)
@@ -64,7 +61,7 @@ export function registerJournalTools(server: McpServer, ctx: McpCtx): void {
     'write_journal_entry',
     {
       title: 'Write a journal day',
-      description: `Write the journal entry of one day, creating it when the day has none. \`content\` is the diary text, in the user's own voice and language, with blank lines between paragraphs; \`highlights\` is the day's short list, one line each. A field you pass replaces what the day holds and a field you leave out stays, so to add to a day use \`append_journal_entry\` instead. ${MENTIONS} For an end-of-day reflection, talk the day through first, then write it once.`,
+      description: `Write the journal entry of one day, creating it when the day has none. \`content\` is the diary text, in the user's own voice and language, with blank lines between paragraphs; \`highlights\` is the day's short list, one line each. Mention everyone the day was about. A field you pass replaces what the day holds and a field you leave out stays, so to add to a day use \`append_journal_entry\` instead. ${MENTIONS} For an end-of-day reflection, talk the day through first, then write it once.`,
       inputSchema: toolInput({
         day: localDay,
         content: content.optional().describe('The diary text. Replaces the text the day holds.'),

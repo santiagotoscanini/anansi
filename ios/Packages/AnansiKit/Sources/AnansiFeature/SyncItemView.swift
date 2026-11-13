@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// One item of a week: write the notes (saved as you type, through the outbox), add pictures, look at and delete
-/// what is attached. Reads the newest copy of the item from `SyncData`, so it can be opened from Pulse or from any
-/// week.
+/// One item of a week: write the notes (saved as you type, through the outbox; a person is `@Name`, typed or
+/// picked, and the server links it), add pictures, look at and delete what is attached. Reads the newest copy of
+/// the item from `SyncData`, so it can be opened from Pulse or from any week.
 struct SyncItemView: View {
     let itemId: String
 
@@ -15,6 +15,7 @@ struct SyncItemView: View {
     @State private var viewing: SyncAttachment?
     @State private var toDelete: SyncAttachment?
     @State private var deleteError: String?
+    @State private var isPicking = false
     @FocusState private var editorFocused: Bool
 
     private var item: SyncItem? {
@@ -45,7 +46,8 @@ struct SyncItemView: View {
         }
         .task(id: data.items[itemId] == nil) {
             guard !loadedText, let item else { return }
-            text = item.textContent ?? ""
+            // Stored notes carry tokens; the editor holds `@Name`, which is also the form unsent notes are in.
+            text = item.editableNotes
             lastQueued = text
             loadedText = true
         }
@@ -60,6 +62,11 @@ struct SyncItemView: View {
         .onDisappear {
             saveTask?.cancel()
             queueText()
+        }
+        .sheet(isPresented: $isPicking) {
+            PeoplePicker { person in
+                text = MentionText.appendingMention(to: text, name: person.name)
+            }
         }
         .fullScreenCover(item: $viewing) { attachment in
             AttachmentViewer(attachment: attachment)
@@ -127,6 +134,12 @@ struct SyncItemView: View {
                     .frame(minHeight: 160)
             }
             .anansiCard(padding: 10)
+            Button {
+                isPicking = true
+            } label: {
+                Label("Mention someone", systemImage: "at")
+            }
+            .buttonStyle(.anansiOutline)
         }
     }
 
@@ -134,6 +147,9 @@ struct SyncItemView: View {
         if text != lastQueued { return "editing" }
         if outbox.outbox.pendingText(for: itemId) != nil {
             return outbox.outbox.lastError == nil ? "saving" : "saved on this phone, waiting to send"
+        }
+        if outbox.outbox.failed.contains(where: { $0.op.itemId == itemId && !$0.op.isUpload }) {
+            return "not accepted, see Pulse"
         }
         return "saved"
     }

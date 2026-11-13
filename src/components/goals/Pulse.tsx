@@ -27,9 +27,12 @@ import { useGoalsData } from '~/lib/queries/goals'
 import { importantDatesQueryOptions, peopleQueryOptions, upcomingNextBidsQueryOptions } from '~/lib/queries/people'
 import { attentionOf, horizonsOf, isFilled, syncItemsOf, upcomingOf } from '~/lib/pulse'
 import { weeklyRetrospectiveQueryOptions, type WeeklyRetrospectiveData as WeeklyRetroData } from '~/lib/queries/sync'
+import { toEditable } from '~/lib/mentions'
 import { weekStartOf } from '~/lib/week'
 import Avatar from './Avatar'
 import { Btn, Card, Eyebrow, SecLabel } from './ui'
+import MentionField from './MentionField'
+import MentionText, { useMentionPeople } from './MentionText'
 
 // "Pulse" — the warm daily landing. Header reads as a journal entry
 // (eyebrow + display headline with inline italic clay accent), body is
@@ -356,7 +359,9 @@ export default function Pulse() {
                       {task.goalEmoji && !task.goalEmoji.startsWith('http') && (
                         <span className="leading-none">{task.goalEmoji}</span>
                       )}
-                      <span className="min-w-0 flex-1 truncate">{task.title}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                        <MentionText text={task.title} />
+                      </span>
                       <span
                         className="shrink-0 tabular-nums"
                         style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}
@@ -409,7 +414,9 @@ export default function Pulse() {
                       {task.goalEmoji && !task.goalEmoji.startsWith('http') && (
                         <span className="leading-none">{task.goalEmoji}</span>
                       )}
-                      <span className="min-w-0 flex-1 truncate">{task.title}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                        <MentionText text={task.title} />
+                      </span>
                       <span
                         className="shrink-0 tabular-nums"
                         style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-3)' }}
@@ -501,7 +508,9 @@ interface PulseItemProps {
 
 function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: PulseItemProps) {
   const { t } = useTranslation()
-  const [text, setText] = useState(item.textContent ?? '')
+  const people = useMentionPeople()
+  // Edited as plain text with `@Name` in it; the server links it on save.
+  const [text, setText] = useState(() => toEditable(item.textContent ?? '', people))
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const timer = useRef<NodeJS.Timeout | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -600,26 +609,21 @@ function PulseItemRow({ item, onSaveText, onUploadImages, onDeleteAttachment }: 
             </p>
           )}
 
-          <textarea
+          <MentionField
+            multiline
             value={text}
-            onChange={(e) => handleChange(e.target.value)}
+            onChange={handleChange}
+            people={people}
             rows={3}
             placeholder={t('pulse.itemPlaceholder')}
-            className="mt-3 w-full resize-y rounded-md p-3 text-sm outline-hidden"
+            wrapperClassName="mt-3"
+            className="block w-full resize-y rounded-md p-3 text-sm outline-hidden transition-shadow focus:!border-[var(--clay)] focus:shadow-[0_0_0_3px_var(--clay-soft)]"
             style={{
               background: 'var(--paper-deep)',
               border: '1px solid var(--hairline)',
               color: 'var(--ink)',
               fontFamily: 'var(--font-text)',
               lineHeight: 1.55,
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = 'var(--clay)'
-              e.currentTarget.style.boxShadow = '0 0 0 3px var(--clay-soft)'
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = 'var(--hairline)'
-              e.currentTarget.style.boxShadow = 'none'
             }}
           />
 

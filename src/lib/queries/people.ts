@@ -3,6 +3,7 @@ import { listBucketList } from '~/server/fn/bucket-list.fn'
 import { getGroupTasks, listGroups } from '~/server/fn/groups.fn'
 import { listImportantDates } from '~/server/fn/important-dates.fn'
 import { listNextBids, listUpcomingNextBids } from '~/server/fn/next-bids.fn'
+import { getPersonMentions } from '~/server/fn/mentions.fn'
 import { getPerson, getPersonBucketListItems, getPersonTasksAsReferent, listPeople } from '~/server/fn/people.fn'
 import { qk } from './keys'
 
@@ -34,6 +35,20 @@ export const personTasksQueryOptions = (personId: string) =>
   queryOptions({
     queryKey: qk.personTasks(personId),
     queryFn: ({ signal }) => getPersonTasksAsReferent({ data: { personId }, signal }),
+  })
+
+/**
+ * Everywhere the user's text names this person: journal days, sync notes, tasks.
+ *
+ * Always refetched when a person is opened. The writes that change it live on
+ * three other screens (a journal day, a sync item, a task), and one stale read
+ * here is cheaper than every one of them knowing about this key.
+ */
+export const personMentionsQueryOptions = (personId: string) =>
+  queryOptions({
+    queryKey: qk.personMentions(personId),
+    queryFn: ({ signal }) => getPersonMentions({ data: { personId }, signal }),
+    staleTime: 0,
   })
 
 export const personBucketListQueryOptions = (personId: string) =>

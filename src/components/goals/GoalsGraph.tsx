@@ -1,16 +1,18 @@
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useRef, useState, useEffect } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, getOutgoers } from '@xyflow/react'
-import type { Connection, Edge, Node } from '@xyflow/react'
-import { HelpCircle, Plus, Target } from 'lucide-react'
+import type { Connection, Edge, Node, ReactFlowInstance } from '@xyflow/react'
+import { HelpCircle, LayoutGrid, Plus, Target } from 'lucide-react'
 import { createId } from '@paralleldrive/cuid2'
 import { useTranslation } from 'react-i18next'
 import { useGoalProgress } from '~/lib/computation/use-goal-progress'
 import {
+  useArrangeGoals,
   useCreateConnection,
   useCreateGoal,
   useDeleteConnection,
   useDeleteGoal,
+  useSetGoalPositions,
   useUpdateGoal,
 } from '~/lib/mutations/goals-data'
 import { useGoalsData } from '~/lib/queries/goals'
@@ -42,6 +44,48 @@ export default function GoalsGraph() {
   const addConnection = useCreateConnection()
   const deleteConnection = useDeleteConnection()
   const deleteGoal = useDeleteGoal()
+  const arrange = useArrangeGoals()
+  const setPositions = useSetGoalPositions()
+  // The canvas, for bringing the whole graph into view after it is rearranged.
+  const flow = useRef<ReactFlowInstance<GoalNode, Edge> | null>(null)
+  const showAll = () => setTimeout(() => void flow.current?.fitView({ duration: 400, padding: 0.15 }), 80)
+
+  // Arrange: the server lays the graph out from its connections (the same
+  // function the MCP tool runs) and answers what moved and from where, which is
+  // exactly what Undo sends back.
+  const handleArrange = async () => {
+    try {
+      const { moved } = await arrange.mutateAsync()
+      showAll()
+      if (moved.length === 0) {
+        toast.success(t('goalsGraph.alreadyArranged'))
+        return
+      }
+      toast(
+        (shown) => (
+          <span className="flex items-center gap-3">
+            {t('goalsGraph.arranged', { count: moved.length })}
+            <button
+              type="button"
+              className="rounded-md px-2 py-0.5 font-medium underline"
+              onClick={() => {
+                toast.dismiss(shown.id)
+                setPositions.mutate(
+                  moved.map((m) => ({ id: m.id, ...m.from })),
+                  { onSuccess: showAll, onError: () => toast.error(t('common.saveFailed')) },
+                )
+              }}
+            >
+              {t('goalsGraph.undo')}
+            </button>
+          </span>
+        ),
+        { duration: 10_000 },
+      )
+    } catch {
+      toast.error(t('common.saveFailed'))
+    }
+  }
 
   // `.mutate` is read off each hook so the keyboard/drag callbacks below can
   // depend on a stable function instead of on the mutation object, which is a
@@ -429,6 +473,21 @@ export default function GoalsGraph() {
               <span className="hidden sm:inline">{t('goalsGraph.howItWorks')}</span>
             </button>
             <button
+              onClick={() => void handleArrange()}
+              disabled={arrange.isPending || goals.length < 2}
+              className="flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                background: 'var(--canvas)',
+                color: 'var(--ink)',
+                border: '1px solid var(--hairline-2)',
+                boxShadow: 'var(--shadow-sm)',
+              }}
+              title={t('goalsGraph.arrangeTitle')}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              <span className="hidden sm:inline">{t('goalsGraph.arrange')}</span>
+            </button>
+            <button
               onClick={handleAddGoal}
               className="flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm transition-all"
               style={{
@@ -451,6 +510,9 @@ export default function GoalsGraph() {
           nodes={nodes}
           edges={edges}
           minZoom={0.001}
+          onInit={(instance) => {
+            flow.current = instance
+          }}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}

@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
 import { attachmentResult } from './attachment-result'
-import { closedObject, localDay, toolInput } from './fields'
+import { closedObject, localDay, MENTIONS, toolInput } from './fields'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
 import {
   addSyncItemSchema,
@@ -116,7 +116,8 @@ export function registerWeeklySyncTools(server: McpServer, ctx: McpCtx): void {
     {
       title: "Write a sync item's notes",
       description:
-        "Replace the notes on one item of a sync. It replaces rather than appends, so read the item first when adding to what is there. `weeklySyncItemId` is the item's `id` in `get_weekly_sync` or `get_pulse`, not its `trackingItemId`.",
+        "Replace the notes on one item of a sync. It replaces rather than appends, so read the item first when adding to what is there. `weeklySyncItemId` is the item's `id` in `get_weekly_sync` or `get_pulse`, not its `trackingItemId`. " +
+        MENTIONS,
       inputSchema: toolInput({ weeklySyncItemId: z.string(), textContent: z.string() }),
       annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },

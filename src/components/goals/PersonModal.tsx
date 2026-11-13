@@ -20,7 +20,8 @@ import ColorPicker from './ColorPicker'
 import DatePicker from './DatePicker'
 import PersonBidsSection from './PersonBidsSection'
 import PersonImportantDatesSection from './PersonImportantDatesSection'
-import PersonJournalSection from './PersonJournalSection'
+import PersonMentionsSection from './PersonMentionsSection'
+import MentionText from './MentionText'
 
 export type PersonRow = {
   id: string
@@ -501,8 +502,8 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
 
             <PersonImportantDatesSection personId={person?.id} />
 
-            {/* The journal days that mention this person */}
-            {isEdit && person && <PersonJournalSection personId={person.id} personName={person.name} />}
+            {/* Everywhere the user's text names this person */}
+            {isEdit && person && <PersonMentionsSection personId={person.id} />}
 
             {/* Tasks where this person is a referent */}
             {isEdit && (
@@ -535,7 +536,7 @@ export default function PersonModal({ person, defaultCategory, onClose, onSaved 
                           <div
                             className={`truncate ${t.completed ? 'text-[var(--ink-3)] line-through' : 'text-[var(--ink)]'}`}
                           >
-                            {t.taskTitle}
+                            <MentionText text={t.taskTitle} />
                           </div>
                           <div className="mt-0.5 flex items-center gap-1 text-xs text-[var(--ink-3)]">
                             {t.goalEmoji && <span>{t.goalEmoji}</span>}

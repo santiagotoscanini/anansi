@@ -117,9 +117,11 @@ src/
       importance.ts
     api/types.ts             # ~726 lines of zod schemas, shared by services + fns + MCP
     data/                    # schema.ts, db connection, migrations/
-    mcp/                     # MCP server + 88 tools + the OAuth 2.1 provider
+    mcp/                     # MCP server + 90 tools + the OAuth 2.1 provider
     env.ts security-headers.ts horizon-period.ts week.ts image-upload.ts
-    journal.ts               # the journal's mention grammar (pure, shared by server, editors and tests)
+    mentions.ts              # the mention grammar: how any text names a person (pure; server, editors, tests)
+    journal.ts               # the journal's calendar-day helpers
+    computation/arrange.ts   # the goal graph's automatic layout (pure; the Arrange button and arrange_goals)
     theme.ts color-palette.ts emoji-utils.ts
 
   components/
@@ -185,7 +187,7 @@ component  →  lib/queries/*.ts (queryOptions)  →  server/fn/*.fn.ts (createS
 MCP tool  ────────────────────────────────────────────↗  (direct, in-process)
 ```
 
-- **`server/services/*.ts`** holds all business logic as plain `(userId, input)` async functions. It imports `db`, the zod schemas and `AppError`, and nothing from `@tanstack/*`. That is what lets the 88 MCP tools call it directly: the MCP graph never touches the Start compiler, so there is no function-id registration, no CSRF, no Seroval, no HTTP hop.
+- **`server/services/*.ts`** holds all business logic as plain `(userId, input)` async functions. It imports `db`, the zod schemas and `AppError`, and nothing from `@tanstack/*`. That is what lets the 90 MCP tools call it directly: the MCP graph never touches the Start compiler, so there is no function-id registration, no CSRF, no Seroval, no HTTP hop.
 - Services **re-parse their input** with the shared zod schema. Two entry points means two independent validators; parsing inside the service is the only guarantee that covers both, and it makes each service callable from a script without ceremony.
 - **`server/fn/*.fn.ts`** wraps services for the browser. Every route loader prefetches with `queryClient.ensureQueryData(...)` and components read with `useSuspenseQuery`, so tab data is server-rendered and hydrated — there is no loading spinner to reintroduce.
 - **`lib/queries/keys.ts`** owns every query key (`qk.*`), replacing tRPC's `utils.*.invalidate()`. Invalidate by key **root** (`qk.people`), not by leaf — prefix matching covers the leaves.
@@ -204,6 +206,7 @@ MCP tool  ───────────────────────�
 
 ### Goals
 - Hierarchical goals with parent-child links and free-positioned cards on a React Flow canvas.
+- **Arrange.** One action tidies the canvas: `goals.arrange` lays every active goal out from its connections with the pure `arrangeGoals` (`src/lib/computation/arrange.ts`; the rules are in its header: columns left to right along the edges, groups stacked in the order they had, unconnected goals in rows underneath, the top-left corner fixed, a second run changes nothing). It runs on the server for both the Arrange button and the `arrange_goals` MCP tool, so they give the same picture; it answers what moved and from where, which is what the button's Undo (`goals.setPositions`) sends back. Card heights are estimated (`cardHeight`), not measured, because the server has no DOM. `parentId` plays no part: only connections are drawn, so only they shape the layout.
 - **Weighted connections** between goals (0–100). Importance is computed live from outgoing-edge weights; **Low** ≤33.3, **Medium** 33.3–66.6, **High** ≥66.6.
 - **Values** (named + colored) tag goals via `goal_values`; values also carry their own behavior list.
 
@@ -223,8 +226,18 @@ One entry per user per calendar day, written like a diary: `highlights` (the day
 
 - **The day is the user's own, `YYYY-MM-DD`, always named by the caller.** The server's clock is UTC and never decides what "today" is: for a user in UTC-3 its day turns over at 21:00, exactly when a day gets written down. The web tab gets today from `useLocalToday` (null on the server and during hydration, the browser's day after), which is also why the route prefetches nothing.
 - **An entry that holds nothing does not exist.** Writing a day empty deletes its row (unless pictures still hang on it), deleting a day's last picture does the same, and a read answers null.
-- **Mentions.** Stored text names a person as `@[Name](person:<id>)`; `journal_mentions` is the index derived from those tokens on every write, and what a person's page reads ("In the journal"). `linkMentions` in `src/lib/journal.ts` is the one place the looser forms become tokens, and the service runs it on every write: a plain `@Name` is linked when exactly one person has that name (and otherwise left as text), an explicit `@[Name]` must resolve or the write is refused with the reason, an unknown id is refused, and every token's label is rewritten to the person's current name. So every editor edits plain text with `@Name` in it (`toEditable`) and sends it back as typed.
+- **Mentions.** The day's text names people with the app-wide mention grammar: see "Mentions" below.
 - `?person=<id>` on `/app/people` opens that person's modal, which is what a mention links to.
+
+### Mentions
+Three texts can name a person, and all three do it the same way: a journal day (text and highlights), the notes on a weekly sync item, a task's title and description.
+
+- **Stored form:** `@[Name](person:<id>)`. The id links; the name keeps the raw text readable and is rewritten to the person's current name on every write.
+- **Every write is linked** by `linkTexts` in `services/mentions.ts` (the grammar itself, `linkMentions`, is pure and lives in `src/lib/mentions.ts`): a plain `@Name` is linked when exactly one person has that name and otherwise left as text; an explicit `@[Name]` must resolve or the write is refused with the reason; an unknown id is refused. Text with no `@` in it costs nothing.
+- **One index table per source**, rebuilt from the linked text on each write: `journal_mentions`, `task_mentions`, `sync_item_mentions`. `mentions.forPerson` reads all three: the "Mentions" section of a person's page and the `list_person_mentions` tool.
+- **A mention is not a referent.** `task_referents` ("people I'm relying on") is set only by a caller; naming someone in a task's text does not add them to it.
+- **Rendering: never print such text raw.** Screens show it through `<MentionText>` (`link` off inside a button or another link) and edit it through `<MentionField>` seeded with `toEditable`: the user edits plain text with `@Name` in it, `@` offers the people, and the text goes back as typed. One-line previews use `toPlain`. The phone does the same with `Core/MentionText.swift`.
+- An optimistic task patch holds the text as typed; `useUpdateTask` refetches the graph when that text has an `@` in it, since the server's copy is the linked one.
 
 ### Personal CRM (People + Self)
 - People are a **reflection surface**, not a contact manager — phone/email/birthday/last-contact/vCard import were intentionally removed.
@@ -349,6 +362,9 @@ Polymorphic file metadata, keyed on `(parentType, parentId)`. The parents today 
 ### goalValues (junction)
 - `goalId` (FK), `valueId` (FK)
 
+### task_mentions + sync_item_mentions
+The same index as `journal_mentions`, for the other two texts that can name a person. `task_mentions`: `taskId` (cascade), `personId` (cascade), UNIQUE pair. `sync_item_mentions`: `weeklySyncItemId` (cascade), `personId` (cascade), UNIQUE pair. Both indexed on `personId`, both derived on write, never edited by hand.
+
 ### journal_entries + journal_mentions
 - `journal_entries`: `userId` (cascade), `day` (**date**, the user's calendar day), `content` (text, NOT NULL, default ''), `highlights` (jsonb string array, NOT NULL, default []). UNIQUE(userId, day).
 - `journal_mentions`: `entryId` (cascade), `personId` (cascade); UNIQUE(entryId, personId), indexed on `personId`. Derived from the entry's text on every write, never edited by hand. Deleting a person drops their rows; the text keeps the name.
@@ -417,6 +433,7 @@ One file per domain in `src/server/services/`, one thin `.fn.ts` wrapper per fil
 
 ### goals
 - `getAll`, `create`, `update` — with tasks + value associations
+- `arrange` (lays the graph out and stores it; answers `{ total, moved: [{ id, title, from, to }] }`), `setPositions` (several goals moved in one transaction; the undo)
 - `remove` — **soft**: archives the goal, deletes its connections, archives its tracking items (see the `goals` table above). Exposed as `delete_goal` / the `deleteGoal` server fn; both return `{ success: true }`.
 
 ### values
@@ -447,6 +464,10 @@ One file per domain in `src/server/services/`, one thin `.fn.ts` wrapper per fil
 - `upload({ parentType: 'weekly_sync_item' | 'journal_entry', parentId, fileName, fileType, data })` — base64; stores a file (bytes to the bucket, then the `files` row), then the attachment metadata row. Metadata-insert failure discards the file, bytes included. Returns `{ url }` as a `/api/files/{id}` path.
 - `find` (metadata + the file's type and size, no bytes: what `/api/v1/attachments/{id}` streams from), `read` (the same with the bytes, for MCP's `get_sync_attachment`)
 - `remove({ id })` — deletes the file (bytes, then row); the FK cascade takes the attachment row. A journal day left with nothing goes with it.
+
+### mentions
+- `linkTexts(userId, texts, prefer?)` — what a writing service calls before it stores text that can name people; answers the linked texts and the people they mention, or throws BAD_REQUEST with the reason
+- `indexTask` / `indexSyncItem` — replace one source's index rows; `forPerson(personId)` — `{ journal, syncNotes, tasks }`
 
 ### journal
 - `get({ day })` (the entry with its `mentions` and `attachments`, or null), `list({ from?, to?, personId?, query?, limit? })` (newest day first; `personId` = the days that mention that person)
@@ -538,9 +559,9 @@ Transport: Streamable HTTP via `@modelcontextprotocol/sdk`'s `WebStandardStreama
 
 ### MCP tool catalog
 
-`registerAllTools()` (in `src/lib/mcp/tools/index.ts`) wires **88 tools** across 15 domain files. All tool names are flat verb-first snake_case (`list_goals`, `update_person`, `set_next_bid_done`, …). Hand-written `title` + `description` drive LLM tool selection; Zod raw shapes give the SDK enough type info to both generate the inputSchema JSON Schema AND validate inputs at call-time.
+`registerAllTools()` (in `src/lib/mcp/tools/index.ts`) wires **90 tools** across 15 domain files. All tool names are flat verb-first snake_case (`list_goals`, `update_person`, `set_next_bid_done`, …). Hand-written `title` + `description` drive LLM tool selection; Zod raw shapes give the SDK enough type info to both generate the inputSchema JSON Schema AND validate inputs at call-time.
 
-Domains: `system` (4: `whoami`, `update_profile`, `set_avatar`, `remove_avatar`), `goals` (4), `tasks` (4), `values` (7), `people` (11), `next_bids` (6), `important_dates` (4), `groups` (5), `bucket_list` (5), `self` (7), `tracking_items` (4), `sync_templates` (5), `weekly_sync` (10, with `get_pulse` and the attachments), `journal` (8, with its attachments), `connections` (4). The app is meant to be fully drivable from here. Left on the screens on purpose: password and email changes, because a connector must not be able to take over the account; backup export and import, because one is the whole account with file bytes and the other replaces it. A new feature gets its tools with it.
+Domains: `system` (4: `whoami`, `update_profile`, `set_avatar`, `remove_avatar`), `goals` (5, with `arrange_goals`), `tasks` (4), `values` (7), `people` (12, with `list_person_mentions`), `next_bids` (6), `important_dates` (4), `groups` (5), `bucket_list` (5), `self` (7), `tracking_items` (4), `sync_templates` (5), `weekly_sync` (10, with `get_pulse` and the attachments), `journal` (8, with its attachments), `connections` (4). The app is meant to be fully drivable from here. Left on the screens on purpose: password and email changes, because a connector must not be able to take over the account; backup export and import, because one is the whole account with file bytes and the other replaces it. A new feature gets its tools with it.
 
 **A week is named by a calendar day (`localDay`), never by the clock.** The server is in UTC and `week_date` holds whatever Monday the creator's clock said: Monday 03:00Z from a browser in Uruguay, 00:00Z from a naive server. The unique index cannot see those as one week, so a tool computing `weekStartOf(new Date())` would start a second sync that Pulse never shows. So the tools take the user's `day`, `weekOfDay` turns it into noon UTC on its Monday, and `weekly-sync.ts` matches by week within `WEEK_MATCH_MS` instead of by instant. That also keeps one sync for a user who opens the app on another clock. Starting a week that has a sync returns that sync.
 
@@ -815,7 +836,7 @@ Rules:
 
 > **A green `pnpm build` is not evidence that the app runs.** Three separate defects during the migration passed `vite build` and failed on the first real request: `import 'server-only'` (500 on every SSR pass), a mis-registered server-function id (`Invalid server function ID`, only at call time), and a dnd-kit hydration mismatch. **Exercise changes in `pnpm dev` from a real browser**, and include *client-side* navigation — a hard reload runs loaders on the server where a server fn is a direct call, so only client-side navigation tests the RPC path.
 
-`.golden/` holds the pre-migration oracle and is the reference for anything that must not drift: the 88-tool `tools/list` JSON, both `.well-known` documents, the MCP 401 response (which doubles as the security-header baseline), and 29 screenshots. `.golden/README.md` documents the diff procedure, the one deliberate re-baseline (zod 4), and its known false positives (`objectives-*` always differ — React Flow animates its dashed edges).
+`.golden/` holds the pre-migration oracle and is the reference for anything that must not drift: the 90-tool `tools/list` JSON, both `.well-known` documents, the MCP 401 response (which doubles as the security-header baseline), and 29 screenshots. `.golden/README.md` documents the diff procedure, the one deliberate re-baseline (zod 4), and its known false positives (`objectives-*` always differ — React Flow animates its dashed edges).
 
 ## Infrastructure
 

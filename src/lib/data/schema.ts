@@ -501,6 +501,50 @@ export const journalMentions = pgTable(
   ],
 )
 
+// The same index for the other two texts that can name a person: a task's
+// title and description, and the notes on a weekly sync item. One table per
+// source, each with real foreign keys, so deleting a task, a sync item or a
+// person takes its rows with it.
+export const taskMentions = pgTable(
+  'task_mentions',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    personId: text('person_id')
+      .notNull()
+      .references(() => people.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('task_mentions_pair_unique').on(t.taskId, t.personId),
+    index('task_mentions_person_idx').on(t.personId),
+  ],
+)
+
+export const syncItemMentions = pgTable(
+  'sync_item_mentions',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    weeklySyncItemId: text('weekly_sync_item_id')
+      .notNull()
+      .references(() => weeklySyncItems.id, { onDelete: 'cascade' }),
+    personId: text('person_id')
+      .notNull()
+      .references(() => people.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('sync_item_mentions_pair_unique').on(t.weeklySyncItemId, t.personId),
+    index('sync_item_mentions_person_idx').on(t.personId),
+  ],
+)
+
 // Bucket list — things the user wants to do before dying. Flat list, scoped to user.
 // completedAt nullable: null = pending, non-null = completed (timestamp records when).
 // description holds longer-form context; people-to-do-with attached via junction.

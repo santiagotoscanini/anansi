@@ -1,4 +1,5 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
+import { toEditable } from '~/lib/mentions'
 import { useState } from 'react'
 import { CheckSquare, Square, Trash2, X } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -10,6 +11,8 @@ import { groupsQueryOptions, peopleQueryOptions } from '~/lib/queries/people'
 import DatePicker from './DatePicker'
 import Avatar from './Avatar'
 import EmojiPickerLazy, { type EmojiClickData } from './EmojiPickerLazy'
+import MentionField from './MentionField'
+import { useMentionPeople } from './MentionText'
 
 interface TaskModalProps {
   goalId: string
@@ -35,8 +38,10 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
   const goal = goals.find((g) => g.id === goalId)
   const task = !isCreate ? (goal?.tasks.find((t) => t.id === taskId) ?? null) : null
 
-  const [title, setTitle] = useState(task?.title ?? '')
-  const [description, setDescription] = useState(task?.description ?? '')
+  // Both are edited as plain text with `@Name` in it; the server links them on save.
+  const mentionable = useMentionPeople()
+  const [title, setTitle] = useState(() => toEditable(task?.title ?? '', mentionable))
+  const [description, setDescription] = useState(() => toEditable(task?.description ?? '', mentionable))
   const [emoji, setEmoji] = useState<string>(task?.emoji ?? '')
   const [customEmojiUrl, setCustomEmojiUrl] = useState('')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
@@ -178,12 +183,13 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
                   )}
                 </button>
 
-                <input
-                  type="text"
+                <MentionField
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={setTitle}
+                  people={mentionable}
                   placeholder={t('taskModal.titlePlaceholder')}
-                  className="h-10 flex-1 rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-4 text-[var(--ink)] outline-hidden transition-all focus:border-[var(--hairline-2)]"
+                  wrapperClassName="flex-1"
+                  className="h-10 w-full rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] px-4 text-[var(--ink)] outline-hidden transition-all focus:border-[var(--hairline-2)]"
                   autoFocus
                 />
 
@@ -235,9 +241,11 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
               <label className="mb-1.5 block text-[11px] font-medium tracking-wider text-[var(--ink-3)] uppercase">
                 {t('taskModal.description')}
               </label>
-              <textarea
+              <MentionField
+                multiline
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={setDescription}
+                people={mentionable}
                 placeholder={t('taskModal.descriptionPlaceholder')}
                 rows={4}
                 className="w-full resize-none rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-2.5 text-sm text-[var(--ink)] outline-hidden transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"

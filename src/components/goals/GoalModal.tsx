@@ -15,6 +15,7 @@ import EmojiPickerLazy, { type EmojiClickData } from './EmojiPickerLazy'
 import { pickDefaultEmoji, isEmojiUrl } from '~/lib/emoji-utils'
 import Avatar from './Avatar'
 import TaskModal from './TaskModal'
+import MentionText from './MentionText'
 
 interface GoalModalProps {
   goalId: string | null
@@ -404,7 +405,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
                           task.completed ? 'text-[var(--ink-3)] line-through' : 'text-[var(--ink)]'
                         }`}
                       >
-                        {task.title}
+                        <MentionText text={task.title} />
                       </span>
 
                       {/* Visual-only summary badges */}

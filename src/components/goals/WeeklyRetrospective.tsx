@@ -191,19 +191,6 @@ export default function WeeklyRetrospective() {
     [setItemTextMutation, t],
   )
 
-  const clearItemText = useCallback(
-    async (item: SyncItem) => {
-      try {
-        await setItemTextMutation.mutateAsync({ weeklySyncItemId: item.id, textContent: '' })
-        toast.success(t('weeklySync.notesCleared'))
-      } catch (error) {
-        console.error('Failed to clear text:', error)
-        toast.error(t('weeklySync.clearNotesFailed'))
-      }
-    },
-    [setItemTextMutation, t],
-  )
-
   const uploadItemFiles = async (item: SyncItem, files: FileList) => {
     if (files.length === 0) return
     if (!weeklySync?.id) {
@@ -559,7 +546,6 @@ export default function WeeklyRetrospective() {
                             item={item}
                             deletingFileIds={deletingFiles}
                             onSaveText={(content) => saveItemText(item, content)}
-                            onClearText={() => clearItemText(item)}
                             onUploadFiles={(files) => uploadItemFiles(item, files)}
                             onDeleteFileClick={handleDeleteFileClick}
                             onRemoveFromSync={() => handleRemoveFromSync(item.id, item.title)}

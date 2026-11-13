@@ -9,6 +9,7 @@ import { groupsQueryOptions, peopleQueryOptions } from '~/lib/queries/people'
 import { Route } from '~/routes/app.tasks'
 import TaskModal from './TaskModal'
 import Avatar from './Avatar'
+import MentionText from './MentionText'
 
 type FilterMode = 'open' | 'all' | 'completed'
 
@@ -235,10 +236,12 @@ export default function Tasks() {
                                 task.completed ? 'text-[var(--ink-3)] line-through' : 'text-[var(--ink)]'
                               }`}
                             >
-                              {task.title}
+                              <MentionText text={task.title} />
                             </div>
                             {task.description && (
-                              <div className="mt-0.5 truncate text-xs text-[var(--ink-3)]">{task.description}</div>
+                              <div className="mt-0.5 truncate text-xs text-[var(--ink-3)]">
+                                <MentionText text={task.description} />
+                              </div>
                             )}
                           </div>
 

@@ -3,27 +3,6 @@ import SwiftUI
 struct JournalRoute: Hashable { var day: LocalDay }
 struct JournalListRoute: Hashable {}
 
-/// Journal text for the screen: a mention (the stored token `@[Name](person:<id>)`) drawn as a tinted, bold
-/// `@Name` with the person's current name.
-enum JournalStyle {
-    static func attributed(_ text: String, names: [String: String]) -> AttributedString {
-        let tint: Color = AN.clayDeep
-        var out = AttributedString()
-        for segment in JournalText.segments(text) {
-            switch segment {
-            case .text(let run):
-                out.append(AttributedString(run))
-            case .mention(let personId, let label):
-                var piece = AttributedString("@" + (names[personId] ?? label))
-                piece.foregroundColor = tint
-                piece.inlinePresentationIntent = .stronglyEmphasized
-                out.append(piece)
-            }
-        }
-        return out
-    }
-}
-
 /// A highlight being added (no index) or edited.
 private struct HighlightDraft: Identifiable {
     var index: Int?
@@ -64,7 +43,7 @@ struct JournalCard: View {
                     ForEach(Array(highlights.enumerated()), id: \.offset) { _, highlight in
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
                             Text("•").foregroundStyle(AN.clay)
-                            Text(JournalStyle.attributed(highlight, names: names))
+                            Text(MentionStyle.attributed(highlight, names: names))
                                 .font(AN.text(.body))
                                 .foregroundStyle(AN.ink)
                                 .lineLimit(2)
@@ -72,7 +51,7 @@ struct JournalCard: View {
                         }
                     }
                     if !content.isEmpty {
-                        Text(JournalStyle.attributed(content, names: names))
+                        Text(MentionStyle.attributed(content, names: names))
                             .font(AN.text(.body))
                             .foregroundStyle(AN.ink2)
                             .lineLimit(highlights.isEmpty ? 4 : 2)
@@ -185,7 +164,7 @@ struct JournalDayView: View {
             JournalTextEditor(title: Wording.journalDate(day, currentYear: today.year),
                               prompt: "What happened, who was there, how it felt.",
                               limit: JournalLimits.contentCharacters,
-                              initial: JournalText.editable(entry?.content ?? "", names: names),
+                              initial: MentionText.editable(entry?.content ?? "", names: names),
                               onSave: { text in saveProse(text) })
         }
         .sheet(item: $highlightDraft) { draft in
@@ -271,11 +250,11 @@ struct JournalDayView: View {
                     ForEach(Array(list.enumerated()), id: \.offset) { index, highlight in
                         if index > 0 { Divider().overlay(AN.hairline) }
                         Button {
-                            highlightDraft = HighlightDraft(index: index, text: JournalText.editable(highlight, names: names))
+                            highlightDraft = HighlightDraft(index: index, text: MentionText.editable(highlight, names: names))
                         } label: {
                             HStack(alignment: .firstTextBaseline, spacing: 10) {
                                 Text("•").foregroundStyle(AN.clay)
-                                Text(JournalStyle.attributed(highlight, names: names))
+                                Text(MentionStyle.attributed(highlight, names: names))
                                     .font(AN.text(.body))
                                     .foregroundStyle(AN.ink)
                                     .multilineTextAlignment(.leading)
@@ -316,7 +295,7 @@ struct JournalDayView: View {
                             .italic()
                             .foregroundStyle(AN.ink4)
                     } else {
-                        Text(JournalStyle.attributed(content, names: names))
+                        Text(MentionStyle.attributed(content, names: names))
                             .font(AN.text(.body))
                             .foregroundStyle(AN.ink)
                             .multilineTextAlignment(.leading)
@@ -539,7 +518,7 @@ struct JournalTextEditor: View {
             }
             .sheet(isPresented: $isPicking) {
                 PeoplePicker { person in
-                    text = JournalText.appendingMention(to: text, name: person.name)
+                    text = MentionText.appendingMention(to: text, name: person.name)
                 }
             }
             .interactiveDismissDisabled(text != initial)

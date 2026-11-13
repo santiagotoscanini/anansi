@@ -201,7 +201,7 @@ struct WeekView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(shown.title).font(AN.text(.body)).foregroundStyle(AN.ink)
                     if let text = shown.textContent?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
-                        Text(text).font(AN.text(.footnote)).foregroundStyle(AN.ink3).lineLimit(2)
+                        Text(MentionStyle.attributed(text)).font(AN.text(.footnote)).foregroundStyle(AN.ink3).lineLimit(2)
                     }
                     if pictures > 0 {
                         Label("\(pictures)", systemImage: "photo").font(AN.mono(.caption2)).foregroundStyle(AN.ink3)

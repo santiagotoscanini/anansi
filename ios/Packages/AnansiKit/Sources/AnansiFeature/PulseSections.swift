@@ -27,7 +27,7 @@ struct SyncItemCard: View {
                         Image(systemName: "chevron.right").font(.footnote).foregroundStyle(AN.ink4)
                     }
                     if let text = shown.textContent?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
-                        Text(text)
+                        Text(MentionStyle.attributed(text))
                             .font(AN.text(.body))
                             .foregroundStyle(AN.ink2)
                             .lineLimit(4)
@@ -279,7 +279,7 @@ struct HorizonSection: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(task.goalEmoji ?? "•").font(.footnote)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(task.title).font(AN.text(.body)).foregroundStyle(AN.ink)
+                        Text(task.plainTitle).font(AN.text(.body)).foregroundStyle(AN.ink)
                         Text(task.goalTitle).font(AN.ui(.caption)).foregroundStyle(AN.ink3)
                     }
                     Spacer(minLength: 8)

@@ -20,6 +20,7 @@ import { useSetTaskScheduled, useUpdateTask } from '~/lib/mutations/goals-data'
 import { useGoalsData } from '~/lib/queries/goals'
 import { Route } from '~/routes/app.horizons'
 import GoalModal from './GoalModal'
+import MentionText from './MentionText'
 
 // Time-bound objectives. Columns are COMPUTED from each task's scheduledAt
 // and today's date — not from a stored enum. As the calendar advances, a
@@ -87,7 +88,7 @@ function TaskCard({
         <div
           className={`text-sm leading-snug ${task.completed ? 'text-[var(--ink-3)] line-through' : 'text-[var(--ink)]'}`}
         >
-          {task.title}
+          <MentionText text={task.title} />
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <span className="flex min-w-0 items-center gap-1 rounded-full border border-[var(--hairline)] bg-[var(--vellum)] px-2 py-0.5 text-[10px] text-[var(--ink-2)]">

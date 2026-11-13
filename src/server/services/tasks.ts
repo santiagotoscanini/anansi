@@ -1,19 +1,32 @@
 // Task CRUD. Tasks have no user_id — ownership is inherited from the parent
 // goal, so every entry point here goes through assertOwnsGoal (or an explicit
 // join back to goals) before touching a row.
+//
+// A task's title and description can name people (`@Name`, see ~/lib/mentions):
+// every write links them and rebuilds `task_mentions`. That is separate from
+// `referentIds`, the people the task relies on, which only a caller sets.
 import { and, eq } from 'drizzle-orm'
 import { db } from '~/lib/data'
 import { goals, taskReferents, tasks, tasksToGroups } from '~/lib/data/schema'
 import type { CreateTask, UpdateTask } from '~/lib/api/types'
 import { AppError } from './errors'
 import { assertOwnsGoal } from './goals'
+import { indexTask, linkTexts, mentionedIn } from './mentions'
 
 export async function create(userId: string, input: CreateTask & { goalId: string }) {
   await assertOwnsGoal(userId, input.goalId)
 
   const { referentIds, groupIds, ...taskInput } = input
-  const [created] = await db.insert(tasks).values(taskInput).returning()
+  const {
+    texts: [title = '', description = ''],
+    personIds,
+  } = await linkTexts(userId, [taskInput.title, taskInput.description ?? ''])
+  const [created] = await db
+    .insert(tasks)
+    .values({ ...taskInput, title, description: taskInput.description == null ? taskInput.description : description })
+    .returning()
   if (!created) throw new AppError('INTERNAL_SERVER_ERROR', 'Failed to create task')
+  await indexTask(created.id, personIds)
 
   if (referentIds?.length) {
     await db.insert(taskReferents).values(referentIds.map((personId) => ({ taskId: created.id, personId })))
@@ -34,12 +47,34 @@ export async function update(userId: string, input: UpdateTask & { goalId: strin
   const { id, goalId, referentIds, groupIds, ...updateData } = input
   await assertOwnsGoal(userId, goalId)
 
+  // Text that changes is linked again. The index covers both fields, so the
+  // one that is not in this patch is read from the row.
+  let mentioned: string[] | null = null
+  if (updateData.title !== undefined || updateData.description !== undefined) {
+    const [existing] = await db
+      .select({ title: tasks.title, description: tasks.description })
+      .from(tasks)
+      .where(and(eq(tasks.id, id), eq(tasks.goalId, goalId)))
+      .limit(1)
+    if (existing) {
+      const linked = await linkTexts(
+        userId,
+        [updateData.title ?? existing.title, updateData.description ?? existing.description ?? ''],
+        mentionedIn(existing.title, existing.description),
+      )
+      if (updateData.title !== undefined) updateData.title = linked.texts[0]
+      if (updateData.description != null) updateData.description = linked.texts[1]
+      mentioned = linked.personIds
+    }
+  }
+
   const [updated] = await db
     .update(tasks)
     // updatedAt restated — see services/connections.ts update.
     .set({ ...updateData, updatedAt: new Date() })
     .where(and(eq(tasks.id, id), eq(tasks.goalId, goalId)))
     .returning()
+  if (updated && mentioned) await indexTask(id, mentioned)
 
   if (referentIds !== undefined) {
     await db.delete(taskReferents).where(eq(taskReferents.taskId, id))

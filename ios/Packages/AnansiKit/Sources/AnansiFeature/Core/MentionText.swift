@@ -1,14 +1,16 @@
 import Foundation
 
-// The journal's text grammar: how an entry names a person. The server's copy is anansi/src/lib/journal.ts.
+// How text names a person, everywhere text can: a journal day, the notes on a weekly sync item, a task's title
+// and description. The server's copy is anansi/src/lib/mentions.ts.
 //
 // Stored text carries a mention as a token, `@[Name](person:<id>)`. The id is what links; the name is there so the
-// raw text still reads. The phone never writes tokens: it shows them as `@Name` (the person's current name when
-// the entry's `mentions` knows the id, the stored one otherwise), lets the user edit that, and sends the plain
-// text back. The server links `@Name` to the person of that name on every write.
+// raw text still reads, and the server rewrites it to the person's current name on every write. The phone never
+// writes tokens: it shows them as `@Name` (the person's current name when a `mentions` list knows the id, as a
+// journal entry's does; the stored one otherwise), lets the user edit that, and sends the plain text back. The
+// server links `@Name` to the person of that name on every write.
 
-nonisolated enum JournalText {
-    /// A run of an entry's text: plain words, or a person.
+nonisolated enum MentionText {
+    /// A run of a text: plain words, or a person.
     enum Segment: Hashable, Sendable {
         case text(String)
         case mention(personId: String, label: String)
@@ -132,23 +134,13 @@ nonisolated enum JournalText {
     }
 }
 
-nonisolated extension JournalEntry {
-    /// Person id to current name, for the people this entry mentions.
-    var names: [String: String] {
-        Dictionary(mentions.map { ($0.personId, $0.name) }, uniquingKeysWith: { first, _ in first })
-    }
+nonisolated extension SyncItem {
+    /// The notes as a person edits them: every mention as `@Name`. Unsent notes are already in this form, so the
+    /// editor's text, the outbox's and this compare as equals when nothing was typed.
+    var editableNotes: String { MentionText.editable(textContent ?? "") }
+}
 
-    /// One line that stands for the day in a list: its first highlight, else the first line of the prose, with
-    /// mentions as plain names. Empty when the day only has pictures.
-    var excerpt: String {
-        let names = self.names
-        if let first = highlights.first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
-            return JournalText.plain(first, names: names).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        let prose = JournalText.plain(content, names: names)
-        let line = prose.split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .first(where: { !$0.isEmpty })
-        return line ?? ""
-    }
+nonisolated extension HorizonTask {
+    /// The title with mentions as bare names.
+    var plainTitle: String { MentionText.plain(title) }
 }

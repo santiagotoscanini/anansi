@@ -4,6 +4,7 @@ import type { McpCtx } from './types'
 import { isoDate, toolInput } from './fields'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
 import { createPersonSchema, updatePersonSchema } from '~/lib/api/types'
+import * as mentions from '~/server/services/mentions'
 import * as people from '~/server/services/people'
 
 // People = personal CRM (a reflection surface, not a contact manager). Every
@@ -41,12 +42,29 @@ export function registerPeopleTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Get a person',
       description:
-        'Full record for one person — reflection prompts, category, groups. For the days the journal mentions them, call `list_journal_entries` with their id as `personId`.',
+        'Full record for one person — reflection prompts, category, groups. For where the user wrote about them, call `list_person_mentions`.',
       inputSchema: toolInput({ id: z.string() }),
     },
     async ({ id }) => {
       try {
         return mcpJsonResult(await people.getById(ctx.userId, id))
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'list_person_mentions',
+    {
+      title: 'Where a person is mentioned',
+      description:
+        "Everywhere the user's own text names one person, newest first within each kind: `journal` (days, with their text and highlights), `syncNotes` (weekly sync items, with the week and the notes) and `tasks` (with their goal). Read it before talking about someone, to know what has been said and planned.",
+      inputSchema: toolInput({ personId: z.string() }),
+    },
+    async ({ personId }) => {
+      try {
+        return mcpJsonResult(await mentions.forPerson(ctx.userId, personId))
       } catch (e) {
         return mcpErrorFromUnknown(e)
       }

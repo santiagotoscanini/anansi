@@ -19,6 +19,7 @@ import type { AddSyncItem, CreateWeeklySync, RemoveSyncItem, ReorderSyncItems, S
 import { AppError } from './errors'
 import { fileUrl } from './file-refs'
 import { deleteFiles } from './files'
+import { indexSyncItem, linkTexts, mentionedIn } from './mentions'
 
 /** Throws NOT_FOUND unless the sync item's parent sync belongs to the user. */
 async function assertOwnsSyncItem(userId: string, syncItemId: string) {
@@ -311,10 +312,19 @@ export async function removeItem(userId: string, input: RemoveSyncItem) {
 
 export async function setItemText(userId: string, input: SetSyncItemText) {
   await assertOwnsSyncItem(userId, input.weeklySyncItemId)
-  await db
-    .update(weeklySyncItems)
-    .set({ textContent: input.textContent })
+  // Notes can name people (`@Name`, see ~/lib/mentions): linked on every write,
+  // with `sync_item_mentions` rebuilt from the result.
+  const [existing] = await db
+    .select({ textContent: weeklySyncItems.textContent })
+    .from(weeklySyncItems)
     .where(eq(weeklySyncItems.id, input.weeklySyncItemId))
+    .limit(1)
+  const {
+    texts: [textContent = ''],
+    personIds,
+  } = await linkTexts(userId, [input.textContent], mentionedIn(existing?.textContent))
+  await db.update(weeklySyncItems).set({ textContent }).where(eq(weeklySyncItems.id, input.weeklySyncItemId))
+  await indexSyncItem(input.weeklySyncItemId, personIds)
   return { success: true }
 }
 

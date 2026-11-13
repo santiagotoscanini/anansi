@@ -12,6 +12,9 @@ interface Props {
   onChange: (value: string) => void
   people: readonly MentionCandidate[]
   multiline?: boolean
+  rows?: number
+  /** Classes for the element that wraps the field (it is the positioning box of the suggestions). */
+  wrapperClassName?: string
   placeholder?: string
   autoFocus?: boolean
   maxLength?: number
@@ -37,7 +40,7 @@ function mentionAt(text: string, caret: number): { start: number; query: string 
  * A text field where `@` offers the people to mention.
  *
  * It edits plain text: a mention is `@Name`, typed or picked, and the server
- * links it to the person on save (see ~/lib/journal). The suggestions sit under
+ * links it to the person on save (see ~/lib/mentions). The suggestions sit under
  * the field rather than at the caret, which a textarea cannot report.
  */
 export default function MentionField({
@@ -45,6 +48,8 @@ export default function MentionField({
   onChange,
   people,
   multiline = false,
+  rows,
+  wrapperClassName = '',
   placeholder,
   autoFocus,
   maxLength,
@@ -150,8 +155,8 @@ export default function MentionField({
   }
 
   return (
-    <div className="relative">
-      {multiline ? <textarea {...shared} /> : <input type="text" {...shared} />}
+    <div className={`relative ${wrapperClassName}`}>
+      {multiline ? <textarea rows={rows} {...shared} /> : <input type="text" {...shared} />}
       {open && (
         <ul
           role="listbox"

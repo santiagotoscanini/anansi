@@ -2,8 +2,9 @@ import Foundation
 @testable import AnansiFeature
 import Testing
 
-/// The journal's text grammar (the cases of anansi/src/lib/journal.test.ts that apply to the phone, which only
-/// reads tokens and never writes them), its contract, its endpoints and its place in the outbox.
+/// The mention grammar (the cases of anansi/src/lib/mentions.test.ts that apply to the phone, which only reads
+/// tokens and never writes them) on journal text, sync notes and task titles, and the journal's contract, its
+/// endpoints and its place in the outbox.
 struct CoreJournalTests {
     static let sofia = "sofia0000000000000000001"
     static let ana = "ana000000000000000000001"
@@ -18,28 +19,28 @@ struct CoreJournalTests {
 
     @Test func aTokenBecomesANameInTheEditor() {
         let stored = "Dinner with \(Self.token("Sofia", Self.sofia)) and \(Self.token("Ana María", Self.anaMaria))."
-        #expect(JournalText.mentionedIds(stored) == [Self.sofia, Self.anaMaria])
-        #expect(JournalText.editable(stored, names: Self.names) == "Dinner with @Sofia and @Ana María.")
-        #expect(JournalText.plain(stored, names: Self.names) == "Dinner with Sofia and Ana María.")
+        #expect(MentionText.mentionedIds(stored) == [Self.sofia, Self.anaMaria])
+        #expect(MentionText.editable(stored, names: Self.names) == "Dinner with @Sofia and @Ana María.")
+        #expect(MentionText.plain(stored, names: Self.names) == "Dinner with Sofia and Ana María.")
     }
 
     @Test func aRenamedPersonShowsTheCurrentName() {
         let stored = "@[Sofi](person:sofia0000000000000000001) called"
-        #expect(JournalText.editable(stored, names: Self.names) == "@Sofia called")
+        #expect(MentionText.editable(stored, names: Self.names) == "@Sofia called")
         // Someone the entry's mentions no longer name keeps the name that was stored.
-        #expect(JournalText.editable(stored, names: [:]) == "@Sofi called")
-        #expect(JournalText.editable(stored) == "@Sofi called")
+        #expect(MentionText.editable(stored, names: [:]) == "@Sofi called")
+        #expect(MentionText.editable(stored) == "@Sofi called")
     }
 
     @Test func segmentsAlternateTextAndMentions() {
-        #expect(JournalText.segments("a \(Self.token("Ana", Self.ana)) b") == [
+        #expect(MentionText.segments("a \(Self.token("Ana", Self.ana)) b") == [
             .text("a "),
             .mention(personId: Self.ana, label: "Ana"),
             .text(" b"),
         ])
-        #expect(JournalText.segments("") == [])
-        #expect(JournalText.segments("plain @Ana, a@b.c") == [.text("plain @Ana, a@b.c")])
-        #expect(JournalText.segments(Self.token("Ana", Self.ana) + Self.token("Sofia", Self.sofia)) == [
+        #expect(MentionText.segments("") == [])
+        #expect(MentionText.segments("plain @Ana, a@b.c") == [.text("plain @Ana, a@b.c")])
+        #expect(MentionText.segments(Self.token("Ana", Self.ana) + Self.token("Sofia", Self.sofia)) == [
             .mention(personId: Self.ana, label: "Ana"),
             .mention(personId: Self.sofia, label: "Sofia"),
         ])
@@ -47,25 +48,58 @@ struct CoreJournalTests {
 
     @Test func mentionsAreCountedOnce() {
         let text = "\(Self.token("Ana", Self.ana)) and \(Self.token("Sofia", Self.sofia)) and \(Self.token("Anita", Self.ana))"
-        #expect(JournalText.mentionedIds(text) == [Self.ana, Self.sofia])
+        #expect(MentionText.mentionedIds(text) == [Self.ana, Self.sofia])
     }
 
     @Test func whatIsNotATokenStaysText() {
         // An id too short, uppercase in the id, a line break in the name, an empty name, no id at all.
         for text in ["@[Ana](person:abc)", "@[Ana](person:ABCDEFGH)", "@[An\na](person:abcdefgh)", "@[](person:abcdefgh)",
                      "@[Ana]", "@[Ana](person:abcdefgh", "@[Ana] (person:abcdefgh)"] {
-            #expect(JournalText.segments(text) == [.text(text)])
-            #expect(JournalText.editable(text, names: Self.names) == text)
+            #expect(MentionText.segments(text) == [.text(text)])
+            #expect(MentionText.editable(text, names: Self.names) == text)
         }
         // The shortest id that links.
-        #expect(JournalText.mentionedIds("@[Ana](person:abc123)") == ["abc123"])
+        #expect(MentionText.mentionedIds("@[Ana](person:abc123)") == ["abc123"])
     }
 
     @Test func aNameThatCouldBreakTheTextIsMadeSafe() {
-        #expect(JournalText.editable(Self.token("X", Self.ana), names: [Self.ana: "A]b"]) == "@A b")
-        #expect(JournalText.appendingMention(to: "", name: "Sofia") == "@Sofia ")
-        #expect(JournalText.appendingMention(to: "Dinner with", name: "Sofia") == "Dinner with @Sofia ")
-        #expect(JournalText.appendingMention(to: "Dinner with ", name: "Ana María") == "Dinner with @Ana María ")
+        #expect(MentionText.editable(Self.token("X", Self.ana), names: [Self.ana: "A]b"]) == "@A b")
+        #expect(MentionText.appendingMention(to: "", name: "Sofia") == "@Sofia ")
+        #expect(MentionText.appendingMention(to: "Dinner with", name: "Sofia") == "Dinner with @Sofia ")
+        #expect(MentionText.appendingMention(to: "Dinner with ", name: "Ana María") == "Dinner with @Ana María ")
+    }
+
+    // MARK: Sync notes and task titles
+
+    static func item(_ text: String?) -> SyncItem {
+        SyncItem(id: "a", trackingItemId: "t", title: "Sleep", description: nil, orderIdx: 0,
+                 textContent: text, attachments: [], goalId: nil, goalTitle: nil, createdAt: nil)
+    }
+
+    @Test func storedNotesOpenInTheEditorAsNames() {
+        // No `mentions` list comes with a sync item: the name in the token is the one shown.
+        let stored = Self.item("Ran with \(Self.token("Sofia", Self.sofia)).\n@Ana too")
+        #expect(stored.editableNotes == "Ran with @Sofia.\n@Ana too")
+        #expect(Self.item(nil).editableNotes == "")
+        #expect(stored.isFilled)
+    }
+
+    @Test func unsentNotesAndTheStoredOnesAreTheSameTextInTheEditor() {
+        // What the phone typed and queued is `@Name`; what the server stored from it is a token. Opening the
+        // editor on either gives the same text, so nothing reads as a change until the user types.
+        let typed = "Ran with @Sofia."
+        let stored = Self.item("Ran with \(Self.token("Sofia", Self.sofia)).")
+        var outbox = SyncOutbox()
+        #expect(outbox.overlay(stored).editableNotes == typed)
+        outbox.enqueue(OutboxOp(itemId: "a", itemTitle: "Sleep", kind: .setText(typed), queuedAt: Date(timeIntervalSince1970: 0)))
+        #expect(outbox.overlay(stored).textContent == typed)
+        #expect(outbox.overlay(stored).editableNotes == typed)
+    }
+
+    @Test func aTaskTitleReadsWithoutTokens() {
+        let task = HorizonTask(id: "t1", title: "Call \(Self.token("Ana María", Self.anaMaria)) about flights", goalId: "g",
+                               goalTitle: "Travel", goalEmoji: nil, scheduledAt: "2026-11-20T00:00:00.000Z")
+        #expect(task.plainTitle == "Call Ana María about flights")
     }
 
     // MARK: Contract
@@ -91,7 +125,7 @@ struct CoreJournalTests {
         #expect(entry.pictureCount == 1)
         #expect(!entry.isBlank)
         // The entry's mentions carry the current name: the stored "Sofia" reads "Sofía".
-        #expect(JournalText.editable(entry.content, names: entry.names) == "Dinner with @Sofía at home.\nLate night.")
+        #expect(MentionText.editable(entry.content, names: entry.names) == "Dinner with @Sofía at home.\nLate night.")
         #expect(entry.excerpt == "Ran 5k")
         var prose = entry
         prose.highlights = []

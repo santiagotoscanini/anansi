@@ -6,13 +6,12 @@
 // exist: writing a day empty deletes its row, and a read answers null for it.
 //
 // People are named in the text as tokens (grammar and the looser forms a
-// writer may use: ~/lib/journal). Every write links them, and rebuilds
+// writer may use: ~/lib/mentions). Every write links them, and rebuilds
 // `journal_mentions` from the result, which is what answers "where did I
 // write about this person".
 import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm'
 import { db } from '~/lib/data'
 import { attachments, journalEntries, journalMentions, people } from '~/lib/data/schema'
-import { linkMentions, mentionedIds } from '~/lib/journal'
 import {
   appendJournalEntrySchema,
   journalDaySchema,
@@ -27,6 +26,7 @@ import * as attachmentsService from './attachments'
 import { AppError } from './errors'
 import { fileUrl } from './file-refs'
 import { deleteFiles } from './files'
+import { linkTexts, mentionedIn } from './mentions'
 
 type EntryRow = typeof journalEntries.$inferSelect
 
@@ -133,29 +133,13 @@ export async function list(userId: string, raw: ListJournalEntries = {}): Promis
   return hydrate(rows)
 }
 
-/** Link every mention in the texts against the user's people, or refuse with the reason. */
-async function linked(userId: string, texts: string[], prefer: string[]) {
-  const mine = await db.select({ id: people.id, name: people.name }).from(people).where(eq(people.userId, userId))
-  const results = texts.map((t) => linkMentions(t, mine, prefer))
-  const unknown = [...new Set(results.flatMap((r) => r.unknownIds))]
-  if (unknown.length) {
-    throw new AppError('BAD_REQUEST', `No person has the id ${unknown.join(', ')}. Use an id from the people list.`)
-  }
-  const unresolved = results.flatMap((r) => r.unresolved)
-  if (unresolved.length) {
-    const said = unresolved
-      .map((u) => (u.matches === 0 ? `nobody is called "${u.name}"` : `${u.matches} people are called "${u.name}"`))
-      .join('; ')
-    throw new AppError('BAD_REQUEST', `Could not link a mention: ${said}. Write it as @[Name](person:<id>).`)
-  }
-  return results.map((r) => r.text)
-}
-
 async function save(userId: string, day: string, content: string, highlights: string[]) {
   const existing = await findRow(userId, day)
-  const prefer = existing ? mentionedIds([existing.content, ...existing.highlights].join('\n')) : []
-  const [text = '', ...items] = await linked(userId, [content, ...highlights], prefer)
-  const mentioned = mentionedIds([text, ...items].join('\n'))
+  const prefer = existing ? mentionedIn(existing.content, ...existing.highlights) : []
+  const {
+    texts: [text = '', ...items],
+    personIds: mentioned,
+  } = await linkTexts(userId, [content, ...highlights], prefer)
 
   if (text.trim() === '' && items.length === 0) {
     // Nothing left to say. The row goes unless pictures still hang on it.

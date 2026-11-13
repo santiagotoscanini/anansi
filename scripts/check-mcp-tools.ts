@@ -37,7 +37,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 
 const GOLDEN = join(dirname(fileURLToPath(import.meta.url)), '..', '.golden', 'mcp-tools.json')
-const EXPECTED_COUNT = 88
+const EXPECTED_COUNT = 90
 
 /**
  * Stable stringify: sort object keys at every depth, leave array order alone.

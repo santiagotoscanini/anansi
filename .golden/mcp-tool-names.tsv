@@ -7,6 +7,7 @@ connections	create_connection
 connections	delete_connection
 connections	list_connections
 connections	update_connection
+goals	arrange_goals
 goals	create_goal
 goals	delete_goal
 goals	list_goals
@@ -40,6 +41,7 @@ people	delete_person
 people	get_person
 people	list_people
 people	list_person_bucket_list
+people	list_person_mentions
 people	list_person_tasks
 people	set_person_category
 people	set_person_photo

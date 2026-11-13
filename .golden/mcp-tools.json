@@ -67,7 +67,7 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
-    "description": "Add to one day of the journal without reading it first, creating the entry when the day has none. `content` becomes a new paragraph after the text that is there; each of `highlights` joins the end of the list unless it is already on it. Nothing already written is changed. Name a person as `@[Name](person:<id>)` with an id from `list_people`, or as `@[Name]` when exactly one person has that name. A mention is what makes the day show up under that person, so mention everyone the day was about; a name that matches nobody is refused, not guessed.",
+    "description": "Add to one day of the journal without reading it first, creating the entry when the day has none. `content` becomes a new paragraph after the text that is there; each of `highlights` joins the end of the list unless it is already on it. Nothing already written is changed. Name a person as `@[Name](person:<id>)` with an id from `list_people`, or as `@[Name]` when exactly one person has that name. A mention is what makes the text show up under that person (`list_person_mentions`); a name that matches nobody is refused, not guessed.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -129,6 +129,24 @@
     },
     "name": "archive_person",
     "title": "Archive a person"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Tidy the canvas: lay every goal out from its connections, left to right in the direction the edges point, with unconnected goals in rows underneath. Nothing but positions changes. Use it after creating or connecting several goals, or when the user asks to organize the graph. Answers the goals that moved, each with `from` and `to`; to undo, set each one back with `update_goal` and its `from` as `position`.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object"
+    },
+    "name": "arrange_goals",
+    "title": "Arrange the goal graph"
   },
   {
     "annotations": {
@@ -560,7 +578,7 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
-    "description": "Add a task to a goal. Difficulty is a vibes-based 1 (easy) to 3 (hard). `scheduledAt` is the optional deadline — omit for backlog. `referentIds` are people the user is relying on for this task; `groupIds` tag the task with cross-entity groups.",
+    "description": "Add a task to a goal. Difficulty is a vibes-based 1 (easy) to 3 (hard). `scheduledAt` is the optional deadline — omit for backlog. `referentIds` are people the user is relying on for this task; `groupIds` tag the task with cross-entity groups. The title and description can mention people: Name a person as `@[Name](person:<id>)` with an id from `list_people`, or as `@[Name]` when exactly one person has that name. A mention is what makes the text show up under that person (`list_person_mentions`); a name that matches nobody is refused, not guessed.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -1231,7 +1249,7 @@
     "title": "Read a journal day"
   },
   {
-    "description": "Full record for one person — reflection prompts, category, groups. For the days the journal mentions them, call `list_journal_entries` with their id as `personId`.",
+    "description": "Full record for one person — reflection prompts, category, groups. For where the user wrote about them, call `list_person_mentions`.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -1526,6 +1544,27 @@
     },
     "name": "list_person_bucket_list",
     "title": "Bucket-list items linked to a person"
+  },
+  {
+    "description": "Everywhere the user's own text names one person, newest first within each kind: `journal` (days, with their text and highlights), `syncNotes` (weekly sync items, with the week and the notes) and `tasks` (with their goal). Read it before talking about someone, to know what has been said and planned.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "personId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "personId"
+      ],
+      "type": "object"
+    },
+    "name": "list_person_mentions",
+    "title": "Where a person is mentioned"
   },
   {
     "description": "Return every task where this person is listed as a referent, joined with the parent goal's context. Use to answer 'what am I depending on X for?'",
@@ -1946,7 +1985,7 @@
       "idempotentHint": true,
       "openWorldHint": false
     },
-    "description": "Replace the notes on one item of a sync. It replaces rather than appends, so read the item first when adding to what is there. `weeklySyncItemId` is the item's `id` in `get_weekly_sync` or `get_pulse`, not its `trackingItemId`.",
+    "description": "Replace the notes on one item of a sync. It replaces rather than appends, so read the item first when adding to what is there. `weeklySyncItemId` is the item's `id` in `get_weekly_sync` or `get_pulse`, not its `trackingItemId`. Name a person as `@[Name](person:<id>)` with an id from `list_people`, or as `@[Name]` when exactly one person has that name. A mention is what makes the text show up under that person (`list_person_mentions`); a name that matches nobody is refused, not guessed.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -2743,7 +2782,7 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
-    "description": "Patch a task. Pass only the fields you want to change. `referentIds` and `groupIds` REPLACE the existing sets if passed; omit to leave them alone. Setting `completed: true` marks the task done.",
+    "description": "Patch a task. Pass only the fields you want to change. `referentIds` and `groupIds` REPLACE the existing sets if passed; omit to leave them alone. Setting `completed: true` marks the task done. A new title or description can mention people: Name a person as `@[Name](person:<id>)` with an id from `list_people`, or as `@[Name]` when exactly one person has that name. A mention is what makes the text show up under that person (`list_person_mentions`); a name that matches nobody is refused, not guessed.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -3037,7 +3076,7 @@
       "idempotentHint": true,
       "openWorldHint": false
     },
-    "description": "Write the journal entry of one day, creating it when the day has none. `content` is the diary text, in the user's own voice and language, with blank lines between paragraphs; `highlights` is the day's short list, one line each. A field you pass replaces what the day holds and a field you leave out stays, so to add to a day use `append_journal_entry` instead. Name a person as `@[Name](person:<id>)` with an id from `list_people`, or as `@[Name]` when exactly one person has that name. A mention is what makes the day show up under that person, so mention everyone the day was about; a name that matches nobody is refused, not guessed. For an end-of-day reflection, talk the day through first, then write it once.",
+    "description": "Write the journal entry of one day, creating it when the day has none. `content` is the diary text, in the user's own voice and language, with blank lines between paragraphs; `highlights` is the day's short list, one line each. Mention everyone the day was about. A field you pass replaces what the day holds and a field you leave out stays, so to add to a day use `append_journal_entry` instead. Name a person as `@[Name](person:<id>)` with an id from `list_people`, or as `@[Name]` when exactly one person has that name. A mention is what makes the text show up under that person (`list_person_mentions`); a name that matches nobody is refused, not guessed. For an end-of-day reflection, talk the day through first, then write it once.",
     "execution": {
       "taskSupport": "forbidden"
     },

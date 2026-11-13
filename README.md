@@ -18,6 +18,8 @@ The app sits at the intersection of "what do I want" (goals, tasks, values), "wh
 ## Features
 
 - **Goals canvas (`Objectives`).** Hierarchical goals with parent-child links, free-positioned cards on a React Flow canvas, and weighted connections (0–100) that auto-derive importance (Low/Medium/High).
+- **Arrange.** One button (and one MCP tool) lays the whole goal graph out from its connections, with undo.
+- **Mentions.** Type `@` and a name in a journal day, a weekly sync note or a task, and the person is linked; each person's page lists everywhere they are mentioned.
 - **Tasks.** Per-goal tasks with title, emoji, description, difficulty, deadline, referent people, and group tags. The cross-goal `Tasks` tab is a searchable flat list grouped by goal.
 - **Horizons.** Tasks bucketed into `Backlog` / `This Month` / `This Quarter` / `This Year` based on `scheduledAt`. Buckets are computed at render, so a task auto-promotes as the deadline approaches.
 - **Pulse.** Daily landing view. Sync items + unified Upcoming feed (next bids + important dates) + On the Horizon (Month/Quarter/Year, year collapsed by default).
@@ -29,7 +31,7 @@ The app sits at the intersection of "what do I want" (goals, tasks, values), "wh
 - **Values.** Named + colored tags on goals; values carry their own behavior list (short evidence sentences).
 - **Groups.** Cross-entity tags spanning both people and tasks. The same `Family` group can hold both your partner and the "call mom" task.
 - **Backup / Import.** Full per-user JSON+base64 export and transactional replace import.
-- **MCP server.** A remote Model Context Protocol server at `POST /api/mcp` exposing 88 tools, so Claude can run the whole app: goals, tasks, people, values, Self, Pulse, the weekly sync and the journal. It is its own OAuth 2.1 authorization server.
+- **MCP server.** A remote Model Context Protocol server at `POST /api/mcp` exposing 90 tools, so Claude can run the whole app: goals, tasks, people, values, Self, Pulse, the weekly sync and the journal. It is its own OAuth 2.1 authorization server.
 
 ## Stack
 

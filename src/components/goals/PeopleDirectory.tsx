@@ -12,6 +12,7 @@ import PersonModal, { type PersonRow } from './PersonModal'
 import Avatar from './Avatar'
 import ColorPicker from './ColorPicker'
 import GoalModal from './GoalModal'
+import MentionText from './MentionText'
 import { isEmojiUrl } from '~/lib/emoji-utils'
 import { formatScheduledShort } from '~/lib/horizon-period'
 
@@ -390,7 +391,7 @@ export default function PeopleDirectory() {
                           t.completed ? 'text-[var(--ink-3)] line-through' : 'text-[var(--ink)]'
                         }`}
                       >
-                        {t.taskTitle}
+                        <MentionText text={t.taskTitle} />
                       </span>
                       <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--hairline)] bg-[var(--vellum)] px-2 py-0.5 text-[11px] text-[var(--ink-2)]">
                         {t.goalEmoji ? (

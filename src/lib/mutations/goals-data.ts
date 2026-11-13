@@ -3,7 +3,7 @@ import { qk } from '~/lib/queries/keys'
 import type { GoalsData } from '~/lib/queries/goals'
 import type { UpdateTaskInput } from '~/lib/api/types'
 import { createConnection, deleteConnection, updateConnection } from '~/server/fn/connections.fn'
-import { createGoal, deleteGoal, updateGoal } from '~/server/fn/goals.fn'
+import { createGoal, deleteGoal, updateGoal, arrangeGoals, setGoalPositions } from '~/server/fn/goals.fn'
 import { createTask, deleteTask, setTaskScheduled, updateTask } from '~/server/fn/tasks.fn'
 import { createValue, deleteValue, updateValue } from '~/server/fn/values.fn'
 
@@ -143,6 +143,11 @@ export function useUpdateTask() {
     // for the output type is both honest and what the callers already pass;
     // the coercion stays available for the string-shaped MCP path.
     mutationFn: (data: UpdateTaskInput) => updateTask({ data }),
+    // The one case the optimistic patch is not what the server stored: text
+    // with an `@` in it comes back with its mentions linked.
+    onSuccess: (_data, vars) => {
+      if (vars.title?.includes('@') || vars.description?.includes('@')) return invalidateGraph(queryClient)
+    },
     onMutate: async ({ id, goalId, ...patch }) => {
       await queryClient.cancelQueries({ queryKey: qk.goalsData })
       const snapshot = queryClient.getQueryData<GoalsData>(qk.goalsData)
@@ -235,6 +240,29 @@ export function useDeleteConnection() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteConnection({ data: { id } }),
+    onSuccess: () => invalidateGraph(queryClient),
+  })
+}
+
+/**
+ * Lay the whole graph out from its connections. The server computes it (the
+ * same function the `arrange_goals` MCP tool runs) and answers what moved and
+ * from where, which the caller keeps for its undo.
+ */
+export function useArrangeGoals() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => arrangeGoals(),
+    onSuccess: () => invalidateGraph(queryClient),
+  })
+}
+
+/** Move several goals in one write: the undo of an arrange. */
+export function useSetGoalPositions() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (positions: Parameters<typeof setGoalPositions>[0]['data']['positions']) =>
+      setGoalPositions({ data: { positions } }),
     onSuccess: () => invalidateGraph(queryClient),
   })
 }

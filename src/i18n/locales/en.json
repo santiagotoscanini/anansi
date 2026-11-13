@@ -382,8 +382,9 @@
     "categoryLongTermHint": "Family, closest friends. Erode through neglect, not drama.",
     "categoryToProcess": "To Process",
     "categoryToProcessHint": "Something to fix: repair, release, or end. Name which in 'If I died tomorrow'.",
-    "journalSection": "In the journal",
-    "journalEmpty": "No journal day mentions them yet. Write @ and their name in a day."
+    "mentionsSection": "Mentions",
+    "mentionsEmpty": "Nothing mentions them yet. Type @ and their name in a journal day, a sync note or a task.",
+    "mentionsWeekOf": "week of {{date}}"
   },
   "lifeProgress": {
     "eyebrow": "Goals · progress",
@@ -552,21 +553,17 @@
     "defaultName": "Default"
   },
   "weeklySyncRow": {
-    "savingStatus": "Saving...",
-    "savedStatus": "✓ Saved",
-    "addText": "Add Text",
-    "addImages": "Add Images",
+    "savingStatus": "Saving…",
+    "savedStatus": "Saved",
+    "addImages": "Add pictures",
     "removeFromSync": "Remove from sync",
     "removeFromSyncTitle": "Remove from this sync. The item stays in your library",
-    "notesPlaceholder": "Add your notes for this tracking item...",
+    "notesPlaceholder": "Write your notes…",
     "done": "Done",
-    "content": "Content",
-    "savedNotes": "Saved Notes",
-    "clearNotes": "Clear notes",
     "clickToEdit": "Click to edit",
-    "savedImages": "Saved Images ({{count}})",
     "savedAlt": "Saved {{index}}",
-    "deleteTitle": "Delete {{name}}"
+    "deleteTitle": "Delete {{name}}",
+    "mentionHint": "Type @ to mention someone."
   },
   "weeklySync": {
     "eyebrow": "Sync · weekly retrospective",
@@ -615,8 +612,6 @@
     "noFileData": "No file data",
     "readFileFailed": "Failed to read file",
     "saveTextFailed": "Failed to save text",
-    "notesCleared": "Notes cleared",
-    "clearNotesFailed": "Failed to clear notes",
     "fileDeleted": "{{name}} deleted",
     "fileDeleteFailed": "Failed to delete {{name}}",
     "importanceHigh": "High",
@@ -886,7 +881,13 @@
     "deletedGoals_other": "Deleted {{count}} goals",
     "deleteGoalsFailed": "Failed to delete goals",
     "deletedConnections_one": "Deleted {{count}} connection",
-    "deletedConnections_other": "Deleted {{count}} connections"
+    "deletedConnections_other": "Deleted {{count}} connections",
+    "arrange": "Arrange",
+    "arrangeTitle": "Lay the graph out from its connections",
+    "arranged_one": "Moved {{count}} goal.",
+    "arranged_other": "Moved {{count}} goals.",
+    "alreadyArranged": "Already in order.",
+    "undo": "Undo"
   },
   "pulse": {
     "loading": "Loading…",

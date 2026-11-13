@@ -21,8 +21,10 @@ import {
   peopleToGroups,
   personGroups,
   selfListItems,
+  syncItemMentions,
   syncTemplateItems,
   syncTemplates,
+  taskMentions,
   taskReferents,
   tasks,
   tasksToGroups,
@@ -34,7 +36,7 @@ import {
   weeklySyncItems,
 } from '~/lib/data/schema'
 import { isEmojiGlyph, isOurStorageImageUrl } from '~/lib/emoji-utils'
-import { mentionedIds } from '~/lib/journal'
+import { mentionedIds } from '~/lib/mentions'
 import type { Backup } from '~/lib/api/types'
 import { AppError } from './errors'
 import { discardFiles, readFile, removeObjectsOf, saveFile } from './files'
@@ -372,9 +374,20 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       if (b.people.length) {
         await tx.insert(people).values(b.people.map((p) => ({ ...p, emoji: safeEmoji(p.emoji), userId })))
       }
-      // Who each journal entry mentions, read back out of its text. A mention
-      // of someone the backup does not hold stays as text and is not indexed.
+      // Who each text mentions (journal days, tasks, sync notes), read back out
+      // of the text. A mention of someone the backup does not hold stays as
+      // text and is not indexed.
       const restoredPeople = new Set(b.people.map((p) => p.id))
+      const named = (...texts: (string | null)[]) =>
+        mentionedIds(texts.filter(Boolean).join('\n')).filter((personId) => restoredPeople.has(personId))
+      const taskMentionRows = b.tasks.flatMap((t) =>
+        named(t.title, t.description).map((personId) => ({ taskId: t.id, personId })),
+      )
+      if (taskMentionRows.length) await tx.insert(taskMentions).values(taskMentionRows)
+      const syncMentionRows = b.weeklySyncItems.flatMap((i) =>
+        named(i.textContent).map((personId) => ({ weeklySyncItemId: i.id, personId })),
+      )
+      if (syncMentionRows.length) await tx.insert(syncItemMentions).values(syncMentionRows)
       const mentionRows = b.journalEntries.flatMap((e) =>
         mentionedIds([e.content, ...e.highlights].join('\n'))
           .filter((personId) => restoredPeople.has(personId))

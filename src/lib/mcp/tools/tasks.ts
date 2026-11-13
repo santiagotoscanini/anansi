@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
-import { isoDate, toolInput } from './fields'
+import { isoDate, MENTIONS, toolInput } from './fields'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
 import { createTaskSchema, updateTaskSchema } from '~/lib/api/types'
 import * as tasks from '~/server/services/tasks'
@@ -25,7 +25,8 @@ export function registerTasksTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Create a task',
       description:
-        'Add a task to a goal. Difficulty is a vibes-based 1 (easy) to 3 (hard). `scheduledAt` is the optional deadline — omit for backlog. `referentIds` are people the user is relying on for this task; `groupIds` tag the task with cross-entity groups.',
+        'Add a task to a goal. Difficulty is a vibes-based 1 (easy) to 3 (hard). `scheduledAt` is the optional deadline — omit for backlog. `referentIds` are people the user is relying on for this task; `groupIds` tag the task with cross-entity groups. The title and description can mention people: ' +
+        MENTIONS,
       inputSchema: toolInput({
         goalId: z.string().describe('Parent goal id.'),
         title: z.string().min(1),
@@ -64,7 +65,8 @@ export function registerTasksTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Update a task',
       description:
-        'Patch a task. Pass only the fields you want to change. `referentIds` and `groupIds` REPLACE the existing sets if passed; omit to leave them alone. Setting `completed: true` marks the task done.',
+        'Patch a task. Pass only the fields you want to change. `referentIds` and `groupIds` REPLACE the existing sets if passed; omit to leave them alone. Setting `completed: true` marks the task done. A new title or description can mention people: ' +
+        MENTIONS,
       inputSchema: toolInput({
         id: z.string(),
         goalId: z.string().describe('Parent goal id (used for ownership check).'),

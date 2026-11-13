@@ -34,8 +34,8 @@ for Claude; the phone doesn't use it.
   goal, notes so far, pictures, and "Add picture" right there), Upcoming (next bids and important dates), On the
   horizon (month, quarter, year), and the people needing attention. "Start this week" when the week has no sync yet.
   Pull down to refresh; it also refreshes when the app comes forward and after uploads land.
-- **An item**: notes saved as you type, pictures in a grid (tap to view full screen, long-press to delete), "Take a
-  picture" (the pose camera) or "Choose from library" (up to 10 at once).
+- **An item**: notes saved as you type (with "Mention someone", as in the journal), pictures in a grid (tap to view
+  full screen, long-press to delete), "Take a picture" (the pose camera) or "Choose from library" (up to 10 at once).
 - **Pose camera**: for pictures you retake every week (face, chest, side, back). A 3:4 live preview with the item's
   **outline** drawn over it and **last time's picture** faded underneath (opacity slider), a 3 or 10 second
   **self-timer**, and the front/back switch. Front-camera pictures are saved mirrored, as previewed, so the outline,
@@ -50,9 +50,13 @@ for Claude; the phone doesn't use it.
 - **Journal**: a diary, one entry a day. Pulse shows today's (the first highlights and lines, its pictures, "Add
   picture"); the day screen has the highlights (add, tap to edit or delete), the prose (tap to edit), the pictures
   (camera or library, tap to view, long-press to delete) and the people mentioned, with previous/next day (never
-  past today). **Past entries** lists the recent days and searches their text. A person is mentioned by writing
-  `@Name` or picking them: the phone shows the stored token `@[Name](person:<id>)` as `@Name` (tinted when read),
-  sends plain text back, and the server links each `@Name` to the person of that name (`Core/JournalText.swift`).
+  past today). **Past entries** lists the recent days and searches their text.
+- **Mentions**: journal text, an item's notes and a task's title name a person the same way. A person is mentioned
+  by writing `@Name` or picking them: the phone shows the stored token `@[Name](person:<id>)` as `@Name` (tinted
+  when read),
+  sends plain text back, and the server links each `@Name` to the person of that name (`Core/MentionText.swift`). A
+  journal day comes with its people's current names; notes and task titles show the name stored in the token,
+  which the server keeps current. Task titles are read only and show the bare name.
 - **Settings**: the connection (server, account, connect again, disconnect), what is still being sent (with retry/discard for anything Anansi refused), the
   picture cache.
 
@@ -79,7 +83,7 @@ ios/
     Sources/AppFeature/      RootView (shows Pulse) + the app delegate hook
     Sources/AnansiFeature/   Everything else
       Core/                  Pure logic, no UI imports: contract models, LocalDay, API, connect link, overlay, outbox,
-                             the journal's mention grammar
+                             the mention grammar
       Theme.swift            Anansi's warm paper look (tokens from src/styles/globals.css), light and dark
       APIClient.swift ...    The connection, the API client, stores, camera, screens
     Tests/AnansiFeatureTests/  Swift Testing suites for Core

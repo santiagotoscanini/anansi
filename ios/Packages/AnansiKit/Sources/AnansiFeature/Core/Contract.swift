@@ -27,6 +27,7 @@ nonisolated struct SyncItem: Codable, Hashable, Sendable, Identifiable {
     var title: String
     var description: String?
     var orderIdx: Int
+    /// The notes, as stored: a mention is the token `@[Name](person:<id>)`, see `MentionText`.
     var textContent: String?
     var attachments: [SyncAttachment]
     var goalId: String?
@@ -116,6 +117,7 @@ nonisolated struct UpcomingRow: Codable, Hashable, Sendable, Identifiable {
     var isDate: Bool { kind == "date" }
 }
 
+/// A task on a horizon list. `title` is stored text and may name people with tokens, see `MentionText`.
 nonisolated struct HorizonTask: Codable, Hashable, Sendable, Identifiable {
     var id: String
     var title: String
@@ -268,7 +270,7 @@ nonisolated struct JournalMention: Codable, Hashable, Sendable, Identifiable {
 }
 
 /// One day of the journal (`GET /api/v1/journal/{day}`, which answers `null` for a day with nothing written).
-/// `content` and `highlights` are stored text: a mention is the token `@[Name](person:<id>)`, see `JournalText`.
+/// `content` and `highlights` are stored text: a mention is the token `@[Name](person:<id>)`, see `MentionText`.
 nonisolated struct JournalEntry: Codable, Hashable, Sendable, Identifiable {
     var id: String
     /// The user's calendar day, `YYYY-MM-DD`.
@@ -314,6 +316,27 @@ nonisolated struct JournalEntry: Codable, Hashable, Sendable, Identifiable {
     var isBlank: Bool { !hasText && attachments.isEmpty }
 
     var pictureCount: Int { attachments.filter(\.isImage).count }
+}
+
+nonisolated extension JournalEntry {
+    /// Person id to current name, for the people this entry mentions.
+    var names: [String: String] {
+        Dictionary(mentions.map { ($0.personId, $0.name) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// One line that stands for the day in a list: its first highlight, else the first line of the prose, with
+    /// mentions as plain names. Empty when the day only has pictures.
+    var excerpt: String {
+        let names = self.names
+        if let first = highlights.first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+            return MentionText.plain(first, names: names).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let prose = MentionText.plain(content, names: names)
+        let line = prose.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first(where: { !$0.isEmpty })
+        return line ?? ""
+    }
 }
 
 // MARK: Dates

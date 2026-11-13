@@ -55,6 +55,7 @@ export const qk = {
   personDetail: (id: string) => ['people', 'detail', id] as const,
   personTasks: (personId: string) => ['people', 'tasks', personId] as const,
   personBucketList: (personId: string) => ['people', 'bucket-list', personId] as const,
+  personMentions: (personId: string) => ['people', 'mentions', personId] as const,
 
   groups: ['groups'] as const,
   groupTasks: (groupId: string) => ['groups', 'tasks', groupId] as const,
@@ -71,7 +72,6 @@ export const qk = {
   journal: ['journal'] as const,
   journalDay: (day: string) => ['journal', 'day', day] as const,
   journalRecent: (query?: string) => ['journal', 'recent', query ?? null] as const,
-  journalMentionsOf: (personId: string) => ['journal', 'person', personId] as const,
 
   self: ['self'] as const,
   selfListItems: ['self-list-items'] as const,

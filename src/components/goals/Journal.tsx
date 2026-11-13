@@ -1,10 +1,11 @@
-import { keepPreviousData, useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Image as ImageIcon, Plus, Search, Trash2, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
-import { journalSegments, shiftDay, toEditable, toPlain } from '~/lib/journal'
+import { shiftDay } from '~/lib/journal'
+import { toEditable, toPlain } from '~/lib/mentions'
 import {
   useDeleteJournalAttachment,
   useDeleteJournalEntry,
@@ -12,11 +13,11 @@ import {
   useWriteJournalEntry,
 } from '~/lib/mutations/journal'
 import { journalEntryQueryOptions, journalRecentQueryOptions, type JournalEntryRow } from '~/lib/queries/journal'
-import { peopleQueryOptions } from '~/lib/queries/people'
 import { useLocalToday } from '~/lib/use-local-today'
 import { Route } from '~/routes/app.journal'
 import Avatar from './Avatar'
 import MentionField, { type MentionCandidate } from './MentionField'
+import MentionText, { useMentionPeople } from './MentionText'
 import { SecLabel } from './ui'
 
 // The journal: one page per calendar day. Highlights first (the day in a few
@@ -35,33 +36,6 @@ const proseStyle = {
 function dateOf(day: string): Date {
   const [y = 0, m = 1, d = 1] = day.split('-').map(Number)
   return new Date(y, m - 1, d)
-}
-
-/** Stored text with each mention as a link to its person. */
-export function JournalText({ text, people }: { text: string; people: readonly MentionCandidate[] }) {
-  const byId = new Map(people.map((p) => [p.id, p] as const))
-  return (
-    <>
-      {journalSegments(text).map((seg, i) => {
-        if (seg.type === 'text') return <Fragment key={i}>{seg.text}</Fragment>
-        const person = byId.get(seg.personId)
-        // Someone deleted since: their name stays, as plain text.
-        if (!person) return <Fragment key={i}>{seg.label}</Fragment>
-        return (
-          <Link
-            key={i}
-            to="/app/people"
-            search={{ filter: 'all', person: person.id }}
-            onClick={(e) => e.stopPropagation()}
-            className="rounded-sm transition-colors hover:bg-[var(--indigo-soft)]"
-            style={{ color: 'var(--indigo)', fontWeight: 500 }}
-          >
-            {person.name}
-          </Link>
-        )
-      })}
-    </>
-  )
 }
 
 function Highlights({
@@ -137,7 +111,7 @@ function Highlights({
                   title={t('journal.clickToEdit')}
                   className="min-w-0 flex-1 cursor-text rounded-md px-2 py-1 text-left text-[15px] leading-relaxed text-[var(--ink)] transition-colors hover:bg-[var(--vellum)]"
                 >
-                  <JournalText text={h} people={people} />
+                  <MentionText text={h} />
                 </button>
                 <button
                   type="button"
@@ -285,7 +259,7 @@ function Prose({
           className="-mx-3 cursor-text rounded-xl px-3 py-2 whitespace-pre-wrap transition-colors hover:bg-[var(--vellum)]/50"
           style={proseStyle}
         >
-          <JournalText text={stored} people={people} />
+          <MentionText text={stored} link />
         </div>
       ) : (
         <button
@@ -598,8 +572,7 @@ function Day({ day, today, people }: { day: string; today: string; people: reado
 
 export default function Journal() {
   const { t, i18n } = useTranslation()
-  const { data: allPeople } = useSuspenseQuery(peopleQueryOptions(false))
-  const people: MentionCandidate[] = allPeople.map((p) => ({ id: p.id, name: p.name, emoji: p.emoji }))
+  const people = useMentionPeople()
 
   const { day: dayParam } = Route.useSearch()
   const navigate = Route.useNavigate()

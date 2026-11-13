@@ -1,11 +1,13 @@
 // Goal CRUD plus the shared ownership guard the task and connection services
 // also rely on.
 import { and, eq } from 'drizzle-orm'
+import { arrangeGoals } from '~/lib/computation/arrange'
 import { db } from '~/lib/data'
 import { connections, goalValues, goals, taskReferents, tasks, tasksToGroups, trackingItems } from '~/lib/data/schema'
 import { loadGoalsForUser } from '~/lib/data/queries/load-goals'
 import type { CreateGoal, Goal, UpdateGoal } from '~/lib/api/types'
 import { AppError } from './errors'
+import { indexTask, linkTexts } from './mentions'
 
 /**
  * Throws NOT_FOUND unless the goal exists and belongs to the user.
@@ -43,10 +45,20 @@ export async function create(userId: string, input: CreateGoal) {
   }
 
   if (inputTasks.length > 0) {
+    // Tasks that arrive with a goal name people like any other task.
+    const linked = await Promise.all(inputTasks.map((t) => linkTexts(userId, [t.title, t.description ?? ''])))
     const insertedTasks = await db
       .insert(tasks)
-      .values(inputTasks.map(({ referentIds: _r, groupIds: _g, ...rest }) => ({ ...rest, goalId: created.id })))
+      .values(
+        inputTasks.map(({ referentIds: _r, groupIds: _g, ...rest }, idx) => ({
+          ...rest,
+          title: linked[idx]?.texts[0] ?? rest.title,
+          description: rest.description == null ? rest.description : (linked[idx]?.texts[1] ?? rest.description),
+          goalId: created.id,
+        })),
+      )
       .returning()
+    for (const [idx, task] of insertedTasks.entries()) await indexTask(task.id, linked[idx]?.personIds ?? [])
 
     // Zip the input's referent/group ids back onto the rows just inserted.
     // Relies on RETURNING preserving insert order, which Postgres does for a
@@ -123,4 +135,41 @@ export async function remove(userId: string, id: string) {
 
     return { success: true }
   })
+}
+
+/**
+ * Move goals on the canvas, several at once. Only the caller's own goals move;
+ * an id that is not theirs is skipped. One transaction, so a graph is never
+ * left half arranged.
+ */
+export async function setPositions(userId: string, positions: readonly { id: string; x: number; y: number }[]) {
+  await db.transaction(async (tx) => {
+    for (const p of positions) {
+      await tx
+        .update(goals)
+        .set({ positionX: p.x, positionY: p.y })
+        .where(and(eq(goals.id, p.id), eq(goals.userId, userId)))
+    }
+  })
+  return { success: true }
+}
+
+/**
+ * Tidy the graph: lay every active goal out from its connections (the rules are
+ * in ~/lib/computation/arrange) and store the result. Answers the goals that
+ * moved, each with where it was, which is what an undo needs.
+ */
+export async function arrange(userId: string) {
+  const { goals: mine, connections: edges } = await loadGoalsForUser(userId)
+  const next = arrangeGoals(mine, edges)
+  const moved = mine.flatMap((g) => {
+    const to = next.get(g.id)
+    if (!to || (to.x === g.position.x && to.y === g.position.y)) return []
+    return [{ id: g.id, title: g.title, from: g.position, to }]
+  })
+  await setPositions(
+    userId,
+    moved.map((m) => ({ id: m.id, ...m.to })),
+  )
+  return { total: mine.length, moved }
 }

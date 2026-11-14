@@ -121,6 +121,9 @@ nonisolated enum API {
             query: syncItemId.map { [URLQueryItem(name: "exclude", value: $0)] } ?? [])
     }
 
+    /// One item over time: every week that recorded something for it, oldest first.
+    static func itemHistory(_ trackingItemId: String) -> Endpoint { get("api/v1/tracking-items/\(trackingItemId)/history") }
+
     static func templates() -> Endpoint { get("api/v1/templates") }
 
     static func createTemplate(name: String, isDefault: Bool) -> Endpoint {

@@ -134,6 +134,46 @@ nonisolated enum Wording {
     static func people(_ count: Int) -> String {
         count == 1 ? "1 person" : "\(count) people"
     }
+
+    // MARK: Over time
+
+    /// "Nov 9, 2026".
+    static func fullDay(_ day: LocalDay) -> String {
+        "\(shortDay(day)), \(day.year)"
+    }
+
+    /// "November 2026".
+    static func monthYear(year: Int, month: Int) -> String {
+        "\(monthNames[max(0, min(11, month - 1))]) \(year)"
+    }
+
+    /// "1 week", "3 weeks".
+    static func weeks(_ count: Int) -> String {
+        count == 1 ? "1 week" : "\(count) weeks"
+    }
+
+    /// Where a picture stands from the first one: "the first one", "3 weeks after the first".
+    static func afterFirst(_ weeks: Int) -> String {
+        weeks <= 0 ? "the first one" : "\(Wording.weeks(weeks)) after the first"
+    }
+
+    /// How far apart two pictures are: "the same week", "13 weeks apart".
+    static func apart(_ weeks: Int) -> String {
+        weeks == 0 ? "the same week" : "\(Wording.weeks(abs(weeks))) apart"
+    }
+
+    /// "3 weeks without an entry".
+    static func gap(_ weeks: Int) -> String {
+        "\(Wording.weeks(weeks)) without an entry"
+    }
+
+    /// The line under an item's title: "10 weeks · 11 pictures · since Aug 10, 2026".
+    static func historySummary(weeks: Int, pictures: Int, first: LocalDay) -> String {
+        var parts = [Wording.weeks(weeks)]
+        if pictures > 0 { parts.append(Wording.pictures(pictures)) }
+        parts.append("since \(fullDay(first))")
+        return parts.joined(separator: " · ")
+    }
 }
 
 /// The journal's limits (`src/server/services/journal.ts`).

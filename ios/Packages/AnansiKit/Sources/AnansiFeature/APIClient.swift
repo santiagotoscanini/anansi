@@ -147,6 +147,10 @@ extension APIClient {
         try await call(API.latestPicture(trackingItemId, excluding: syncItemId), as: LatestPicture?.self)
     }
 
+    func itemHistory(_ trackingItemId: String) async throws -> ItemHistory {
+        try await call(API.itemHistory(trackingItemId), as: ItemHistory.self)
+    }
+
     func syncTemplates() async throws -> [SyncTemplate] {
         try await call(API.templates(), as: [SyncTemplate].self)
     }

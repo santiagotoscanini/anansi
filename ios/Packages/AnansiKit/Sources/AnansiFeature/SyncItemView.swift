@@ -35,6 +35,13 @@ struct SyncItemView: View {
         .navigationBarTitleDisplayMode(.inline)
         .anansiNavigationBar()
         .toolbar {
+            if let item {
+                ToolbarItem(placement: .primaryAction) {
+                    NavigationLink(value: OverTimeRoute(trackingItemId: item.trackingItemId, title: item.title)) {
+                        Label("Over time", systemImage: "clock.arrow.circlepath")
+                    }
+                }
+            }
             if editorFocused {
                 ToolbarItem(placement: .keyboard) {
                     HStack {

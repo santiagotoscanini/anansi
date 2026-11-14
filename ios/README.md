@@ -47,6 +47,10 @@ for Claude; the phone doesn't use it.
 - **Sync setup**: the library of tracking items (create, edit title/description/goal, delete; an item past weeks used
   is archived by the server instead) and the **default items**, the template every new week starts with: add, remove,
   reorder.
+- **Over time**: one tracking item across every week that recorded something for it
+  (`GET /api/v1/tracking-items/{id}/history`). Play its pictures as a time-lapse along a timeline that keeps the real
+  distance between weeks (swipe, drag the timeline, or press Play), compare two of them under a divider or side by
+  side, or see every week on one sheet with the missed ones marked. Opened from an item or from Pulse's menu.
 - **Journal**: a diary, one entry a day. Pulse shows today's (the first highlights and lines, its pictures, "Add
   picture"); the day screen has the highlights (add, tap to edit or delete), the prose (tap to edit), the pictures
   (camera or library, tap to view, long-press to delete) and the people mentioned, with previous/next day (never

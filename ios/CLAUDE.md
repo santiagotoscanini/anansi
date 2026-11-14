@@ -24,6 +24,9 @@
   phone. Only a journal entry carries `mentions` (current names); elsewhere the token's own label is shown, which
   the server keeps current. An editor's text, the outbox's unsent text and `editable(stored)` are one form, so
   compare in that form and never against the stored text.
+- Over time (one tracking item across its weeks, `/api/v1/tracking-items/{id}/history`) has its rules in
+  `Core/History.swift`: what a frame is, where a week sits on the timeline, what a gap is. The web has the same in
+  `src/lib/over-time.ts`, with the same test cases; change the two together.
 - The journal is one entry per `LocalDay` (`/api/v1/journal/{day}`). Journal text and pictures go through the outbox
   under the item id `journal:YYYY-MM-DD` (`OutboxOp.journalItemId`), and a write replaces the whole prose or the
   whole highlight list, so the day screen only edits a day it has read.

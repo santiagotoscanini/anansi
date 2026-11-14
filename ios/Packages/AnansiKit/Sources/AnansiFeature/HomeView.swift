@@ -50,6 +50,9 @@ struct HomeView: View {
                             Button("Weekly sync", systemImage: "calendar") {
                                 path.append(WeekRoute(weekStart: LocalDay.today().weekStart))
                             }
+                            Button("Over time", systemImage: "clock.arrow.circlepath") {
+                                path.append(OverTimeListRoute())
+                            }
                             Button("Sync setup", systemImage: "slider.horizontal.3") { path.append(SetupRoute()) }
                         }
                     }
@@ -69,6 +72,12 @@ struct HomeView: View {
             }
             .navigationDestination(for: SetupRoute.self) { _ in
                 SetupView()
+            }
+            .navigationDestination(for: OverTimeListRoute.self) { _ in
+                OverTimeListView()
+            }
+            .navigationDestination(for: OverTimeRoute.self) { route in
+                OverTimeView(trackingItemId: route.trackingItemId, title: route.title)
             }
             .sheet(isPresented: $isShowingSettings) {
                 SettingsView()
@@ -97,6 +106,7 @@ struct HomeView: View {
             } else {
                 data.clear()
                 JournalStore.shared.clear()
+                HistoryStore.shared.clear()
             }
         }
         .onOpenURL { url in

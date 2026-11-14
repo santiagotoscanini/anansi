@@ -30,6 +30,23 @@ export function registerTrackingItemsTools(server: McpServer, ctx: McpCtx): void
   )
 
   server.registerTool(
+    'get_tracking_item_history',
+    {
+      title: 'One tracking item over time',
+      description:
+        "Every week that recorded something for one item, oldest first: `week` (the Monday, YYYY-MM-DD), that week's notes (`textContent`) and its `attachments`. Use it to look back at how one thing changed, such as a picture retaken every week. Read a picture with `get_sync_attachment`. Works for an archived item too.",
+      inputSchema: toolInput({ id: z.string().describe('Tracking item id, from `list_tracking_items`.') }),
+    },
+    async ({ id }) => {
+      try {
+        return mcpJsonResult(await trackingItems.history(ctx.userId, id))
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
+
+  server.registerTool(
     'create_tracking_item',
     {
       title: 'Create a tracking item',

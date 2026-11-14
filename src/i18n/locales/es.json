@@ -1290,5 +1290,57 @@
         }
       }
     }
+  },
+  "overTime": {
+    "open": "En el tiempo",
+    "openTitle": "Ver este item en el tiempo",
+    "back": "Items de seguimiento",
+    "eyebrow": "Items de seguimiento · en el tiempo",
+    "pickItem": "Item",
+    "viewLabel": "Vista",
+    "view": {
+      "play": "Secuencia",
+      "compare": "Comparar",
+      "all": "Todas las semanas"
+    },
+    "weeks_one": "{{count}} semana",
+    "weeks_other": "{{count}} semanas",
+    "pictures_one": "{{count}} foto",
+    "pictures_other": "{{count}} fotos",
+    "since": "desde el {{date}}",
+    "archived": "archivado",
+    "emptyTitle": "Todavía no hay nada registrado",
+    "emptyBody": "Una semana aparece acá cuando este item tiene una nota o una foto en su sync semanal.",
+    "openSync": "Abrir el sync de esta semana",
+    "pictureAlt": "{{title}}, semana del {{date}}",
+    "frameOf": "{{index}} de {{total}}",
+    "first": "la primera",
+    "afterFirst_one": "{{count}} semana después de la primera",
+    "afterFirst_other": "{{count}} semanas después de la primera",
+    "weekOf": "Semana del {{date}}",
+    "shotOf": "Foto {{shot}} de {{shots}} de esa semana",
+    "openWeek": "Abrir el sync de esa semana",
+    "previous": "Foto anterior",
+    "next": "Foto siguiente",
+    "play": "Reproducir",
+    "pause": "Pausar",
+    "speed": "Velocidad",
+    "speeds": {
+      "slow": "Lenta",
+      "normal": "Normal",
+      "fast": "Rápida"
+    },
+    "timeline": "Línea de tiempo",
+    "before": "Antes",
+    "after": "Después",
+    "sameWeek": "la misma semana",
+    "apart_one": "{{count}} semana de diferencia",
+    "apart_other": "{{count}} semanas de diferencia",
+    "compareMode": "Disposición",
+    "slider": "Deslizador",
+    "sideBySide": "Lado a lado",
+    "divider": "Divisor entre las dos fotos",
+    "gap_one": "{{count}} semana sin registro",
+    "gap_other": "{{count}} semanas sin registro"
   }
 }

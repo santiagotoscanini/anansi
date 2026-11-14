@@ -24,6 +24,7 @@ The app sits at the intersection of "what do I want" (goals, tasks, values), "wh
 - **Horizons.** Tasks bucketed into `Backlog` / `This Month` / `This Quarter` / `This Year` based on `scheduledAt`. Buckets are computed at render, so a task auto-promotes as the deadline approaches.
 - **Pulse.** Daily landing view. Sync items + unified Upcoming feed (next bids + important dates) + On the Horizon (Month/Quarter/Year, year collapsed by default).
 - **Weekly Sync.** Reusable user-owned tracking-items library, sync templates (one default per user, auto-snapshotted into each new sync), inline text per item, and binary attachments.
+- **Over time.** Pick one tracking item and look at it across every week: its pictures as a time-lapse on a real timeline, two weeks compared under a divider, or every week on one sheet with the missed ones marked. On the web and the phone.
 - **Journal.** One entry per calendar day, written like a diary: the day's highlights, free text, pictures, and the people it was about. Typing `@` and a name mentions a person, and each person's page lists the days that mention them. Built to be written by talking the day through with Claude; the web and the iPhone app read and edit the same days.
 - **Personal CRM.** A reflection surface. People sit in a 4-column Kanban (`To Process` / `Exploring` / `Long-term` / `Context-bound`). Per-person prompts: appreciation, my needs, legacy message, self-reflection. Plus per-person `Next bids` (gestures, gifts, repairs) and yearly `Important dates` (birthdays, anniversaries) that surface in Pulse.
 - **Self.** A portrait you keep rewriting. Prose fields (this-year description, my story, attachment tendencies, love/apology/conflict/stress patterns, note-to-future-self) plus list buckets (energizers, drainers, just-for-me, proud, patterns, triggers, releases, year-ahead). Empty fields read as clean pages, not unfinished forms.
@@ -31,7 +32,7 @@ The app sits at the intersection of "what do I want" (goals, tasks, values), "wh
 - **Values.** Named + colored tags on goals; values carry their own behavior list (short evidence sentences).
 - **Groups.** Cross-entity tags spanning both people and tasks. The same `Family` group can hold both your partner and the "call mom" task.
 - **Backup / Import.** Full per-user JSON+base64 export and transactional replace import.
-- **MCP server.** A remote Model Context Protocol server at `POST /api/mcp` exposing 90 tools, so Claude can run the whole app: goals, tasks, people, values, Self, Pulse, the weekly sync and the journal. It is its own OAuth 2.1 authorization server.
+- **MCP server.** A remote Model Context Protocol server at `POST /api/mcp` exposing 91 tools, so Claude can run the whole app: goals, tasks, people, values, Self, Pulse, the weekly sync and the journal. It is its own OAuth 2.1 authorization server.
 
 ## Stack
 

@@ -45,3 +45,19 @@ export function weekOfDay(day: string): Date {
  * which sync is this week's.
  */
 export const WEEK_MATCH_MS = 36 * 60 * 60 * 1000
+
+/**
+ * The calendar day (`YYYY-MM-DD`) of the Monday a stored `week_date` names.
+ *
+ * `week_date` is an instant, and which instant depends on who wrote it: local
+ * midnight of that Monday from a browser (Sunday 10:00Z at UTC+14, Monday
+ * 12:00Z at UTC-12), noon UTC from `weekOfDay`. Fourteen hours later every one
+ * of them is on that Monday or early on its Tuesday in UTC, so the Monday at
+ * or before the shifted instant is the week's own.
+ */
+export function mondayOf(weekDate: Date): string {
+  const shifted = new Date(weekDate.getTime() + 14 * 60 * 60 * 1000)
+  const weekday = shifted.getUTCDay()
+  shifted.setUTCDate(shifted.getUTCDate() - weekday + (weekday === 0 ? -6 : 1))
+  return shifted.toISOString().slice(0, 10)
+}

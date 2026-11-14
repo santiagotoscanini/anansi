@@ -1,12 +1,14 @@
 // The user's library of things they track week to week. Goal-link is optional:
 // items with `goalId IS NULL` render as "Unscoped", and goal deletion sets the
 // column to NULL rather than cascading, so the item survives its goal.
-import { and, asc, desc, eq, isNull, ne } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { db } from '~/lib/data'
 import { attachments, goals, trackingItems, weeklySync, weeklySyncItems } from '~/lib/data/schema'
 import type { CreateTrackingItem, UpdateTrackingItem } from '~/lib/api/types'
 import type { Overlay } from '~/lib/overlay'
+import { mondayOf } from '~/lib/week'
 import { AppError } from './errors'
+import { fileUrl } from './file-refs'
 
 /** Throws NOT_FOUND unless the tracking item exists and is the caller's. */
 async function assertOwnsItem(userId: string, id: string) {
@@ -147,4 +149,84 @@ export async function latestPicture(userId: string, id: string, excludeSyncItemI
     .orderBy(desc(weeklySync.weekDate), desc(attachments.createdAt))
     .limit(1)
   return row ?? null
+}
+
+/**
+ * One item over time: every week that recorded something for it (notes or
+ * files), oldest first. A week is named by its Monday's calendar day, so the
+ * caller never has to read `week_date`'s instant (see `mondayOf`).
+ *
+ * Archived and soft-deleted items answer too: their weeks are still there,
+ * and looking back is what this is for.
+ */
+export async function history(userId: string, id: string) {
+  const [item] = await db
+    .select({
+      id: trackingItems.id,
+      title: trackingItems.title,
+      description: trackingItems.description,
+      goalId: trackingItems.goalId,
+      status: trackingItems.status,
+      deletedAt: trackingItems.deletedAt,
+    })
+    .from(trackingItems)
+    .where(and(eq(trackingItems.id, id), eq(trackingItems.userId, userId)))
+    .limit(1)
+  if (!item) throw new AppError('NOT_FOUND', 'Tracking item not found or access denied')
+
+  const rows = await db
+    .select({
+      syncItemId: weeklySyncItems.id,
+      weekDate: weeklySync.weekDate,
+      textContent: weeklySyncItems.textContent,
+    })
+    .from(weeklySyncItems)
+    .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
+    .where(and(eq(weeklySyncItems.trackingItemId, id), eq(weeklySync.userId, userId)))
+    .orderBy(asc(weeklySync.weekDate))
+
+  const files = rows.length
+    ? await db
+        .select()
+        .from(attachments)
+        .where(
+          and(
+            eq(attachments.parentType, 'weekly_sync_item'),
+            inArray(
+              attachments.parentId,
+              rows.map((row) => row.syncItemId),
+            ),
+          ),
+        )
+        .orderBy(asc(attachments.createdAt))
+    : []
+
+  const weeks = rows
+    .map((row) => ({
+      syncItemId: row.syncItemId,
+      week: mondayOf(row.weekDate),
+      textContent: row.textContent?.trim() ? row.textContent : null,
+      attachments: files
+        .filter((file) => file.parentId === row.syncItemId)
+        .map((file) => ({
+          id: file.id,
+          fileName: file.fileName,
+          fileType: file.fileType,
+          url: fileUrl(file.fileId),
+          sizeBytes: file.sizeBytes,
+          createdAt: file.createdAt,
+        })),
+    }))
+    .filter((week) => week.textContent !== null || week.attachments.length > 0)
+
+  return {
+    item: {
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      goalId: item.goalId,
+      archived: item.status === 'archived' || item.deletedAt !== null,
+    },
+    weeks,
+  }
 }

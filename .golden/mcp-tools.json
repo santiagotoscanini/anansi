@@ -1328,6 +1328,28 @@
     "title": "Read a sync attachment"
   },
   {
+    "description": "Every week that recorded something for one item, oldest first: `week` (the Monday, YYYY-MM-DD), that week's notes (`textContent`) and its `attachments`. Use it to look back at how one thing changed, such as a picture retaken every week. Read a picture with `get_sync_attachment`. Works for an archived item too.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Tracking item id, from `list_tracking_items`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "get_tracking_item_history",
+    "title": "One tracking item over time"
+  },
+  {
     "description": "One week's retrospective: `weeklySync` (null when the week has not been started), its items grouped by goal with notes and attachments, `unscopedItems`, and `allTrackingItems`, the library to add from.",
     "execution": {
       "taskSupport": "forbidden"

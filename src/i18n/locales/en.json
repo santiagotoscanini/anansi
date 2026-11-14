@@ -1290,5 +1290,57 @@
         }
       }
     }
+  },
+  "overTime": {
+    "open": "Over time",
+    "openTitle": "See this item over time",
+    "back": "Tracking items",
+    "eyebrow": "Tracking items · over time",
+    "pickItem": "Item",
+    "viewLabel": "View",
+    "view": {
+      "play": "Time-lapse",
+      "compare": "Compare",
+      "all": "All weeks"
+    },
+    "weeks_one": "{{count}} week",
+    "weeks_other": "{{count}} weeks",
+    "pictures_one": "{{count}} picture",
+    "pictures_other": "{{count}} pictures",
+    "since": "since {{date}}",
+    "archived": "archived",
+    "emptyTitle": "Nothing recorded yet",
+    "emptyBody": "A week shows up here once this item has a note or a picture on its weekly sync.",
+    "openSync": "Open this week's sync",
+    "pictureAlt": "{{title}}, week of {{date}}",
+    "frameOf": "{{index}} of {{total}}",
+    "first": "the first one",
+    "afterFirst_one": "{{count}} week after the first",
+    "afterFirst_other": "{{count}} weeks after the first",
+    "weekOf": "Week of {{date}}",
+    "shotOf": "Picture {{shot}} of {{shots}} from that week",
+    "openWeek": "Open that week's sync",
+    "previous": "Previous picture",
+    "next": "Next picture",
+    "play": "Play",
+    "pause": "Pause",
+    "speed": "Speed",
+    "speeds": {
+      "slow": "Slow",
+      "normal": "Normal",
+      "fast": "Fast"
+    },
+    "timeline": "Timeline",
+    "before": "Before",
+    "after": "After",
+    "sameWeek": "the same week",
+    "apart_one": "{{count}} week apart",
+    "apart_other": "{{count}} weeks apart",
+    "compareMode": "Layout",
+    "slider": "Slider",
+    "sideBySide": "Side by side",
+    "divider": "Divider between the two pictures",
+    "gap_one": "{{count}} week without an entry",
+    "gap_other": "{{count}} weeks without an entry"
   }
 }

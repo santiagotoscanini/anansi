@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
-import { Plus, Pencil, Trash2, Check, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, History } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Goal } from '~/lib/api/types'
 import { useCreateTrackingItem, useDeleteTrackingItem, useUpdateTrackingItem } from '~/lib/mutations/tracking-items'
@@ -303,6 +304,15 @@ export default function TrackingItemsLibrary() {
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
+                      <Link
+                        to="/app/tracking-items"
+                        search={{ item: item.id }}
+                        title={t('overTime.openTitle')}
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-[var(--ink-2)] transition-colors hover:bg-[var(--paper-deep)] hover:text-[var(--ink)]"
+                      >
+                        <History className="h-4 w-4" />
+                        <span className="hidden sm:inline">{t('overTime.open')}</span>
+                      </Link>
                     </div>
                   )}
                 </li>

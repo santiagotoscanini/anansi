@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { listSyncTemplates } from '~/server/fn/sync-templates.fn'
-import { listTrackingItems } from '~/server/fn/tracking-items.fn'
+import { getTrackingItemHistory, listTrackingItems } from '~/server/fn/tracking-items.fn'
 import { getSyncByWeek, getWeeklyRetrospectiveData } from '~/server/fn/weekly-sync.fn'
 import { qk } from './keys'
 
@@ -54,3 +54,12 @@ export type WeeklyRetrospectiveData = Awaited<ReturnType<typeof getWeeklyRetrosp
  * same row shape and this one needs no index into `goals`.
  */
 export type SyncItem = WeeklyRetrospectiveData['unscopedItems'][number]
+
+/** One item over time: every week that recorded something for it, oldest first. */
+export const trackingItemHistoryQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: qk.trackingItemHistory(id),
+    queryFn: ({ signal }) => getTrackingItemHistory({ data: { id }, signal }),
+  })
+
+export type TrackingItemHistory = Awaited<ReturnType<typeof getTrackingItemHistory>>

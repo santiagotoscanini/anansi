@@ -69,6 +69,7 @@ tasks	set_task_scheduled
 tasks	update_task
 tracking_items	create_tracking_item
 tracking_items	delete_tracking_item
+tracking_items	get_tracking_item_history
 tracking_items	list_tracking_items
 tracking_items	update_tracking_item
 values	add_value_behavior

@@ -34,3 +34,9 @@ export const deleteTrackingItem = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .validator(z.object({ id: z.string() }))
   .handler(({ data, context }) => trackingItems.remove(context.userId, data.id))
+
+/** One item over time: every week that recorded something for it, oldest first. */
+export const getTrackingItemHistory = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .validator(z.object({ id: z.string() }))
+  .handler(({ data, context }) => trackingItems.history(context.userId, data.id))

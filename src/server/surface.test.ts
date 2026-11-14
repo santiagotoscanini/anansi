@@ -50,6 +50,7 @@ const SERVER_ROUTES: Record<string, Guard> = {
   'api.v1.syncs.$id.order.ts': 'apikey',
   'api.v1.templates.$id.items.ts': 'apikey',
   'api.v1.templates.ts': 'apikey',
+  'api.v1.tracking-items.$id.history.ts': 'apikey',
   'api.v1.tracking-items.$id.latest-picture.ts': 'apikey',
   'api.v1.tracking-items.$id.overlay.ts': 'apikey',
   'api.v1.tracking-items.$id.ts': 'apikey',

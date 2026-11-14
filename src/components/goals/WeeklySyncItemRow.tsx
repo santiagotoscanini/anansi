@@ -1,5 +1,6 @@
+import { Link } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
-import { Image as ImageIcon, Trash2, X } from 'lucide-react'
+import { History, Image as ImageIcon, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toEditable } from '~/lib/mentions'
 import type { SyncItem } from '~/lib/queries/sync'
@@ -102,6 +103,15 @@ export default function WeeklySyncItemRow({
             {saveStatus === 'saving' && t('weeklySyncRow.savingStatus')}
             {saveStatus === 'saved' && t('weeklySyncRow.savedStatus')}
           </span>
+          <Link
+            to="/app/tracking-items"
+            search={{ item: item.trackingItemId }}
+            className={quietButton}
+            title={t('overTime.openTitle')}
+            aria-label={t('overTime.openTitle')}
+          >
+            <History className="h-4 w-4" />
+          </Link>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}

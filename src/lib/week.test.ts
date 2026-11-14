@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { WEEK_MATCH_MS, weekOfDay } from './week.ts'
+import { mondayOf, WEEK_MATCH_MS, weekOfDay } from './week.ts'
 
 test('every day of a week names its Monday', () => {
   for (const day of ['2026-11-02', '2026-11-04', '2026-11-08']) {
@@ -21,4 +21,12 @@ test('the tool and every browser land on the same week, and never the next', () 
   }
   assert.ok(Math.abs(tool - Date.parse('2026-06-08T03:00:00Z')) > WEEK_MATCH_MS)
   assert.ok(Math.abs(tool - Date.parse('2026-05-25T03:00:00Z')) > WEEK_MATCH_MS)
+})
+
+test('a stored week names its Monday whichever clock wrote it', () => {
+  // A browser in UTC-3 (the live rows), the far zones, and `weekOfDay`'s noon.
+  for (const stored of ['2026-06-01T03:00:00Z', '2026-05-31T10:00:00Z', '2026-06-01T12:00:00Z']) {
+    assert.equal(mondayOf(new Date(stored)), '2026-06-01', stored)
+  }
+  assert.equal(mondayOf(weekOfDay('2027-01-01')), '2026-12-28')
 })

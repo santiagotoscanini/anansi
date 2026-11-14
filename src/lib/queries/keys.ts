@@ -49,6 +49,9 @@ export const qk = {
   // an invalidation site.
   weeklySyncFor: (weekStart: Date) => ['weekly-sync', 'week', weekStart.toISOString()] as const,
   weeklyRetrospectiveFor: (weekStart: Date) => ['weekly-sync', 'retrospective', weekStart.toISOString()] as const,
+  // Under the weekly-sync root on purpose: a note or a picture added to any week
+  // changes an item's history, and every sync write invalidates this root.
+  trackingItemHistory: (id: string) => ['weekly-sync', 'item-history', id] as const,
 
   people: ['people'] as const,
   peopleList: (includeArchived: boolean) => ['people', 'list', includeArchived] as const,

@@ -117,8 +117,9 @@ src/
       importance.ts
     api/types.ts             # ~726 lines of zod schemas, shared by services + fns + MCP
     data/                    # schema.ts, db connection, migrations/
-    mcp/                     # MCP server + 90 tools + the OAuth 2.1 provider
+    mcp/                     # MCP server + 91 tools + the OAuth 2.1 provider
     env.ts security-headers.ts horizon-period.ts week.ts image-upload.ts
+    over-time.ts             # one tracking item over time: frames, the timeline, the missed weeks (pure; the screen and its tests)
     mentions.ts              # the mention grammar: how any text names a person (pure; server, editors, tests)
     journal.ts               # the journal's calendar-day helpers
     computation/arrange.ts   # the goal graph's automatic layout (pure; the Arrange button and arrange_goals)
@@ -129,7 +130,7 @@ src/
       AppShell.tsx           # sidebar + mobile drawer + user menu + global modals
       GoalsGraph.tsx GoalNode.tsx GoalModal.tsx EditableEdge.tsx
       TaskModal.tsx Tasks.tsx Horizons.tsx
-      ValuesManager.tsx WeeklyRetrospective.tsx LifeProgress.tsx
+      ValuesManager.tsx WeeklyRetrospective.tsx LifeProgress.tsx ItemOverTime.tsx
       PeopleManager.tsx PersonModal.tsx RelationshipsBoard.tsx
       Self.tsx BucketListItemModal.tsx TabError.tsx
       ColorPicker.tsx DatePicker.tsx Avatar.tsx EmojiPickerLazy.tsx
@@ -158,7 +159,8 @@ app.tasks.tsx      { task?, goal? }  app.sync.tsx { week? }
 app.journal.tsx    { day? }  (absent = today, resolved in the browser)
 app.people.tsx     { filter?, groupId?, person? }   app.bucket.tsx { item? }
                     (`goal`/`item`/`task` accept an id, or the literal `new` to open the create form)
-app.pulse.tsx  app.tracking-items.tsx  app.self.tsx  app.values.tsx
+app.pulse.tsx  app.self.tsx  app.values.tsx
+app.tracking-items.tsx { item?, view? }  (the library; with `item`, that item over time)
 app.progress.tsx  app.relationships.tsx
 app.$.tsx           /app/* → redirect to /app (preserves the old silent slug fallback)
 
@@ -187,7 +189,7 @@ component  →  lib/queries/*.ts (queryOptions)  →  server/fn/*.fn.ts (createS
 MCP tool  ────────────────────────────────────────────↗  (direct, in-process)
 ```
 
-- **`server/services/*.ts`** holds all business logic as plain `(userId, input)` async functions. It imports `db`, the zod schemas and `AppError`, and nothing from `@tanstack/*`. That is what lets the 90 MCP tools call it directly: the MCP graph never touches the Start compiler, so there is no function-id registration, no CSRF, no Seroval, no HTTP hop.
+- **`server/services/*.ts`** holds all business logic as plain `(userId, input)` async functions. It imports `db`, the zod schemas and `AppError`, and nothing from `@tanstack/*`. That is what lets the 91 MCP tools call it directly: the MCP graph never touches the Start compiler, so there is no function-id registration, no CSRF, no Seroval, no HTTP hop.
 - Services **re-parse their input** with the shared zod schema. Two entry points means two independent validators; parsing inside the service is the only guarantee that covers both, and it makes each service callable from a script without ceremony.
 - **`server/fn/*.fn.ts`** wraps services for the browser. Every route loader prefetches with `queryClient.ensureQueryData(...)` and components read with `useSuspenseQuery`, so tab data is server-rendered and hydrated — there is no loading spinner to reintroduce.
 - **`lib/queries/keys.ts`** owns every query key (`qk.*`), replacing tRPC's `utils.*.invalidate()`. Invalidate by key **root** (`qk.people`), not by leaf — prefix matching covers the leaves.
@@ -221,6 +223,15 @@ Sync items + unified Upcoming feed (next bids + important dates) + On the Horizo
 ### Weekly retrospectives
 User-owned tracking-items library (goal optional → "Unscoped"), reusable sync templates (one default per user auto-snapshots into each new sync), inline `text_content` per sync item, and binary attachments (rows in `attachments`, each pointing at a file: a `files` row whose bytes are in the bucket).
 
+
+### Over time
+One tracking item looked at across every week that recorded something for it: `/app/tracking-items?item=<id>` on the web (`ItemOverTime.tsx`), the Over time screen on the phone, `get_tracking_item_history` for Claude. All three read `trackingItems.history`.
+
+- **Three views**, `?view=`: `play` (the pictures as a time-lapse, on a timeline that keeps the real distance between weeks, with play, speed, arrow keys and drag), `compare` (two pictures under a draggable divider, or side by side) and `all` (every week on a sheet by month, the weeks that recorded nothing folded into one gap each). An item with no pictures gets the sheet alone, as a list of its notes; with one picture there is nothing to compare.
+- **A week is its Monday as a calendar day.** `mondayOf` (`src/lib/week.ts`) reads it off the stored instant whichever clock wrote it, so the screen needs no time zone and its route is prefetched like any other.
+- The rules (what a frame is, where a week sits on the timeline, what a gap is) are pure and live in `src/lib/over-time.ts`; the phone has the same in `Core/History.swift`.
+- Pictures are the originals, served by `/api/files/$id`; nothing is resized. The time-lapse fetches them once in order so the first play does not stutter.
+- Reached from the library (each row), from a weekly sync row, and on the phone from an item and from Pulse's menu. Archived and deleted items still answer by id.
 ### Journal
 One entry per user per calendar day, written like a diary: `highlights` (the day in a few lines), `content` (prose), pictures (attachments with `parentType = 'journal_entry'`) and the people the day mentions. Built agent-first: the expected writer is a conversation with Claude at the end of the day (`write_journal_entry` / `append_journal_entry`), and the web tab and the phone read and edit the same days.
 
@@ -451,6 +462,7 @@ One file per domain in `src/server/services/`, one thin `.fn.ts` wrapper per fil
 
 ### trackingItems
 - `list({ goalId? })`, `create({ title, description?, goalId?, order? })`, `update`, `delete` (soft when referenced by a sync, hard otherwise)
+- `history(id)` — the item over time: `{ item, weeks }`, the weeks that hold notes or files, oldest first, each `{ syncItemId, week (its Monday, YYYY-MM-DD), textContent, attachments }`. Answers for archived and soft-deleted items too
 
 ### syncTemplates
 - `list`, `create({ name, isDefault? })` (clears existing default in same tx if `isDefault: true`), `update`, `delete`, `setItems({ templateId, items })` (replace-set with orderIdx)
@@ -559,9 +571,9 @@ Transport: Streamable HTTP via `@modelcontextprotocol/sdk`'s `WebStandardStreama
 
 ### MCP tool catalog
 
-`registerAllTools()` (in `src/lib/mcp/tools/index.ts`) wires **90 tools** across 15 domain files. All tool names are flat verb-first snake_case (`list_goals`, `update_person`, `set_next_bid_done`, …). Hand-written `title` + `description` drive LLM tool selection; Zod raw shapes give the SDK enough type info to both generate the inputSchema JSON Schema AND validate inputs at call-time.
+`registerAllTools()` (in `src/lib/mcp/tools/index.ts`) wires **91 tools** across 15 domain files. All tool names are flat verb-first snake_case (`list_goals`, `update_person`, `set_next_bid_done`, …). Hand-written `title` + `description` drive LLM tool selection; Zod raw shapes give the SDK enough type info to both generate the inputSchema JSON Schema AND validate inputs at call-time.
 
-Domains: `system` (4: `whoami`, `update_profile`, `set_avatar`, `remove_avatar`), `goals` (5, with `arrange_goals`), `tasks` (4), `values` (7), `people` (12, with `list_person_mentions`), `next_bids` (6), `important_dates` (4), `groups` (5), `bucket_list` (5), `self` (7), `tracking_items` (4), `sync_templates` (5), `weekly_sync` (10, with `get_pulse` and the attachments), `journal` (8, with its attachments), `connections` (4). The app is meant to be fully drivable from here. Left on the screens on purpose: password and email changes, because a connector must not be able to take over the account; backup export and import, because one is the whole account with file bytes and the other replaces it. A new feature gets its tools with it.
+Domains: `system` (4: `whoami`, `update_profile`, `set_avatar`, `remove_avatar`), `goals` (5, with `arrange_goals`), `tasks` (4), `values` (7), `people` (12, with `list_person_mentions`), `next_bids` (6), `important_dates` (4), `groups` (5), `bucket_list` (5), `self` (7), `tracking_items` (5, with `get_tracking_item_history`), `sync_templates` (5), `weekly_sync` (10, with `get_pulse` and the attachments), `journal` (8, with its attachments), `connections` (4). The app is meant to be fully drivable from here. Left on the screens on purpose: password and email changes, because a connector must not be able to take over the account; backup export and import, because one is the whole account with file bytes and the other replaces it. A new feature gets its tools with it.
 
 **A week is named by a calendar day (`localDay`), never by the clock.** The server is in UTC and `week_date` holds whatever Monday the creator's clock said: Monday 03:00Z from a browser in Uruguay, 00:00Z from a naive server. The unique index cannot see those as one week, so a tool computing `weekStartOf(new Date())` would start a second sync that Pulse never shows. So the tools take the user's `day`, `weekOfDay` turns it into noon UTC on its Monday, and `weekly-sync.ts` matches by week within `WEEK_MATCH_MS` instead of by instant. That also keeps one sync for a user who opens the app on another clock. Starting a week that has a sync returns that sync.
 
@@ -648,6 +660,7 @@ Keys: created and revoked by the signed-in user in Profile → Devices (`src/ser
 | `/api/v1/tracking-items/{id}` | PATCH, DELETE | `update` / `remove` |
 | `/api/v1/tracking-items/{id}/overlay` | PUT `{overlay}`, DELETE | `setOverlay` |
 | `/api/v1/tracking-items/{id}/latest-picture?exclude=` | GET | `latestPicture` (newest image of any week, or null) |
+| `/api/v1/tracking-items/{id}/history` | GET | `history` (every week that recorded something, oldest first) |
 | `/api/v1/templates` | GET, POST | `syncTemplates.list` / `create` |
 | `/api/v1/templates/{id}/items` | PUT `{trackingItemIds}` | `syncTemplates.setItems` |
 | `/api/v1/goals` | GET | `goals.list` (id, title, emoji) |
@@ -836,7 +849,7 @@ Rules:
 
 > **A green `pnpm build` is not evidence that the app runs.** Three separate defects during the migration passed `vite build` and failed on the first real request: `import 'server-only'` (500 on every SSR pass), a mis-registered server-function id (`Invalid server function ID`, only at call time), and a dnd-kit hydration mismatch. **Exercise changes in `pnpm dev` from a real browser**, and include *client-side* navigation — a hard reload runs loaders on the server where a server fn is a direct call, so only client-side navigation tests the RPC path.
 
-`.golden/` holds the pre-migration oracle and is the reference for anything that must not drift: the 90-tool `tools/list` JSON, both `.well-known` documents, the MCP 401 response (which doubles as the security-header baseline), and 29 screenshots. `.golden/README.md` documents the diff procedure, the one deliberate re-baseline (zod 4), and its known false positives (`objectives-*` always differ — React Flow animates its dashed edges).
+`.golden/` holds the pre-migration oracle and is the reference for anything that must not drift: the 91-tool `tools/list` JSON, both `.well-known` documents, the MCP 401 response (which doubles as the security-header baseline), and 29 screenshots. `.golden/README.md` documents the diff procedure, the one deliberate re-baseline (zod 4), and its known false positives (`objectives-*` always differ — React Flow animates its dashed edges).
 
 ## Infrastructure
 

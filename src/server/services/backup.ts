@@ -39,6 +39,7 @@ import { isEmojiGlyph, isOurStorageImageUrl } from '~/lib/emoji-utils'
 import { mentionedIds } from '~/lib/mentions'
 import type { Backup } from '~/lib/api/types'
 import { AppError } from './errors'
+import { MAX_UPLOAD_BYTES } from '~/lib/image-upload'
 import { discardFiles, readFile, removeObjectsOf, saveFile } from './files'
 
 /**
@@ -190,6 +191,12 @@ export async function exportAll(userId: string) {
   // doesn't allow.
   const exportedFiles: { attachmentId: string; data: string }[] = []
   for (const a of attachmentRows) {
+    // A video or a recording is past what a backup file can carry, and past what
+    // an import takes back: its row is exported, its bytes are not.
+    if ((a.sizeBytes ?? 0) > MAX_UPLOAD_BYTES) {
+      console.warn(`[backup.export] attachment ${a.id} is ${a.sizeBytes} bytes, left out of the backup`)
+      continue
+    }
     const bytes = await readFile(a.fileId)
     if (!bytes) {
       console.warn(`[backup.export] missing file skipped for attachment ${a.id} (fileId ${a.fileId})`)

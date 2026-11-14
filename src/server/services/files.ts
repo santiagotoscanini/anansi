@@ -151,3 +151,25 @@ export async function readFile(id: string): Promise<Bytes | null> {
   if (!bytes) missing(id)
   return bytes
 }
+
+/**
+ * Store a new file from a path on disk, streamed to the bucket: for bodies too
+ * big to hold in memory (a video). Same order as `saveFile`: the object, then
+ * the row. The caller owns the path and removes it.
+ */
+export async function saveFileFromPath(
+  ownerId: string,
+  file: { fileName: string; mimeType: string; path: string; sizeBytes: number },
+) {
+  const id = createId()
+  await bucket().putFile(fileKey(id), file.path, file.mimeType)
+  try {
+    await db
+      .insert(files)
+      .values({ id, ownerId, fileName: file.fileName, mimeType: file.mimeType, sizeBytes: file.sizeBytes })
+  } catch (err) {
+    await discardFiles([id])
+    throw err
+  }
+  return { id, sizeBytes: file.sizeBytes }
+}

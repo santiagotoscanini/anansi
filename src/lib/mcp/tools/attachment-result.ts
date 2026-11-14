@@ -10,6 +10,17 @@ const READABLE_BYTES = 5 * 1024 * 1024
  * anything else (or anything too large) as a note saying where to open it.
  */
 export async function attachmentResult(userId: string, id: string): Promise<CallToolResult> {
+  // The record first: a video is never read into memory just to say it is too large.
+  const record = await attachments.find(userId, id)
+  if (record.sizeBytes > READABLE_BYTES) {
+    return mcpJsonResult({
+      id: record.id,
+      fileName: record.fileName,
+      fileType: record.fileType,
+      sizeBytes: record.sizeBytes,
+      note: 'Too large to read here. Open it in the app.',
+    })
+  }
   const file = await attachments.read(userId, id)
   const about = { id: file.id, fileName: file.fileName, fileType: file.fileType, sizeBytes: file.sizeBytes }
   if (file.sizeBytes > READABLE_BYTES) {

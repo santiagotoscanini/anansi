@@ -299,7 +299,8 @@ function Pictures({ day, entry }: { day: string; entry: JournalEntryRow | null }
   const inputRef = useRef<HTMLInputElement | null>(null)
   const files = entry?.attachments ?? []
   const images = files.filter((a) => a.fileType === 'image')
-  const others = files.filter((a) => a.fileType !== 'image')
+  const media = files.filter((a) => a.fileType === 'video' || a.fileType === 'audio')
+  const others = files.filter((a) => a.fileType !== 'image' && a.fileType !== 'video' && a.fileType !== 'audio')
 
   const add = async (picked: FileList) => {
     try {
@@ -363,6 +364,39 @@ function Pictures({ day, entry }: { day: string; entry: JournalEntryRow | null }
           {upload.isPending ? t('journal.uploading') : t('journal.addPictures')}
         </button>
       </div>
+      {media.length > 0 && (
+        <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+          {media.map((a) => (
+            <li key={a.id} className="group">
+              {a.fileType === 'video' ? (
+                // The original file as it was recorded. A browser that cannot decode it shows its own message.
+                <video
+                  src={a.url}
+                  controls
+                  preload="metadata"
+                  className="w-full rounded-xl"
+                  style={{ background: '#14100d', maxHeight: 420 }}
+                />
+              ) : (
+                <audio src={a.url} controls preload="metadata" className="w-full" />
+              )}
+              <div className="mt-1 flex items-center gap-2 text-xs text-[var(--ink-3)]">
+                <a href={a.url} target="_blank" rel="noreferrer" className="truncate underline">
+                  {a.fileName}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => void del(a.id, a.fileName)}
+                  aria-label={t('journal.deleteFile', { name: a.fileName })}
+                  className="rounded p-1 text-[var(--ink-4)] hover:text-[var(--ink)]"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
       {others.length > 0 && (
         <ul className="mt-3 space-y-1">
           {others.map((a) => (

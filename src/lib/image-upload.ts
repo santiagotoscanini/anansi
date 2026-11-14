@@ -96,3 +96,11 @@ export function isValidBase64Image(data: string): boolean {
     return false
   }
 }
+
+/**
+ * The cap for a video or a voice recording. Those do not travel as base64 in a
+ * request body like everything above: the phone API streams them to a
+ * temporary file and from there to the bucket (see `readMediaUpload`), so the
+ * size is bounded by disk and patience, not by memory.
+ */
+export const MAX_MEDIA_UPLOAD_BYTES = 1024 * 1024 * 1024 // 1 GiB

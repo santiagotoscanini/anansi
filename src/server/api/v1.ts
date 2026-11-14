@@ -8,8 +8,15 @@
 //
 // Errors are `{ "error": { "code": "NOT_FOUND", "message": "…" } }` with the
 // matching status. Codes are the service layer's AppErrorCode set.
+import { createWriteStream } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { Readable, Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import type { ReadableStream as WebReadableStream } from 'node:stream/web'
 import { z, ZodError } from 'zod'
-import { MAX_UPLOAD_BYTES } from '~/lib/image-upload'
+import { MAX_MEDIA_UPLOAD_BYTES, MAX_UPLOAD_BYTES } from '~/lib/image-upload'
 import { checkRateLimit, clientIpFromHeaders } from '~/lib/rate-limit'
 import * as apiKeys from '~/server/services/api-keys'
 import { AppError, type AppErrorCode } from '~/server/services/errors'
@@ -108,4 +115,58 @@ export async function readUpload(request: Request) {
   if (bytes.length === 0) throw new AppError('BAD_REQUEST', 'Empty upload')
   if (bytes.length > MAX_UPLOAD_BYTES) throw new AppError('BAD_REQUEST', `Upload exceeds ${MAX_UPLOAD_BYTES} bytes`)
   return { fileName, fileType, data: bytes.toString('base64') }
+}
+
+/** Whether this upload names itself a video or a voice recording (`?fileType=`), which takes the streamed path. */
+export function isMediaUpload(request: Request): boolean {
+  const type = new URL(request.url).searchParams.get('fileType')
+  return type === 'video' || type === 'audio'
+}
+
+/**
+ * A video or a voice recording: the body is streamed to a temporary file, never
+ * held in memory, and `run` gets its path. The file is removed when `run`
+ * settles, whatever happened. Past `MAX_MEDIA_UPLOAD_BYTES` the stream is cut.
+ */
+export async function withMediaUpload<T>(
+  request: Request,
+  run: (upload: {
+    fileName: string
+    fileType: 'video' | 'audio'
+    mimeType: string
+    path: string
+    sizeBytes: number
+  }) => Promise<T>,
+): Promise<T> {
+  const declared = Number(request.headers.get('content-length') ?? '0')
+  if (declared > MAX_MEDIA_UPLOAD_BYTES)
+    throw new AppError('BAD_REQUEST', `Upload exceeds ${MAX_MEDIA_UPLOAD_BYTES} bytes`)
+  const url = new URL(request.url)
+  const fileType = z.enum(['video', 'audio']).parse(url.searchParams.get('fileType'))
+  const fileName = z
+    .string()
+    .min(1)
+    .max(500)
+    .parse(url.searchParams.get('fileName') ?? 'upload')
+  const mimeType = (request.headers.get('content-type') ?? '').split(';')[0]?.trim() ?? ''
+  if (!request.body) throw new AppError('BAD_REQUEST', 'Empty upload')
+
+  const dir = await mkdtemp(join(tmpdir(), 'anansi-upload-'))
+  const path = join(dir, 'body')
+  try {
+    let sizeBytes = 0
+    const counted = new Transform({
+      transform(chunk: Buffer, _encoding, done) {
+        sizeBytes += chunk.length
+        if (sizeBytes > MAX_MEDIA_UPLOAD_BYTES)
+          done(new AppError('BAD_REQUEST', `Upload exceeds ${MAX_MEDIA_UPLOAD_BYTES} bytes`))
+        else done(null, chunk)
+      },
+    })
+    await pipeline(Readable.fromWeb(request.body as WebReadableStream<Uint8Array>), counted, createWriteStream(path))
+    if (sizeBytes === 0) throw new AppError('BAD_REQUEST', 'Empty upload')
+    return await run({ fileName, fileType, mimeType, path, sizeBytes })
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 }

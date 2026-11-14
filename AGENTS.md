@@ -542,6 +542,10 @@ How callers reference uploaded files:
 
 **Supported types:** images (PNG/JPG/JPEG/GIF/WebP), documents (TXT/PDF/...), video, audio, other. Image MIME is sniffed via magic bytes in `image-upload.ts`; non-image extensions are clamped to a safe-extension allow-list in `_shared.safeExtension`.
 
+**Videos and voice recordings.** Everything above travels as base64 in a request body and is capped at 10 MB. A video or a recording does not fit that, so the phone API has a second path for `fileType=video|audio`: `withMediaUpload` (`server/api/v1.ts`) streams the request body to a temporary file, `attachments.uploadMedia` hands that file to the bucket with `putFile` (multipart past 16 MB) and writes the rows, and the temporary file is removed whatever happens. The cap is `MAX_MEDIA_UPLOAD_BYTES` (1 GiB); the Content-Type must be `video/*` or `audio/*` and is stored as given; the bytes are kept exactly as they came. The web's own upload button still takes 10 MB, so a large video reaches Anansi through the API only. The journal plays them with the browser's `<video>` and `<audio>` (the file route answers Range requests); a format the browser cannot decode, such as HEVC in a `.mov` outside Safari, shows the browser's own message and can still be downloaded.
+
+> **A backup does not carry them.** `backup.export` leaves out the bytes of any attachment over 10 MB (its row is exported), and `backup.import` replaces the account's attachments with the ones the file holds. So importing a backup into an account that has videos drops those videos. Until backups learn to carry them, treat an import as destructive for large files.
+
 **Security:**
 - The serving route requires an authenticated session AND matches `files.ownerId` against the session user. Nothing else.
 - Upload services (`auth.uploadAvatar`, `people.uploadImage`, `attachments.upload`) build the `ownerId` from the `userId` that `authMiddleware` resolved server-side — no user-supplied path segments anywhere, and the object key is the server-minted id.
@@ -655,7 +659,7 @@ Keys: created and revoked by the signed-in user in Profile → Devices (`src/ser
 | `/api/v1/syncs/{id}/items` | POST `{trackingItemId}` | `weeklySync.addItem` |
 | `/api/v1/syncs/{id}/order` | PUT `{ids}` | `weeklySync.reorderItems` |
 | `/api/v1/sync-items/{id}` | PATCH `{textContent}`, DELETE | `setItemText` / `removeItem` |
-| `/api/v1/sync-items/{id}/attachments` | POST (body = the file; `?fileName=&fileType=`) | `attachments.upload` |
+| `/api/v1/sync-items/{id}/attachments` | POST (body = the file; `?fileName=&fileType=`; `fileType=video\|audio` is streamed, up to 1 GiB) | `attachments.upload` / `uploadMedia` |
 | `/api/v1/attachments/{id}` | GET (the bytes, streamed from the bucket, immutable; one Range honoured), DELETE | `attachments.find` + `file-response.ts` / `remove` |
 | `/api/v1/tracking-items` | GET, POST | `trackingItems.list` / `create` |
 | `/api/v1/tracking-items/{id}` | PATCH, DELETE | `update` / `remove` |
@@ -667,7 +671,7 @@ Keys: created and revoked by the signed-in user in Profile → Devices (`src/ser
 | `/api/v1/goals` | GET | `goals.list` (id, title, emoji) |
 | `/api/v1/journal?from=&to=&personId=&q=&limit=` | GET | `journal.list` |
 | `/api/v1/journal/{day}` | GET (the entry or `null`), PUT `{content?, highlights?}`, DELETE | `journal.get` / `write` / `remove` |
-| `/api/v1/journal/{day}/attachments` | POST (body = the file; `?fileName=&fileType=`) | `journal.uploadAttachment` (read and deleted at `/api/v1/attachments/{id}`) |
+| `/api/v1/journal/{day}/attachments` | POST (body = the file; `?fileName=&fileType=`; `fileType=video\|audio` is streamed, up to 1 GiB) | `journal.uploadAttachment` / `uploadMedia` (read and deleted at `/api/v1/attachments/{id}`) |
 | `/api/v1/people` | GET | `people.list`, cut to id, name, emoji (the mention picker) |
 
 ## Landing page

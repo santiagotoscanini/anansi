@@ -8,12 +8,12 @@
 import { and, eq, notExists, sql } from 'drizzle-orm'
 import { db } from '~/lib/data'
 import { attachments, files, journalEntries, weeklySync, weeklySyncItems } from '~/lib/data/schema'
-import { decodeImageUpload, decodeUpload, UploadValidationError } from '~/lib/image-upload'
+import { decodeImageUpload, decodeUpload, MAX_MEDIA_UPLOAD_BYTES, UploadValidationError } from '~/lib/image-upload'
 import { checkRateLimit } from '~/lib/rate-limit'
 import type { UploadAttachment } from '~/lib/api/types'
 import { AppError } from './errors'
 import { fileUrl } from './file-refs'
-import { deleteFiles, discardFiles, readFile, saveFile } from './files'
+import { deleteFiles, discardFiles, readFile, saveFile, saveFileFromPath } from './files'
 
 export async function upload(userId: string, input: UploadAttachment) {
   // 30 attachments per minute per user — generous for batch uploads, tight
@@ -141,4 +141,84 @@ export async function remove(userId: string, id: string) {
     )
   }
   return { success: true }
+}
+
+export interface MediaUpload {
+  parentType: 'weekly_sync_item' | 'journal_entry'
+  parentId: string
+  fileName: string
+  fileType: 'video' | 'audio'
+  /** `video/*` or `audio/*`, as the uploader named it. */
+  mimeType: string
+  /** Where the bytes are on disk. The caller removes it. */
+  path: string
+  sizeBytes: number
+}
+
+/**
+ * A video or a voice recording, stored from a file on disk (`readMediaUpload`
+ * put it there). The bytes are kept exactly as they came: nothing is decoded,
+ * so nothing is checked beyond the declared type and the size.
+ */
+export async function uploadMedia(userId: string, input: MediaUpload) {
+  const rl = checkRateLimit('attachments.upload', `user:${userId}`, { limit: 30, windowMs: 60_000 })
+  if (!rl.allowed) throw new AppError('TOO_MANY_REQUESTS', 'Too many uploads, slow down')
+  if (!/^(video|audio)\/[\w.+-]+$/.test(input.mimeType) || !input.mimeType.startsWith(`${input.fileType}/`)) {
+    throw new AppError('BAD_REQUEST', `A ${input.fileType} upload needs a ${input.fileType}/* Content-Type`)
+  }
+  if (input.sizeBytes <= 0) throw new AppError('BAD_REQUEST', 'Empty upload')
+  if (input.sizeBytes > MAX_MEDIA_UPLOAD_BYTES) {
+    throw new AppError('BAD_REQUEST', `Upload exceeds ${MAX_MEDIA_UPLOAD_BYTES} bytes`)
+  }
+
+  if (input.parentType === 'journal_entry') {
+    const [owned] = await db
+      .select({ id: journalEntries.id })
+      .from(journalEntries)
+      .where(and(eq(journalEntries.id, input.parentId), eq(journalEntries.userId, userId)))
+      .limit(1)
+    if (!owned) throw new AppError('NOT_FOUND', 'Journal entry not found or access denied')
+  } else {
+    const [owned] = await db
+      .select({ id: weeklySyncItems.id })
+      .from(weeklySyncItems)
+      .innerJoin(weeklySync, eq(weeklySyncItems.weeklySyncId, weeklySync.id))
+      .where(and(eq(weeklySyncItems.id, input.parentId), eq(weeklySync.userId, userId)))
+      .limit(1)
+    if (!owned) throw new AppError('NOT_FOUND', 'Sync item not found or access denied')
+  }
+
+  const file = await saveFileFromPath(userId, {
+    fileName: input.fileName,
+    mimeType: input.mimeType,
+    path: input.path,
+    sizeBytes: input.sizeBytes,
+  })
+  let row: typeof attachments.$inferSelect | undefined
+  try {
+    ;[row] = await db
+      .insert(attachments)
+      .values({
+        userId,
+        parentType: input.parentType,
+        parentId: input.parentId,
+        fileName: input.fileName,
+        fileType: input.fileType,
+        fileId: file.id,
+        sizeBytes: file.sizeBytes,
+      })
+      .returning()
+  } catch (err) {
+    await discardFiles([file.id])
+    throw err
+  }
+  if (!row) throw new AppError('INTERNAL_SERVER_ERROR', 'Failed to create attachment row')
+  return {
+    id: row.id,
+    fileName: row.fileName,
+    fileType: row.fileType,
+    url: fileUrl(file.id),
+    sizeBytes: file.sizeBytes,
+    createdAt: row.createdAt,
+  }
 }

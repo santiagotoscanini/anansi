@@ -261,3 +261,44 @@ export async function uploadAttachment(userId: string, raw: UploadJournalAttachm
     throw err
   }
 }
+
+/**
+ * A video or a voice recording on a day, from a file on disk. Starts the day's
+ * entry when there is none, like `uploadAttachment`, and takes it back if the
+ * upload is refused.
+ */
+export async function uploadMedia(
+  userId: string,
+  input: { day: string } & Omit<attachmentsService.MediaUpload, 'parentType' | 'parentId'>,
+) {
+  const { day: rawDay, ...file } = input
+  const day = journalDaySchema.parse(rawDay)
+  const existing = await findRow(userId, day)
+  const [row] = existing
+    ? [existing]
+    : await db
+        .insert(journalEntries)
+        .values({ userId, day })
+        .onConflictDoUpdate({
+          target: [journalEntries.userId, journalEntries.day],
+          set: { updatedAt: new Date() },
+        })
+        .returning()
+  if (!row) throw new AppError('INTERNAL_SERVER_ERROR', 'Failed to start the journal entry')
+  try {
+    return await attachmentsService.uploadMedia(userId, { ...file, parentType: PARENT, parentId: row.id })
+  } catch (err) {
+    if (!existing) {
+      await db
+        .delete(journalEntries)
+        .where(
+          and(
+            eq(journalEntries.id, row.id),
+            eq(journalEntries.content, ''),
+            sql`${journalEntries.highlights} = '[]'::jsonb`,
+          ),
+        )
+    }
+    throw err
+  }
+}

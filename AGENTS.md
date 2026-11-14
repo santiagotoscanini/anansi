@@ -231,6 +231,7 @@ One tracking item looked at across every week that recorded something for it: `/
 - **A week is its Monday as a calendar day.** `mondayOf` (`src/lib/week.ts`) reads it off the stored instant whichever clock wrote it, so the screen needs no time zone and its route is prefetched like any other.
 - The rules (what a frame is, where a week sits on the timeline, what a gap is) are pure and live in `src/lib/over-time.ts`; the phone has the same in `Core/History.swift`.
 - Pictures are the originals, served by `/api/files/$id`; nothing is resized. The time-lapse fetches them once in order so the first play does not stutter.
+- **Curating.** A picture can be removed where it is seen: the time-lapse has "Remove this picture" (Delete asks, Enter confirms, Escape leaves it), and the sheet has a pick mode where tiles are ticked and removed together after one confirmation. Both delete the attachment for good (`attachments.remove`), and a week left with nothing drops out of the history.
 - Reached from the library (each row), from a weekly sync row, and on the phone from an item and from Pulse's menu. Archived and deleted items still answer by id.
 ### Journal
 One entry per user per calendar day, written like a diary: `highlights` (the day in a few lines), `content` (prose), pictures (attachments with `parentType = 'journal_entry'`) and the people the day mentions. Built agent-first: the expected writer is a conversation with Claude at the end of the day (`write_journal_entry` / `append_journal_entry`), and the web tab and the phone read and edit the same days.

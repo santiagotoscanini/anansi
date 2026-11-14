@@ -1341,6 +1341,20 @@
     "sideBySide": "Side by side",
     "divider": "Divider between the two pictures",
     "gap_one": "{{count}} week without an entry",
-    "gap_other": "{{count}} weeks without an entry"
+    "gap_other": "{{count}} weeks without an entry",
+    "remove": "Remove this picture",
+    "removeHint": "Delete key",
+    "removeConfirm": "Remove it from Anansi for good?",
+    "removeYes": "Remove",
+    "removed": "Picture removed",
+    "removeFailed": "Could not remove the picture",
+    "select": "Select pictures to remove",
+    "selectHint": "Click the pictures you do not want.",
+    "removeSelected_one": "Remove {{count}} picture",
+    "removeSelected_other": "Remove {{count}} pictures",
+    "confirmSelected_one": "Remove {{count}} picture from Anansi for good?",
+    "confirmSelected_other": "Remove {{count}} pictures from Anansi for good?",
+    "removedMany_one": "{{count}} picture removed",
+    "removedMany_other": "{{count}} pictures removed"
   }
 }

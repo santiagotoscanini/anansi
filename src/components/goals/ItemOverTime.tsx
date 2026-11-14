@@ -9,9 +9,11 @@ import {
   type PointerEvent,
   type ReactNode,
 } from 'react'
-import { ArrowLeft, ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react'
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Pause, Play, Trash2 } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
 import { toPlain } from '~/lib/mentions'
+import { useDeleteAttachment, useDeleteAttachments } from '~/lib/mutations/weekly-sync'
 import {
   contactSheet,
   dayTime,
@@ -273,6 +275,9 @@ function PlayView({
   onIndex: (index: number) => void
 }) {
   const { t } = useTranslation()
+  const remove = useDeleteAttachment()
+  // The picture a removal was asked for, until it is confirmed or left.
+  const [armed, setArmed] = useState<string | null>(null)
   const day = useDayFormat()
   const alt = useAlt(title)
   const [playing, setPlaying] = useState(false)
@@ -319,14 +324,30 @@ function PlayView({
     if (!playing && index >= last) onIndex(0)
     setPlaying(!playing)
   }
+  const isArmed = armed !== null && armed === frames[index]?.key
+  const removeCurrent = () => {
+    const key = frames[index]?.key
+    if (!key || remove.isPending) return
+    setArmed(null)
+    remove.mutate(key, {
+      onSuccess: () => toast.success(t('overTime.removed')),
+      onError: () => toast.error(t('overTime.removeFailed')),
+    })
+  }
 
-  // ← → and space, anywhere on the page except inside a control that uses them.
+  // ← → and space; Delete asks to remove the picture, Enter confirms, Escape leaves it. Anywhere on the
+  // page except inside a control that uses those keys.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       const target = e.target as HTMLElement | null
       if (target?.closest('input, select, textarea, [role="slider"], [contenteditable="true"]')) return
       if (e.key === 'ArrowLeft') step(-1)
       else if (e.key === 'ArrowRight') step(1)
+      else if (e.key === 'Delete' || e.key === 'Backspace') {
+        setPlaying(false)
+        setArmed(frames[index]?.key ?? null)
+      } else if (e.key === 'Enter' && isArmed && !target?.closest('button, a')) removeCurrent()
+      else if (e.key === 'Escape') setArmed(null)
       else if (e.key === ' ' && !target?.closest('button, a')) {
         e.preventDefault()
         toggle()
@@ -394,6 +415,42 @@ function PlayView({
         >
           {t('overTime.openWeek')}
         </Link>
+        <div className="mt-6">
+          {isArmed ? (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-[var(--ink-2)]">{t('overTime.removeConfirm')}</span>
+              <button
+                type="button"
+                onClick={removeCurrent}
+                className="rounded-lg px-3 py-1.5 font-medium"
+                style={{ background: 'var(--rust)', color: 'var(--paper)' }}
+              >
+                {t('overTime.removeYes')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setArmed(null)}
+                className="rounded-lg border border-[var(--hairline-2)] px-3 py-1.5 text-[var(--ink)] transition-colors hover:bg-[var(--vellum)]"
+              >
+                {t('common.cancel')}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={remove.isPending}
+              onClick={() => {
+                setPlaying(false)
+                setArmed(frame.key)
+              }}
+              title={t('overTime.removeHint')}
+              className="inline-flex items-center gap-1.5 text-sm text-[var(--ink-3)] transition-colors hover:text-[var(--rust)] disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {t('overTime.remove')}
+            </button>
+          )}
+        </div>
       </div>
       <div className="order-2 min-w-0 lg:order-none lg:col-start-2 lg:row-start-2">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -737,6 +794,27 @@ function SheetView({
   const frameIndex = new Map(frames.map((frame, i) => [frame.key, i] as const))
   const tile = 'relative block w-full overflow-hidden rounded-lg'
   const caption: CSSProperties = { ...monoStyle, fontSize: 10 }
+  const removeMany = useDeleteAttachments()
+  // null: tiles open the time-lapse. A set: tiles are being picked for removal.
+  const [selected, setSelected] = useState<ReadonlySet<string> | null>(null)
+  const pick = (id: string) =>
+    setSelected((current) => {
+      const next = new Set(current ?? [])
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  const removeSelected = () => {
+    if (!selected || selected.size === 0) return
+    if (!confirm(t('overTime.confirmSelected', { count: selected.size }))) return
+    removeMany.mutate([...selected], {
+      onSuccess: (count) => {
+        toast.success(t('overTime.removedMany', { count }))
+        setSelected(null)
+      },
+      onError: () => toast.error(t('overTime.removeFailed')),
+    })
+  }
 
   // An item with notes and no pictures reads as a list: nothing to lay out as tiles.
   if (frames.length === 0) {
@@ -785,6 +863,37 @@ function SheetView({
 
   return (
     <div className="space-y-10">
+      <div className="flex flex-wrap items-center gap-3">
+        {selected === null ? (
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="rounded-lg border border-[var(--hairline-2)] px-3 py-1.5 text-sm text-[var(--ink)] transition-colors hover:bg-[var(--vellum)]"
+          >
+            {t('overTime.select')}
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={removeSelected}
+              disabled={selected.size === 0 || removeMany.isPending}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+              style={{ background: 'var(--rust)', color: 'var(--paper)' }}
+            >
+              {t('overTime.removeSelected', { count: selected.size })}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              className="rounded-lg border border-[var(--hairline-2)] px-3 py-1.5 text-sm text-[var(--ink)] transition-colors hover:bg-[var(--vellum)]"
+            >
+              {t('common.cancel')}
+            </button>
+            <span className="text-sm text-[var(--ink-3)]">{t('overTime.selectHint')}</span>
+          </>
+        )}
+      </div>
       {contactSheet(weeks).map((month) => (
         <section key={month.month}>
           <h2
@@ -828,7 +937,8 @@ function SheetView({
                 <div key={image.id}>
                   <button
                     type="button"
-                    onClick={() => onOpen(frameIndex.get(image.id) ?? 0)}
+                    onClick={() => (selected ? pick(image.id) : onOpen(frameIndex.get(image.id) ?? 0))}
+                    aria-pressed={selected ? selected.has(image.id) : undefined}
                     title={note ?? undefined}
                     className={`${tile} transition-transform hover:scale-[1.02]`}
                     style={{ aspectRatio: '3 / 4', background: STAGE_GROUND }}
@@ -839,6 +949,14 @@ function SheetView({
                       loading="lazy"
                       className="absolute inset-0 h-full w-full object-cover"
                     />
+                    {selected?.has(image.id) && (
+                      <span
+                        className="absolute inset-0 flex items-center justify-center"
+                        style={{ background: 'rgba(181, 75, 65, 0.55)', color: '#f8f2eb' }}
+                      >
+                        <Check className="h-7 w-7" />
+                      </span>
+                    )}
                   </button>
                   <p className="mt-1.5 truncate" style={caption}>
                     {day.short(week.week)}

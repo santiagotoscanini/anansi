@@ -107,3 +107,16 @@ export function useDeleteAttachment() {
     onSuccess: () => invalidateSync(queryClient),
   })
 }
+
+/** Several attachments, one after the other; answers how many went. What the Over time sheet removes with. */
+export function useDeleteAttachments() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      for (const id of ids) await deleteAttachment({ data: { id } })
+      return ids.length
+    },
+    // Settled, not success: one that failed halfway still removed the ones before it.
+    onSettled: () => invalidateSync(queryClient),
+  })
+}

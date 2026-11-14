@@ -1341,6 +1341,20 @@
     "sideBySide": "Lado a lado",
     "divider": "Divisor entre las dos fotos",
     "gap_one": "{{count}} semana sin registro",
-    "gap_other": "{{count}} semanas sin registro"
+    "gap_other": "{{count}} semanas sin registro",
+    "remove": "Quitar esta foto",
+    "removeHint": "Tecla Suprimir",
+    "removeConfirm": "¿Quitarla de Anansi para siempre?",
+    "removeYes": "Quitar",
+    "removed": "Foto quitada",
+    "removeFailed": "No se pudo quitar la foto",
+    "select": "Elegir fotos para quitar",
+    "selectHint": "Hacé clic en las fotos que no querés.",
+    "removeSelected_one": "Quitar {{count}} foto",
+    "removeSelected_other": "Quitar {{count}} fotos",
+    "confirmSelected_one": "¿Quitar {{count}} foto de Anansi para siempre?",
+    "confirmSelected_other": "¿Quitar {{count}} fotos de Anansi para siempre?",
+    "removedMany_one": "{{count}} foto quitada",
+    "removedMany_other": "{{count}} fotos quitadas"
   }
 }

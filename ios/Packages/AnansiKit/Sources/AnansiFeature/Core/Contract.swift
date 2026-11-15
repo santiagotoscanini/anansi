@@ -17,6 +17,10 @@ nonisolated struct SyncAttachment: Codable, Hashable, Sendable, Identifiable {
     var createdAt: String?
 
     var isImage: Bool { fileType == "image" }
+    var isVideo: Bool { fileType == "video" }
+    var isAudio: Bool { fileType == "audio" }
+    /// A video or a voice recording: played, not shown.
+    var isMedia: Bool { isVideo || isAudio }
 }
 
 /// One tracking item on one week, with its notes and files. `id` is the sync item id (what notes and files are

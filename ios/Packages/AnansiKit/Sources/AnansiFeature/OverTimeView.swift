@@ -75,6 +75,8 @@ struct OverTimeView: View {
     /// The picture on screen; nil until one is picked, which shows the newest.
     @State private var picked: Int?
     @State private var viewing: SyncAttachment?
+    @State private var toRemove: SyncAttachment?
+    @State private var removeError: String?
 
     private var history: ItemHistory? { store.histories[trackingItemId] }
 
@@ -100,8 +102,35 @@ struct OverTimeView: View {
         .navigationBarTitleDisplayMode(.inline)
         .anansiNavigationBar()
         .task { await store.load(trackingItemId) }
+        .confirmationDialog("Remove this picture?",
+                            isPresented: .init(get: { toRemove != nil }, set: { if !$0 { toRemove = nil } }),
+                            titleVisibility: .visible) {
+            Button("Remove", role: .destructive) {
+                if let attachment = toRemove { Task { await remove(attachment) } }
+                toRemove = nil
+            }
+        } message: {
+            Text("It is deleted from Anansi. This can't be undone.")
+        }
+        .alert("Couldn't remove", isPresented: .init(get: { removeError != nil }, set: { if !$0 { removeError = nil } })) {
+            Button("OK") {}
+        } message: {
+            Text(removeError ?? "")
+        }
         .fullScreenCover(item: $viewing) { attachment in
             AttachmentViewer(attachment: attachment)
+        }
+    }
+
+    /// Deletes a picture from Anansi, then reads the history again so the week leaves if it is now empty.
+    private func remove(_ attachment: SyncAttachment) async {
+        do {
+            try await APIClient.shared.deleteAttachment(attachment.id)
+            AttachmentCache.shared.forget(attachment.id)
+            await store.load(trackingItemId)
+            await SyncData.shared.refreshLoaded()
+        } catch {
+            removeError = error.localizedDescription
         }
     }
 
@@ -146,16 +175,15 @@ struct OverTimeView: View {
                     }
                     switch shown {
                     case .play:
-                        OverTimePlay(title: history.item.title, frames: frames, picked: $picked) { attachment in
-                            viewing = attachment
-                        }
+                        OverTimePlay(title: history.item.title, frames: frames, picked: $picked,
+                                     onOpen: { viewing = $0 }, onRemove: { toRemove = $0 })
                     case .compare:
                         OverTimeCompare(title: history.item.title, frames: frames)
                     case .all:
-                        OverTimeSheet(weeks: history.weeks, frames: frames) { index in
+                        OverTimeSheet(weeks: history.weeks, frames: frames, onOpen: { index in
                             picked = index
                             mode = .play
-                        }
+                        }, onRemove: { toRemove = $0 })
                     }
                 }
             }
@@ -209,6 +237,7 @@ struct OverTimePlay: View {
     let frames: [HistoryFrame]
     @Binding var picked: Int?
     let onOpen: (SyncAttachment) -> Void
+    let onRemove: (SyncAttachment) -> Void
 
     @State private var isPlaying = false
     @State private var speed: OverTimeSpeed = .normal
@@ -243,6 +272,13 @@ struct OverTimePlay: View {
                 }
 
                 transport
+
+                Button("Remove this picture", systemImage: "trash", role: .destructive) {
+                    isPlaying = false
+                    onRemove(frame.attachment)
+                }
+                .font(AN.ui(.footnote))
+                .foregroundStyle(AN.ink3)
 
                 if frames.count > 1 {
                     HistoryTimeline(positions: History.positions(frames), index: current, first: first,
@@ -524,6 +560,7 @@ struct OverTimeSheet: View {
     let frames: [HistoryFrame]
     /// Opens the time-lapse on a frame.
     let onOpen: (Int) -> Void
+    let onRemove: (SyncAttachment) -> Void
 
     private let columns = [GridItem(.adaptive(minimum: 100), spacing: 8, alignment: .top)]
 
@@ -608,6 +645,9 @@ struct OverTimeSheet: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Week of \(dayLabel(week))")
+                    .contextMenu {
+                        Button("Remove", systemImage: "trash", role: .destructive) { onRemove(image) }
+                    }
                 }
             }
         }

@@ -24,6 +24,9 @@
   phone. Only a journal entry carries `mentions` (current names); elsewhere the token's own label is shown, which
   the server keeps current. An editor's text, the outbox's unsent text and `editable(stored)` are one form, so
   compare in that form and never against the stored text.
+- A video or a voice recording (`fileType` `video`/`audio`) is played by `MediaPlayerView`, straight from
+  `/api/v1/attachments/{id}` with the device key in the request; the phone lists them on a journal day but does
+  not upload them.
 - Over time (one tracking item across its weeks, `/api/v1/tracking-items/{id}/history`) has its rules in
   `Core/History.swift`: what a frame is, where a week sits on the timeline, what a gap is. The web has the same in
   `src/lib/over-time.ts`, with the same test cases; change the two together.

@@ -95,6 +95,7 @@ struct JournalDayView: View {
     @State private var isEditingProse = false
     @State private var highlightDraft: HighlightDraft?
     @State private var viewing: SyncAttachment?
+    @State private var playing: SyncAttachment?
     @State private var toDelete: SyncAttachment?
     @State private var deleteError: String?
 
@@ -176,6 +177,9 @@ struct JournalDayView: View {
                               canDelete: index != nil,
                               onDelete: { if let index { removeHighlight(index) } },
                               onSave: { text in saveHighlight(index, text) })
+        }
+        .fullScreenCover(item: $playing) { attachment in
+            MediaPlayerView(attachment: attachment)
         }
         .fullScreenCover(item: $viewing) { attachment in
             AttachmentViewer(attachment: attachment)
@@ -315,7 +319,8 @@ struct JournalDayView: View {
         let pending = outbox.outbox.pendingUploads(for: itemId)
         let attachments = entry?.attachments ?? []
         let images = attachments.filter(\.isImage)
-        let files = attachments.filter { !$0.isImage }
+        let media = attachments.filter(\.isMedia)
+        let files = attachments.filter { !$0.isImage && !$0.isMedia }
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Eyebrow(text: "Pictures")
@@ -345,6 +350,32 @@ struct JournalDayView: View {
                 }
             }
             AddPictureButton(itemId: itemId, itemTitle: Wording.journalTitle(day), trackingItemId: nil)
+
+            if !media.isEmpty {
+                Eyebrow(text: "Videos and recordings").padding(.top, 6)
+                ForEach(media) { file in
+                    HStack(spacing: 10) {
+                        Button {
+                            playing = file
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: file.isVideo ? "play.rectangle.fill" : "waveform").foregroundStyle(AN.clay)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(file.fileName).font(AN.text(.body)).foregroundStyle(AN.ink).lineLimit(1)
+                                    Text(file.sizeBytes.map(Wording.fileSize) ?? file.fileType).font(AN.mono(.caption2)).foregroundStyle(AN.ink3)
+                                }
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Play \(file.fileName)")
+                        Button("Delete", systemImage: "trash", role: .destructive) { toDelete = file }
+                            .labelStyle(.iconOnly)
+                    }
+                    .anansiRecess(padding: 10)
+                }
+            }
 
             if !files.isEmpty {
                 Eyebrow(text: "Other files").padding(.top, 6)

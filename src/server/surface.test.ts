@@ -34,6 +34,7 @@ type Guard = 'session' | 'bearer' | 'apikey' | 'open'
 /** Every server route, and how it knows who is calling. */
 const SERVER_ROUTES: Record<string, Guard> = {
   'api.files.$id.ts': 'session',
+  'api.journal.$day.media.ts': 'session', // plus the same-origin check: it writes
   'api.mcp.ts': 'bearer',
   // The phone app's REST API, every handler wrapped in withApiKey.
   'api.v1.attachments.$id.ts': 'apikey',

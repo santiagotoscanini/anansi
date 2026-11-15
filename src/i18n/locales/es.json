@@ -463,9 +463,9 @@
     "saving": "Guardando…",
     "saved": "Guardado",
     "pictures": "Fotos",
-    "addPictures": "Agregar fotos",
+    "addPictures": "Agregar fotos o videos",
     "uploading": "Subiendo…",
-    "uploadFailed": "No se pudo subir. Imágenes de hasta 10 MB.",
+    "uploadFailed": "No se pudo subir. Fotos hasta 10 MB, videos y grabaciones hasta 1 GB.",
     "deleteFile": "Eliminar {{name}}",
     "confirmDeleteFile": "¿Eliminar {{name}}?",
     "people": "Personas en este día",
@@ -477,7 +477,8 @@
     "searchPlaceholder": "Buscar en el diario",
     "noEarlier": "Todavía no hay otros días.",
     "noResults": "No se encontró nada.",
-    "picturesOnly": "Fotos"
+    "picturesOnly": "Fotos",
+    "mediaTooLarge": "{{name}} pesa más de 1 GB"
   },
   "personBids": {
     "sectionTitle": "Próximos gestos",

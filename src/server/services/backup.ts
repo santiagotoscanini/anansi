@@ -260,9 +260,24 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
   // rolled-back import still has every attachment it started with. Photos of
   // people and the avatar are not in a backup and are left alone: the
   // restored people still name their photos by URL.
-  const replaced = (
-    await db.select({ fileId: attachments.fileId }).from(attachments).where(eq(attachments.userId, userId))
-  ).map((a) => a.fileId)
+  const held = await db
+    .select({ id: attachments.id, fileId: attachments.fileId })
+    .from(attachments)
+    .where(eq(attachments.userId, userId))
+  // A backup names every attachment but carries the bytes only of the ones up
+  // to 10 MB: a video is past what the file can hold. When the backup names
+  // such an attachment and this account still holds that very attachment, its
+  // file stays where it is and the restored row points at it again. Without
+  // this an import would quietly delete every video of the account it is
+  // restoring. (Into another account there is nothing to keep: those rows are
+  // skipped, as before.)
+  const carried = new Set(b.files.map((f) => f.attachmentId))
+  const inBackup = new Set(b.attachments.map((a) => a.id))
+  const keptFileOf = new Map(
+    held.filter((a) => inBackup.has(a.id) && !carried.has(a.id)).map((a) => [a.id, a.fileId] as const),
+  )
+  const keptFiles = new Set(keptFileOf.values())
+  const replaced = held.map((a) => a.fileId).filter((fileId) => !keptFiles.has(fileId))
   // The files this import writes, bytes first and rows in the transaction. If
   // it rolls back, their bytes are discarded with it.
   const written: string[] = []
@@ -347,6 +362,22 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
         for (const a of b.attachments) {
           const base64 = blobByAttachmentId.get(a.id)
           if (!base64) {
+            const kept = keptFileOf.get(a.id)
+            if (kept) {
+              // Its bytes never left the bucket: the row comes back, the file is the same one.
+              attachmentRows.push({
+                id: a.id,
+                userId,
+                parentType: a.parentType,
+                parentId: a.parentId,
+                fileName: a.fileName,
+                fileType: a.fileType,
+                fileId: kept,
+                sizeBytes: a.sizeBytes,
+                createdAt: a.createdAt,
+              })
+              continue
+            }
             console.warn(`[backup.import] attachment ${a.id} skipped — no file blob in backup`)
             continue
           }

@@ -5,7 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { toEditable } from '~/lib/mentions'
 import type { SyncItem } from '~/lib/queries/sync'
 import MentionField from './MentionField'
-import MentionText, { useMentionPeople } from './MentionText'
+import MarkdownText from './MarkdownText'
+import { useMentionPeople } from './MentionText'
 
 interface Props {
   item: SyncItem
@@ -173,10 +174,10 @@ export default function WeeklySyncItemRow({
               if (e.key === 'Enter') setDraft(toEditable(stored, people))
             }}
             title={t('weeklySyncRow.clickToEdit')}
-            className="-mx-2 cursor-text rounded-lg px-2 py-1 whitespace-pre-wrap transition-colors hover:bg-[var(--vellum)]/50"
+            className="-mx-2 cursor-text rounded-lg px-2 py-1 transition-colors hover:bg-[var(--vellum)]/50"
             style={notesStyle}
           >
-            <MentionText text={stored} link />
+            <MarkdownText text={stored} attachments={item.attachments} link />
           </div>
         ) : (
           <button

@@ -9,7 +9,9 @@ import { toEditable, toPlain } from '~/lib/mentions'
 import {
   useDeleteJournalAttachment,
   useDeleteJournalEntry,
+  MAX_MEDIA_BYTES,
   useUploadJournalAttachment,
+  useUploadJournalMedia,
   useWriteJournalEntry,
 } from '~/lib/mutations/journal'
 import { journalEntryQueryOptions, journalRecentQueryOptions, type JournalEntryRow } from '~/lib/queries/journal'
@@ -17,6 +19,7 @@ import { useLocalToday } from '~/lib/use-local-today'
 import { Route } from '~/routes/app.journal'
 import Avatar from './Avatar'
 import MentionField, { type MentionCandidate } from './MentionField'
+import MarkdownText from './MarkdownText'
 import MentionText, { useMentionPeople } from './MentionText'
 import { SecLabel } from './ui'
 
@@ -256,10 +259,10 @@ function Prose({
             if (e.key === 'Enter') setDraft(toEditable(stored, people))
           }}
           title={t('journal.clickToEdit')}
-          className="-mx-3 cursor-text rounded-xl px-3 py-2 whitespace-pre-wrap transition-colors hover:bg-[var(--vellum)]/50"
+          className="-mx-3 cursor-text rounded-xl px-3 py-2 transition-colors hover:bg-[var(--vellum)]/50"
           style={proseStyle}
         >
-          <MentionText text={stored} link />
+          <MarkdownText text={stored} attachments={entry?.attachments ?? []} link />
         </div>
       ) : (
         <button
@@ -295,6 +298,8 @@ const readAsDataUrl = (file: File) =>
 function Pictures({ day, entry }: { day: string; entry: JournalEntryRow | null }) {
   const { t } = useTranslation()
   const upload = useUploadJournalAttachment()
+  const uploadMedia = useUploadJournalMedia()
+  const busy = upload.isPending || uploadMedia.isPending
   const remove = useDeleteJournalAttachment()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const files = entry?.attachments ?? []
@@ -306,10 +311,20 @@ function Pictures({ day, entry }: { day: string; entry: JournalEntryRow | null }
     try {
       // One at a time: each is up to 10 MB of base64 in a request body.
       for (const file of Array.from(picked)) {
+        const kind = fileTypeOf(file)
+        // A video or a recording goes up as the file itself, streamed; everything else as before.
+        if (kind === 'video' || kind === 'audio') {
+          if (file.size > MAX_MEDIA_BYTES) {
+            toast.error(t('journal.mediaTooLarge', { name: file.name }))
+            continue
+          }
+          await uploadMedia.mutateAsync({ day, file, fileType: kind })
+          continue
+        }
         await upload.mutateAsync({
           day,
           fileName: file.name,
-          fileType: fileTypeOf(file),
+          fileType: kind,
           data: await readAsDataUrl(file),
         })
       }
@@ -356,12 +371,12 @@ function Pictures({ day, entry }: { day: string; entry: JournalEntryRow | null }
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          disabled={upload.isPending}
+          disabled={busy}
           className="flex aspect-square flex-col items-center justify-center gap-1.5 rounded-xl text-xs text-[var(--ink-3)] transition-colors hover:bg-[var(--vellum)]/60 hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-60"
           style={{ border: '1px dashed var(--hairline-2)' }}
         >
           <ImageIcon className="h-4 w-4" />
-          {upload.isPending ? t('journal.uploading') : t('journal.addPictures')}
+          {busy ? t('journal.uploading') : t('journal.addPictures')}
         </button>
       </div>
       {media.length > 0 && (
@@ -419,7 +434,7 @@ function Pictures({ day, entry }: { day: string; entry: JournalEntryRow | null }
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*,audio/*"
         multiple
         className="hidden"
         onChange={(e) => {

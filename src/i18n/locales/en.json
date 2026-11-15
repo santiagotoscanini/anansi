@@ -463,9 +463,9 @@
     "saving": "Saving…",
     "saved": "Saved",
     "pictures": "Pictures",
-    "addPictures": "Add pictures",
+    "addPictures": "Add pictures or videos",
     "uploading": "Uploading…",
-    "uploadFailed": "Couldn't upload that. Images up to 10 MB.",
+    "uploadFailed": "Could not upload that. Pictures up to 10 MB, videos and recordings up to 1 GB.",
     "deleteFile": "Delete {{name}}",
     "confirmDeleteFile": "Delete {{name}}?",
     "people": "People in this day",
@@ -477,7 +477,8 @@
     "searchPlaceholder": "Search the journal",
     "noEarlier": "No other days yet.",
     "noResults": "Nothing found.",
-    "picturesOnly": "Pictures"
+    "picturesOnly": "Pictures",
+    "mediaTooLarge": "{{name}} is over 1 GB"
   },
   "personBids": {
     "sectionTitle": "Next bids",

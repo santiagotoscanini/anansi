@@ -26,7 +26,8 @@ import {
   type HistoryWeek,
 } from '~/lib/over-time'
 import { trackingItemHistoryQueryOptions, trackingItemsQueryOptions } from '~/lib/queries/sync'
-import MentionText, { useMentionPeople } from './MentionText'
+import MarkdownText from './MarkdownText'
+import { useMentionPeople } from './MentionText'
 import { Eyebrow } from './ui'
 
 export type OverTimeView = 'play' | 'compare' | 'all'
@@ -404,9 +405,9 @@ function PlayView({
           </p>
         )}
         {frame.note && (
-          <p className="mt-5 whitespace-pre-wrap" style={notesStyle}>
-            <MentionText text={frame.note} link />
-          </p>
+          <div className="mt-5" style={notesStyle}>
+            <MarkdownText text={frame.note} link />
+          </div>
         )}
         <Link
           to="/app/sync"
@@ -848,9 +849,13 @@ function SheetView({
                     >
                       {day.short(entry.week.week)}
                     </Link>
-                    <p className="whitespace-pre-wrap" style={notesStyle}>
-                      <MentionText text={entry.week.textContent ?? fileNames(entry.week)} link />
-                    </p>
+                    <div style={notesStyle}>
+                      <MarkdownText
+                        text={entry.week.textContent ?? fileNames(entry.week)}
+                        attachments={entry.week.attachments}
+                        link
+                      />
+                    </div>
                   </li>
                 ),
               )}

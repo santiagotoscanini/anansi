@@ -46,3 +46,31 @@ export function useDeleteJournalAttachment() {
     onSuccess: () => invalidateJournal(queryClient),
   })
 }
+
+/** Past this the server refuses a video or a recording (`MAX_MEDIA_UPLOAD_BYTES`). */
+export const MAX_MEDIA_BYTES = 1024 * 1024 * 1024
+
+/**
+ * A video or a voice recording on a day. Not a server function like the rest:
+ * the file is the body of a plain POST, so it is streamed, never turned into
+ * base64 in memory (see routes/api.journal.$day.media.ts).
+ */
+export function useUploadJournalMedia() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { day: string; file: File; fileType: 'video' | 'audio' }) => {
+      const query = new URLSearchParams({ fileName: input.file.name, fileType: input.fileType })
+      const res = await fetch(`/api/journal/${input.day}/media?${query.toString()}`, {
+        method: 'POST',
+        body: input.file,
+        headers: { 'content-type': input.file.type },
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null
+        throw new Error(body?.error?.message ?? `Upload failed (${res.status})`)
+      }
+      return (await res.json()) as { id: string }
+    },
+    onSuccess: () => invalidateJournal(queryClient),
+  })
+}

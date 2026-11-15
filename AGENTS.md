@@ -164,7 +164,7 @@ app.tracking-items.tsx { item?, view? }  (the library; with `item`, that item ov
 app.progress.tsx  app.relationships.tsx
 app.$.tsx           /app/* → redirect to /app (preserves the old silent slug fallback)
 
-api.auth.$.ts  api.mcp.ts  api.files.$id.ts  api.healthz.ts
+api.auth.$.ts  api.mcp.ts  api.files.$id.ts  api.journal.$day.media.ts  api.healthz.ts
 oauth.{register,token,revoke}.ts  oauth.authorize.tsx  oauth.authorize.decision.ts
 [.]well-known.oauth-authorization-server.ts   → /.well-known/oauth-authorization-server
 [.]well-known.oauth-protected-resource.ts     → /.well-known/oauth-protected-resource
@@ -240,6 +240,9 @@ One entry per user per calendar day, written like a diary: `highlights` (the day
 - **An entry that holds nothing does not exist.** Writing a day empty deletes its row (unless pictures still hang on it), deleting a day's last picture does the same, and a read answers null.
 - **Mentions.** The day's text names people with the app-wide mention grammar: see "Mentions" below.
 - `?person=<id>` on `/app/people` opens that person's modal, which is what a mention links to.
+
+### Markdown
+A journal day's text and a sync item's notes are stored as typed and shown as Markdown (`MarkdownText`, parsed by the pure `src/lib/markdown.ts`): headings, rules, lists, quotes, code, emphasis, links, and line breaks kept as written. Nothing is turned into HTML: the renderer builds elements from the parsed values. Mentions inside it go through `MentionText` as everywhere. A media marker (`[foto 2]`, `[video 1]`, `[audio 1]`, `[archivo 1]`) shows the nth attachment of that kind of the same day or sync item in its place, in the order they were added; imported diaries carry them where a picture sat. A marker with nothing behind it stays as written. An editor always shows the raw text.
 
 ### Mentions
 Three texts can name a person, and all three do it the same way: a journal day (text and highlights), the notes on a weekly sync item, a task's title and description.
@@ -542,9 +545,9 @@ How callers reference uploaded files:
 
 **Supported types:** images (PNG/JPG/JPEG/GIF/WebP), documents (TXT/PDF/...), video, audio, other. Image MIME is sniffed via magic bytes in `image-upload.ts`; non-image extensions are clamped to a safe-extension allow-list in `_shared.safeExtension`.
 
-**Videos and voice recordings.** Everything above travels as base64 in a request body and is capped at 10 MB. A video or a recording does not fit that, so the phone API has a second path for `fileType=video|audio`: `withMediaUpload` (`server/api/v1.ts`) streams the request body to a temporary file, `attachments.uploadMedia` hands that file to the bucket with `putFile` (multipart past 16 MB) and writes the rows, and the temporary file is removed whatever happens. The cap is `MAX_MEDIA_UPLOAD_BYTES` (1 GiB); the Content-Type must be `video/*` or `audio/*` and is stored as given; the bytes are kept exactly as they came. The web's own upload button still takes 10 MB, so a large video reaches Anansi through the API only. The journal plays them with the browser's `<video>` and `<audio>` (the file route answers Range requests); a format the browser cannot decode, such as HEVC in a `.mov` outside Safari, shows the browser's own message and can still be downloaded.
+**Videos and voice recordings.** Everything above travels as base64 in a request body and is capped at 10 MB. A video or a recording does not fit that, so the phone API has a second path for `fileType=video|audio`: `withMediaUpload` (`server/api/v1.ts`) streams the request body to a temporary file, `attachments.uploadMedia` hands that file to the bucket with `putFile` (multipart past 16 MB) and writes the rows, and the temporary file is removed whatever happens. The cap is `MAX_MEDIA_UPLOAD_BYTES` (1 GiB); the Content-Type must be `video/*` or `audio/*` and is stored as given; the bytes are kept exactly as they came. The web sends them the same way: the journal's upload button posts the file itself to `\/api\/journal\/$day\/media` (session cookie plus a same-origin check, `server\/api\/same-origin.ts`), since a server function would have to hold it as base64. The journal plays them with the browser's `<video>` and `<audio>` (the file route answers Range requests); a format the browser cannot decode, such as HEVC in a `.mov` outside Safari, shows the browser's own message and can still be downloaded.
 
-> **A backup does not carry them.** `backup.export` leaves out the bytes of any attachment over 10 MB (its row is exported), and `backup.import` replaces the account's attachments with the ones the file holds. So importing a backup into an account that has videos drops those videos. Until backups learn to carry them, treat an import as destructive for large files.
+**Backups and large files.** `backup.export` leaves out the bytes of any attachment over 10 MB (its row is exported). `backup.import` replaces the account's attachments with the ones the file holds, with one exception that exists for exactly those: an attachment the backup names without bytes, which this account still holds under the same id, keeps its file, and the restored row points at it again. So restoring an account from its own backup keeps its videos. Restoring into a different account cannot carry them: there the rows without bytes are skipped.
 
 **Security:**
 - The serving route requires an authenticated session AND matches `files.ownerId` against the session user. Nothing else.

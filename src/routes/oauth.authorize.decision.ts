@@ -5,27 +5,8 @@ import { recordConsent } from '~/lib/mcp/oauth/consent'
 import { mintAuthCode } from '~/lib/mcp/oauth/codes'
 import { appendAudit } from '~/lib/mcp/oauth/audit'
 import { resolveOrigin } from '~/lib/mcp/oauth/metadata'
+import { isSameOriginRequest } from '~/server/api/same-origin'
 import { clientIpFromHeaders } from '~/lib/rate-limit'
-
-// CSRF guard: the consent POST is a same-origin form submission, so any Origin
-// header other than our own means the form was posted from a third-party page.
-// Browsers always send Origin on POSTs across modern engines — if absent, we
-// fall back to Referer's origin.
-function isSameOriginRequest(req: Request): boolean {
-  const expected = resolveOrigin(req)
-  const origin = req.headers.get('origin')
-  if (origin && origin === expected) return true
-  const referer = req.headers.get('referer')
-  if (referer) {
-    try {
-      const r = new URL(referer)
-      return `${r.protocol}//${r.host}` === expected
-    } catch {
-      return false
-    }
-  }
-  return false
-}
 
 // Reads form data into a flat string map. Discards array-shaped fields — we
 // never send any from ConsentScreen.

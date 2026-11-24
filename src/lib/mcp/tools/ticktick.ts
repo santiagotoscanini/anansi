@@ -14,7 +14,7 @@ export function registerTickTickTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'TickTick sync status',
       description:
-        "Whether the user's goals and tasks sync with a TickTick list, which list, when it last synced, how many are linked, and the last error. Each goal is a top-level task in that list and its tasks are subtasks; writes made through the other tools reach TickTick within seconds, and TickTick's changes arrive within about two minutes.",
+        "Whether the user's tasks sync with a TickTick list, which list (`list`), where captures go (`captureList`, a separate list of thoughts and voice notes to sort, tagged anansi; null is TickTick's Inbox), when it last synced, how many are linked, and the last error. Each task is a top-level task in the sync list, tagged with its goal; writes made through the other tools reach TickTick within seconds, and TickTick's changes arrive within about two minutes.",
       inputSchema: toolInput({}),
       annotations: { readOnlyHint: true, openWorldHint: false },
     },

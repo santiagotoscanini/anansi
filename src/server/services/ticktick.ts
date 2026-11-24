@@ -20,6 +20,8 @@ export interface TickTickStatus {
   connected: boolean
   needsReauth: boolean
   list: { id: string; name: string } | null
+  /** The list captures go to; null is TickTick's Inbox. */
+  captureList: { id: string; name: string } | null
   timeZone: string | null
   lastSyncedAt: Date | null
   lastError: string | null
@@ -75,6 +77,7 @@ export async function status(userId: string): Promise<TickTickStatus> {
     connected: Boolean(conn),
     needsReauth: conn?.needsReauth ?? false,
     list: conn?.projectId ? { id: conn.projectId, name: conn.projectName ?? '' } : null,
+    captureList: conn?.captureProjectId ? { id: conn.captureProjectId, name: conn.captureProjectName ?? '' } : null,
     timeZone: conn?.timeZone ?? null,
     lastSyncedAt: conn?.lastSyncedAt ?? null,
     lastError: conn?.lastError ?? null,
@@ -104,6 +107,11 @@ export const chooseListInput = z.union([
 export async function chooseList(userId: string, input: z.input<typeof chooseListInput>) {
   const parsed = chooseListInput.parse(input)
   const { conn, tt } = await client(userId)
+  if ('listId' in parsed && parsed.listId === conn.captureProjectId)
+    throw new AppError(
+      'BAD_REQUEST',
+      'That list is where captures go. Pick another one, or send captures elsewhere first.',
+    )
   const list = await talking(userId, async () => {
     if ('newListName' in parsed) return tt.createProject(parsed.newListName)
     const found = (await tt.listProjects()).find((p) => p.id === parsed.listId)
@@ -123,6 +131,37 @@ export async function chooseList(userId: string, input: z.input<typeof chooseLis
       .where(eq(tickTickConnections.id, conn.id))
   })
   return syncNow(userId)
+}
+
+export const chooseCaptureListInput = z.union([
+  z.object({ inbox: z.literal(true) }),
+  z.object({ listId: z.string().min(1) }),
+  z.object({ newListName: z.string().trim().min(1).max(64) }),
+])
+
+/**
+ * Where captures go from now on: TickTick's Inbox, a list of the user's, or a
+ * new one made here (a plain list, not a board). Never the sync's list, whose
+ * tasks are Anansi's tasks. Captures already sent stay where they are.
+ */
+export async function chooseCaptureList(userId: string, input: z.input<typeof chooseCaptureListInput>) {
+  const parsed = chooseCaptureListInput.parse(input)
+  const { conn, tt } = await client(userId)
+  let list: { id: string; name: string } | null = null
+  if ('listId' in parsed) {
+    if (parsed.listId === conn.projectId)
+      throw new AppError('BAD_REQUEST', 'That list is the one your tasks sync with. Pick another one for captures.')
+    const found = (await talking(userId, () => tt.listProjects())).find((p) => p.id === parsed.listId)
+    if (!found) throw new AppError('NOT_FOUND', 'That TickTick list was not found')
+    list = found
+  } else if ('newListName' in parsed) {
+    list = await talking(userId, () => tt.createProject(parsed.newListName, 'list'))
+  }
+  await db
+    .update(tickTickConnections)
+    .set({ captureProjectId: list?.id ?? null, captureProjectName: list?.name ?? null })
+    .where(eq(tickTickConnections.id, conn.id))
+  return status(userId)
 }
 
 /** Run the sync now and answer the status after it. */

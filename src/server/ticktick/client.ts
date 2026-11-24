@@ -116,12 +116,13 @@ async function call<T>(
 export function tickTick(token: string) {
   return {
     listProjects: async () => (await call<RemoteProject[]>(token, 'GET', '/project')) ?? [],
-    createProject: async (name: string) => {
+    /** A new list, as a board unless `viewMode` says otherwise (the captures list is a plain list). */
+    createProject: async (name: string, viewMode: 'kanban' | 'list' = 'kanban') => {
       const project = await call<RemoteProject>(
         token,
         'POST',
         '/project',
-        { name, viewMode: 'kanban', kind: 'TASK' },
+        { name, viewMode, kind: 'TASK' },
         { once: true },
       )
       if (!project) throw new TickTickError(500, 'TickTick created no list')
@@ -158,7 +159,7 @@ export function tickTick(token: string) {
       if (!created?.id) throw new TickTickError(500, 'TickTick created no task')
       return created
     },
-    /** A task in the user's Inbox (no list named): what a capture becomes. */
+    /** A task in the user's Inbox (no list named): what a capture becomes when no captures list is picked. */
     createInboxTask: async (task: { title: string; content?: string; tags?: string[] }) => {
       const created = await call<RemoteTask>(token, 'POST', '/task', task, { once: true })
       if (!created?.id) throw new TickTickError(500, 'TickTick created no task')

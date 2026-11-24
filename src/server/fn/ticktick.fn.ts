@@ -27,3 +27,9 @@ export const syncTickTickNow = createServerFn({ method: 'POST' })
 export const disconnectTickTick = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .handler(({ context }) => ticktick.disconnect(context.userId))
+
+/** Where captures go: `{ inbox: true }`, `{ listId }` or `{ newListName }`. */
+export const chooseTickTickCaptureList = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .validator(ticktick.chooseCaptureListInput)
+  .handler(({ data, context }) => ticktick.chooseCaptureList(context.userId, data))

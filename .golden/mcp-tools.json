@@ -222,7 +222,7 @@
       "destructiveHint": false,
       "openWorldHint": true
     },
-    "description": "Drop a thought into the user's inbox, as they would from their phone: an idea, a to-do, something to think about. With `questionId` (from `list_open_questions`) it becomes a dated note on that open question; without it, it goes to their TickTick Inbox as a task (its first line is the title) when TickTick is connected. Use it when the user asks you to note something for later and it is not clearly a task of a goal; answers the capture with where it went.",
+    "description": "Drop a thought into the user's inbox, as they would from their phone: an idea, a to-do, something to think about. With `questionId` (from `list_open_questions`) it becomes a dated note on that open question; without it, it goes to TickTick as a task, in the captures list they picked or else their Inbox, (its first line is the title) when TickTick is connected. Use it when the user asks you to note something for later and it is not clearly a task of a goal; answers the capture with where it went.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -1703,7 +1703,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "Whether the user's goals and tasks sync with a TickTick list, which list, when it last synced, how many are linked, and the last error. Each goal is a top-level task in that list and its tasks are subtasks; writes made through the other tools reach TickTick within seconds, and TickTick's changes arrive within about two minutes.",
+    "description": "Whether the user's tasks sync with a TickTick list, which list (`list`), where captures go (`captureList`, a separate list of thoughts and voice notes to sort, tagged anansi; null is TickTick's Inbox), when it last synced, how many are linked, and the last error. Each task is a top-level task in the sync list, tagged with its goal; writes made through the other tools reach TickTick within seconds, and TickTick's changes arrive within about two minutes.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -1778,7 +1778,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "The user's raw inbox of thoughts, newest first: ideas, to-dos, questions and voice notes they captured on the go, to help them triage it. Each has `text` (for a voice note, its transcript; null until it has one), `kind` (text or voice, with `audioUrl` and `durationMs`), `transcriptStatus` (a voice note's words: `pending` while the server transcribes it, retried on its own when the transcriber is down, with `transcribeAttempts` and `transcribeError`; `done`; `failed` when the transcriber refused the audio, see `retranscribe_capture`; `none` for typed text), `capturedAt`, `status` (`new` (not routed yet: kept in Anansi, waiting for its words, or failed with `routeError`), `routed` (became a note on `question`, or a TickTick Inbox task), `archived` (dealt with).) and where it went: `questionId`/`question` and `noteId` for an open question, `tickTickTaskId` for TickTick. Turn what you find into goals, tasks, journal entries or question notes with the other tools, then archive the capture with `update_capture`.",
+    "description": "The user's raw inbox of thoughts, newest first: ideas, to-dos, questions and voice notes they captured on the go, to help them triage it. Each has `text` (for a voice note, its transcript; null until it has one), `kind` (text or voice, with `audioUrl` and `durationMs`), `transcriptStatus` (a voice note's words: `pending` while the server transcribes it, retried on its own when the transcriber is down, with `transcribeAttempts` and `transcribeError`; `done`; `failed` when the transcriber refused the audio, see `retranscribe_capture`; `none` for typed text), `capturedAt`, `status` (`new` (not routed yet: kept in Anansi, waiting for its words, or failed with `routeError`), `routed` (became a note on `question`, or a TickTick task, in the captures list or the Inbox), `archived` (dealt with).) and where it went: `questionId`/`question` and `noteId` for an open question, `tickTickTaskId` for TickTick. Turn what you find into goals, tasks, journal entries or question notes with the other tools, then archive the capture with `update_capture`.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -2905,7 +2905,7 @@
       "idempotentHint": true,
       "openWorldHint": true
     },
-    "description": "Change one capture of the user's inbox. `status: 'archived'` marks it dealt with (do this after turning it into something else); `'new'` brings an archived one back. `text` replaces its words (also on the question note or TickTick task it became; on a voice note they are then the user's, and the transcriber never replaces them). `questionId` moves it to that open question as a note, taking it back from where it went before (its old note or TickTick task is deleted); `questionId: null` takes it out of its question and sends it to the TickTick Inbox.",
+    "description": "Change one capture of the user's inbox. `status: 'archived'` marks it dealt with (do this after turning it into something else); `'new'` brings an archived one back. `text` replaces its words (also on the question note or TickTick task it became; on a voice note they are then the user's, and the transcriber never replaces them). `questionId` moves it to that open question as a note, taking it back from where it went before (its old note or TickTick task is deleted); `questionId: null` takes it out of its question and sends it to TickTick (the captures list, or the Inbox).",
     "execution": {
       "taskSupport": "forbidden"
     },

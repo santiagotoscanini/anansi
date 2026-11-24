@@ -4,9 +4,11 @@
 //
 //   - aimed at an open question (`questionId`): once it has words, it becomes a
 //     dated note on that question (`noteId`);
-//   - anything else: a task in the user's TickTick Inbox (`tickTickTaskId`),
-//     when TickTick is connected, to triage there. It is not an Anansi task and
-//     has no `ticktick_links` row; the sync never sees it.
+//   - anything else: a task in TickTick (`tickTickTaskId`), when it is
+//     connected, to triage there: in the captures list the user picked
+//     (`ticktick_connections.capture_project_id`), else in their Inbox. It is
+//     not an Anansi task and has no `ticktick_links` row; the sync never sees
+//     it. A picked list that is gone sends it, and the ones after, to the Inbox.
 //   - TickTick not connected: it stays `new`, in Anansi's Inbox.
 //
 // A voice note's words come from the server: the box's Whisper, through the
@@ -478,7 +480,7 @@ async function routeNow(id: string) {
   const title = captureTitle(words) || voiceNoteTitle(c.capturedAt, conn.timeZone)
   const content = tickTickContent(words.trim() ? captureBody(words) : '', captureLink(c.id))
   try {
-    const task = await tickTick(token).createInboxTask({ title, content, tags: ['anansi'] })
+    const task = await createCaptureTask(tickTick(token), conn, { title, content, tags: ['anansi'] })
     await db
       .update(captures)
       .set({
@@ -500,6 +502,32 @@ async function routeNow(id: string) {
       .update(captures)
       .set({ routeError: errorText(e) })
       .where(eq(captures.id, c.id))
+  }
+}
+
+/**
+ * The capture's TickTick task: in the captures list, or the Inbox when none is
+ * picked. When the list's create fails and the list is no longer among the
+ * user's, the setting goes back to the Inbox and the task goes there.
+ */
+async function createCaptureTask(
+  tt: ReturnType<typeof tickTick>,
+  conn: typeof tickTickConnections.$inferSelect,
+  task: { title: string; content: string; tags: string[] },
+) {
+  if (!conn.captureProjectId) return tt.createInboxTask(task)
+  try {
+    return await tt.createTask({ ...task, projectId: conn.captureProjectId })
+  } catch (e) {
+    if (e instanceof TickTickAuthError) throw e
+    const lists = await tt.listProjects()
+    if (lists.some((p) => p.id === conn.captureProjectId && !p.closed)) throw e
+    console.warn('[captures] the captures list is gone; back to the Inbox', conn.captureProjectId)
+    await db
+      .update(tickTickConnections)
+      .set({ captureProjectId: null, captureProjectName: null })
+      .where(eq(tickTickConnections.id, conn.id))
+    return tt.createInboxTask(task)
   }
 }
 

@@ -9,11 +9,11 @@ import * as captures from '~/server/services/captures'
 // dropped from the phone's Action Button, Siri, the web or here, as text or as
 // a voice note (transcribed on the server). Each one is routed once: aimed at an
 // open question it became a note on it; otherwise it went to their TickTick
-// Inbox as a task to triage there (or stayed in Anansi when TickTick is not
+// Inbox (or the captures list picked in Profile) as a task to triage there (or stayed in Anansi when TickTick is not
 // connected). These tools are for helping the user go through that inbox.
 
 const STATUS =
-  '`new` (not routed yet: kept in Anansi, waiting for its words, or failed with `routeError`), `routed` (became a note on `question`, or a TickTick Inbox task), `archived` (dealt with).'
+  '`new` (not routed yet: kept in Anansi, waiting for its words, or failed with `routeError`), `routed` (became a note on `question`, or a TickTick task, in the captures list or the Inbox), `archived` (dealt with).'
 
 export function registerCapturesTools(server: McpServer, ctx: McpCtx): void {
   server.registerTool(
@@ -41,7 +41,7 @@ export function registerCapturesTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Capture a thought',
       description:
-        "Drop a thought into the user's inbox, as they would from their phone: an idea, a to-do, something to think about. With `questionId` (from `list_open_questions`) it becomes a dated note on that open question; without it, it goes to their TickTick Inbox as a task (its first line is the title) when TickTick is connected. Use it when the user asks you to note something for later and it is not clearly a task of a goal; answers the capture with where it went.",
+        "Drop a thought into the user's inbox, as they would from their phone: an idea, a to-do, something to think about. With `questionId` (from `list_open_questions`) it becomes a dated note on that open question; without it, it goes to TickTick as a task, in the captures list they picked or else their Inbox, (its first line is the title) when TickTick is connected. Use it when the user asks you to note something for later and it is not clearly a task of a goal; answers the capture with where it went.",
       inputSchema: toolInput({
         text: z.string().min(1).max(10_000).describe('The thought, as the user said it. The first line is its title.'),
         questionId: z.string().optional().describe('The open question it belongs to.'),
@@ -62,7 +62,7 @@ export function registerCapturesTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Archive, edit or move a capture',
       description:
-        "Change one capture of the user's inbox. `status: 'archived'` marks it dealt with (do this after turning it into something else); `'new'` brings an archived one back. `text` replaces its words (also on the question note or TickTick task it became; on a voice note they are then the user's, and the transcriber never replaces them). `questionId` moves it to that open question as a note, taking it back from where it went before (its old note or TickTick task is deleted); `questionId: null` takes it out of its question and sends it to the TickTick Inbox.",
+        "Change one capture of the user's inbox. `status: 'archived'` marks it dealt with (do this after turning it into something else); `'new'` brings an archived one back. `text` replaces its words (also on the question note or TickTick task it became; on a voice note they are then the user's, and the transcriber never replaces them). `questionId` moves it to that open question as a note, taking it back from where it went before (its old note or TickTick task is deleted); `questionId: null` takes it out of its question and sends it to TickTick (the captures list, or the Inbox).",
       inputSchema: toolInput({
         id: z.string(),
         status: z.enum(['new', 'routed', 'archived']).optional(),

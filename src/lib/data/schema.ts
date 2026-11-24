@@ -1440,6 +1440,10 @@ export const tickTickConnections = pgTable('ticktick_connections', {
   // The list everything syncs into. Null until one is picked.
   projectId: text('project_id'),
   projectName: text('project_name'),
+  // Where captures go (services/captures.ts): a list the user picked for them,
+  // or null for TickTick's own Inbox. Never the sync's list.
+  captureProjectId: text('capture_project_id'),
+  captureProjectName: text('capture_project_name'),
   // The IANA zone due dates are read in: an Anansi date is a day, a TickTick
   // all-day date is that day's midnight somewhere.
   timeZone: text('time_zone').notNull().default('UTC'),

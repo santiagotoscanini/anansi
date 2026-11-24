@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
 import { qk } from '~/lib/queries/keys'
 import {
+  chooseTickTickCaptureList,
   chooseTickTickList,
   disconnectTickTick,
   fetchTickTickStatus,
@@ -28,6 +29,9 @@ interface Props {
 }
 
 const NEW_LIST = '__new__'
+const INBOX = '__inbox__'
+/** What a new captures list is called unless the user says otherwise: what the web caught, still to untangle. */
+const CAPTURE_LIST_NAME = 'Loose threads'
 
 export default function TickTickSection({ fieldLabel, inputClass, sectionClass }: Props) {
   const { t } = useTranslation()
@@ -38,13 +42,14 @@ export default function TickTickSection({ fieldLabel, inputClass, sectionClass }
   const [picking, setPicking] = useState(false)
   const [choice, setChoice] = useState('')
   const [newName, setNewName] = useState('Anansi')
+  const [pickingCaptures, setPickingCaptures] = useState(false)
 
   const s = status.data
   const showPicker = Boolean(s?.connected && !s.needsReauth && (!s.list || picking))
   const lists = useQuery({
     queryKey: qk.tickTickLists,
     queryFn: () => listTickTickLists(),
-    enabled: showPicker,
+    enabled: showPicker || pickingCaptures,
   })
 
   // The callback's answer, said once and dropped from the URL.
@@ -208,6 +213,19 @@ export default function TickTickSection({ fieldLabel, inputClass, sectionClass }
           ) : null}
 
           {s.list && !picking ? (
+            <CaptureList
+              current={s.captureList}
+              syncListId={s.list.id}
+              lists={lists}
+              open={pickingCaptures}
+              setOpen={setPickingCaptures}
+              inputClass={inputClass}
+              button={button}
+              primary={primary}
+            />
+          ) : null}
+
+          {s.list && !picking ? (
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => sync.mutate()} disabled={sync.isPending} className={button}>
                 {sync.isPending ? (
@@ -228,6 +246,138 @@ export default function TickTickSection({ fieldLabel, inputClass, sectionClass }
             </div>
           ) : null}
         </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Where captures (the Inbox tab: thoughts and voice notes) go in TickTick:
+ * its Inbox, or a list of their own for an agent to sort later. Never the
+ * sync's list, whose tasks are Anansi's.
+ */
+function CaptureList({
+  current,
+  syncListId,
+  lists,
+  open,
+  setOpen,
+  inputClass,
+  button,
+  primary,
+}: {
+  current: { id: string; name: string } | null
+  syncListId: string
+  lists: { data?: { id: string; name: string }[]; isLoading: boolean; isError: boolean; error: unknown }
+  open: boolean
+  setOpen: (open: boolean) => void
+  inputClass: string
+  button: string
+  primary: string
+}) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [choice, setChoice] = useState<string | null>(null)
+  const [name, setName] = useState(CAPTURE_LIST_NAME)
+  const options = (lists.data ?? []).filter((l) => l.id !== syncListId)
+  const selected = choice ?? current?.id ?? INBOX
+
+  const save = useMutation({
+    mutationFn: (data: { inbox: true } | { listId: string } | { newListName: string }) =>
+      chooseTickTickCaptureList({ data }),
+    onSuccess: (status) => {
+      queryClient.setQueryData(qk.tickTick, status)
+      void queryClient.invalidateQueries({ queryKey: qk.tickTickLists })
+      setOpen(false)
+      setChoice(null)
+      toast.success(
+        t('profile.ticktickCapturesSaved', { list: status.captureList?.name ?? t('profile.ticktickInbox') }),
+      )
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : t('profile.ticktickSyncFailed')),
+  })
+
+  if (!open)
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--hairline)] px-3 py-2">
+        <div className="min-w-0">
+          <div className="text-sm text-[var(--ink)]">
+            {t('profile.ticktickCapturesTo', { list: current?.name ?? t('profile.ticktickInbox') })}
+          </div>
+          <div className="text-[11px] text-[var(--ink-3)]">{t('profile.ticktickCapturesHelp')}</div>
+        </div>
+        <button type="button" onClick={() => setOpen(true)} className={button}>
+          {t('profile.ticktickChangeList')}
+        </button>
+      </div>
+    )
+
+  return (
+    <div className="space-y-2 rounded-lg border border-[var(--hairline)] px-3 py-3">
+      <p className="text-xs text-[var(--ink-2)]">{t('profile.ticktickCapturesPick')}</p>
+      {lists.isLoading ? (
+        <Loader2 className="h-4 w-4 animate-spin text-[var(--ink-3)]" />
+      ) : lists.isError ? (
+        <p className="text-xs text-[var(--rust)]">
+          {lists.error instanceof Error ? lists.error.message : t('profile.ticktickSyncFailed')}
+        </p>
+      ) : (
+        <>
+          <select
+            value={selected}
+            onChange={(e) => setChoice(e.target.value)}
+            className={inputClass}
+            aria-label={t('profile.ticktickCapturesPick')}
+          >
+            <option value={INBOX}>{t('profile.ticktickInbox')}</option>
+            {options.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+            <option value={NEW_LIST}>{t('profile.ticktickNewList')}</option>
+          </select>
+          {selected === NEW_LIST ? (
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={64}
+              className={inputClass}
+              aria-label={t('profile.ticktickNewListName')}
+              placeholder={t('profile.ticktickNewListName')}
+            />
+          ) : null}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={save.isPending || (selected === NEW_LIST && !name.trim())}
+              onClick={() =>
+                save.mutate(
+                  selected === INBOX
+                    ? { inbox: true }
+                    : selected === NEW_LIST
+                      ? { newListName: name.trim() }
+                      : { listId: selected },
+                )
+              }
+              className={primary}
+            >
+              {save.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              {t('profile.ticktickCapturesSave')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                setChoice(null)
+              }}
+              className={button}
+            >
+              {t('profile.ticktickCancel')}
+            </button>
+          </div>
+        </>
       )}
     </div>
   )

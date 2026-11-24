@@ -17,9 +17,14 @@ import {
   journalEntries,
   journalMentions,
   nextBids,
+  openQuestionGoals,
+  openQuestionNotes,
+  openQuestionPeople,
+  openQuestions,
   people,
   peopleToGroups,
   personGroups,
+  personalityResults,
   selfListItems,
   syncItemMentions,
   syncTemplateItems,
@@ -37,6 +42,7 @@ import {
 } from '~/lib/data/schema'
 import { isEmojiGlyph, isOurStorageImageUrl } from '~/lib/emoji-utils'
 import { mentionedIds } from '~/lib/mentions'
+import { parsePersonalityResult } from '~/lib/personality'
 import type { Backup } from '~/lib/api/types'
 import { AppError } from './errors'
 import { MAX_UPLOAD_BYTES } from '~/lib/image-upload'
@@ -184,6 +190,20 @@ export async function exportAll(userId: string) {
         .where(inArray(tasks.goalId, goalIds))
     : []
 
+  // Open questions are user-owned; their notes and links come by question id.
+  const openQuestionRows = await db.select().from(openQuestions).where(eq(openQuestions.userId, userId))
+  const openQuestionIds = openQuestionRows.map((q) => q.id)
+  const openQuestionNoteRows = openQuestionIds.length
+    ? await db.select().from(openQuestionNotes).where(inArray(openQuestionNotes.questionId, openQuestionIds))
+    : []
+  const openQuestionGoalRows = openQuestionIds.length
+    ? await db.select().from(openQuestionGoals).where(inArray(openQuestionGoals.questionId, openQuestionIds))
+    : []
+  const openQuestionPersonRows = openQuestionIds.length
+    ? await db.select().from(openQuestionPeople).where(inArray(openQuestionPeople.questionId, openQuestionIds))
+    : []
+  const personalityRows = await db.select().from(personalityResults).where(eq(personalityResults.userId, userId))
+
   // Pull the bytes of every attachment out of the bucket and base64-encode
   // them, one at a time (each is at most an upload's 10 MB). A file whose bytes
   // are missing is skipped rather than fatal — a partial backup beats no
@@ -234,6 +254,11 @@ export async function exportAll(userId: string) {
     bucketListItemPeople: bucketListItemPeopleRows,
     selfListItems: selfListItemRows.map(stripUser),
     journalEntries: journalEntryRows.map(stripUser),
+    openQuestions: openQuestionRows.map(stripUser),
+    openQuestionNotes: openQuestionNoteRows,
+    openQuestionGoals: openQuestionGoalRows,
+    openQuestionPeople: openQuestionPersonRows,
+    personalityResults: personalityRows.map(stripUser),
     // Touched-but-unused — harmless extra context for a future v2 importer.
     // Part of the shipped payload shape, so it stays.
     _trackingItemIds: trackingItemIds,
@@ -301,6 +326,8 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       await tx.delete(selfListItems).where(eq(selfListItems.userId, userId))
       await tx.delete(personGroups).where(eq(personGroups.userId, userId))
       await tx.delete(bucketListItems).where(eq(bucketListItems.userId, userId))
+      await tx.delete(openQuestions).where(eq(openQuestions.userId, userId))
+      await tx.delete(personalityResults).where(eq(personalityResults.userId, userId))
 
       if (b.values.length) {
         await tx.insert(values).values(b.values.map((v) => ({ ...v, userId })))
@@ -447,6 +474,27 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       if (b.selfListItems.length) {
         await tx.insert(selfListItems).values(b.selfListItems.map((it) => ({ ...it, userId })))
       }
+      if (b.openQuestions.length) {
+        await tx.insert(openQuestions).values(b.openQuestions.map((q) => ({ ...q, userId })))
+      }
+      if (b.openQuestionNotes.length) await tx.insert(openQuestionNotes).values(b.openQuestionNotes)
+      // A link to a goal or a person the backup does not hold is dropped.
+      const restoredGoals = new Set(b.goals.map((g) => g.id))
+      const questionGoals = b.openQuestionGoals.filter((l) => restoredGoals.has(l.goalId))
+      if (questionGoals.length) await tx.insert(openQuestionGoals).values(questionGoals)
+      const questionPeople = b.openQuestionPeople.filter((l) => restoredPeople.has(l.personId))
+      if (questionPeople.length) await tx.insert(openQuestionPeople).values(questionPeople)
+      // Checked like any write: a result whose details do not fit its test
+      // (a hand-edited backup) fails the import rather than landing.
+      if (b.personalityResults.length) {
+        await tx.insert(personalityResults).values(
+          b.personalityResults.map((r) => {
+            const parsed = parsePersonalityResult(r)
+            if (!parsed.ok) throw new AppError('BAD_REQUEST', `Personality result ${r.id}: ${parsed.error}`)
+            return { ...r, details: parsed.result.details, userId }
+          }),
+        )
+      }
     })
   } catch (err) {
     await discardFiles(written)
@@ -485,6 +533,8 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       selfListItems: b.selfListItems.length,
       importantDates: b.importantDates.length,
       journalEntries: b.journalEntries.length,
+      openQuestions: b.openQuestions.length,
+      personalityResults: b.personalityResults.length,
       // NOTE: nextBids, bucketListItems and bucketListItemPeople are imported
       // but deliberately absent from `counts` — that's the shipped shape and
       // the UI renders whatever keys it finds. Adding them is a UI change.

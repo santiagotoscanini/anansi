@@ -1,6 +1,8 @@
 import { queryOptions } from '@tanstack/react-query'
 import { listSelfListItems } from '~/server/fn/self-list-items.fn'
 import { getSelf } from '~/server/fn/self.fn'
+import { listOpenQuestions } from '~/server/fn/open-questions.fn'
+import { listPersonalityResults } from '~/server/fn/personality.fn'
 import { qk } from './keys'
 
 /**
@@ -30,3 +32,21 @@ export const selfListItemsQueryOptions = () =>
     queryKey: qk.selfListItems,
     queryFn: ({ signal }) => listSelfListItems({ signal }),
   })
+
+/** Open questions, open first then settled, each with its notes (newest first) and link ids. */
+export const openQuestionsQueryOptions = () =>
+  queryOptions({
+    queryKey: qk.openQuestions,
+    queryFn: ({ signal }) => listOpenQuestions({ signal }),
+  })
+
+export type OpenQuestionRow = Awaited<ReturnType<typeof listOpenQuestions>>[number]
+
+/** Every personality result; the page groups them by test, newest first. */
+export const personalityResultsQueryOptions = () =>
+  queryOptions({
+    queryKey: qk.personalityResults,
+    queryFn: ({ signal }) => listPersonalityResults({ signal }),
+  })
+
+export type PersonalityResultRow = Awaited<ReturnType<typeof listPersonalityResults>>[number]

@@ -1,13 +1,15 @@
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Plus, Trash2, Edit2, Check, X, ChevronDown, ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Value } from '~/lib/api/types'
 import { useCreateValue, useDeleteValue, useUpdateValue } from '~/lib/mutations/goals-data'
 import { useCreateValueBehavior, useDeleteValueBehavior } from '~/lib/mutations/self'
+import { qk } from '~/lib/queries/keys'
 import { valueBehaviorsAllQueryOptions, valuesQueryOptions } from '~/lib/queries/values'
 import toast from 'react-hot-toast'
 import { COLOR_PALETTE as DEFAULT_COLORS } from '~/lib/color-palette'
+import { EditableProse } from './SelfParts'
 
 // Compact, click-to-expand list of the user's values. Each row collapses to
 // {color dot, name, behavior count}; expanding reveals an inline editor for
@@ -21,6 +23,7 @@ export default function ValuesManager() {
   const { data: allBehaviors } = useSuspenseQuery(valueBehaviorsAllQueryOptions())
   type Behavior = (typeof allBehaviors)[number]
 
+  const queryClient = useQueryClient()
   const addValue = useCreateValue()
   const updateValue = useUpdateValue()
   const deleteValue = useDeleteValue()
@@ -93,6 +96,17 @@ export default function ValuesManager() {
       await deleteValue.mutateAsync(id)
     } catch {
       toast.error(t('common.deleteFailed'))
+    }
+  }
+
+  const handleInterpretation = async (id: string, interpretation: string | null) => {
+    // Shown at once: the prose block reads from the cache, and waiting for the
+    // refetch would flash the old text back for a moment.
+    queryClient.setQueryData<Value[]>(qk.values, (old) => old?.map((v) => (v.id === id ? { ...v, interpretation } : v)))
+    try {
+      await updateValue.mutateAsync({ id, interpretation })
+    } catch {
+      toast.error(t('common.saveFailed'))
     }
   }
 
@@ -210,7 +224,24 @@ export default function ValuesManager() {
                       style={{ backgroundColor: value.color }}
                       aria-hidden
                     />
-                    <span className="min-w-0 flex-1 truncate text-sm">{value.name}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm">{value.name}</span>
+                      {/* Collapsed, the user's reading of the value sits right
+                          under its name: it is what the value is. */}
+                      {value.interpretation && !expanded && (
+                        <span
+                          className="mt-0.5 line-clamp-2 block text-[13px] leading-snug text-[var(--ink-3)] italic"
+                          style={{ fontFamily: 'var(--font-text)' }}
+                        >
+                          {value.interpretation}
+                        </span>
+                      )}
+                      {!value.interpretation && !expanded && (
+                        <span className="mt-0.5 block text-[11px] text-[var(--ink-4)] italic">
+                          {t('valuesManager.interpretationEmptyHint')}
+                        </span>
+                      )}
+                    </span>
                     <span className="shrink-0 text-xs text-[var(--ink-3)] tabular-nums">{behaviors.length}</span>
                   </button>
                   <div className="flex shrink-0 gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
@@ -287,6 +318,21 @@ export default function ValuesManager() {
                         )}
                       </div>
                     ) : null}
+
+                    {/* What it means to me — first, so the behaviours below
+                        read as evidence of it. */}
+                    <div>
+                      <div className="mb-1 px-1 font-mono text-[10px] tracking-[0.12em] text-[var(--ink-3)] uppercase">
+                        {t('valuesManager.interpretationLabel')}
+                      </div>
+                      <EditableProse
+                        value={value.interpretation ?? ''}
+                        onSave={(next) => void handleInterpretation(value.id, next)}
+                        placeholder={t('valuesManager.interpretationPlaceholder', { name: value.name })}
+                        rows={4}
+                        variant="story"
+                      />
+                    </div>
 
                     {/* Behaviors */}
                     <div>

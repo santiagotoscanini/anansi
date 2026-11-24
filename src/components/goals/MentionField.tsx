@@ -18,7 +18,7 @@ interface Props {
   placeholder?: string
   autoFocus?: boolean
   maxLength?: number
-  /** Enter in a single-line field, once no suggestion is being picked. */
+  /** Enter in a single-line field (Cmd/Ctrl+Enter in a multiline one), once no suggestion is being picked. */
   onEnter?: () => void
   onEscape?: () => void
   onBlur?: () => void
@@ -123,7 +123,7 @@ export default function MentionField({
         return
       }
     }
-    if (e.key === 'Enter' && !multiline && onEnter) {
+    if (e.key === 'Enter' && onEnter && (!multiline || e.metaKey || e.ctrlKey)) {
       e.preventDefault()
       onEnter()
     }

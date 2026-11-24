@@ -22,6 +22,8 @@ import { registerJournalTools } from './journal'
 import { registerConnectionsTools } from './connections'
 import { registerSystemTools } from './system'
 import { registerTickTickTools } from './ticktick'
+import { registerOpenQuestionsTools } from './open_questions'
+import { registerPersonalityTools } from './personality'
 
 // Single entry point — one call per domain. New domains add a new file and
 // a one-line registration here.
@@ -36,6 +38,8 @@ export function registerAllTools(server: McpServer, ctx: McpCtx): void {
   registerGroupsTools(server, ctx)
   registerBucketListTools(server, ctx)
   registerSelfTools(server, ctx)
+  registerOpenQuestionsTools(server, ctx)
+  registerPersonalityTools(server, ctx)
   registerTrackingItemsTools(server, ctx)
   registerSyncTemplatesTools(server, ctx)
   registerWeeklySyncTools(server, ctx)

@@ -81,4 +81,8 @@ export const qk = {
 
   self: ['self'] as const,
   selfListItems: ['self-list-items'] as const,
+  /** Open questions with their notes and link ids (the Self page). */
+  openQuestions: ['open-questions'] as const,
+  /** Personality test results, every test (the Self page). */
+  personalityResults: ['personality-results'] as const,
 } as const

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { isEmojiGlyph, isOurStorageImageUrl } from '../emoji-utils'
 import { isCalendarDay } from '../journal'
 import { overlaySchema } from '../overlay'
+import { personalityTestValues } from '../personality'
 
 // `emoji` columns accept ONE of two shapes:
 //   1. A short Unicode glyph (✨, 👨‍👩‍👧‍👦, …)
@@ -23,6 +24,8 @@ export const valueSchema = z.object({
   id: z.string(),
   name: z.string(),
   color: z.string(),
+  // What the value means to the user, in their own words. Null until written.
+  interpretation: z.string().max(5000).nullable().optional(),
 })
 
 // Behaviors that confirm a value — short evidence sentences attached per value.
@@ -519,6 +522,64 @@ export type WriteJournalEntry = z.infer<typeof writeJournalEntrySchema>
 export type ListJournalEntries = z.infer<typeof listJournalEntriesSchema>
 export type UploadJournalAttachment = z.infer<typeof uploadJournalAttachmentSchema>
 
+// ── Open questions ──────────────────────────────────────────────────────────
+// Life questions the user is living with. Thinking accumulates as dated notes;
+// settling one writes down the answer. Optional links to goals and people.
+export const openQuestionStatusValues = ['open', 'settled'] as const
+
+const openQuestionText = z.string().trim().min(1).max(500)
+const openQuestionProse = z.string().max(10_000)
+
+export const createOpenQuestionSchema = z.object({
+  question: openQuestionText,
+  context: openQuestionProse.nullable().optional(),
+  goalIds: z.array(z.string()).max(50).optional(),
+  personIds: z.array(z.string()).max(50).optional(),
+})
+
+/** A field passed replaces, a field left out stays; `goalIds`/`personIds` replace the whole set. */
+export const updateOpenQuestionSchema = z.object({
+  id: z.string(),
+  question: openQuestionText.optional(),
+  context: openQuestionProse.nullable().optional(),
+  answer: openQuestionProse.nullable().optional(),
+  goalIds: z.array(z.string()).max(50).optional(),
+  personIds: z.array(z.string()).max(50).optional(),
+})
+
+export const settleOpenQuestionSchema = z.object({
+  id: z.string(),
+  answer: z.string().trim().min(1).max(10_000),
+})
+
+export const addOpenQuestionNoteSchema = z.object({
+  questionId: z.string(),
+  content: z.string().trim().min(1).max(10_000),
+})
+
+export const updateOpenQuestionNoteSchema = z.object({
+  id: z.string(),
+  content: z.string().trim().min(1).max(10_000),
+})
+
+export type CreateOpenQuestion = z.infer<typeof createOpenQuestionSchema>
+export type UpdateOpenQuestion = z.infer<typeof updateOpenQuestionSchema>
+export type SettleOpenQuestion = z.infer<typeof settleOpenQuestionSchema>
+export type AddOpenQuestionNote = z.infer<typeof addOpenQuestionNoteSchema>
+export type UpdateOpenQuestionNote = z.infer<typeof updateOpenQuestionNoteSchema>
+
+// ── Personality results ─────────────────────────────────────────────────────
+// The per-test details union lives in ~/lib/personality (pure, shared with the
+// screens and the tests); re-exported here so callers find it with the rest.
+export { personalityTestValues }
+export {
+  personalityResultInputSchema,
+  updatePersonalityResultSchema,
+  type PersonalityResultInput,
+  type PersonalityTest,
+  type UpdatePersonalityResult,
+} from '../personality'
+
 // Data format for file operations (for compatibility)
 export const goalsDataSchema = z.object({
   version: z.string(),
@@ -538,6 +599,8 @@ export const backupValueSchema = z.object({
   id: z.string(),
   name: z.string(),
   color: z.string(),
+  // Optional so backups written before it existed still import.
+  interpretation: z.string().nullable().optional(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 })
@@ -761,6 +824,53 @@ export const backupJournalEntrySchema = z.object({
   updatedAt: z.coerce.date(),
 })
 
+export const backupOpenQuestionSchema = z.object({
+  id: z.string(),
+  question: z.string(),
+  context: z.string().nullable(),
+  status: z.enum(openQuestionStatusValues),
+  answer: z.string().nullable(),
+  settledAt: z.coerce.date().nullable(),
+  orderIdx: z.number().int(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+})
+
+export const backupOpenQuestionNoteSchema = z.object({
+  id: z.string(),
+  questionId: z.string(),
+  content: z.string(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+})
+
+export const backupOpenQuestionGoalSchema = z.object({
+  id: z.string(),
+  questionId: z.string(),
+  goalId: z.string(),
+  createdAt: z.coerce.date(),
+})
+
+export const backupOpenQuestionPersonSchema = z.object({
+  id: z.string(),
+  questionId: z.string(),
+  personId: z.string(),
+  createdAt: z.coerce.date(),
+})
+
+// `details` is checked against its test on import, like on any write.
+export const backupPersonalityResultSchema = z.object({
+  id: z.string(),
+  test: z.enum(personalityTestValues),
+  takenAt: journalDaySchema.nullable(),
+  source: z.string().nullable(),
+  summary: z.string(),
+  details: z.record(z.string(), z.unknown()),
+  notes: z.string().nullable(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+})
+
 // Files in the backup are now keyed by attachment id (not file path).
 export const backupFileSchema = z.object({
   attachmentId: z.string(),
@@ -805,6 +915,13 @@ export const backupSchema = z.object({
   // The journal joined later; a backup written before it restores no entries.
   // Who each entry mentions is not stored: the import reads it from the text.
   journalEntries: z.array(backupJournalEntrySchema).default([]),
+  // Open questions and personality results joined later still: a backup
+  // written before them restores none.
+  openQuestions: z.array(backupOpenQuestionSchema).default([]),
+  openQuestionNotes: z.array(backupOpenQuestionNoteSchema).default([]),
+  openQuestionGoals: z.array(backupOpenQuestionGoalSchema).default([]),
+  openQuestionPeople: z.array(backupOpenQuestionPersonSchema).default([]),
+  personalityResults: z.array(backupPersonalityResultSchema).default([]),
 })
 
 export type Backup = z.infer<typeof backupSchema>

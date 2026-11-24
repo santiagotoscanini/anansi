@@ -10,13 +10,20 @@ import * as values from '~/server/services/values'
 // Each value can have a list of "behaviors that confirm it" — concrete evidence
 // rows (e.g. Family → "Date night every Saturday") used during reflection.
 
+const INTERPRETATION = z
+  .string()
+  .max(5000)
+  .describe(
+    "What the value means to the user, in their own words (e.g. what 'belonging' means to them). Write it as they would, in the first person: it is what makes the value's behaviors make sense.",
+  )
+
 export function registerValuesTools(server: McpServer, ctx: McpCtx): void {
   server.registerTool(
     'list_values',
     {
       title: 'List values',
       description:
-        'All values defined by the user, with names and colors. Call before tagging goals so you have the right ids.',
+        'All values defined by the user, with names, colors and `interpretation` (what the value means to the user, in their own words, or null). Call before tagging goals so you have the right ids.',
       inputSchema: toolInput({}),
     },
     async () => {
@@ -36,6 +43,7 @@ export function registerValuesTools(server: McpServer, ctx: McpCtx): void {
       inputSchema: toolInput({
         name: z.string().min(1),
         color: z.string().min(1).describe('CSS color, typically a hex like #f97316.'),
+        interpretation: INTERPRETATION.optional(),
       }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
@@ -52,11 +60,13 @@ export function registerValuesTools(server: McpServer, ctx: McpCtx): void {
     'update_value',
     {
       title: 'Update a value',
-      description: 'Rename or recolor a value. Pass only the fields you want to change.',
+      description:
+        'Rename or recolor a value, or write what it means to the user. Pass only the fields you want to change; `interpretation: null` clears it.',
       inputSchema: toolInput({
         id: z.string(),
         name: z.string().min(1).optional(),
         color: z.string().min(1).optional(),
+        interpretation: INTERPRETATION.nullable().optional(),
       }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },

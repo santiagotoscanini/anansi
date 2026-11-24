@@ -1,6 +1,7 @@
 import { createId } from '@paralleldrive/cuid2'
 import { relations, sql } from 'drizzle-orm'
 import type { Overlay } from '../overlay'
+import type { PersonalityDetails, PersonalityTest } from '../personality'
 import {
   boolean,
   date,
@@ -37,6 +38,7 @@ export const selfListKindEnum = pgEnum('self_list_kind', [
   'release',
   'year_ahead',
 ])
+export const openQuestionStatusEnum = pgEnum('open_question_status', ['open', 'settled'])
 export const selfPatternCategoryEnum = pgEnum('self_pattern_category', [
   'relational',
   'self_pattern',
@@ -178,6 +180,10 @@ export const values = pgTable('values', {
     .$defaultFn(() => createId()),
   name: text('name').notNull(),
   color: text('color').notNull(),
+  // The user's own reading of the value: what "belonging" means to them, in
+  // their words. The behaviours are evidence of it, so this is what makes them
+  // make sense. Null until written.
+  interpretation: text('interpretation'),
   userId: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
@@ -742,6 +748,105 @@ export const selfListItems = pgTable(
     ...timestamps,
   },
   (t) => [index('self_list_items_user_kind_idx').on(t.userId, t.kind)],
+)
+
+// Open questions: the life questions the user is living with ("Why do I want
+// to be a founder?"). Thinking about one accumulates as dated notes; when it
+// settles, the answer is written down and the question keeps its history.
+// Optional links to the goals and people it touches.
+export const openQuestions = pgTable(
+  'open_questions',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    question: text('question').notNull(),
+    // Why it matters now.
+    context: text('context'),
+    status: openQuestionStatusEnum('status').notNull().default('open'),
+    answer: text('answer'),
+    settledAt: timestamp('settled_at'),
+    orderIdx: integer('order_idx').notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [index('open_questions_user_idx').on(t.userId)],
+)
+
+export const openQuestionNotes = pgTable(
+  'open_question_notes',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    questionId: text('question_id')
+      .notNull()
+      .references(() => openQuestions.id, { onDelete: 'cascade' }),
+    content: text('content').notNull(),
+    ...timestamps,
+  },
+  (t) => [index('open_question_notes_question_idx').on(t.questionId)],
+)
+
+export const openQuestionGoals = pgTable(
+  'open_question_goals',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    questionId: text('question_id')
+      .notNull()
+      .references(() => openQuestions.id, { onDelete: 'cascade' }),
+    goalId: text('goal_id')
+      .notNull()
+      .references(() => goals.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('open_question_goals_pair_unique').on(t.questionId, t.goalId)],
+)
+
+export const openQuestionPeople = pgTable(
+  'open_question_people',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    questionId: text('question_id')
+      .notNull()
+      .references(() => openQuestions.id, { onDelete: 'cascade' }),
+    personId: text('person_id')
+      .notNull()
+      .references(() => people.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('open_question_people_pair_unique').on(t.questionId, t.personId)],
+)
+
+// Personality test results (MBTI, Enneagram, Big Five, …), mostly recorded by
+// Claude from a PDF or a screenshot. Several per test are allowed: a retake is
+// a new row, and the newest is the one shown. `test` is one of
+// `personalityTestValues` and `details` is that test's structured scores, both
+// checked by the zod union in ~/lib/personality, not by the database.
+export const personalityResults = pgTable(
+  'personality_results',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    test: text('test').$type<PersonalityTest>().notNull(),
+    takenAt: date('taken_at', { mode: 'string' }),
+    source: text('source'),
+    summary: text('summary').notNull(),
+    details: jsonb('details').$type<PersonalityDetails>().notNull(),
+    notes: text('notes'),
+    ...timestamps,
+  },
+  (t) => [index('personality_results_user_idx').on(t.userId)],
 )
 
 // MCP OAuth tables — Anansi acts as its own OAuth 2.1 Authorization Server for

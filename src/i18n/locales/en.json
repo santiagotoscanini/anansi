@@ -446,7 +446,10 @@
     "removeBehavior": "Remove behavior",
     "addBehaviorFailed": "Failed to add behavior",
     "deleteBehaviorFailed": "Failed to delete",
-    "noValuesYet": "No values yet. Add your first one above."
+    "noValuesYet": "No values yet. Add your first one above.",
+    "interpretationLabel": "What it means to me",
+    "interpretationPlaceholder": "What does {{name}} mean to you? Write it in your own words.",
+    "interpretationEmptyHint": "not written yet"
   },
   "bucketList": {
     "markDone": "Mark as done",
@@ -1391,5 +1394,199 @@
     "label": "View",
     "board": "Board",
     "list": "List"
+  },
+  "openQuestions": {
+    "eyebrow": "Open questions",
+    "title": "Questions I'm living with",
+    "helper": "The big ones you don't have to answer yet. Come back to them, write down where your thinking is, and settle them when you know.",
+    "addPlaceholder": "Why do I want…",
+    "empty": "No questions yet. What are you turning over?",
+    "settledHeading_one": "Settled · {{count}}",
+    "settledHeading_other": "Settled · {{count}}",
+    "expand": "Open question",
+    "collapse": "Close question",
+    "openSince": "open since {{date}}",
+    "settledOn": "settled {{date}}",
+    "noteCount_one": "{{count}} note",
+    "noteCount_other": "{{count}} notes",
+    "lastThought": "last thought {{date}}",
+    "editQuestion": "Reword the question",
+    "delete": "Delete question",
+    "confirmDelete": "Delete this question and all its notes? Settling keeps it.",
+    "contextLabel": "Why it matters now",
+    "contextPlaceholder": "What makes this question alive right now?",
+    "answerLabel": "Where I landed",
+    "answerPlaceholder": "The answer, in your own words.",
+    "linksLabel": "Touches",
+    "link": "Link",
+    "doneLinking": "Done",
+    "noLinks": "No goals or people linked.",
+    "goalsLabel": "Goals",
+    "peopleLabel": "People",
+    "noGoals": "No goals yet.",
+    "noPeople": "No people yet.",
+    "notesLabel": "Thinking over time",
+    "notePlaceholder": "Where is your thinking today?",
+    "noteHint": "@ names a person · Ctrl+Enter adds",
+    "addNote": "Add note",
+    "editNote": "Edit note",
+    "deleteNote": "Delete note",
+    "confirmDeleteNote": "Delete this note?",
+    "settle": "I have an answer",
+    "settleConfirm": "Settle it",
+    "reopen": "Reopen"
+  },
+  "personality": {
+    "eyebrow": "Personality",
+    "title": "How the tests read me",
+    "helper": "Results from personality tests, added here or by Claude from a report. A lens to think with, not a verdict.",
+    "empty": "No results yet. Share a report with Claude, or add one by hand.",
+    "addResult": "Add a result",
+    "addMine": "Add mine",
+    "notTakenHeading": "Not taken yet",
+    "takeItFree": "Take it free",
+    "history_one": "History · {{count}} earlier result",
+    "history_other": "History · {{count}} earlier results",
+    "edit": "Edit result",
+    "delete": "Delete result",
+    "confirmDelete": "Delete this result?",
+    "tests": {
+      "mbti": {
+        "name": "MBTI-style type",
+        "measures": "Where you get energy, how you take in information, decide and organise: four preferences, sixteen types."
+      },
+      "enneagram": {
+        "name": "Enneagram",
+        "measures": "The core motivation and fear underneath your habits, as one of nine types."
+      },
+      "big_five": {
+        "name": "Big Five",
+        "measures": "Five broad traits on a continuum, the model research psychology relies on most."
+      },
+      "clifton_strengths": {
+        "name": "CliftonStrengths",
+        "measures": "Your talents ranked: where you naturally put your energy at work."
+      },
+      "via_strengths": {
+        "name": "VIA Character Strengths",
+        "measures": "Twenty-four character strengths, ranked by how much they are you."
+      },
+      "attachment_style": {
+        "name": "Attachment style",
+        "measures": "How you seek closeness and handle distance in relationships: anxiety and avoidance."
+      },
+      "love_languages": {
+        "name": "Love languages",
+        "measures": "How you most feel cared for, out of five ways of showing love."
+      },
+      "disc": {
+        "name": "DISC",
+        "measures": "Your behavioural style at work: Dominance, Influence, Steadiness, Conscientiousness."
+      },
+      "other": {
+        "name": "Other test",
+        "measures": "Any other test you want to keep."
+      }
+    },
+    "bigFive": {
+      "openness": "Openness",
+      "conscientiousness": "Conscientiousness",
+      "extraversion": "Extraversion",
+      "agreeableness": "Agreeableness",
+      "neuroticism": "Neuroticism",
+      "facets_one": "{{count}} facet",
+      "facets_other": "{{count}} facets"
+    },
+    "mbti": {
+      "letterE": "Extraverted",
+      "letterI": "Introverted",
+      "letterS": "Observant",
+      "letterN": "Intuitive",
+      "letterT": "Thinking",
+      "letterF": "Feeling",
+      "letterJ": "Judging",
+      "letterP": "Perceiving",
+      "identityA": "Assertive",
+      "identityT": "Turbulent",
+      "pole": {
+        "eiL": "Extraverted",
+        "eiR": "Introverted",
+        "snL": "Observant",
+        "snR": "Intuitive",
+        "tfL": "Thinking",
+        "tfR": "Feeling",
+        "jpL": "Judging",
+        "jpR": "Perceiving",
+        "atL": "Assertive",
+        "atR": "Turbulent"
+      }
+    },
+    "enneagram": {
+      "type1": "Reformer",
+      "type2": "Helper",
+      "type3": "Achiever",
+      "type4": "Individualist",
+      "type5": "Investigator",
+      "type6": "Loyalist",
+      "type7": "Enthusiast",
+      "type8": "Challenger",
+      "type9": "Peacemaker",
+      "tritype": "tritype {{value}}",
+      "instinct": {
+        "sp": "Self-preservation",
+        "so": "Social",
+        "sx": "One-to-one"
+      }
+    },
+    "love": {
+      "words": "Words of affirmation",
+      "acts": "Acts of service",
+      "gifts": "Receiving gifts",
+      "time": "Quality time",
+      "touch": "Physical touch"
+    },
+    "attachment": {
+      "secure": "Secure",
+      "anxious": "Anxious",
+      "avoidant": "Avoidant",
+      "fearful_avoidant": "Fearful",
+      "anxiety": "Anxiety",
+      "avoidance": "Avoidance",
+      "axisHint": "up: anxiety · right: avoidance",
+      "planeAria": "Anxiety {{anxiety}}, avoidance {{avoidance}}"
+    },
+    "disc": {
+      "D": "Dominance",
+      "I": "Influence",
+      "S": "Steadiness",
+      "C": "Conscientiousness"
+    },
+    "form": {
+      "test": "Test",
+      "takenAt": "Taken on",
+      "summary": "Headline result",
+      "summaryPlaceholder": "Secure, Quality time…",
+      "summaryRequired": "Write the headline result.",
+      "source": "Source",
+      "sourcePlaceholder": "16Personalities, Truity…",
+      "notes": "What it means to me",
+      "notesPlaceholder": "What rings true, what does not.",
+      "mbtiType": "Type",
+      "identity": "Identity",
+      "axis": "{{left}} / {{right}}",
+      "axisPlaceholder": "% {{left}}",
+      "enneagramType": "Type",
+      "wing": "Wing",
+      "tritype": "Tritype",
+      "instinct": "Instinct",
+      "strengths": "Strengths, one per line, in order",
+      "strengthsPlaceholder": "Learner (Strategic Thinking)\nAchiever\n…",
+      "loveScore": "score",
+      "style": "Style",
+      "primary": "Primary",
+      "secondary": "Secondary",
+      "otherFields": "Results, one per line",
+      "otherPlaceholder": "Type: Architect\nScore: 42"
+    }
   }
 }

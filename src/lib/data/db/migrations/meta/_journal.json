@@ -64,6 +64,13 @@
       "when": 1795486952638,
       "tag": "0008_weeks_start_sunday",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795498700260,
+      "tag": "0009_self_knowledge",
+      "breakpoints": true
     }
   ]
 }

@@ -446,7 +446,10 @@
     "removeBehavior": "Quitar comportamiento",
     "addBehaviorFailed": "No se pudo agregar el comportamiento",
     "deleteBehaviorFailed": "No se pudo eliminar",
-    "noValuesYet": "Sin valores todavía. Agregá el primero arriba."
+    "noValuesYet": "Sin valores todavía. Agregá el primero arriba.",
+    "interpretationLabel": "Qué significa para mí",
+    "interpretationPlaceholder": "¿Qué significa {{name}} para vos? Escribilo con tus palabras.",
+    "interpretationEmptyHint": "sin escribir"
   },
   "bucketList": {
     "markDone": "Marcar como hecho",
@@ -1391,5 +1394,199 @@
     "label": "Vista",
     "board": "Tablero",
     "list": "Lista"
+  },
+  "openQuestions": {
+    "eyebrow": "Preguntas abiertas",
+    "title": "Preguntas que estoy viviendo",
+    "helper": "Las grandes, las que todavía no tenés que responder. Volvé a ellas, anotá por dónde va tu pensamiento y cerralas cuando sepas.",
+    "addPlaceholder": "¿Por qué quiero…",
+    "empty": "Todavía no hay preguntas. ¿Qué estás dando vueltas?",
+    "settledHeading_one": "Resueltas · {{count}}",
+    "settledHeading_other": "Resueltas · {{count}}",
+    "expand": "Abrir pregunta",
+    "collapse": "Cerrar pregunta",
+    "openSince": "abierta desde {{date}}",
+    "settledOn": "resuelta {{date}}",
+    "noteCount_one": "{{count}} nota",
+    "noteCount_other": "{{count}} notas",
+    "lastThought": "última nota {{date}}",
+    "editQuestion": "Reformular la pregunta",
+    "delete": "Eliminar pregunta",
+    "confirmDelete": "¿Eliminar esta pregunta y todas sus notas? Si la resolvés, queda guardada.",
+    "contextLabel": "Por qué importa ahora",
+    "contextPlaceholder": "¿Qué hace que esta pregunta esté viva ahora?",
+    "answerLabel": "Adónde llegué",
+    "answerPlaceholder": "La respuesta, con tus palabras.",
+    "linksLabel": "Toca",
+    "link": "Vincular",
+    "doneLinking": "Listo",
+    "noLinks": "Sin metas ni personas vinculadas.",
+    "goalsLabel": "Metas",
+    "peopleLabel": "Personas",
+    "noGoals": "Todavía no hay metas.",
+    "noPeople": "Todavía no hay personas.",
+    "notesLabel": "Lo que fui pensando",
+    "notePlaceholder": "¿Por dónde va tu pensamiento hoy?",
+    "noteHint": "@ nombra a una persona · Ctrl+Enter agrega",
+    "addNote": "Agregar nota",
+    "editNote": "Editar nota",
+    "deleteNote": "Eliminar nota",
+    "confirmDeleteNote": "¿Eliminar esta nota?",
+    "settle": "Tengo una respuesta",
+    "settleConfirm": "Resolverla",
+    "reopen": "Reabrir"
+  },
+  "personality": {
+    "eyebrow": "Personalidad",
+    "title": "Cómo me leen los tests",
+    "helper": "Resultados de tests de personalidad, cargados acá o por Claude a partir de un informe. Una lente para pensar, no un veredicto.",
+    "empty": "Todavía no hay resultados. Compartile un informe a Claude o cargá uno a mano.",
+    "addResult": "Agregar un resultado",
+    "addMine": "Cargar el mío",
+    "notTakenHeading": "Todavía sin hacer",
+    "takeItFree": "Hacerlo gratis",
+    "history_one": "Historial · {{count}} resultado anterior",
+    "history_other": "Historial · {{count}} resultados anteriores",
+    "edit": "Editar resultado",
+    "delete": "Eliminar resultado",
+    "confirmDelete": "¿Eliminar este resultado?",
+    "tests": {
+      "mbti": {
+        "name": "Tipo estilo MBTI",
+        "measures": "De dónde sacás energía, cómo percibís, decidís y te organizás: cuatro preferencias, dieciséis tipos."
+      },
+      "enneagram": {
+        "name": "Eneagrama",
+        "measures": "La motivación y el miedo de fondo detrás de tus hábitos, como uno de nueve tipos."
+      },
+      "big_five": {
+        "name": "Big Five",
+        "measures": "Cinco rasgos amplios en un continuo, el modelo en el que más se apoya la psicología académica."
+      },
+      "clifton_strengths": {
+        "name": "CliftonStrengths",
+        "measures": "Tus talentos en orden: dónde ponés tu energía naturalmente en el trabajo."
+      },
+      "via_strengths": {
+        "name": "Fortalezas de carácter VIA",
+        "measures": "Veinticuatro fortalezas de carácter, ordenadas por cuánto son vos."
+      },
+      "attachment_style": {
+        "name": "Estilo de apego",
+        "measures": "Cómo buscás cercanía y manejás la distancia en tus vínculos: ansiedad y evitación."
+      },
+      "love_languages": {
+        "name": "Lenguajes del amor",
+        "measures": "Cómo te sentís más querido, entre cinco formas de mostrar amor."
+      },
+      "disc": {
+        "name": "DISC",
+        "measures": "Tu estilo de conducta en el trabajo: Dominancia, Influencia, Estabilidad, Cumplimiento."
+      },
+      "other": {
+        "name": "Otro test",
+        "measures": "Cualquier otro test que quieras guardar."
+      }
+    },
+    "bigFive": {
+      "openness": "Apertura",
+      "conscientiousness": "Responsabilidad",
+      "extraversion": "Extraversión",
+      "agreeableness": "Amabilidad",
+      "neuroticism": "Neuroticismo",
+      "facets_one": "{{count}} faceta",
+      "facets_other": "{{count}} facetas"
+    },
+    "mbti": {
+      "letterE": "Extravertido",
+      "letterI": "Introvertido",
+      "letterS": "Observador",
+      "letterN": "Intuitivo",
+      "letterT": "Racional",
+      "letterF": "Emocional",
+      "letterJ": "Calificador",
+      "letterP": "Perceptivo",
+      "identityA": "Seguro",
+      "identityT": "Cauteloso",
+      "pole": {
+        "eiL": "Extravertido",
+        "eiR": "Introvertido",
+        "snL": "Observador",
+        "snR": "Intuitivo",
+        "tfL": "Racional",
+        "tfR": "Emocional",
+        "jpL": "Calificador",
+        "jpR": "Perceptivo",
+        "atL": "Seguro",
+        "atR": "Cauteloso"
+      }
+    },
+    "enneagram": {
+      "type1": "Reformador",
+      "type2": "Ayudador",
+      "type3": "Triunfador",
+      "type4": "Individualista",
+      "type5": "Investigador",
+      "type6": "Leal",
+      "type7": "Entusiasta",
+      "type8": "Desafiador",
+      "type9": "Pacificador",
+      "tritype": "tritipo {{value}}",
+      "instinct": {
+        "sp": "Autoconservación",
+        "so": "Social",
+        "sx": "Uno a uno"
+      }
+    },
+    "love": {
+      "words": "Palabras de afirmación",
+      "acts": "Actos de servicio",
+      "gifts": "Regalos",
+      "time": "Tiempo de calidad",
+      "touch": "Contacto físico"
+    },
+    "attachment": {
+      "secure": "Seguro",
+      "anxious": "Ansioso",
+      "avoidant": "Evitativo",
+      "fearful_avoidant": "Temeroso",
+      "anxiety": "Ansiedad",
+      "avoidance": "Evitación",
+      "axisHint": "arriba: ansiedad · derecha: evitación",
+      "planeAria": "Ansiedad {{anxiety}}, evitación {{avoidance}}"
+    },
+    "disc": {
+      "D": "Dominancia",
+      "I": "Influencia",
+      "S": "Estabilidad",
+      "C": "Cumplimiento"
+    },
+    "form": {
+      "test": "Test",
+      "takenAt": "Fecha",
+      "summary": "Resultado principal",
+      "summaryPlaceholder": "Seguro, Tiempo de calidad…",
+      "summaryRequired": "Escribí el resultado principal.",
+      "source": "Fuente",
+      "sourcePlaceholder": "16Personalities, Truity…",
+      "notes": "Qué significa para mí",
+      "notesPlaceholder": "Qué me resuena y qué no.",
+      "mbtiType": "Tipo",
+      "identity": "Identidad",
+      "axis": "{{left}} / {{right}}",
+      "axisPlaceholder": "% {{left}}",
+      "enneagramType": "Tipo",
+      "wing": "Ala",
+      "tritype": "Tritipo",
+      "instinct": "Instinto",
+      "strengths": "Fortalezas, una por línea, en orden",
+      "strengthsPlaceholder": "Aprendedor (Pensamiento estratégico)\nTriunfador\n…",
+      "loveScore": "puntaje",
+      "style": "Estilo",
+      "primary": "Principal",
+      "secondary": "Secundario",
+      "otherFields": "Resultados, uno por línea",
+      "otherPlaceholder": "Tipo: Arquitecto\nPuntaje: 42"
+    }
   }
 }

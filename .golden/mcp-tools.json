@@ -2,6 +2,38 @@
   {
     "annotations": {
       "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Record a dated thought on a question: what the user said or realised today, in their words. Notes are the question's history, so add one rather than rewriting an old one. Name a person as `@[Name](person:<id>)` with an id from `list_people`, or as `@[Name]` when exactly one person has that name. A mention is what makes the text show up under that person (`list_person_mentions`); a name that matches nobody is refused, not guessed.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "maxLength": 10000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "questionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "questionId",
+        "content"
+      ],
+      "type": "object"
+    },
+    "name": "add_open_question_note",
+    "title": "Add a note to an open question"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false
     },
@@ -422,6 +454,52 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
+    "description": "Start a question the user is living with. Phrase `question` the way they would ask it themselves. `context` is why it matters now, in a sentence or two.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "context": {
+          "maxLength": 10000,
+          "type": "string"
+        },
+        "goalIds": {
+          "description": "Ids of the goals this question touches (from `list_goals`). Replaces the whole set.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "personIds": {
+          "description": "Ids of the people this question touches (from `list_people`). Replaces the whole set.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "question": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "question"
+      ],
+      "type": "object"
+    },
+    "name": "create_open_question",
+    "title": "Create an open question"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
     "description": "Add someone to the CRM. `category` is required: to_process (newly captured), exploring (decision pending), long_term (committed), or context_bound (situational ties like coworkers).",
     "execution": {
       "taskSupport": "forbidden"
@@ -734,6 +812,11 @@
           "minLength": 1,
           "type": "string"
         },
+        "interpretation": {
+          "description": "What the value means to the user, in their own words (e.g. what 'belonging' means to them). Write it as they would, in the first person: it is what makes the value's behaviors make sense.",
+          "maxLength": 5000,
+          "type": "string"
+        },
         "name": {
           "minLength": 1,
           "type": "string"
@@ -996,6 +1079,58 @@
       "idempotentHint": true,
       "openWorldHint": false
     },
+    "description": "Delete a question with all its notes, for good. Prefer settling a question the user has answered. Confirm with the user.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_open_question",
+    "title": "Delete an open question"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Remove one note for good. Confirm with the user.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_open_question_note",
+    "title": "Delete a note from an open question"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
     "description": "Hard-delete a person and what hangs off them: their bids, dates and links. Only for entries made by mistake. To stop tracking someone, use `archive_person`, which can be undone.",
     "execution": {
       "taskSupport": "forbidden"
@@ -1015,6 +1150,32 @@
     },
     "name": "delete_person",
     "title": "Delete a person"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Remove one result for good. Confirm with the user.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_personality_result",
+    "title": "Delete a personality result"
   },
   {
     "annotations": {
@@ -1544,6 +1705,29 @@
     "title": "List next bids for a person"
   },
   {
+    "description": "The life questions the user is living with: open ones first, then settled ones (with their `answer`). Each carries `context` (why it matters now), its `notes` (dated thinking, newest first), and the `goalIds` / `personIds` it links. Read this before talking a question through, so you build on what the user already thought.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "description": "Only open or only settled questions.",
+          "enum": [
+            "open",
+            "settled"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_open_questions",
+    "title": "List open questions"
+  },
+  {
     "description": "Directory of every person the user tracks, with their categories and group memberships.",
     "execution": {
       "taskSupport": "forbidden"
@@ -1625,6 +1809,36 @@
     },
     "name": "list_person_tasks",
     "title": "Tasks I'm relying on this person for"
+  },
+  {
+    "description": "The user's personality test results (MBTI, Enneagram, Big Five, CliftonStrengths, VIA, attachment style, love languages, DISC, other), newest first. A test can have several results: retakes over time.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "test": {
+          "description": "Only this test.",
+          "enum": [
+            "mbti",
+            "enneagram",
+            "big_five",
+            "clifton_strengths",
+            "via_strengths",
+            "attachment_style",
+            "love_languages",
+            "disc",
+            "other"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_personality_results",
+    "title": "List personality results"
   },
   {
     "description": "Return every list-shaped Self item across all kinds (energizer, drainer, just_for_me, proud, pattern, trigger, release, year_ahead). Group client-side by `kind`.",
@@ -1713,7 +1927,7 @@
     "title": "List behaviors for a value"
   },
   {
-    "description": "All values defined by the user, with names and colors. Call before tagging goals so you have the right ids.",
+    "description": "All values defined by the user, with names, colors and `interpretation` (what the value means to the user, in their own words, or null). Call before tagging goals so you have the right ids.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -1724,6 +1938,74 @@
     },
     "name": "list_values",
     "title": "List values"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Save one test result, typically read from a PDF, screenshot or text the user shared. A retake is a new result (call this again), not an update. Copy numbers exactly as the report gives them and invent none; when the report has no score for something, leave it out.\n\nShape of `details` for each `test` (scores are numbers 0-100: percentiles or percentages as the report gives them; leave out what the report does not have):\n- big_five: { openness, conscientiousness, extraversion, agreeableness, neuroticism (all required), facets?: [{ trait: one of the five, name, score }] }\n- mbti: { type: four letters like \"INFJ\", identity?: \"A\" | \"T\", axes?: { ei?, sn?, tf?, jp?, at? } } where each axis is the percent toward its FIRST letter (E, S, T, J, Assertive): \"62% Introverted\" is ei: 38.\n- enneagram: { type: 1-9, wing?: a type next to it (4 -> 3 or 5, 9 -> 8 or 1), tritype?: \"459\", instinct?: \"sp\" | \"so\" | \"sx\", scores?: [{ type: 1-9, score }] }\n- clifton_strengths: { strengths: [{ name, domain? }] } in rank order, up to 34 (domain: Executing, Influencing, Relationship Building, Strategic Thinking)\n- via_strengths: { strengths: [{ name, domain? }] } in rank order, up to 24 (domain: the virtue, e.g. Wisdom)\n- attachment_style: { style: \"secure\" | \"anxious\" | \"avoidant\" | \"fearful_avoidant\", anxiety?, avoidance?, scores?: [{ style, score }] }\n- love_languages: { ranking: [{ language: \"words\" | \"acts\" | \"gifts\" | \"time\" | \"touch\", score? }] } highest first; score is the raw number the quiz gave\n- disc: { primary: \"D\" | \"I\" | \"S\" | \"C\", secondary?, scores?: { D?, I?, S?, C? } }\n- other: { fields: [{ label, value }] } for any other test; name the test in `source` and `summary`.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "details": {
+          "additionalProperties": {},
+          "description": "The structured scores; shape depends on `test`, see above.",
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "notes": {
+          "description": "What the result means to the user, in their words. Only if they said.",
+          "maxLength": 10000,
+          "type": "string"
+        },
+        "source": {
+          "description": "Who ran the test, e.g. \"16Personalities\", \"Truity\", \"Gallup\".",
+          "maxLength": 200,
+          "type": "string"
+        },
+        "summary": {
+          "description": "The headline result as the user would say it: \"INFJ-T\", \"4w5 sp\", \"Secure\", \"Achiever, Learner, …\".",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "takenAt": {
+          "description": "The day the test was taken, YYYY-MM-DD, if the report says. Not today by default.",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+          "type": "string"
+        },
+        "test": {
+          "enum": [
+            "mbti",
+            "enneagram",
+            "big_five",
+            "clifton_strengths",
+            "via_strengths",
+            "attachment_style",
+            "love_languages",
+            "disc",
+            "other"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "test",
+        "details",
+        "summary"
+      ],
+      "type": "object"
+    },
+    "name": "record_personality_result",
+    "title": "Record a personality result"
   },
   {
     "annotations": {
@@ -1768,6 +2050,32 @@
     },
     "name": "remove_sync_item",
     "title": "Remove an item from a sync"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Open a settled question again. Its answer stays, as what the user once thought.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "reopen_open_question",
+    "title": "Reopen a settled question"
   },
   {
     "annotations": {
@@ -2139,6 +2447,38 @@
     "annotations": {
       "destructiveHint": false,
       "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Mark a question settled and write down the answer the user arrived at, in their words. The notes stay as the path that led there. Only when the user says they have an answer.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "answer": {
+          "maxLength": 10000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "answer"
+      ],
+      "type": "object"
+    },
+    "name": "settle_open_question",
+    "title": "Settle an open question"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
       "openWorldHint": true
     },
     "description": "Run the two-way TickTick sync now instead of waiting for the next one, e.g. right after the user says they changed something in TickTick. Answers how many changes went each way and the status after it.",
@@ -2493,6 +2833,105 @@
   {
     "annotations": {
       "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Reword a question, change its context or answer, or relink it. Pass only what changes; null clears `context` or `answer`. To settle it use `settle_open_question`; to add thinking use `add_open_question_note`.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "answer": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "context": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "goalIds": {
+          "description": "Ids of the goals this question touches (from `list_goals`). Replaces the whole set.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "personIds": {
+          "description": "Ids of the people this question touches (from `list_people`). Replaces the whole set.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "question": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_open_question",
+    "title": "Update an open question"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Replace the text of one note (to fix it, not to add new thinking: use `add_open_question_note` for that). Name a person as `@[Name](person:<id>)` with an id from `list_people`, or as `@[Name]` when exactly one person has that name. A mention is what makes the text show up under that person (`list_person_mentions`); a name that matches nobody is refused, not guessed.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "maxLength": 10000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "content"
+      ],
+      "type": "object"
+    },
+    "name": "update_open_question_note",
+    "title": "Edit a note on an open question"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
       "idempotentHint": false,
       "openWorldHint": false
     },
@@ -2594,6 +3033,93 @@
     },
     "name": "update_person",
     "title": "Update a person"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Correct a recorded result. Pass only what changes; null clears `takenAt`, `source` or `notes`. `details` replaces the whole details object, and changing `test` needs `details` that fit the new test.\n\nShape of `details` for each `test` (scores are numbers 0-100: percentiles or percentages as the report gives them; leave out what the report does not have):\n- big_five: { openness, conscientiousness, extraversion, agreeableness, neuroticism (all required), facets?: [{ trait: one of the five, name, score }] }\n- mbti: { type: four letters like \"INFJ\", identity?: \"A\" | \"T\", axes?: { ei?, sn?, tf?, jp?, at? } } where each axis is the percent toward its FIRST letter (E, S, T, J, Assertive): \"62% Introverted\" is ei: 38.\n- enneagram: { type: 1-9, wing?: a type next to it (4 -> 3 or 5, 9 -> 8 or 1), tritype?: \"459\", instinct?: \"sp\" | \"so\" | \"sx\", scores?: [{ type: 1-9, score }] }\n- clifton_strengths: { strengths: [{ name, domain? }] } in rank order, up to 34 (domain: Executing, Influencing, Relationship Building, Strategic Thinking)\n- via_strengths: { strengths: [{ name, domain? }] } in rank order, up to 24 (domain: the virtue, e.g. Wisdom)\n- attachment_style: { style: \"secure\" | \"anxious\" | \"avoidant\" | \"fearful_avoidant\", anxiety?, avoidance?, scores?: [{ style, score }] }\n- love_languages: { ranking: [{ language: \"words\" | \"acts\" | \"gifts\" | \"time\" | \"touch\", score? }] } highest first; score is the raw number the quiz gave\n- disc: { primary: \"D\" | \"I\" | \"S\" | \"C\", secondary?, scores?: { D?, I?, S?, C? } }\n- other: { fields: [{ label, value }] } for any other test; name the test in `source` and `summary`.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "details": {
+          "additionalProperties": {},
+          "description": "The structured scores; shape depends on `test`, see above.",
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "id": {
+          "type": "string"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "summary": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "takenAt": {
+          "anyOf": [
+            {
+              "description": "A day in the user's own time zone, YYYY-MM-DD. Usually today.",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "test": {
+          "enum": [
+            "mbti",
+            "enneagram",
+            "big_five",
+            "clifton_strengths",
+            "via_strengths",
+            "attachment_style",
+            "love_languages",
+            "disc",
+            "other"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_personality_result",
+    "title": "Update a personality result"
   },
   {
     "annotations": {
@@ -2988,7 +3514,7 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
-    "description": "Rename or recolor a value. Pass only the fields you want to change.",
+    "description": "Rename or recolor a value, or write what it means to the user. Pass only the fields you want to change; `interpretation: null` clears it.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -3002,6 +3528,18 @@
         },
         "id": {
           "type": "string"
+        },
+        "interpretation": {
+          "anyOf": [
+            {
+              "description": "What the value means to the user, in their own words (e.g. what 'belonging' means to them). Write it as they would, in the first person: it is what makes the value's behaviors make sense.",
+              "maxLength": 5000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "name": {
           "minLength": 1,

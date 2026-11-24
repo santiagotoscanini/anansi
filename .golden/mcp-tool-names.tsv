@@ -35,6 +35,15 @@ next_bids	list_next_bids
 next_bids	list_upcoming_next_bids
 next_bids	set_next_bid_done
 next_bids	update_next_bid
+open_questions	add_open_question_note
+open_questions	create_open_question
+open_questions	delete_open_question
+open_questions	delete_open_question_note
+open_questions	list_open_questions
+open_questions	reopen_open_question
+open_questions	settle_open_question
+open_questions	update_open_question
+open_questions	update_open_question_note
 people	archive_person
 people	create_person
 people	delete_person
@@ -47,6 +56,10 @@ people	set_person_category
 people	set_person_photo
 people	unarchive_person
 people	update_person
+personality	delete_personality_result
+personality	list_personality_results
+personality	record_personality_result
+personality	update_personality_result
 self	create_self_item
 self	delete_self_item
 self	get_self

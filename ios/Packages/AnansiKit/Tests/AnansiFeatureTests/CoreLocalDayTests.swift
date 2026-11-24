@@ -39,7 +39,7 @@ struct CoreLocalDayTests {
         montevideo.timeZone = try #require(TimeZone(identifier: "America/Montevideo"))
         let local = LocalDay(date: instant, calendar: montevideo)
         #expect(local == LocalDay(year: 2026, month: 11, day: 1))
-        #expect(local.weekStart == LocalDay(year: 2026, month: 10, day: 26))
+        #expect(local.weekStart == LocalDay(year: 2026, month: 11, day: 1)) // a Sunday opens its own week
     }
 
     @Test func orders() {

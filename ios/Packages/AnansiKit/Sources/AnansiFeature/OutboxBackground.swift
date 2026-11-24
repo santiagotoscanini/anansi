@@ -34,11 +34,12 @@ enum OutboxBackground {
     static func schedule() {
         let refresh = BGAppRefreshTaskRequest(identifier: refreshId)
         refresh.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
-        try? BGTaskScheduler.shared.submit(refresh)
+        // The answer only says whether the system took it; nothing to do either way.
+        BGTaskScheduler.shared.submitTaskRequest(refresh) { @Sendable _ in }
         let processing = BGProcessingTaskRequest(identifier: processingId)
         processing.requiresNetworkConnectivity = true
         processing.requiresExternalPower = false
-        try? BGTaskScheduler.shared.submit(processing)
+        BGTaskScheduler.shared.submitTaskRequest(processing) { @Sendable _ in }
     }
 
     /// Sends until the queue is empty or the system says stop, then asks again if anything is left.

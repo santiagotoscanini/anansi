@@ -211,7 +211,8 @@ nonisolated final class HealthReader: @unchecked Sendable {
                 minutes: Int((workout.duration / 60).rounded()),
                 energyKcal: energy.map { Int($0.doubleValue(for: .kilocalorie()).rounded()) }
             )
-            out[day]?.workouts = (out[day]?.workouts ?? []) + [entry]
+            let earlier = out[day]?.workouts ?? []
+            out[day]?.workouts = earlier + [entry]
         }
 
         return days.compactMap { out[$0] }

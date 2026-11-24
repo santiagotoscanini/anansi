@@ -161,14 +161,15 @@ privacy.tsx  terms.tsx                      register.tsx  /register  { next? }
 
 app.tsx             /app LAYOUT — beforeLoad auth guard, { modal?: 'profile'|'import', ticktick?: 'connected'|'denied'|'failed' }
 app.index.tsx       /app { goal? } renders the graph directly (NOT a redirect to /app/objectives)
-app.objectives.tsx { goal? }      app.horizons.tsx { task?, goal? }
-app.tasks.tsx      { task?, goal? }  app.sync.tsx { week? }
+app.objectives.tsx { goal? }      app.sync.tsx { week? }
+app.tasks.tsx      { task?, goal?, view?: 'list' }  (board by default = Horizons; list = the flat list)
 app.journal.tsx    { day? }  (absent = today, resolved in the browser)
-app.people.tsx     { filter?, groupId?, person? }   app.bucket.tsx { item? }
+app.people.tsx     { filter?, groupId?, person?, view?: 'board' }   app.bucket.tsx { item? }
                     (`goal`/`item`/`task` accept an id, or the literal `new` to open the create form)
 app.pulse.tsx  app.self.tsx  app.values.tsx
 app.tracking-items.tsx { item?, view? }  (the library; with `item`, that item over time)
-app.progress.tsx  app.relationships.tsx
+app.progress.tsx
+app.horizons.tsx  app.relationships.tsx   redirects only: → /app/tasks, → /app/people?view=board
 app.$.tsx           /app/* → redirect to /app (preserves the old silent slug fallback)
 
 api.auth.$.ts  api.mcp.ts  api.files.$id.ts  api.journal.$day.media.ts  api.healthz.ts
@@ -222,8 +223,9 @@ MCP tool  ───────────────────────�
 
 ### Tasks
 - Per-goal, with title, optional emoji (distinct from the goal's emoji), description, difficulty 1–3, completion, optional `scheduledAt` deadline, referent people, and group tags.
-- **Cross-Goal Tasks tab** — searchable flat list grouped by parent goal. Row click → `TaskModal` (full editor). The graph + GoalModal still own quick row affordances (toggle complete, inline date picker, referent/group popovers); the Tasks tab is where description + emoji edits happen since they don't fit on a row.
-- **Horizons tab** buckets tasks into `Backlog` / `This Month` / `This Quarter` / `This Year` (plus `Past due` and `Later`, columns shown only when something is in them, that take no drops) by computing the bucket from `scheduledAt` and the current calendar — no enum stored, so a task auto-promotes as the deadline approaches. Only open tasks are on the board. Bucket math in `src/lib/horizon-period.ts`; the TickTick list mirrors the same columns as sections.
+- **Tasks tab, two views** (`ViewSwitch`, top right; `?view=`): the board (default, `Horizons.tsx`) and the list (`Tasks.tsx`). Until November 2026 they were the Horizons and Tasks tabs.
+- **List view** — searchable flat list grouped by parent goal. Row click → `TaskModal` (full editor). The graph + GoalModal still own quick row affordances (toggle complete, inline date picker, referent/group popovers); the Tasks tab is where description + emoji edits happen since they don't fit on a row.
+- **Board view (Horizons)** buckets tasks into `Backlog` / `This Month` / `This Quarter` / `This Year` (plus `Past due` and `Later`, columns shown only when something is in them, that take no drops) by computing the bucket from `scheduledAt` and the current calendar — no enum stored, so a task auto-promotes as the deadline approaches. Only open tasks are on the board. Bucket math in `src/lib/horizon-period.ts`; the TickTick list mirrors the same columns as sections.
 
 ### Pulse (top-level daily landing)
 Sync items + unified Upcoming feed (next bids + important dates) + On the Horizon (Month/Quarter/Year, year collapsed by default).
@@ -266,7 +268,7 @@ Three texts can name a person, and all three do it the same way: a journal day (
 
 ### Personal CRM (People + Self)
 - People are a **reflection surface**, not a contact manager — phone/email/birthday/last-contact/vCard import were intentionally removed.
-- 4-column Relationships board: `to_process`, `exploring`, `long_term`, `context_bound`. Category is required at create time.
+- The People tab has two views (`?view=board`): the directory (default) and the 4-column Relationships board (its own tab until November 2026): `to_process`, `exploring`, `long_term`, `context_bound`. Category is required at create time.
 - Per-person prompts: appreciation, my needs, legacy message (catch-all for unfinished business), self-reflection.
 - **Next bids** (per-person actionable items — gift, gesture, check-in, apology) with optional `dueAt`. Completed bids stay visible (struck through).
 - **Important dates** — yearly recurring (birthday, anniversary, …); surfaces in Pulse within 30 days.

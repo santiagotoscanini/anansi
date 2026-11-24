@@ -18,7 +18,7 @@ import { isEmojiUrl } from '~/lib/emoji-utils'
 import { bucketForDate, endOfCurrentBucket, formatScheduledShort, labelForBucket } from '~/lib/horizon-period'
 import { useSetTaskScheduled, useUpdateTask } from '~/lib/mutations/goals-data'
 import { useGoalsData } from '~/lib/queries/goals'
-import { Route } from '~/routes/app.horizons'
+import { Route } from '~/routes/app.tasks'
 import GoalModal from './GoalModal'
 import MentionText from './MentionText'
 

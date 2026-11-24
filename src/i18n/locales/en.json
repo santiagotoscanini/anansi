@@ -1386,5 +1386,10 @@
     "confirmSelected_other": "Remove {{count}} pictures from Anansi for good?",
     "removedMany_one": "{{count}} picture removed",
     "removedMany_other": "{{count}} pictures removed"
+  },
+  "views": {
+    "label": "View",
+    "board": "Board",
+    "list": "List"
   }
 }

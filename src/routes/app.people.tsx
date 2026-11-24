@@ -1,7 +1,11 @@
 import { createFileRoute, stripSearchParams } from '@tanstack/react-router'
+import { Columns3, List } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import PeopleDirectory from '~/components/goals/PeopleDirectory'
+import RelationshipsBoard from '~/components/goals/RelationshipsBoard'
 import { TabError } from '~/components/goals/TabError'
+import { ViewSwitch } from '~/components/goals/ViewSwitch'
 import { groupTasksQueryOptions } from '~/lib/queries/people'
 import { prime } from '~/lib/queries/prime'
 
@@ -19,6 +23,8 @@ const peopleSearchSchema = z.object({
   groupId: z.string().optional(),
   /** Deep link straight into one person's modal. */
   person: z.string().optional(),
+  /** The board by relationship (the Relationships tab until November 2026) instead of the directory. */
+  view: z.enum(['board']).optional(),
 })
 
 export const Route = createFileRoute('/app/people')({
@@ -34,6 +40,31 @@ export const Route = createFileRoute('/app/people')({
     if (deps.filter !== 'group' || !deps.groupId) return
     return prime(context.queryClient, groupTasksQueryOptions(deps.groupId))
   },
-  component: PeopleDirectory,
+  component: PeopleTab,
   errorComponent: TabError,
 })
+
+function PeopleTab() {
+  const { t } = useTranslation()
+  const { view } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const current = view ?? 'list'
+  return (
+    <div className="relative h-full">
+      <div className="absolute top-4 right-4 z-20 md:top-6 md:right-8">
+        <ViewSwitch
+          label={t('views.label')}
+          value={current}
+          onChange={(next) =>
+            void navigate({ search: (prev) => ({ ...prev, view: next === 'board' ? 'board' : undefined }) })
+          }
+          options={[
+            { id: 'list', label: t('views.list'), icon: List },
+            { id: 'board', label: t('views.board'), icon: Columns3 },
+          ]}
+        />
+      </div>
+      {current === 'board' ? <RelationshipsBoard /> : <PeopleDirectory />}
+    </div>
+  )
+}

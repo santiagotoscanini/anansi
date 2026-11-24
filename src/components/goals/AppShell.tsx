@@ -9,7 +9,6 @@ import {
   Mountain,
   Settings,
   Users,
-  Network,
   Menu,
   X,
   ChevronsLeft,
@@ -18,7 +17,6 @@ import {
   ListChecks,
   ListTodo,
   Activity,
-  Hourglass,
   NotebookPen,
   UserCircle2,
 } from 'lucide-react'
@@ -57,7 +55,6 @@ import { TabSkeleton } from './TabSkeleton'
 
 type TabType =
   | 'objectives'
-  | 'horizons'
   | 'tasks'
   | 'pulse'
   | 'journal'
@@ -68,11 +65,9 @@ type TabType =
   | 'progress'
   | 'bucket'
   | 'people'
-  | 'relationships'
 
 const TAB_SLUGS: ReadonlySet<TabType> = new Set([
   'objectives',
-  'horizons',
   'tasks',
   'pulse',
   'journal',
@@ -83,7 +78,6 @@ const TAB_SLUGS: ReadonlySet<TabType> = new Set([
   'progress',
   'bucket',
   'people',
-  'relationships',
 ])
 const DEFAULT_TAB: TabType = 'objectives'
 
@@ -106,14 +100,12 @@ type NavNameKey =
   | 'dashboard.nav.values'
   | 'dashboard.nav.bucket'
   | 'dashboard.nav.objectives'
-  | 'dashboard.nav.horizons'
   | 'dashboard.nav.tasks'
   | 'dashboard.nav.progress'
   | 'dashboard.nav.journal'
   | 'dashboard.nav.sync'
   | 'dashboard.nav.trackingItems'
   | 'dashboard.nav.people'
-  | 'dashboard.nav.relationships'
 type NavItem = { id: TabType; nameKey: NavNameKey; icon: typeof Target }
 
 // Pulse — the at-a-glance summary of Anansi. Lives at the top of the
@@ -131,7 +123,6 @@ const compassSection: NavItem[] = [
 
 const goalsSection: NavItem[] = [
   { id: 'objectives', nameKey: 'dashboard.nav.objectives', icon: Target },
-  { id: 'horizons', nameKey: 'dashboard.nav.horizons', icon: Hourglass },
   { id: 'tasks', nameKey: 'dashboard.nav.tasks', icon: ListTodo },
   { id: 'progress', nameKey: 'dashboard.nav.progress', icon: Trophy },
 ]
@@ -143,11 +134,6 @@ const syncSection: NavItem[] = [
 ]
 
 const peopleNavItem: NavItem = { id: 'people', nameKey: 'dashboard.nav.people', icon: Users }
-const relationshipsNavItem: NavItem = {
-  id: 'relationships',
-  nameKey: 'dashboard.nav.relationships',
-  icon: Network,
-}
 
 // The People tab's filter lives in its own search params, which the shell sits
 // above and so cannot read through a typed hook. Reading it off the raw
@@ -521,12 +507,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             )
           })()}
 
-          {/* Relationships */}
-          {renderNavItem(relationshipsNavItem, isCollapsed, activeTab === 'relationships', () => {
-            setActiveTab('relationships')
-            setMobileNavOpen(false)
-          })}
-
           {/* Groups section — flat list, no nesting */}
           {!isCollapsed && (
             <>
@@ -668,7 +648,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // "all people" / "uncategorized" labels are translated.
   const activeTitle = (): string => {
     if (activeTab === 'objectives') return t('dashboard.nav.objectives')
-    if (activeTab === 'horizons') return t('dashboard.nav.horizons')
     if (activeTab === 'tasks') return t('dashboard.nav.tasks')
     if (activeTab === 'pulse') return t('dashboard.nav.pulse')
     if (activeTab === 'journal') return t('dashboard.nav.journal')
@@ -678,7 +657,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (activeTab === 'values') return t('dashboard.nav.values')
     if (activeTab === 'progress') return t('dashboard.nav.progress')
     if (activeTab === 'bucket') return t('dashboard.nav.bucket')
-    if (activeTab === 'relationships') return t('dashboard.nav.relationships')
     if (activeTab === 'people') {
       if (peopleFilterKind === 'uncategorized') return t('dashboard.uncategorized')
       if (peopleFilterKind === 'group') {

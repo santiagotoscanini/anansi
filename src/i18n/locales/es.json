@@ -1386,5 +1386,10 @@
     "confirmSelected_other": "¿Quitar {{count}} fotos de Anansi para siempre?",
     "removedMany_one": "{{count}} foto quitada",
     "removedMany_other": "{{count}} fotos quitadas"
+  },
+  "views": {
+    "label": "Vista",
+    "board": "Tablero",
+    "list": "Lista"
   }
 }

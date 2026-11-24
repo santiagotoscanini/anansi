@@ -4,6 +4,6 @@
 import AppIntents
 
 /// The App Intents of this package and the one under it, for the app target's `AppIntentsPackage`.
-public struct AppFeatureIntents: AppIntentsPackage {
+public nonisolated struct AppFeatureIntents: AppIntentsPackage {
     public static var includedPackages: [any AppIntentsPackage.Type] { [AnansiIntentsPackage.self] }
 }

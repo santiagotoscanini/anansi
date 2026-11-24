@@ -990,6 +990,13 @@ export const backupCaptureSchema = z.object({
   routedAt: z.coerce.date().nullable(),
   source: z.enum(captureSourceValues),
   capturedAt: z.coerce.date(),
+  // Server transcription joined later in November 2026; older backups lack these.
+  transcriptStatus: z.enum(['pending', 'done', 'failed', 'none']).optional(),
+  transcribeAttempts: z.number().int().optional(),
+  transcribeError: z.string().nullable().optional(),
+  transcribeAfter: z.coerce.date().nullable().optional(),
+  transcribedAt: z.coerce.date().nullable().optional(),
+  transcriptSource: z.enum(['server', 'phone', 'user']).nullable().optional(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 })

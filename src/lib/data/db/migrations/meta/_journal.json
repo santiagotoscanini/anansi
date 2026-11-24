@@ -92,6 +92,13 @@
       "when": 1795506224898,
       "tag": "0012_captures",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795515143838,
+      "tag": "0013_capture_transcripts",
+      "breakpoints": true
     }
   ]
 }

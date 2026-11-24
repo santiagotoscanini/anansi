@@ -907,6 +907,12 @@ export const personalityResults = pgTable(
 export const captureKindEnum = pgEnum('capture_kind', ['text', 'voice'])
 export const captureStatusEnum = pgEnum('capture_status', ['new', 'routed', 'archived'])
 export const captureSourceEnum = pgEnum('capture_source', ['phone', 'web', 'mcp'])
+// A voice note's words come from the server's transcriber (the box's Whisper,
+// services/captures.ts): `pending` until they do, `failed` when it refused the
+// audio, `none` for a typed capture. `transcript_source` says who wrote them;
+// the user's own words are never replaced by a late server result.
+export const transcriptStatusEnum = pgEnum('transcript_status', ['pending', 'done', 'failed', 'none'])
+export const transcriptSourceEnum = pgEnum('transcript_source', ['server', 'phone', 'user'])
 
 export const captures = pgTable(
   'captures',
@@ -934,9 +940,19 @@ export const captures = pgTable(
     source: captureSourceEnum('source').notNull(),
     // The moment on the device that captured it, as it said.
     capturedAt: timestamp('captured_at').notNull().defaultNow(),
+    transcriptStatus: transcriptStatusEnum('transcript_status').notNull().default('none'),
+    transcribeAttempts: integer('transcribe_attempts').notNull().default(0),
+    transcribeError: text('transcribe_error'),
+    // When the sweep may try a pending one again (null: now).
+    transcribeAfter: timestamp('transcribe_after'),
+    transcribedAt: timestamp('transcribed_at'),
+    transcriptSource: transcriptSourceEnum('transcript_source'),
     ...timestamps,
   },
-  (t) => [index('captures_user_captured_idx').on(t.userId, t.capturedAt.desc())],
+  (t) => [
+    index('captures_user_captured_idx').on(t.userId, t.capturedAt.desc()),
+    index('captures_transcript_status_idx').on(t.transcriptStatus),
+  ],
 )
 
 // MCP OAuth tables — Anansi acts as its own OAuth 2.1 Authorization Server for

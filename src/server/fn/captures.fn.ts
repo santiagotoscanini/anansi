@@ -36,3 +36,9 @@ export const deleteCapture = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .validator(idInput)
   .handler(({ data, context }) => captures.remove(context.userId, data.id))
+
+/** A voice note sent to the transcriber again (a failed one's "Try again"). */
+export const retranscribeCapture = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .validator(idInput)
+  .handler(({ data, context }) => captures.retranscribe(context.userId, data.id))

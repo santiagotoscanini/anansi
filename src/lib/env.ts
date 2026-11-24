@@ -94,6 +94,15 @@ export const env = createEnv({
     TICKTICK_CLIENT_ID: z.string().optional(),
     TICKTICK_CLIENT_SECRET: z.string().optional(),
     TICKTICK_REDIRECT_URI: z.string().url().optional(),
+
+    // ── Transcription ───────────────────────────────────────────────────────
+    //
+    // The box's LiteLLM gateway, whose `stt` model is Whisper (Large v3 Turbo).
+    // Voice captures are transcribed through it (src/server/transcribe.ts).
+    // Both present = on; either absent (dev, tests) = voice notes simply wait
+    // for their words, and nothing else changes.
+    LITELLM_BASE_URL: z.string().url().optional(),
+    LITELLM_API_KEY: z.string().optional(),
   },
   runtimeEnv: process.env,
   // An unset var and a var set to "" should behave identically; without this,
@@ -150,3 +159,6 @@ export function isOidcEmail(email: string): boolean {
 
 /** Is the TickTick integration configured on this deployment? */
 export const tickTickEnabled = Boolean(env.TICKTICK_CLIENT_ID && env.TICKTICK_CLIENT_SECRET)
+
+/** Is the transcriber (the gateway's `stt` model) configured on this deployment? */
+export const transcriptionEnabled = Boolean(env.LITELLM_BASE_URL && env.LITELLM_API_KEY)

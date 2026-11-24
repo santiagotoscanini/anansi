@@ -1778,7 +1778,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "The user's raw inbox of thoughts, newest first: ideas, to-dos, questions and voice notes they captured on the go, to help them triage it. Each has `text` (for a voice note, its transcript; null while it is being transcribed), `kind` (text or voice, with `audioUrl` and `durationMs`), `capturedAt`, `status` (`new` (not routed yet: kept in Anansi, waiting for its words, or failed with `routeError`), `routed` (became a note on `question`, or a TickTick Inbox task), `archived` (dealt with).) and where it went: `questionId`/`question` and `noteId` for an open question, `tickTickTaskId` for TickTick. Turn what you find into goals, tasks, journal entries or question notes with the other tools, then archive the capture with `update_capture`.",
+    "description": "The user's raw inbox of thoughts, newest first: ideas, to-dos, questions and voice notes they captured on the go, to help them triage it. Each has `text` (for a voice note, its transcript; null until it has one), `kind` (text or voice, with `audioUrl` and `durationMs`), `transcriptStatus` (a voice note's words: `pending` while the server transcribes it, retried on its own when the transcriber is down, with `transcribeAttempts` and `transcribeError`; `done`; `failed` when the transcriber refused the audio, see `retranscribe_capture`; `none` for typed text), `capturedAt`, `status` (`new` (not routed yet: kept in Anansi, waiting for its words, or failed with `routeError`), `routed` (became a note on `question`, or a TickTick Inbox task), `archived` (dealt with).) and where it went: `questionId`/`question` and `noteId` for an open question, `tickTickTaskId` for TickTick. Turn what you find into goals, tasks, journal entries or question notes with the other tools, then archive the capture with `update_capture`.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -2429,6 +2429,32 @@
   },
   {
     "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Send one voice note of the user's inbox to the transcriber again. Use it on a capture whose `transcriptStatus` is `failed` (the transcriber refused its audio; `transcribeError` says why), or when the user asks for a fresh transcript. The new words replace the current ones when they land, even words the user wrote, and carry on to the TickTick task or question note it became. Answers the capture: `transcriptStatus` is `done` with its `text` when a short note finished within a few seconds, else still `pending` (it finishes in the background).",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "retranscribe_capture",
+    "title": "Transcribe a voice note again"
+  },
+  {
+    "annotations": {
       "destructiveHint": true,
       "idempotentHint": false,
       "openWorldHint": false
@@ -2879,7 +2905,7 @@
       "idempotentHint": true,
       "openWorldHint": true
     },
-    "description": "Change one capture of the user's inbox. `status: 'archived'` marks it dealt with (do this after turning it into something else); `'new'` brings an archived one back. `text` replaces its words (also on the question note or TickTick task it became). `questionId` moves it to that open question as a note, taking it back from where it went before (its old note or TickTick task is deleted); `questionId: null` takes it out of its question and sends it to the TickTick Inbox.",
+    "description": "Change one capture of the user's inbox. `status: 'archived'` marks it dealt with (do this after turning it into something else); `'new'` brings an archived one back. `text` replaces its words (also on the question note or TickTick task it became; on a voice note they are then the user's, and the transcriber never replaces them). `questionId` moves it to that open question as a note, taking it back from where it went before (its old note or TickTick task is deleted); `questionId: null` takes it out of its question and sends it to the TickTick Inbox.",
     "execution": {
       "taskSupport": "forbidden"
     },

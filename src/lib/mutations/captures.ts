@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { qk } from '~/lib/queries/keys'
 import type { CaptureRow } from '~/lib/queries/captures'
-import { createCapture, deleteCapture, retryCapture, updateCapture } from '~/server/fn/captures.fn'
+import { createCapture, deleteCapture, retranscribeCapture, retryCapture, updateCapture } from '~/server/fn/captures.fn'
 
 // Writes for the Inbox. Archive and delete are optimistic (the row goes at
 // once and comes back on failure); a move to a question waits for the server,
@@ -63,6 +63,14 @@ export function useDeleteCapture() {
     mutationFn: (id: string) => deleteCapture({ data: { id } }),
     onMutate: (id) => begin((old) => old.filter((c) => c.id !== id)),
     onError: (_e, _id, context) => rollback(context),
+    onSettled: settle,
+  })
+}
+
+export function useRetranscribeCapture() {
+  const { settle } = useCaptureCache()
+  return useMutation({
+    mutationFn: (id: string) => retranscribeCapture({ data: { id } }),
     onSettled: settle,
   })
 }

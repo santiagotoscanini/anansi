@@ -80,11 +80,95 @@ export function captureDestination(c: {
   noteId: string | null
   tickTickTaskId: string | null
   routeError: string | null
+  /** Left out by callers that predate server transcription (the phone's mirror). */
+  transcriptStatus?: 'pending' | 'done' | 'failed' | 'none'
 }): CaptureDestination {
   if (c.status === 'archived') return { kind: 'archived' }
   if (c.noteId) return { kind: 'question', questionId: c.questionId }
   if (c.tickTickTaskId) return { kind: 'ticktick' }
   if (c.routeError) return { kind: 'error', message: c.routeError }
-  if (c.kind === 'voice' && c.text === null) return { kind: 'transcribing' }
+  // A note the transcriber refused is kept here; its words line says why.
+  if (c.kind === 'voice' && c.text === null && c.transcriptStatus !== 'failed') return { kind: 'transcribing' }
   return { kind: 'kept' }
+}
+
+// ── Transcripts ─────────────────────────────────────────────────────────────
+// A voice note's words come from the server's transcriber (services/captures.ts).
+
+export type TranscriptStatus = 'pending' | 'done' | 'failed' | 'none'
+export type TranscriptSource = 'server' | 'phone' | 'user'
+
+const MINUTE = 60_000
+
+/** How long a pending voice note waits after each attempt the transcriber could not take: 1, 2, 5, 15, 60 minutes, then hourly. */
+export const TRANSCRIBE_BACKOFF_MS = [1, 2, 5, 15, 60].map((m) => m * MINUTE)
+
+/** The wait after the `attempts`-th failed attempt (1-based). */
+export function transcribeBackoffMs(attempts: number): number {
+  if (attempts < 1) return 0
+  return TRANSCRIBE_BACKOFF_MS[Math.min(attempts, TRANSCRIBE_BACKOFF_MS.length) - 1]!
+}
+
+/** How long one transcription may take: a minute plus twice the audio's length, at most 15 minutes. */
+export function transcribeTimeoutMs(durationMs: number | null): number {
+  return Math.min(15 * MINUTE, MINUTE + 2 * Math.max(0, durationMs ?? 0))
+}
+
+/**
+ * May the transcriber's words be stored? Only on a voice note still waiting for
+ * them: words the user wrote (or corrected) are never replaced by a late result,
+ * and a note that failed or got its words another way is left alone.
+ */
+export function takesServerTranscript(c: {
+  kind: 'text' | 'voice'
+  transcriptStatus: TranscriptStatus
+  transcriptSource: TranscriptSource | null
+}): boolean {
+  return c.kind === 'voice' && c.transcriptStatus === 'pending' && c.transcriptSource !== 'user'
+}
+
+/** The transcript fields after an attempt, by its outcome. */
+export function afterTranscribeAttempt(
+  c: { transcribeAttempts: number },
+  outcome: { kind: 'unavailable'; message: string } | { kind: 'rejected'; message: string },
+  now: Date,
+): {
+  transcriptStatus: TranscriptStatus
+  transcribeAttempts: number
+  transcribeError: string
+  transcribeAfter: Date | null
+} {
+  const attempts = c.transcribeAttempts + 1
+  if (outcome.kind === 'rejected') {
+    return {
+      transcriptStatus: 'failed',
+      transcribeAttempts: attempts,
+      transcribeError: outcome.message,
+      transcribeAfter: null,
+    }
+  }
+  return {
+    transcriptStatus: 'pending',
+    transcribeAttempts: attempts,
+    transcribeError: outcome.message,
+    transcribeAfter: new Date(now.getTime() + transcribeBackoffMs(attempts)),
+  }
+}
+
+export type TranscriptView =
+  | { kind: 'text'; text: string }
+  | { kind: 'empty' }
+  | { kind: 'transcribing'; retrying: boolean }
+  | { kind: 'failed'; message: string }
+
+/** What the Inbox shows in place of a capture's words. */
+export function transcriptView(c: {
+  text: string | null
+  transcriptStatus: TranscriptStatus
+  transcribeAttempts: number
+  transcribeError: string | null
+}): TranscriptView {
+  if (c.text !== null) return c.text === '' ? { kind: 'empty' } : { kind: 'text', text: c.text }
+  if (c.transcriptStatus === 'failed') return { kind: 'failed', message: c.transcribeError ?? '' }
+  return { kind: 'transcribing', retrying: c.transcribeAttempts > 0 || c.transcribeError !== null }
 }

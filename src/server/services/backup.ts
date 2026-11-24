@@ -578,6 +578,10 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
           }
           rows.push({
             ...rest,
+            // A backup from before server transcription: the rule 0013 applied.
+            transcriptStatus:
+              rest.transcriptStatus ?? (rest.kind === 'text' ? 'none' : rest.text === null ? 'pending' : 'done'),
+            transcriptSource: rest.transcriptSource ?? (rest.kind === 'voice' && rest.text !== null ? 'phone' : null),
             userId,
             fileId,
             questionId: c.questionId && restoredQuestions.has(c.questionId) ? c.questionId : null,

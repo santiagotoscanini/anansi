@@ -6,8 +6,9 @@ import * as captures from '~/server/services/captures'
 
 // A voice note from the phone. The body is the audio itself (`audio/*`, up to
 // 200 MB), streamed to a temporary file and then to the bucket; see
-// `withMediaUpload`. The words usually follow with PATCH /captures/{id} once
-// the phone has transcribed them; `?transcript=` is for when it already has.
+// `withMediaUpload`. The server transcribes it (16 kHz mono WAV, `audio/wav`:
+// the transcriber refuses AAC); `?transcript=` is kept for phone builds that
+// transcribed on the device. A correction follows with PATCH /captures/{id}.
 const query = z.object({
   questionId: z.string().min(1).optional(),
   capturedAt: z.string().datetime({ offset: true }).optional(),

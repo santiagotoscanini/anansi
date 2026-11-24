@@ -38,6 +38,10 @@ const tickTickPollerMiddleware = createMiddleware({ type: 'request' }).server(as
     import('~/server/ticktick/runner')
       .then((m) => m.ensurePoller())
       .catch((e: unknown) => console.error('[ticktick] poller did not start', e))
+    // The voice notes' transcription sweep, for every user (services/captures.ts).
+    import('~/server/services/captures')
+      .then((m) => m.ensureTranscriber())
+      .catch((e: unknown) => console.error('[captures] transcriber did not start', e))
   }
   return next()
 })

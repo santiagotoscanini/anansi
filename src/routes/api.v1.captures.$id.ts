@@ -3,8 +3,9 @@ import { z } from 'zod'
 import { readJson, withApiKey } from '~/server/api/v1'
 import * as captures from '~/server/services/captures'
 
-// A voice note's words, transcribed on the phone after the audio was sent.
-// An empty transcript means it heard none.
+// A voice note's words as the user wrote or corrected them on the phone. They
+// are the user's from then on: the server's transcriber never replaces them.
+// An empty transcript means no words.
 export const Route = createFileRoute('/api/v1/captures/$id')({
   server: {
     handlers: {

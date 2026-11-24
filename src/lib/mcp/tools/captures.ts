@@ -7,7 +7,7 @@ import * as captures from '~/server/services/captures'
 
 // Captures: the user's raw inbox of thoughts. Whatever crossed their mind,
 // dropped from the phone's Action Button, Siri, the web or here, as text or as
-// a voice note (transcribed on the phone). Each one is routed once: aimed at an
+// a voice note (transcribed on the server). Each one is routed once: aimed at an
 // open question it became a note on it; otherwise it went to their TickTick
 // Inbox as a task to triage there (or stayed in Anansi when TickTick is not
 // connected). These tools are for helping the user go through that inbox.
@@ -20,7 +20,7 @@ export function registerCapturesTools(server: McpServer, ctx: McpCtx): void {
     'list_captures',
     {
       title: 'List captured thoughts',
-      description: `The user's raw inbox of thoughts, newest first: ideas, to-dos, questions and voice notes they captured on the go, to help them triage it. Each has \`text\` (for a voice note, its transcript; null while it is being transcribed), \`kind\` (text or voice, with \`audioUrl\` and \`durationMs\`), \`capturedAt\`, \`status\` (${STATUS}) and where it went: \`questionId\`/\`question\` and \`noteId\` for an open question, \`tickTickTaskId\` for TickTick. Turn what you find into goals, tasks, journal entries or question notes with the other tools, then archive the capture with \`update_capture\`.`,
+      description: `The user's raw inbox of thoughts, newest first: ideas, to-dos, questions and voice notes they captured on the go, to help them triage it. Each has \`text\` (for a voice note, its transcript; null until it has one), \`kind\` (text or voice, with \`audioUrl\` and \`durationMs\`), \`transcriptStatus\` (a voice note's words: \`pending\` while the server transcribes it, retried on its own when the transcriber is down, with \`transcribeAttempts\` and \`transcribeError\`; \`done\`; \`failed\` when the transcriber refused the audio, see \`retranscribe_capture\`; \`none\` for typed text), \`capturedAt\`, \`status\` (${STATUS}) and where it went: \`questionId\`/\`question\` and \`noteId\` for an open question, \`tickTickTaskId\` for TickTick. Turn what you find into goals, tasks, journal entries or question notes with the other tools, then archive the capture with \`update_capture\`.`,
       inputSchema: toolInput({
         status: z.enum(['new', 'routed', 'archived']).optional().describe('Only captures in this state.'),
         limit: z.number().int().min(1).max(500).optional().describe('At most this many (default 100).'),
@@ -62,7 +62,7 @@ export function registerCapturesTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Archive, edit or move a capture',
       description:
-        "Change one capture of the user's inbox. `status: 'archived'` marks it dealt with (do this after turning it into something else); `'new'` brings an archived one back. `text` replaces its words (also on the question note or TickTick task it became). `questionId` moves it to that open question as a note, taking it back from where it went before (its old note or TickTick task is deleted); `questionId: null` takes it out of its question and sends it to the TickTick Inbox.",
+        "Change one capture of the user's inbox. `status: 'archived'` marks it dealt with (do this after turning it into something else); `'new'` brings an archived one back. `text` replaces its words (also on the question note or TickTick task it became; on a voice note they are then the user's, and the transcriber never replaces them). `questionId` moves it to that open question as a note, taking it back from where it went before (its old note or TickTick task is deleted); `questionId: null` takes it out of its question and sends it to the TickTick Inbox.",
       inputSchema: toolInput({
         id: z.string(),
         status: z.enum(['new', 'routed', 'archived']).optional(),
@@ -92,6 +92,24 @@ export function registerCapturesTools(server: McpServer, ctx: McpCtx): void {
     async ({ id }) => {
       try {
         return mcpJsonResult(await captures.remove(ctx.userId, id))
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'retranscribe_capture',
+    {
+      title: 'Transcribe a voice note again',
+      description:
+        "Send one voice note of the user's inbox to the transcriber again. Use it on a capture whose `transcriptStatus` is `failed` (the transcriber refused its audio; `transcribeError` says why), or when the user asks for a fresh transcript. The new words replace the current ones when they land, even words the user wrote, and carry on to the TickTick task or question note it became. Answers the capture: `transcriptStatus` is `done` with its `text` when a short note finished within a few seconds, else still `pending` (it finishes in the background).",
+      inputSchema: toolInput({ id: z.string() }),
+      annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ id }) => {
+      try {
+        return mcpJsonResult(await captures.retranscribe(ctx.userId, id))
       } catch (e) {
         return mcpErrorFromUnknown(e)
       }

@@ -1027,6 +1027,10 @@
       "voice": "Nota de voz"
     },
     "transcribing": "Transcribiendo…",
+    "transcribingRetrying": "Transcribiendo… esperando al transcriptor, se reintenta",
+    "transcribeFailed": "No se pudo transcribir: {{message}}",
+    "tryAgain": "Intentar de nuevo",
+    "retranscribeFailed": "No se pudo enviar al transcriptor",
     "noWords": "No se oyeron palabras",
     "toQuestion": "→ pregunta: {{question}}",
     "toTickTick": "→ bandeja de TickTick",

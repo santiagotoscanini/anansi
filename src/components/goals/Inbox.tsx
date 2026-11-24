@@ -3,9 +3,15 @@ import { useState } from 'react'
 import { Archive, ArchiveRestore, CornerDownLeft, HelpCircle, Mic, RotateCw, Trash2, Type } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
-import { captureDestination } from '~/lib/captures'
+import { captureDestination, transcriptView } from '~/lib/captures'
 import { localToday, shiftDay } from '~/lib/journal'
-import { useCreateCapture, useDeleteCapture, useRetryCapture, useUpdateCapture } from '~/lib/mutations/captures'
+import {
+  useCreateCapture,
+  useDeleteCapture,
+  useRetranscribeCapture,
+  useRetryCapture,
+  useUpdateCapture,
+} from '~/lib/mutations/captures'
 import { capturesQueryOptions, type CaptureRow } from '~/lib/queries/captures'
 import { openQuestionsQueryOptions } from '~/lib/queries/self'
 import { useLocalToday } from '~/lib/use-local-today'
@@ -96,8 +102,10 @@ function CaptureItem({
   const update = useUpdateCapture()
   const retry = useRetryCapture()
   const remove = useDeleteCapture()
+  const retranscribe = useRetranscribeCapture()
   const [picking, setPicking] = useState(false)
   const destination = captureDestination(capture)
+  const words = transcriptView(capture)
   const archived = capture.status === 'archived'
   const Icon = capture.kind === 'voice' ? Mic : Type
 
@@ -129,6 +137,8 @@ function CaptureItem({
       case 'transcribing':
         return <span>{t('inbox.waitingWords')}</span>
       case 'kept':
+        // A note the transcriber refused says so above; "kept" would only repeat it.
+        if (words.kind === 'failed') return null
         return (
           <span>{capture.questionId ? t('inbox.forQuestion', { question: capture.question }) : t('inbox.kept')}</span>
         )
@@ -148,12 +158,29 @@ function CaptureItem({
     >
       <Icon className="mt-1 h-4 w-4 shrink-0 text-[var(--ink-4)]" aria-label={t(`inbox.kind.${capture.kind}`)} />
       <div className="min-w-0 flex-1">
-        {capture.text === null ? (
-          <p className="text-[15px] text-[var(--ink-3)] italic">{t('inbox.transcribing')}</p>
-        ) : capture.text === '' ? (
+        {words.kind === 'text' ? (
+          <p className="text-[15px] break-words whitespace-pre-wrap text-[var(--ink)]">{words.text}</p>
+        ) : words.kind === 'empty' ? (
           <p className="text-[15px] text-[var(--ink-3)] italic">{t('inbox.noWords')}</p>
+        ) : words.kind === 'transcribing' ? (
+          <p className="text-[15px] text-[var(--ink-3)] italic" title={capture.transcribeError ?? undefined}>
+            {words.retrying ? t('inbox.transcribingRetrying') : t('inbox.transcribing')}
+          </p>
         ) : (
-          <p className="text-[15px] break-words whitespace-pre-wrap text-[var(--ink)]">{capture.text}</p>
+          <p className="inline-flex flex-wrap items-center gap-2 text-[15px]" style={{ color: 'var(--rust)' }}>
+            <span className="max-w-md truncate" title={words.message}>
+              {t('inbox.transcribeFailed', { message: words.message })}
+            </span>
+            <button
+              type="button"
+              onClick={() => act(retranscribe.mutateAsync(capture.id), t('inbox.retranscribeFailed'))}
+              disabled={retranscribe.isPending}
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[13px] text-[var(--ink-2)] hover:bg-[var(--vellum)]"
+            >
+              <RotateCw className="h-3 w-3" />
+              {t('inbox.tryAgain')}
+            </button>
+          </p>
         )}
         {capture.audioUrl && (
           <div className="mt-2 flex items-center gap-2">
@@ -164,7 +191,12 @@ function CaptureItem({
           </div>
         )}
         <p className="mt-1 text-[13px] text-[var(--ink-3)]">
-          {showTime && <span className="tabular-nums">{timeOf(new Date(capture.capturedAt))} · </span>}
+          {showTime && (
+            <span className="tabular-nums">
+              {timeOf(new Date(capture.capturedAt))}
+              {where && ' · '}
+            </span>
+          )}
           {where}
         </p>
       </div>

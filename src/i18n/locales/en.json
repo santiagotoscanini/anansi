@@ -1027,6 +1027,10 @@
       "voice": "Voice note"
     },
     "transcribing": "Transcribing…",
+    "transcribingRetrying": "Transcribing… waiting for the transcriber, retrying",
+    "transcribeFailed": "Could not transcribe it: {{message}}",
+    "tryAgain": "Try again",
+    "retranscribeFailed": "Could not send it to the transcriber",
     "noWords": "No words heard",
     "toQuestion": "→ question: {{question}}",
     "toTickTick": "→ TickTick inbox",

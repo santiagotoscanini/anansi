@@ -1,0 +1,11 @@
+// The widget extension (AnansiWidgets/: the recording's Live Activity and the Control Center control). Identity
+// and versioning come from App.xcconfig, so the two bundles always carry the same version and build; only what an
+// extension must differ in is set here.
+#include "App.xcconfig"
+
+PRODUCT_BUNDLE_IDENTIFIER = com.santiagotoscanini.anansi.Widgets
+INFOPLIST_FILE = Config/Widgets-Info.plist
+// No entitlements: the extension only draws the Live Activity and the control; their intents run in the app.
+CODE_SIGN_ENTITLEMENTS =
+INFOPLIST_KEY_CFBundleDisplayName = Anansi
+SKIP_INSTALL = YES

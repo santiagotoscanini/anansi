@@ -1,9 +1,10 @@
+import AnansiActivity
 import AnansiFeature
 import AppIntents
 import Foundation
 
-// "Capture a thought", "Add to an open question" and "Record a thought": what the Action Button, Siri, Spotlight
-// and Shortcuts run. The App Shortcuts (phrases) are declared in the app target (Anansi/AnansiShortcuts.swift),
+// "Capture a thought", "Add to an open question", "Record a thought" and "Record in Anansi": what the Action
+// Button, Siri, Spotlight and Shortcuts run. The App Shortcuts (phrases) are declared in the app target (Anansi/AnansiShortcuts.swift),
 // which lists these intents through `AppFeatureIntents` → `AnansiIntentsPackage`.
 //
 // This target keeps Swift's default (nonisolated) isolation on purpose: the system builds and reads intents off
@@ -11,7 +12,9 @@ import Foundation
 // do in the app goes through `CaptureActions` (AnansiFeature), on the main actor, with plain values crossing.
 
 /// Lets the app target's App Intents metadata include the intents declared in this package.
-public struct AnansiIntentsPackage: AppIntentsPackage {}
+public struct AnansiIntentsPackage: AppIntentsPackage {
+    public static var includedPackages: [any AppIntentsPackage.Type] { [AnansiActivityIntents.self] }
+}
 
 // MARK: The open question parameter
 
@@ -135,8 +138,38 @@ public struct AddToQuestionIntent: AppIntent {
     }
 }
 
-public struct RecordThoughtIntent: AppIntent {
+/// The Action Button's "Record a thought": starts recording at once without opening the app, under a Live
+/// Activity (Lock Screen and Dynamic Island) with the time and a Stop button; pressed again, it stops and saves.
+/// When the system won't let it record from the background (the microphone not yet allowed, Live Activities off),
+/// it opens Anansi's recorder instead.
+public struct RecordThoughtIntent: AudioRecordingIntent, LiveActivityIntent {
     public static let title: LocalizedStringResource = "Record a thought"
+    public static let description = IntentDescription(
+        "Record a voice note without opening Anansi; run it again to stop. The note is transcribed on this iPhone and kept with its audio.")
+    public static let authenticationPolicy: IntentAuthenticationPolicy = .alwaysAllowed
+    public static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
+
+    @Parameter(title: "Open question")
+    public var question: OpenQuestionEntity?
+
+    public init() {}
+
+    public func perform() async throws -> some IntentResult {
+        do {
+            _ = try await CaptureActions.toggleRecording(questionId: question?.id, questionTitle: question?.question)
+        } catch RecordingStartFailure.notConnected {
+            throw CaptureIntentError.notConnected
+        } catch {
+            try await continueInForeground(alwaysConfirm: false)
+            await CaptureActions.record(questionId: question?.id, questionTitle: question?.question)
+        }
+        return .result()
+    }
+}
+
+/// "Record in Anansi": opens the app straight into its recorder, which records at once.
+public struct OpenRecorderIntent: AppIntent {
+    public static let title: LocalizedStringResource = "Record in Anansi"
     public static let description = IntentDescription(
         "Open Anansi straight into a voice recorder. The note is transcribed on this iPhone and kept with its audio.")
     public static let supportedModes: IntentModes = .foreground(.immediate)

@@ -82,7 +82,7 @@ final class VoiceRecorder {
         phase = .finished
         elapsed = seconds
         level = 0
-        return seconds > 0.3 ? Int((seconds * 1000).rounded()) : nil
+        return RecordingRules.durationMs(seconds: seconds)
     }
 
     /// Stops and throws the recording away.

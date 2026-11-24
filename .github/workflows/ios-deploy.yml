@@ -49,7 +49,11 @@ jobs:
           ASC_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-        run: node scripts/asc-capability.mjs com.santiagotoscanini.anansi HEALTHKIT
+        run: |
+          node scripts/asc-capability.mjs com.santiagotoscanini.anansi HEALTHKIT
+          # The widget extension (the recording's Live Activity, the Control Center control): no capability, but
+          # cloud signing needs its App ID to exist.
+          node scripts/asc-capability.mjs com.santiagotoscanini.anansi.Widgets
 
       # Archive unsigned, sign at export. A signed archive needs an Apple Development certificate whose
       # private key is on the machine; a fresh runner has none, so cloud signing minted a new one every
@@ -69,8 +73,19 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CURRENT_PROJECT_VERSION=$(( ${{ github.run_number }} + 100 ))
 
+      # Inner code first, then the app (no --deep): codesign refuses to sign an app holding unsigned code. The
+      # widget extension has no entitlements of its own.
       - name: Entitlements into the archive
         run: |
+          set -o pipefail
+          APP=build/Anansi.xcarchive/Products/Applications/Anansi.app
+          for EXT in "$APP"/PlugIns/*.appex; do
+            [ -d "$EXT" ] || continue
+            codesign --force --sign - --timestamp=none "$EXT"
+          done
+          codesign --force --sign - --entitlements Config/Anansi.entitlements --timestamp=none "$APP"
+          codesign -d --entitlements - "$APP"
+          codesign --verify --deep --strict "$APP"|
           set -o pipefail
           APP=build/Anansi.xcarchive/Products/Applications/Anansi.app
           codesign --force --sign - --entitlements Config/Anansi.entitlements --timestamp=none "$APP"

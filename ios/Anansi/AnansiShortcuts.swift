@@ -3,7 +3,8 @@ import AppIntents
 
 // The App Shortcuts: what shows up in Shortcuts, Spotlight, Siri and the Action Button's "Shortcut" setting
 // without the user building anything. The intents themselves live in the AnansiKit package
-// (AnansiFeature/CaptureIntents.swift); `AnansiAppIntents` lets this target's metadata include them.
+// (AnansiIntents/CaptureIntents.swift, AnansiActivity/RecordingIntents.swift); `AnansiAppIntents` lets this
+// target's metadata include them.
 
 nonisolated struct AnansiAppIntents: AppIntentsPackage {
     static var includedPackages: [any AppIntentsPackage.Type] { [AppFeatureIntents.self] }
@@ -33,6 +34,16 @@ nonisolated struct AnansiShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Record a thought",
             systemImageName: "mic"
+        )
+        AppShortcut(
+            intent: OpenRecorderIntent(),
+            phrases: [
+                "Open the recorder in \(.applicationName)",
+                "Record a voice note in \(.applicationName)",
+                "Abrir la grabadora en \(.applicationName)",
+            ],
+            shortTitle: "Record in Anansi",
+            systemImageName: "mic.circle"
         )
         AppShortcut(
             intent: AddToQuestionIntent(),

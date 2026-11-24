@@ -33,8 +33,8 @@
 - The journal is one entry per `LocalDay` (`/api/v1/journal/{day}`). Journal text and pictures go through the outbox
   under the item id `journal:YYYY-MM-DD` (`OutboxOp.journalItemId`), and a write replaces the whole prose or the
   whole highlight list, so the day screen only edits a day it has read.
-- Don't hand-edit `project.pbxproj` to add files: `Anansi/` is a synchronized folder, and package files are picked up
-  automatically.
+- Don't hand-edit `project.pbxproj` to add files: `Anansi/` and `AnansiWidgets/` are synchronized folders, and package
+  files are picked up automatically. Adding a target is the one reason to edit it.
 - Targets: iOS 27, Swift 6 language mode, default MainActor isolation. Use `@Observable`, not ObservableObject. Use
   Swift Testing (`@Test`, `#expect`), not XCTest.
 - **A closure that UIKit or SwiftUI may call off the main thread must be `@Sendable` and take plain values.** With
@@ -65,17 +65,32 @@
 - Capture (the Inbox): `Sources/AnansiIntents/CaptureIntents.swift` (a target of its own with Swift's default
   nonisolated isolation, since `@Parameter` properties cannot be made `nonisolated` under the package's main-actor
   default; it reaches the app only through `CaptureActions`) holds "Capture a thought", "Add to an open question" (both
-  `supportedModes = .background`, written through the outbox so they work offline) and "Record a thought"
-  (`.foreground(.immediate)`: it sets `CaptureStore.recording` and HomeView shows `RecorderView`, which records at
-  once). The App Shortcuts (English and Spanish phrases) are in the app target, `Anansi/AnansiShortcuts.swift`,
-  which reaches the package's intents through `AppIntentsPackage` (`AnansiAppIntents` → `AppFeatureIntents` →
-  `AnansiIntentsPackage`); keep that chain when adding an intent. A recording goes to a temporary folder and is moved
-  into the outbox only once stopped; the transcriber (`OnDeviceTranscriber`, SpeechAnalyzer + SpeechTranscriber, off
-  the main actor, the user's language else English, model installed with `AssetInventory`) reads a copy. Its words
-  ride with the queued recording, or follow it as a `captureTranscript` op sent to the server id the recording got
+  `supportedModes = .background`, written through the outbox so they work offline), "Record a thought" (below) and
+  "Record in Anansi" (`OpenRecorderIntent`, `.foreground(.immediate)`: it sets `CaptureStore.recording` and HomeView
+  shows `RecorderView`, which records at once). The App Shortcuts (English and Spanish phrases) are in the app
+  target, `Anansi/AnansiShortcuts.swift`, which reaches the package's intents through `AppIntentsPackage`
+  (`AnansiAppIntents` → `AppFeatureIntents` → `AnansiIntentsPackage` → `AnansiActivityIntents`); keep that chain when
+  adding an intent. A recording goes to a temporary folder and is moved into the outbox only once stopped
+  (`VoiceCaptures.queue`); the transcriber (`OnDeviceTranscriber`, SpeechAnalyzer + SpeechTranscriber, off the main
+  actor, the user's language else English, model installed with `AssetInventory`) reads a copy. Its words ride with
+  the queued recording, or follow it as a `captureTranscript` op sent to the server id the recording got
   (`SyncOutbox.captureIds`). Pure rules (title, where a capture went) are `Core/Capture.swift`, the server's
   `src/lib/captures.ts`. The phone does not play a capture's audio back (the server serves it to the web only).
-- Next step for Capture (not built): recording from the Action Button WITHOUT opening the app needs an
-  `AudioRecordingIntent` that is also a `LiveActivityIntent`, with a Live Activity shown for the whole recording. That
-  needs a widget extension target (the Live Activity UI, and a Control Center control to start it), a new App ID
-  capability for the extension, and its own signing in `ios-deploy.yml`.
+- Recording without opening the app: "Record a thought" (`RecordThoughtIntent`, the Action Button, Siri, Shortcuts)
+  and the Control Center control (`ToggleRecordingIntent`) are `AudioRecordingIntent` + `LiveActivityIntent`, so they
+  run in the app's process, in the background. `BackgroundRecorder` (AnansiFeature) activates the audio session,
+  requests the Live Activity, then starts `VoiceRecorder`; the system stops a background recording that has no Live
+  Activity, so the two live and end together. A second press, the Live Activity's Stop (`StopRecordingIntent`) or the
+  30-minute limit (`RecordingRules`, `Core/Recording.swift`) stop it and queue it like the in-app recorder; its words
+  are worked out by `TranscriptionStore` (a `TranscriptionQueue` on disk), which finishes at the next launch or
+  foregrounding what the background time did not cover. When it cannot start in the background (microphone not yet
+  allowed, which only the app can ask; Live Activities off; the system refusing), the intent calls
+  `continueInForeground` and opens the in-app recorder. The app needs `UIBackgroundModes` `audio` and
+  `NSSupportsLiveActivities` (`Config/Info.plist`). The three recording intents set `authenticationPolicy = .alwaysAllowed`.
+- The widget extension, `AnansiWidgets/` (target `AnansiWidgets`, bundle id `com.santiagotoscanini.anansi.Widgets`,
+  `Config/Widgets.xcconfig` which includes `App.xcconfig` for the version, `Config/Widgets-Info.plist`, no
+  entitlements; a synchronized folder, embedded by the app's "Embed Foundation Extensions" phase) draws the Live
+  Activity and the control, and nothing else: it links only the package's `AnansiActivity` product (the
+  `RecordingActivityAttributes`, the two intents, and `VoiceRecordingControl`, through which the intents reach the
+  recorder the app registers at launch). Don't link AnansiFeature into it. `ios-deploy.yml` ad-hoc signs the
+  `.appex` before the app, and `scripts/asc-capability.mjs` registers its App ID.

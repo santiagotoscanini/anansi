@@ -1,5 +1,6 @@
-// Turns a capability on for the app's App ID through the App Store Connect API, if it is not on already.
-// Usage: node scripts/asc-capability.mjs <bundle id> <CAPABILITY_TYPE>   (e.g. com.example.app HEALTHKIT)
+// Makes sure an App ID exists (registering it when it does not) and, given one, that a capability is on for it,
+// through the App Store Connect API.
+// Usage: node scripts/asc-capability.mjs <bundle id> [CAPABILITY_TYPE]   (e.g. com.example.app HEALTHKIT)
 // Env: ASC_KEY_PATH (the .p8), ASC_KEY_ID, ASC_ISSUER_ID — the same key the export signs with.
 //
 // Xcode's cloud signing makes a profile from the App ID's capabilities, so an entitlement the App ID lacks fails
@@ -9,8 +10,8 @@ import { readFileSync } from 'node:fs'
 
 const [bundleId, capability] = process.argv.slice(2)
 const { ASC_KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID } = process.env
-if (!bundleId || !capability || !ASC_KEY_PATH || !ASC_KEY_ID || !ASC_ISSUER_ID) {
-  console.error('usage: ASC_KEY_PATH=… ASC_KEY_ID=… ASC_ISSUER_ID=… node asc-capability.mjs <bundle id> <CAPABILITY>')
+if (!bundleId || !ASC_KEY_PATH || !ASC_KEY_ID || !ASC_ISSUER_ID) {
+  console.error('usage: ASC_KEY_PATH=… ASC_KEY_ID=… ASC_ISSUER_ID=… node asc-capability.mjs <bundle id> [CAPABILITY]')
   process.exit(2)
 }
 
@@ -34,8 +35,19 @@ async function api(method, path, payload) {
 }
 
 const found = await api('GET', `/bundleIds?filter[identifier]=${encodeURIComponent(bundleId)}&limit=5`)
-const app = found.data.find((b) => b.attributes.identifier === bundleId)
-if (!app) throw new Error(`No App ID ${bundleId}`)
+let app = found.data.find((b) => b.attributes.identifier === bundleId)
+if (!app) {
+  // An app extension's App ID (the widgets): cloud signing makes its profile, but only for an App ID that exists.
+  const name = bundleId.split('.').slice(-2).join(' ')
+  const made = await api('POST', '/bundleIds', {
+    data: { type: 'bundleIds', attributes: { identifier: bundleId, name, platform: 'IOS' } },
+  })
+  app = made.data
+  console.log(`Registered the App ID ${bundleId}`)
+} else {
+  console.log(`The App ID ${bundleId} exists`)
+}
+if (!capability) process.exit(0)
 const caps = await api('GET', `/bundleIds/${app.id}/bundleIdCapabilities`)
 if (caps.data.some((c) => c.attributes.capabilityType === capability)) {
   console.log(`${capability} is already on for ${bundleId}`)

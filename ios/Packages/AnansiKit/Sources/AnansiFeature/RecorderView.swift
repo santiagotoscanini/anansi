@@ -42,22 +42,20 @@ final class RecordingSession {
             step = .failed("Nothing was recorded.")
             return
         }
-        // The outbox owns the recording from here; the transcriber reads its own copy, since the outbox deletes
-        // its file as soon as the upload lands.
-        let copy = recorder.fileURL.deletingPathExtension().appendingPathExtension("transcribe.m4a")
-        try? FileManager.default.removeItem(at: copy)
-        let canTranscribe = (try? FileManager.default.copyItem(at: recorder.fileURL, to: copy)) != nil
+        // The outbox owns the recording from here; the transcriber reads its own copy.
+        let copy: URL
         do {
-            captureItemId = try OutboxStore.shared.addVoiceCapture(recordingAt: recorder.fileURL,
-                                                                   questionId: request.questionId,
-                                                                   capturedAt: startedAt, durationMs: durationMs)
+            let queued = try VoiceCaptures.queue(recordingAt: recorder.fileURL, questionId: request.questionId,
+                                                 capturedAt: startedAt, durationMs: durationMs)
+            captureItemId = queued.itemId
+            guard let made = queued.copy else {
+                transcriptionProblem = "The recording is saved; it goes to Anansi without its words."
+                step = .done
+                return
+            }
+            copy = made
         } catch {
             step = .failed("The recording couldn't be saved: \(error.localizedDescription)")
-            return
-        }
-        guard canTranscribe else {
-            transcriptionProblem = "The recording is saved; it goes to Anansi without its words."
-            step = .done
             return
         }
         step = .transcribing

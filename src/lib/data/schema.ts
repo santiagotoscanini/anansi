@@ -950,6 +950,9 @@ export const captures = pgTable(
     // The device's own id for the capture (its outbox op), so a send repeated
     // after a lost answer finds the capture it already made instead of a second.
     clientId: text('client_id'),
+    // The phone's recording log that came with it (steps, states, levels; never
+    // the note's words): how a recording from the Action Button went.
+    deviceLog: text('device_log'),
     ...timestamps,
   },
   (t) => [

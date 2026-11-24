@@ -24,11 +24,18 @@ final class BackgroundRecorder {
     @ObservationIgnored private var isStarting = false
 
     func toggle(questionId: String?, questionTitle: String?) async throws -> RecordingToggle {
+        RecordingLog.shared.noteAudio("press: \(isRecording ? "recording, so stop" : "not recording, so start")")
         if isRecording {
-            await stop()
+            await stop(reason: "second press")
             return .stopped
         }
-        try await start(questionId: questionId, questionTitle: questionTitle)
+        do {
+            try await start(questionId: questionId, questionTitle: questionTitle)
+        } catch {
+            RecordingLog.shared.note("start failed: \(String(describing: error))")
+            throw error
+        }
+        RecordingLog.shared.note("started")
         return .started
     }
 
@@ -54,6 +61,7 @@ final class BackgroundRecorder {
         do {
             try session.setCategory(.record, mode: .default)
             try session.setActive(true)
+            RecordingLog.shared.noteAudio("session active")
         } catch {
             throw RecordingStartFailure.needsApp("The microphone couldn't start: \(error.localizedDescription)")
         }
@@ -67,6 +75,7 @@ final class BackgroundRecorder {
             try? session.setActive(false, options: .notifyOthersOnDeactivation)
             throw RecordingStartFailure.needsApp("The Live Activity couldn't start: \(error.localizedDescription)")
         }
+        RecordingLog.shared.note("live activity requested: \(activity.activityState)")
         let recorder = VoiceRecorder()
         await recorder.start()
         guard recorder.phase == .recording else {
@@ -80,7 +89,7 @@ final class BackgroundRecorder {
         // A call or Siri taking the microphone: stop and keep what there is, rather than a recording that sits
         // paused under a Live Activity still counting.
         recorder.onInterrupted = { [weak self] in
-            Task { await self?.stop() }
+            Task { await self?.stop(reason: "interrupted") }
         }
         self.recorder = recorder
         activityId = activity.id
@@ -89,12 +98,13 @@ final class BackgroundRecorder {
         isRecording = true
         limit = Task { [weak self] in
             do { try await Task.sleep(for: .seconds(RecordingRules.maxDuration)) } catch { return }
-            await self?.stop()
+            await self?.stop(reason: "30-minute limit")
         }
     }
 
     /// Stops, saves, and lets the Live Activity say so for a moment.
-    func stop() async {
+    func stop(reason: String = "stop button") async {
+        RecordingLog.shared.note("stop (\(reason)), recording: \(isRecording)")
         guard isRecording, let recorder else { return }
         isRecording = false
         limit?.cancel()
@@ -111,6 +121,7 @@ final class BackgroundRecorder {
             saved = (try? VoiceCaptures.queue(recordingAt: recorder.fileURL, questionId: questionId,
                                               capturedAt: startedAt, durationMs: durationMs)) != nil
         }
+        RecordingLog.shared.note("stopped: \(durationMs.map { "\($0) ms" } ?? "too short, dropped"), queued: \(saved)")
 
         if let activityId {
             let final = RecordingActivityAttributes.ContentState(startedAt: startedAt, endsBy: .now, saved: saved)

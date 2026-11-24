@@ -10,6 +10,8 @@ public enum AnansiApp {
     public static func didFinishLaunching() {
         // The Live Activity's Stop and the Control Center control reach the recorder through this. A launch the
         // system makes to run one of them comes through here before the intent asks for it.
+        RecordingLog.shared.note("launch")
+        AppLifecycleLog.start()
         VoiceRecordingControl.register(AppVoiceRecording())
         // Sending with the app in the background: the handlers must be registered before launch finishes.
         OutboxBackground.register()

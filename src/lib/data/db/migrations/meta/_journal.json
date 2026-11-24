@@ -113,6 +113,13 @@
       "when": 1795542812953,
       "tag": "0015_capture_client_id",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795546191001,
+      "tag": "0016_capture_device_log",
+      "breakpoints": true
     }
   ]
 }

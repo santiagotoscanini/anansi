@@ -62,6 +62,7 @@ final class VoiceRecorder {
             let recorder = try AVAudioRecorder(url: fileURL, settings: settings)
             recorder.isMeteringEnabled = true
             guard recorder.record() else { throw RecorderError() }
+            RecordingLog.shared.noteAudio("recorder started")
             self.recorder = recorder
             phase = .recording
             ticker = Task { [weak self] in
@@ -71,25 +72,46 @@ final class VoiceRecorder {
                 }
             }
         } catch {
+            RecordingLog.shared.noteAudio("recorder failed to start: \(error.localizedDescription)")
             phase = .failed("The recording couldn't start: \(error.localizedDescription)")
         }
     }
 
+    @ObservationIgnored private var stoppedSince: Date?
+    @ObservationIgnored private var lastLogged = Date.distantPast
+    @ObservationIgnored private var loudest: Float = -160
+
     private func poll() {
         guard let recorder, phase == .recording else { return }
         guard recorder.isRecording else {
-            // The system stopped it under us. Said once; the owner stops and keeps it.
-            if let interrupted = onInterrupted {
+            // The system stopped it under us (a call, Siri). A moment's blip is not that: it has to last a second.
+            let since = stoppedSince ?? .now
+            if stoppedSince == nil {
+                stoppedSince = since
+                RecordingLog.shared.noteAudio("recorder not recording")
+            }
+            if Date.now.timeIntervalSince(since) >= 1, let interrupted = onInterrupted {
                 onInterrupted = nil
                 interrupted()
             }
             return
         }
+        if stoppedSince != nil {
+            stoppedSince = nil
+            RecordingLog.shared.note("recorder recording again")
+        }
         recorder.updateMeters()
         elapsed = recorder.currentTime
         // -60 dB is silence enough; the meter shows the rest on a 0...1 scale.
-        let power = Double(recorder.averagePower(forChannel: 0))
-        level = max(0, min(1, (power + 60) / 60))
+        let power = recorder.averagePower(forChannel: 0)
+        loudest = max(loudest, recorder.peakPower(forChannel: 0))
+        level = max(0, min(1, (Double(power) + 60) / 60))
+        // Once a second: how far in, and the loudest moment since the last line (silence is about -50 dB).
+        if Date.now.timeIntervalSince(lastLogged) >= 1 {
+            lastLogged = .now
+            RecordingLog.shared.note(String(format: "recording %.1fs, peak %.0f dB", elapsed, loudest))
+            loudest = -160
+        }
     }
 
     /// Stops and answers the recording's length in milliseconds, or nil when nothing was recorded (and the file is

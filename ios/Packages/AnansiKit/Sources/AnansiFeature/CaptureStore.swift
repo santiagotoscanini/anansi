@@ -24,6 +24,8 @@ final class CaptureStore {
 
     /// Set by `RecordThoughtIntent` or the mic button; HomeView shows the recorder while it is.
     var recording: RecordRequest?
+    /// Bumped when the Action Button is pressed while the recorder is open: the recorder stops and saves.
+    var stopPresses = 0
 
     @ObservationIgnored private let questionsKey = "anansi.openQuestions"
 

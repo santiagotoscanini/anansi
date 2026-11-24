@@ -80,7 +80,13 @@
   capture back rather than a second. `OutboxBackground` sends with the app in the background: on the network
   coming back (`NWPathMonitor`), and in `BGAppRefreshTask` / `BGProcessingTask` runs (identifiers in
   `BGTaskSchedulerPermittedIdentifiers`, background modes `fetch` and `processing`), asked for whenever the queue
-  is not empty. Discarding a capture the server refused asks first (`DiscardFailedButton`). **The phone does not transcribe**: the server does, with the box's Whisper
+  is not empty. Discarding a capture the server refused asks first (`DiscardFailedButton`). `RecordingLog` notes each
+  step of a recording (the press, the session, the Live Activity, the recorder, a level line a second, interruptions,
+  app and lock state, the stop and why) in `Application Support/recording-log.txt`; the lines not yet sent go with
+  the next voice note (`clientLog`, kept as `captures.device_log`), and Settings → Recording log shows them. The
+  in-app recorder takes the whole screen while open (HomeView swaps it in rather than presenting it, since a
+  presentation fails silently over another sheet), starts only once the scene is active (iOS will not start the
+  microphone for an app still coming up), and a second "open the recorder" while it is open stops and saves. **The phone does not transcribe**: the server does, with the box's Whisper
   through the LiteLLM gateway's `stt` model (`src/server/transcribe.ts`). That Whisper refuses AAC and the server
   has no ffmpeg, so `VoiceRecorder` records **16 kHz mono 16-bit little-endian linear PCM WAV** (`.wav`, uploaded as
   `audio/wav`, about 1.9 MB a minute, 58 MB at the 30-minute limit); `API.voiceFormat` sends an `.m4a` still in an

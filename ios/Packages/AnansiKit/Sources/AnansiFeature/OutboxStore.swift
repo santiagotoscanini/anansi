@@ -182,9 +182,11 @@ final class OutboxStore {
                 guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
                     throw OutboxFileMissing()
                 }
+                let log = RecordingLog.shared.unsent()
                 let capture = try await APIClient.shared.uploadVoiceCapture(
                     fileURL: url, questionId: questionId, capturedAt: capturedAt, durationMs: durationMs,
-                    transcript: transcript, clientId: op.id.uuidString)
+                    transcript: transcript, clientId: op.id.uuidString, clientLog: log?.text)
+                if let log { RecordingLog.shared.markSent(upTo: log.upTo) }
                 outbox.recordCapture(itemId: op.itemId, serverId: capture.id)
                 CaptureStore.shared.didLand(capture)
             case .captureTranscript(let transcript):

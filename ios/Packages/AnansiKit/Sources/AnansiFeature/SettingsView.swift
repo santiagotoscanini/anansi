@@ -120,6 +120,15 @@ struct SettingsView: View {
                 .anansiRow()
 
                 Section {
+                    NavigationLink("Recording log") { RecordingLogView() }
+                } header: {
+                    Eyebrow(text: "Help")
+                } footer: {
+                    Text("What happened around each recording, step by step. It also goes to Anansi with the next voice note.")
+                }
+                .anansiRow()
+
+                Section {
                     LabeledContent("Version", value: Self.version)
                 } footer: {
                     HStack {

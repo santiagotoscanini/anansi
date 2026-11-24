@@ -2,8 +2,9 @@ import Foundation
 import Observation
 import SwiftUI
 
-/// One voice note from start to saved: it records as soon as it opens (the Action Button's "Record a thought") and
-/// queues the audio the moment it stops. Anansi's server transcribes it; the Inbox shows the words when they come.
+/// One voice note from start to saved: it records as soon as the app is on screen (the Action Button's "Record a
+/// thought") and queues the audio the moment it stops. Not before: iOS refuses to start the microphone for an app
+/// that is still coming up (behind Face ID, say), and the recording would silently never start. Anansi's server transcribes it; the Inbox shows the words when they come.
 /// Closing early never loses anything: a recording in progress is stopped and kept.
 @Observable
 final class RecordingSession {
@@ -22,7 +23,12 @@ final class RecordingSession {
         self.request = request
     }
 
+    @ObservationIgnored private var started = false
+
+    /// Starts once; later calls (the app coming back to the front) do nothing.
     func start() async {
+        guard !started else { return }
+        started = true
         startedAt = .now
         // A call or Siri taking the microphone: stop and keep what there is.
         recorder.onInterrupted = { [weak self] in self?.stop() }
@@ -54,7 +60,7 @@ final class RecordingSession {
 
 struct RecorderView: View {
     @State private var session: RecordingSession
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     init(request: RecordRequest) {
         _session = State(initialValue: RecordingSession(request: request))
@@ -83,14 +89,18 @@ struct RecorderView: View {
                     if session.step != .recording {
                         Button("Done") {
                             session.close()
-                            dismiss()
+                            CaptureStore.shared.recording = nil
                         }
                     }
                 }
             }
         }
-        .interactiveDismissDisabled(session.step == .recording)
-        .task { await session.start() }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            await session.start()
+        }
+        // The Action Button pressed again: stop and save.
+        .onChange(of: CaptureStore.shared.stopPresses) { session.stop() }
         .onDisappear { session.close() }
     }
 

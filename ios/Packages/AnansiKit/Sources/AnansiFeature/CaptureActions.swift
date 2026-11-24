@@ -32,10 +32,13 @@ public enum CaptureActions {
         return CaptureRules.confirmation(question: questionTitle)
     }
 
-    /// Opens the recorder (HomeView shows it while a request is set).
+    /// Opens the recorder (HomeView shows it while a request is set). Pressed again while it is open, it stops and
+    /// saves the recording: the Action Button works as start and stop.
     public static func record(questionId: String?, questionTitle: String?) {
-        // Already open: a second "open the recorder" must not replace the one recording.
-        guard CaptureStore.shared.recording == nil else { return }
+        guard CaptureStore.shared.recording == nil else {
+            CaptureStore.shared.stopPresses += 1
+            return
+        }
         CaptureStore.shared.recording = RecordRequest(questionId: questionId, questionTitle: questionTitle)
     }
 

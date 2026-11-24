@@ -59,6 +59,7 @@ import { transcribe, TranscriberRejected } from '~/server/transcribe'
 import { AppError } from './errors'
 import { fileUrl } from './file-refs'
 import { deleteFiles, discardFiles, readFile, saveFileFromPath } from './files'
+import { MIN_SPEECH_SECONDS, speechSeconds } from '~/lib/audio'
 import * as openQuestionsService from './open-questions'
 
 type CaptureRow = typeof captures.$inferSelect
@@ -248,6 +249,8 @@ export interface VoiceCaptureInput {
   source: 'phone' | 'web' | 'mcp'
   /** The device's id for it: a repeated send answers the capture it already made. */
   clientId?: string | null
+  /** The phone's recording log since its last voice note, kept for diagnosis. */
+  deviceLog?: string | null
   fileName: string
   /** `audio/*`, as the uploader named it. */
   mimeType: string
@@ -289,6 +292,7 @@ export async function createVoice(userId: string, input: VoiceCaptureInput) {
         durationMs: input.durationMs ?? null,
         questionId,
         clientId: input.clientId ?? null,
+        deviceLog: input.deviceLog?.slice(0, 8000) ?? null,
         source: input.source,
         capturedAt: input.capturedAt ?? new Date(),
         ...(transcript === null
@@ -494,6 +498,9 @@ async function routeNow(id: string) {
     .limit(1)
   if (row?.capture.status !== 'new') return
   const c = row.capture
+
+  // A voice note in which nothing was heard stays in Anansi's Inbox, with its audio: no empty task, no empty note.
+  if (c.kind === 'voice' && c.text !== null && !c.text.trim()) return
 
   if (c.questionId) {
     // A note needs words: a voice note waits for its transcript.
@@ -723,10 +730,16 @@ async function transcribeNow(id: string) {
   try {
     const bytes = await readFile(c.fileId)
     if (!bytes) return await record({ kind: 'rejected', message: 'The audio is not in storage' })
-    const result = await transcribe(bytes, found.fileName ?? 'Voice note.wav', found.mimeType, {
-      durationMs: c.durationMs,
-    })
-    words = result.text
+    // Silence goes nowhere near Whisper, which would make something up ("Thank you."): nothing was heard.
+    const heard = speechSeconds(bytes)
+    if (heard !== null && heard < MIN_SPEECH_SECONDS) {
+      words = ''
+    } else {
+      const result = await transcribe(bytes, found.fileName ?? 'Voice note.wav', found.mimeType, {
+        durationMs: c.durationMs,
+      })
+      words = result.text
+    }
   } catch (e) {
     // Refused: the audio itself (an old m4a). Anything else: the transcriber, the network, the bucket; try later.
     const kind = e instanceof TranscriberRejected ? 'rejected' : 'unavailable'

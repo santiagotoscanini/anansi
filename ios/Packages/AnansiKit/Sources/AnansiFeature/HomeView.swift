@@ -19,7 +19,20 @@ struct HomeView: View {
     @State private var startError: String?
     @Environment(\.scenePhase) private var scenePhase
 
+    /// The recorder takes the whole screen while it is open (the Action Button, Siri, the mic buttons), instead of
+    /// being presented over it: a presentation fails silently when another sheet is already up somewhere, which left
+    /// the Action Button opening the app without recording. Anything presented underneath goes away with it; the
+    /// navigation path is kept and comes back after.
     var body: some View {
+        if let request = captures.recording {
+            RecorderView(request: request)
+                .id(request.id)
+        } else {
+            main
+        }
+    }
+
+    private var main: some View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
@@ -86,10 +99,6 @@ struct HomeView: View {
             }
             .sheet(isPresented: $isShowingSettings) {
                 SettingsView()
-            }
-            // "Record a thought" (the Action Button, Siri) and the mic buttons open the recorder here.
-            .fullScreenCover(item: $captures.recording) { request in
-                RecorderView(request: request)
             }
             .alert("Couldn't start the week", isPresented: .init(get: { startError != nil }, set: { if !$0 { startError = nil } })) {
                 Button("OK") {}

@@ -203,12 +203,15 @@ nonisolated enum API {
     /// The body is the recording, sent separately (from disk). `transcript` rides only with ops queued by builds
     /// that transcribed on the phone.
     static func uploadVoiceCapture(questionId: String?, capturedAt: Date, durationMs: Int, transcript: String?,
-                                   localFile: String = "recording.wav", clientId: String? = nil) -> Endpoint {
+                                   localFile: String = "recording.wav", clientId: String? = nil,
+                                   clientLog: String? = nil) -> Endpoint {
         let format = voiceFormat(localFile: localFile)
         var query = [URLQueryItem(name: "capturedAt", value: instant(capturedAt)),
                      URLQueryItem(name: "durationMs", value: String(max(0, durationMs))),
                      URLQueryItem(name: "fileName", value: format.fileName)]
         if let clientId { query.append(URLQueryItem(name: "clientId", value: clientId)) }
+        // The recording log (`RecordingLog`), kept with the note on the server to see how the recording went.
+        if let clientLog, !clientLog.isEmpty { query.append(URLQueryItem(name: "clientLog", value: clientLog)) }
         if let questionId { query.append(URLQueryItem(name: "questionId", value: questionId)) }
         if let transcript, transcript.count <= transcriptInQueryMax {
             query.append(URLQueryItem(name: "transcript", value: transcript))

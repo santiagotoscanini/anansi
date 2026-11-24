@@ -20,6 +20,7 @@ import { useSetTaskScheduled, useUpdateTask } from '~/lib/mutations/goals-data'
 import { useGoalsData } from '~/lib/queries/goals'
 import { Route } from '~/routes/app.tasks'
 import GoalModal from './GoalModal'
+import { ScreenHeader } from './ui'
 import MentionText from './MentionText'
 
 // Time-bound objectives. Columns are COMPUTED from each task's scheduledAt
@@ -350,63 +351,26 @@ export default function Horizons() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: 'var(--paper)' }}>
-      <header className="shrink-0 px-6 pt-10 pb-7 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
-        <div
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            letterSpacing: '0.08em',
-            color: 'var(--ink-3)',
-            textTransform: 'uppercase',
-            marginBottom: 10,
-          }}
-        >
-          {t('horizons.eyebrow')}
-        </div>
-        <h1
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 44,
-            lineHeight: 1.2,
-            letterSpacing: '-0.02em',
-            color: 'var(--ink)',
-          }}
-        >
-          {t('horizons.titlePre')}
-          <span className="brand-em">{t('horizons.titleEm')}</span>
-        </h1>
-        <p
-          className="mt-3 max-w-2xl"
-          style={{
-            fontFamily: 'var(--font-text)',
-            fontStyle: 'italic',
-            fontSize: 17,
-            color: 'var(--ink-2)',
-            lineHeight: 1.4,
-          }}
-        >
-          {t('horizons.subtitle')}
-        </p>
-        {goals.length > 0 && (
-          <div
-            className="mt-4 flex gap-4"
-            style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-3)' }}
-          >
-            <span>
-              <span style={{ color: 'var(--ink)' }}>{openCount}</span> {t('horizons.openCount')}
-            </span>
-            <span>·</span>
-            <span>
-              <span style={{ color: 'var(--ink)' }}>{scheduledCount}</span> {t('horizons.scheduledCount')}
-            </span>
-          </div>
-        )}
-      </header>
+      <div className="shrink-0 px-5 md:px-10">
+        <ScreenHeader
+          title={
+            <>
+              {t('horizons.titlePre')}
+              <span className="brand-em">{t('horizons.titleEm')}</span>
+            </>
+          }
+          sub={
+            goals.length > 0
+              ? `${openCount} ${t('horizons.openCount')} · ${scheduledCount} ${t('horizons.scheduledCount')}`
+              : undefined
+          }
+        />
+      </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {/* Explicit `id` for SSR — see RelationshipsBoard for why. */}
         <DndContext id="horizons" sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className={`grid grid-cols-1 gap-4 px-6 pt-6 pb-8 sm:grid-cols-2 md:px-8 ${GRID_COLS[columns.length]}`}>
+          <div className={`grid grid-cols-1 gap-4 px-5 pb-10 sm:grid-cols-2 md:px-10 ${GRID_COLS[columns.length]}`}>
             {columns.map((col) => (
               <DroppableColumn
                 key={col.id}

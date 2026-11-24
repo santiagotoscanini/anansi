@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Trophy, Target, TrendingUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useGoalProgress } from '~/lib/computation/use-goal-progress'
 import { useGoalsData } from '~/lib/queries/goals'
 import GoalModal from './GoalModal'
+import { Page, ScreenHeader } from './ui'
 
 export default function LifeProgress() {
   const { t } = useTranslation()
@@ -36,18 +36,6 @@ export default function LifeProgress() {
     })
   }, [terminalGoals, getFullPathCompletion])
 
-  const getProgressColor = (percent: number) => {
-    if (percent < 33) return 'bg-[var(--rust)]'
-    if (percent < 67) return 'bg-[var(--amber)]'
-    return 'bg-[var(--moss)]'
-  }
-
-  const getProgressTextColor = (percent: number) => {
-    if (percent < 33) return 'text-[var(--rust)]'
-    if (percent < 67) return 'text-[var(--amber)]'
-    return 'text-[var(--moss)]'
-  }
-
   const handleGoalClick = (goalId: string) => {
     setSelectedGoalId(goalId)
     setIsModalOpen(true)
@@ -58,184 +46,99 @@ export default function LifeProgress() {
     setSelectedGoalId(null)
   }
 
+  const overall = terminalGoals.length
+    ? terminalGoals.reduce((sum, goal) => sum + getFullPathCompletion(goal.id), 0) / terminalGoals.length
+    : 0
+
   return (
-    <div className="h-full overflow-y-auto" style={{ background: 'var(--paper)' }}>
-      <header className="px-6 pt-10 pb-7 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
-        <div className="mx-auto max-w-6xl">
-          <div
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              letterSpacing: '0.08em',
-              color: 'var(--ink-3)',
-              textTransform: 'uppercase',
-              marginBottom: 10,
-            }}
-          >
-            {t('lifeProgress.eyebrow')}
-          </div>
-          <h1
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 44,
-              lineHeight: 1.2,
-              letterSpacing: '-0.02em',
-              color: 'var(--ink)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-            }}
-          >
-            <Trophy className="h-7 w-7" style={{ color: 'var(--clay)' }} />
+    <Page>
+      <ScreenHeader
+        title={
+          <>
             {t('lifeProgress.titlePre')}
             <span className="brand-em">{t('lifeProgress.titleEm')}</span>
-          </h1>
-          <p
-            className="mt-3 max-w-2xl"
-            style={{
-              fontFamily: 'var(--font-text)',
-              fontStyle: 'italic',
-              fontSize: 17,
-              color: 'var(--ink-2)',
-              lineHeight: 1.4,
-            }}
-          >
-            {t('lifeProgress.subtitle')}
-          </p>
-        </div>
-      </header>
-      <div className="mx-auto max-w-6xl px-6 py-7 md:px-12">
-        {terminalGoals.length === 0 ? (
-          <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-12 text-center">
-            <Target className="mx-auto h-12 w-12 opacity-30" />
-            <p className="mt-4 text-lg font-light">{t('lifeProgress.noTerminalGoals')}</p>
-            <p className="mt-2 text-sm opacity-60">{t('lifeProgress.noTerminalGoalsHelp')}</p>
-          </div>
-        ) : (
-          <div className="space-y-8">
-            {/* Overall Progress */}
-            <div className="rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="flex items-center gap-2 text-lg font-light">
-                  <TrendingUp className="h-5 w-5" />
-                  {t('lifeProgress.overallTitle')}
-                </h3>
-                <span className="text-2xl font-light">
-                  {t('lifeProgress.ultimateGoal', { count: terminalGoals.length })}
-                </span>
+          </>
+        }
+        sub={t('lifeProgress.subtitle')}
+        actions={
+          terminalGoals.length > 0 && (
+            <div className="text-right">
+              <div
+                className="text-[var(--ink)] tabular-nums"
+                style={{ fontFamily: 'var(--font-display)', fontSize: 30, lineHeight: 1 }}
+              >
+                {Math.round(overall)}%
               </div>
+              <div className="mt-1 text-xs text-[var(--ink-3)]">
+                {t('lifeProgress.ultimateGoal', { count: terminalGoals.length })}
+              </div>
+            </div>
+          )
+        }
+      />
 
-              {/* Calculate and show overall progress */}
-              {(() => {
-                const totalProgress =
-                  terminalGoals.reduce((sum, goal) => sum + getFullPathCompletion(goal.id), 0) / terminalGoals.length
-
-                return (
-                  <div>
-                    <div className="mb-2 flex justify-between text-sm">
-                      <span className="opacity-60">{t('lifeProgress.combinedProgress')}</span>
-                      <span className={`font-semibold ${getProgressTextColor(totalProgress)}`}>
-                        {Math.round(totalProgress)}%
+      {terminalGoals.length === 0 ? (
+        <div className="py-16 text-center">
+          <p className="text-[var(--ink)]" style={{ fontFamily: 'var(--font-display)', fontSize: 20 }}>
+            {t('lifeProgress.noTerminalGoals')}
+          </p>
+          <p className="mt-1 text-sm text-[var(--ink-3)]">{t('lifeProgress.noTerminalGoalsHelp')}</p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-[var(--hairline)] border-t border-[var(--hairline)]">
+          {sortedTerminalGoals.map((goal) => {
+            const progressData = getGoalProgress(goal.id)
+            const progress = progressData.totalProgress
+            const hasPredecessors = connections.some((c) => c.target === goal.id)
+            const associatedValues = goal.valueIds ? values.filter((v) => goal.valueIds.includes(v.id)) : []
+            return (
+              <li key={goal.id}>
+                <button
+                  type="button"
+                  onClick={() => handleGoalClick(goal.id)}
+                  className="-mx-2 block w-[calc(100%+1rem)] rounded-lg px-2 py-4 text-left transition-colors hover:bg-[var(--vellum)]/60"
+                >
+                  <div className="flex items-baseline justify-between gap-4">
+                    <span className="flex min-w-0 items-center gap-2">
+                      {goal.emoji && !goal.emoji.startsWith('http') && (
+                        <span className="leading-none">{goal.emoji}</span>
+                      )}
+                      <span className="truncate text-[15px] text-[var(--ink)]">{goal.title}</span>
+                      {associatedValues.map((value) => (
+                        <span
+                          key={value.id}
+                          className="h-1.5 w-1.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: value.color }}
+                          title={value.name}
+                        />
+                      ))}
+                    </span>
+                    <span className="shrink-0 text-sm text-[var(--ink)] tabular-nums">{Math.round(progress)}%</span>
+                  </div>
+                  <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-[var(--hairline-2)]">
+                    <div
+                      className="h-full rounded-full bg-[var(--clay)] transition-all duration-500"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  {hasPredecessors && (
+                    <div className="mt-1.5 flex justify-between text-[11px] text-[var(--ink-4)] tabular-nums">
+                      <span>{t('lifeProgress.ownLabel', { percent: Math.round(progressData.ownProgress) })}</span>
+                      <span>
+                        {t('lifeProgress.dependenciesLabel', {
+                          percent: Math.round(progressData.dependenciesProgress),
+                        })}
                       </span>
                     </div>
-                    <div className="relative h-4 overflow-hidden rounded-full bg-[var(--vellum)]">
-                      <div
-                        className={`h-full transition-all duration-500 ${getProgressColor(totalProgress)}`}
-                        style={{ width: `${totalProgress}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-              })()}
-            </div>
+                  )}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
 
-            {/* Terminal Goals Progress Bars */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-light">{t('lifeProgress.ultimateLifeGoals')}</h3>
-
-              <div className="space-y-3">
-                {sortedTerminalGoals.map((goal) => {
-                  const progressData = getGoalProgress(goal.id)
-                  const progress = progressData.totalProgress
-                  const ownCompletion = progressData.ownProgress
-                  const predecessorProgress = progressData.dependenciesProgress
-                  const hasPredecessors = connections.some((c) => c.target === goal.id)
-                  const associatedValues = goal.valueIds ? values.filter((v) => goal.valueIds.includes(v.id)) : []
-
-                  return (
-                    <div
-                      key={goal.id}
-                      className="cursor-pointer rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-4 transition-all hover:border-[var(--hairline-2)] hover:bg-[var(--vellum)]"
-                      onClick={() => handleGoalClick(goal.id)}
-                    >
-                      <div className="mb-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-[var(--ink)]">{goal.title}</h4>
-                          {/* Value dots */}
-                          {associatedValues.length > 0 && (
-                            <div className="flex gap-1">
-                              {associatedValues.map((value) => (
-                                <div
-                                  key={value.id}
-                                  className="h-2 w-2 rounded-full"
-                                  style={{ backgroundColor: value.color }}
-                                  title={value.name}
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className={`text-2xl font-light ${getProgressTextColor(progress)}`}>
-                          {Math.round(progress)}%
-                        </div>
-                      </div>
-
-                      {/* Progress Bar */}
-                      {hasPredecessors ? (
-                        <div className="space-y-2">
-                          {/* Stacked progress bar showing both components */}
-                          <div className="relative h-4 overflow-hidden rounded-full bg-[var(--vellum)]">
-                            <div className="absolute inset-0 flex">
-                              {/* Own progress portion (40% weight) */}
-                              <div
-                                className={`transition-all duration-500 ${getProgressColor(ownCompletion)} opacity-80`}
-                                style={{ width: `${ownCompletion * 0.4}%` }}
-                              />
-                              {/* Predecessor progress portion (60% weight) */}
-                              <div
-                                className={`transition-all duration-500 ${getProgressColor(predecessorProgress)} opacity-60`}
-                                style={{ width: `${predecessorProgress * 0.6}%` }}
-                              />
-                            </div>
-                          </div>
-                          {/* Legend */}
-                          <div className="flex justify-between text-[10px] text-[var(--ink-3)]">
-                            <span>{t('lifeProgress.ownLabel', { percent: Math.round(ownCompletion) })}</span>
-                            <span>
-                              {t('lifeProgress.dependenciesLabel', { percent: Math.round(predecessorProgress) })}
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        /* Simple bar for goals without predecessors */
-                        <div className="relative h-4 overflow-hidden rounded-full bg-[var(--vellum)]">
-                          <div
-                            className={`h-full transition-all duration-500 ${getProgressColor(progress)}`}
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Goal Modal */}
       {isModalOpen && <GoalModal goalId={selectedGoalId} onClose={handleModalClose} />}
-    </div>
+    </Page>
   )
 }

@@ -1,12 +1,13 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
-import { Plus, Pencil, Trash2, Check, X, History } from 'lucide-react'
+import { Plus, Pencil, Trash2, History } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Goal } from '~/lib/api/types'
 import { useCreateTrackingItem, useDeleteTrackingItem, useUpdateTrackingItem } from '~/lib/mutations/tracking-items'
 import { useGoalsData } from '~/lib/queries/goals'
 import { trackingItemsQueryOptions, type TrackingItemRow } from '~/lib/queries/sync'
+import { Btn, Page, ScreenHeader, Section } from './ui'
 import toast from 'react-hot-toast'
 
 // User's library of items they want to track on weekly syncs. Items are
@@ -108,219 +109,176 @@ export default function TrackingItemsLibrary() {
     }
   }
 
+  const field =
+    'w-full rounded-lg border border-[var(--hairline)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] outline-hidden transition-colors placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)]'
+
+  const editor = (props: {
+    title: string
+    setTitle: (v: string) => void
+    description: string
+    setDescription: (v: string) => void
+    goalId: string
+    setGoalId: (v: string) => void
+    onCancel: () => void
+    onSave: () => void
+    saving: boolean
+    saveLabel: string
+  }) => (
+    <div className="space-y-2 py-4">
+      <input
+        autoFocus
+        value={props.title}
+        onChange={(e) => props.setTitle(e.target.value)}
+        placeholder={t('trackingItems.titlePlaceholder')}
+        className={field}
+      />
+      <textarea
+        value={props.description}
+        onChange={(e) => props.setDescription(e.target.value)}
+        placeholder={t('trackingItems.descriptionPlaceholder')}
+        rows={2}
+        className={field}
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={props.goalId}
+          onChange={(e) => props.setGoalId(e.target.value)}
+          className={`${field} w-auto flex-1`}
+        >
+          <option value="">{t('trackingItems.unscopedLong')}</option>
+          {[...goalsById.values()].map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.title}
+            </option>
+          ))}
+        </select>
+        <Btn kind="ghost" size="sm" onClick={props.onCancel}>
+          {t('common.cancel')}
+        </Btn>
+        <Btn kind="primary" size="sm" onClick={props.onSave} disabled={props.saving}>
+          {props.saveLabel}
+        </Btn>
+      </div>
+    </div>
+  )
+
+  // Grouped by goal, in the goals' order; items with no goal last.
+  const groups: { id: string; title: string; items: typeof items }[] = []
+  for (const item of items) {
+    const key = item.goalId && goalsById.has(item.goalId) ? item.goalId : ''
+    let group = groups.find((g) => g.id === key)
+    if (!group) {
+      group = { id: key, title: key ? (goalsById.get(key)?.title ?? '') : t('trackingItems.unscopedLong'), items: [] }
+      groups.push(group)
+    }
+    group.items.push(item)
+  }
+  groups.sort((a, b) => (a.id === '' ? 1 : b.id === '' ? -1 : 0))
+
   return (
-    <div className="flex h-full flex-col" style={{ background: 'var(--paper)', color: 'var(--ink)' }}>
-      <header
-        className="flex items-end justify-between gap-4 px-6 pt-10 pb-7 md:px-12"
-        style={{ borderBottom: '1px solid var(--hairline)' }}
-      >
-        <div className="min-w-0 flex-1">
-          <div
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              letterSpacing: '0.08em',
-              color: 'var(--ink-3)',
-              textTransform: 'uppercase',
-              marginBottom: 10,
-            }}
-          >
-            {t('trackingItems.eyebrow')}
-          </div>
-          <h1
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 40,
-              lineHeight: 1.2,
-              letterSpacing: '-0.02em',
-              color: 'var(--ink)',
-            }}
-          >
+    <Page>
+      <ScreenHeader
+        title={
+          <>
             {t('trackingItems.titlePre')}
             <span className="brand-em">{t('trackingItems.titleEm')}</span>
             {t('trackingItems.titlePost')}
-          </h1>
-          <p
-            className="mt-3 max-w-2xl"
-            style={{
-              fontFamily: 'var(--font-text)',
-              fontStyle: 'italic',
-              fontSize: 16,
-              color: 'var(--ink-2)',
-              lineHeight: 1.4,
-            }}
-          >
-            {t('trackingItems.subtitle')}
-          </p>
-        </div>
-        {!creatingOpen && (
-          <button
-            onClick={() => setCreatingOpen(true)}
-            className="flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm transition-all"
-            style={{
-              background: 'var(--clay)',
-              color: 'var(--paper)',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            {t('trackingItems.newItem')}
-          </button>
-        )}
-      </header>
+          </>
+        }
+        sub={t('trackingItems.subtitle')}
+        actions={
+          !creatingOpen && (
+            <Btn kind="primary" size="sm" icon={Plus} onClick={() => setCreatingOpen(true)}>
+              {t('trackingItems.newItem')}
+            </Btn>
+          )
+        }
+      />
 
-      <div className="flex-1 overflow-y-auto p-6">
-        {creatingOpen && (
-          <div className="mb-6 rounded-xl border border-[var(--hairline)] bg-[var(--vellum)] p-4">
-            <input
-              autoFocus
-              value={draftTitle}
-              onChange={(e) => setDraftTitle(e.target.value)}
-              placeholder={t('trackingItems.titlePlaceholder')}
-              className="w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-hidden focus:border-[var(--hairline-2)]"
-            />
-            <textarea
-              value={draftDescription}
-              onChange={(e) => setDraftDescription(e.target.value)}
-              placeholder={t('trackingItems.descriptionPlaceholder')}
-              rows={2}
-              className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-hidden focus:border-[var(--hairline-2)]"
-            />
-            <select
-              value={draftGoalId}
-              onChange={(e) => setDraftGoalId(e.target.value)}
-              className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-hidden focus:border-[var(--hairline-2)]"
-            >
-              <option value="">{t('trackingItems.unscopedLong')}</option>
-              {[...goalsById.values()].map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.title}
-                </option>
-              ))}
-            </select>
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                onClick={cancelCreate}
-                className="rounded-md px-3 py-1.5 text-sm text-[var(--ink-2)] hover:bg-[var(--vellum)]"
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={handleCreate}
-                disabled={createMutation.isPending}
-                className="rounded-md bg-[var(--moss)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--moss)] disabled:opacity-60"
-              >
-                {createMutation.isPending ? t('trackingItems.creating') : t('trackingItems.create')}
-              </button>
-            </div>
-          </div>
-        )}
+      {creatingOpen &&
+        editor({
+          title: draftTitle,
+          setTitle: setDraftTitle,
+          description: draftDescription,
+          setDescription: setDraftDescription,
+          goalId: draftGoalId,
+          setGoalId: setDraftGoalId,
+          onCancel: cancelCreate,
+          onSave: () => void handleCreate(),
+          saving: createMutation.isPending,
+          saveLabel: createMutation.isPending ? t('trackingItems.creating') : t('trackingItems.create'),
+        })}
 
-        {/* Loader-prefetched — no loading state to render. */}
-        {items.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[var(--hairline)] p-8 text-center text-[var(--ink-2)]">
-            {t('trackingItems.emptyPre')}
-            <span className="font-medium text-[var(--ink)]">{t('trackingItems.emptyEm')}</span>
-            {t('trackingItems.emptyPost')}
-          </div>
-        ) : (
-          <ul className="space-y-2">
-            {items.map((item) => {
-              const isEditing = editingId === item.id
-              const goal = item.goalId ? goalsById.get(item.goalId) : null
-              return (
-                <li key={item.id} className="rounded-xl border border-[var(--hairline)] bg-[var(--vellum)]">
-                  {isEditing ? (
-                    <div className="p-4">
-                      <input
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        className="w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-hidden focus:border-[var(--hairline-2)]"
-                      />
-                      <textarea
-                        value={editDescription}
-                        onChange={(e) => setEditDescription(e.target.value)}
-                        rows={2}
-                        className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-hidden focus:border-[var(--hairline-2)]"
-                      />
-                      <select
-                        value={editGoalId}
-                        onChange={(e) => setEditGoalId(e.target.value)}
-                        className="mt-2 w-full rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] px-3 py-2 text-sm outline-hidden focus:border-[var(--hairline-2)]"
+      {/* Loader-prefetched: no loading state to render. */}
+      {items.length === 0 ? (
+        <p className="py-10 text-center text-sm text-[var(--ink-3)]">
+          {t('trackingItems.emptyPre')}
+          <span className="text-[var(--ink)]">{t('trackingItems.emptyEm')}</span>
+          {t('trackingItems.emptyPost')}
+        </p>
+      ) : (
+        groups.map((group) => (
+          <Section key={group.id || 'none'} label={group.title} count={group.items.length} className="first:mt-2">
+            <ul className="divide-y divide-[var(--hairline)] border-t border-[var(--hairline)]">
+              {group.items.map((item) =>
+                editingId === item.id ? (
+                  <li key={item.id}>
+                    {editor({
+                      title: editTitle,
+                      setTitle: setEditTitle,
+                      description: editDescription,
+                      setDescription: setEditDescription,
+                      goalId: editGoalId,
+                      setGoalId: setEditGoalId,
+                      onCancel: cancelEdit,
+                      onSave: () => void handleSaveEdit(),
+                      saving: updateMutation.isPending,
+                      saveLabel: t('common.save'),
+                    })}
+                  </li>
+                ) : (
+                  <li key={item.id} className="group flex items-center gap-2">
+                    <Link
+                      to="/app/tracking-items"
+                      search={{ item: item.id }}
+                      title={t('overTime.openTitle')}
+                      className="-mx-2 flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-[var(--vellum)]/60"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[15px] text-[var(--ink)]">{item.title}</span>
+                        {item.description && (
+                          <span className="mt-0.5 block truncate text-[13px] text-[var(--ink-3)]">
+                            {item.description}
+                          </span>
+                        )}
+                      </span>
+                      <History className="h-4 w-4 shrink-0 text-[var(--ink-4)] transition-colors group-hover:text-[var(--ink-2)]" />
+                    </Link>
+                    <div className="flex shrink-0 gap-0.5 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
+                      <button
+                        onClick={() => beginEdit(item)}
+                        className="rounded-md p-1.5 text-[var(--ink-4)] transition-colors hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
+                        title={t('common.edit')}
+                        aria-label={t('common.edit')}
                       >
-                        <option value="">{t('trackingItems.unscopedShort')}</option>
-                        {[...goalsById.values()].map((g) => (
-                          <option key={g.id} value={g.id}>
-                            {g.title}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="mt-3 flex justify-end gap-2">
-                        <button
-                          onClick={cancelEdit}
-                          className="flex items-center gap-1 rounded-md px-3 py-1.5 text-sm text-[var(--ink-2)] hover:bg-[var(--vellum)]"
-                        >
-                          <X className="h-4 w-4" /> {t('common.cancel')}
-                        </button>
-                        <button
-                          onClick={handleSaveEdit}
-                          disabled={updateMutation.isPending}
-                          className="flex items-center gap-1 rounded-md bg-[var(--moss)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--moss)] disabled:opacity-60"
-                        >
-                          <Check className="h-4 w-4" /> {t('common.save')}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="group flex items-start gap-3 p-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="truncate font-medium">{item.title}</span>
-                          {goal ? (
-                            <span className="rounded-full bg-[var(--indigo-soft)] px-2 py-0.5 text-xs text-[var(--indigo)]">
-                              {goal.title}
-                            </span>
-                          ) : (
-                            <span className="rounded-full bg-[var(--vellum)] px-2 py-0.5 text-xs text-[var(--ink-2)]">
-                              {t('trackingItems.unscopedTag')}
-                            </span>
-                          )}
-                        </div>
-                        {item.description && <p className="mt-1 text-sm text-[var(--ink-2)]">{item.description}</p>}
-                      </div>
-                      <div className="flex shrink-0 gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100">
-                        <button
-                          onClick={() => beginEdit(item)}
-                          className="rounded-md p-1.5 text-[var(--ink-2)] hover:bg-[var(--vellum)]"
-                          title={t('common.edit')}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item)}
-                          className="rounded-md p-1.5 text-[var(--ink-2)] hover:bg-[var(--rust-soft)] hover:text-[var(--rust)]"
-                          title={t('common.delete')}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                      <Link
-                        to="/app/tracking-items"
-                        search={{ item: item.id }}
-                        title={t('overTime.openTitle')}
-                        className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-[var(--ink-2)] transition-colors hover:bg-[var(--paper-deep)] hover:text-[var(--ink)]"
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(item)}
+                        className="rounded-md p-1.5 text-[var(--ink-4)] transition-colors hover:bg-[var(--rust-soft)] hover:text-[var(--rust)]"
+                        title={t('common.delete')}
+                        aria-label={t('common.delete')}
                       >
-                        <History className="h-4 w-4" />
-                        <span className="hidden sm:inline">{t('overTime.open')}</span>
-                      </Link>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </div>
-    </div>
+                  </li>
+                ),
+              )}
+            </ul>
+          </Section>
+        ))
+      )}
+    </Page>
   )
 }

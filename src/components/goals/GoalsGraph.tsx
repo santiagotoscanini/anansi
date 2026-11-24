@@ -5,7 +5,6 @@ import type { Connection, Edge, Node, ReactFlowInstance } from '@xyflow/react'
 import { HelpCircle, LayoutGrid, Plus, Target } from 'lucide-react'
 import { createId } from '@paralleldrive/cuid2'
 import { useTranslation } from 'react-i18next'
-import { useGoalProgress } from '~/lib/computation/use-goal-progress'
 import {
   useArrangeGoals,
   useCreateConnection,
@@ -22,6 +21,7 @@ import GoalModal from './GoalModal'
 import EditableEdge from './EditableEdge'
 import DeleteConfirmationModal from './DeleteConfirmationModal'
 import GraphMathHelpModal from './GraphMathHelpModal'
+import { Btn, ScreenHeader } from './ui'
 import toast from 'react-hot-toast'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -38,7 +38,6 @@ const edgeTypes = {
 export default function GoalsGraph() {
   const { t } = useTranslation()
   const { goals, connections } = useGoalsData()
-  const { getGoalProgress } = useGoalProgress(goals, connections)
   const updateGoal = useUpdateGoal()
   const addGoal = useCreateGoal()
   const addConnection = useCreateConnection()
@@ -417,92 +416,43 @@ export default function GoalsGraph() {
       {/* Warm ScreenHeader on top of the graph — matches the design's
           Objectives view. New Goal + How-it-works moved into the action
           row instead of floating chips on the canvas. */}
-      <header className="shrink-0 px-6 pt-10 pb-7 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 11,
-                letterSpacing: '0.08em',
-                color: 'var(--ink-3)',
-                textTransform: 'uppercase',
-                marginBottom: 10,
-              }}
-            >
-              {t('goalsGraph.eyebrow')}
-            </div>
-            <h1
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 44,
-                lineHeight: 1.2,
-                letterSpacing: '-0.02em',
-                color: 'var(--ink)',
-              }}
-            >
+      <div className="shrink-0 px-5 md:px-10" style={{ borderBottom: '1px solid var(--hairline)' }}>
+        <ScreenHeader
+          title={
+            <>
               {t('goalsGraph.titlePre')}
               <span className="brand-em">{t('goalsGraph.titleEm')}</span>
-            </h1>
-            <p
-              className="mt-3 max-w-2xl"
-              style={{
-                fontFamily: 'var(--font-text)',
-                fontStyle: 'italic',
-                fontSize: 17,
-                color: 'var(--ink-2)',
-                lineHeight: 1.4,
-              }}
-            >
-              {t('goalsGraph.subtitle')}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              onClick={() => setIsHelpOpen(true)}
-              className="flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm transition-all"
-              style={{
-                background: 'var(--canvas)',
-                color: 'var(--ink)',
-                border: '1px solid var(--hairline-2)',
-                boxShadow: 'var(--shadow-sm)',
-              }}
-              title={t('goalsGraph.howItWorksTitle')}
-            >
-              <HelpCircle className="h-4 w-4" />
-              <span className="hidden sm:inline">{t('goalsGraph.howItWorks')}</span>
-            </button>
-            <button
-              onClick={() => void handleArrange()}
-              disabled={arrange.isPending || goals.length < 2}
-              className="flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                background: 'var(--canvas)',
-                color: 'var(--ink)',
-                border: '1px solid var(--hairline-2)',
-                boxShadow: 'var(--shadow-sm)',
-              }}
-              title={t('goalsGraph.arrangeTitle')}
-            >
-              <LayoutGrid className="h-4 w-4" />
-              <span className="hidden sm:inline">{t('goalsGraph.arrange')}</span>
-            </button>
-            <button
-              onClick={handleAddGoal}
-              className="flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm transition-all"
-              style={{
-                background: 'var(--clay)',
-                color: 'var(--paper)',
-                boxShadow: 'var(--shadow-sm)',
-              }}
-              title={t('goalsGraph.newGoalTitle')}
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">{t('goalsGraph.newGoal')}</span>
-            </button>
-          </div>
-        </div>
-      </header>
+            </>
+          }
+          sub={t('goalsGraph.subtitle')}
+          actions={
+            <>
+              <Btn
+                kind="ghost"
+                size="sm"
+                icon={HelpCircle}
+                onClick={() => setIsHelpOpen(true)}
+                title={t('goalsGraph.howItWorksTitle')}
+              >
+                <span className="hidden sm:inline">{t('goalsGraph.howItWorks')}</span>
+              </Btn>
+              <Btn
+                kind="secondary"
+                size="sm"
+                icon={LayoutGrid}
+                onClick={() => void handleArrange()}
+                disabled={arrange.isPending || goals.length < 2}
+                title={t('goalsGraph.arrangeTitle')}
+              >
+                <span className="hidden sm:inline">{t('goalsGraph.arrange')}</span>
+              </Btn>
+              <Btn kind="primary" size="sm" icon={Plus} onClick={handleAddGoal} title={t('goalsGraph.newGoalTitle')}>
+                <span className="hidden sm:inline">{t('goalsGraph.newGoal')}</span>
+              </Btn>
+            </>
+          }
+        />
+      </div>
 
       <div className="relative min-h-0 flex-1">
         {/* React Flow Graph */}
@@ -529,15 +479,12 @@ export default function GoalsGraph() {
           <Controls className="!rounded-lg !border-[var(--hairline-2)] !bg-[var(--canvas)] !shadow-sm [&>button]:!border-b [&>button]:!border-[var(--hairline)] [&>button]:!bg-[var(--canvas)] [&>button]:!text-[var(--ink)] [&>button:hover]:!bg-[var(--vellum)] [&>button>svg]:!fill-[var(--ink-2)]" />
           {/* MiniMap is dead weight on a phone — hide on small screens to free real estate. */}
           <MiniMap
-            className="!hidden !border-[var(--hairline-2)] !bg-[var(--vellum)] md:!block"
-            nodeColor={(node) => {
-              const goal = goals.find((g) => g.id === node.id)
-              if (!goal) return 'oklch(0.72 0.012 65)'
-              const completion = getGoalProgress(goal.id).totalProgress
-              if (completion < 33) return 'oklch(0.55 0.14 28)' // rust
-              if (completion < 67) return 'oklch(0.72 0.13 75)' // amber
-              return 'oklch(0.55 0.09 135)' // moss
-            }}
+            className="!hidden !rounded-lg !border !border-[var(--hairline-2)] !bg-[var(--canvas)] md:!block"
+            maskColor="color-mix(in oklch, var(--paper) 70%, transparent)"
+            nodeColor="var(--hairline-2)"
+            nodeBorderRadius={6}
+            pannable
+            zoomable
           />
           {/* Warm dot grid — uses a tinted ink color (~6% opacity) so it
               reads as paper texture, not a CRT graticule. */}

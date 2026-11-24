@@ -9,6 +9,7 @@ import { groupsQueryOptions, peopleQueryOptions } from '~/lib/queries/people'
 import { Route } from '~/routes/app.tasks'
 import TaskModal from './TaskModal'
 import Avatar from './Avatar'
+import { Page, ScreenHeader } from './ui'
 import MentionText from './MentionText'
 
 type FilterMode = 'open' | 'all' | 'completed'
@@ -77,53 +78,16 @@ export default function Tasks() {
   const totalCount = grouped.reduce((sum, g) => sum + g.tasks.length, 0)
 
   return (
-    <div className="h-full overflow-y-auto" style={{ background: 'var(--paper)' }}>
-      {/* Warm screen header — eyebrow + display title with brand-em + italic sub */}
-      <header
-        className="px-6 pt-10 pb-6 md:px-12 md:pt-12 md:pb-7"
-        style={{ borderBottom: '1px solid var(--hairline)' }}
-      >
-        <div className="mx-auto max-w-5xl">
-          <div className="min-w-0">
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 11,
-                letterSpacing: '0.08em',
-                color: 'var(--ink-3)',
-                textTransform: 'uppercase',
-                marginBottom: 10,
-              }}
-            >
-              {t('tasks.eyebrowPrefix', { count: totalCount, filter: t(FILTER_LABEL_KEYS[filter]) })}
-            </div>
-            <h1
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 44,
-                lineHeight: 1.2,
-                letterSpacing: '-0.02em',
-                color: 'var(--ink)',
-              }}
-            >
-              {t('tasks.titlePre')}
-              <span className="brand-em">{t('tasks.titleEm')}</span>
-            </h1>
-            <p
-              className="mt-3 max-w-xl"
-              style={{
-                fontFamily: 'var(--font-text)',
-                fontStyle: 'italic',
-                fontSize: 17,
-                color: 'var(--ink-2)',
-                lineHeight: 1.4,
-              }}
-            >
-              {t('tasks.subtitle')}
-            </p>
-          </div>
-          {/* Toolbar row — search expands on the left, filter pill anchors right. */}
-          <div className="mt-7 flex flex-wrap items-center justify-between gap-3">
+    <Page>
+      <ScreenHeader
+        title={
+          <>
+            {t('tasks.titlePre')}
+            <span className="brand-em">{t('tasks.titleEm')}</span>
+          </>
+        }
+        below={
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div
               className="flex h-9 max-w-md flex-1 items-center gap-2 rounded-lg px-3"
               style={{
@@ -163,10 +127,10 @@ export default function Tasks() {
               ))}
             </div>
           </div>
-        </div>
-      </header>
+        }
+      />
 
-      <div className="mx-auto max-w-5xl space-y-5 px-6 py-7 md:px-12">
+      <div className="space-y-5 pt-2">
         {/* Empty state */}
         {totalCount === 0 ? (
           <div className="rounded-xl border border-dashed border-[var(--hairline)] bg-[var(--vellum)] p-10 text-center">
@@ -195,7 +159,7 @@ export default function Tasks() {
                   <h3 className="truncate text-sm font-medium text-[var(--ink)]">{goal.title}</h3>
                   <span className="text-xs text-[var(--ink-3)]">{tasks.length}</span>
                 </div>
-                <ul className="divide-y divide-[var(--hairline)] overflow-hidden rounded-xl border border-[var(--hairline)] bg-[var(--vellum)]">
+                <ul className="divide-y divide-[var(--hairline)] border-y border-[var(--hairline)]">
                   {tasks.map((task) => {
                     const referents = (task.referentIds ?? [])
                       .map((id) => peopleById.get(id))
@@ -308,6 +272,6 @@ export default function Tasks() {
       {openTaskId && openGoalId && (
         <TaskModal key={openTaskId} goalId={openGoalId} taskId={openTaskId} onClose={closeTask} />
       )}
-    </div>
+    </Page>
   )
 }

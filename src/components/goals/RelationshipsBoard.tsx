@@ -19,6 +19,7 @@ import { useSetPersonCategory } from '~/lib/mutations/people'
 import { qk } from '~/lib/queries/keys'
 import { peopleQueryOptions } from '~/lib/queries/people'
 import PersonModal, { type PersonRow } from './PersonModal'
+import { ScreenHeader } from './ui'
 import Avatar from './Avatar'
 
 type ColumnLabelKey =
@@ -212,45 +213,18 @@ export default function RelationshipsBoard() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: 'var(--paper)' }}>
-      <header className="shrink-0 px-6 pt-10 pb-7 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
-        <div
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            letterSpacing: '0.08em',
-            color: 'var(--ink-3)',
-            textTransform: 'uppercase',
-            marginBottom: 10,
-          }}
-        >
-          {t('relationships.eyebrow')}
-        </div>
-        <h1
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 44,
-            lineHeight: 1.2,
-            letterSpacing: '-0.02em',
-            color: 'var(--ink)',
-          }}
-        >
-          {t('relationships.titlePre')}
-          <span className="brand-em">{t('relationships.titleEm')}</span>
-          {t('relationships.titlePost')}
-        </h1>
-        <p
-          className="mt-3 max-w-2xl"
-          style={{
-            fontFamily: 'var(--font-text)',
-            fontStyle: 'italic',
-            fontSize: 17,
-            color: 'var(--ink-2)',
-            lineHeight: 1.4,
-          }}
-        >
-          {t('relationships.subtitle')}
-        </p>
-      </header>
+      <div className="shrink-0 px-5 md:px-10">
+        <ScreenHeader
+          title={
+            <>
+              {t('relationships.titlePre')}
+              <span className="brand-em">{t('relationships.titleEm')}</span>
+              {t('relationships.titlePost')}
+            </>
+          }
+          sub={t('relationships.subtitle')}
+        />
+      </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {/* An explicit `id` is required for SSR. dnd-kit derives
@@ -260,7 +234,7 @@ export default function RelationshipsBoard() {
               `-0` and the client expected `-1`, and React reported a hydration
               mismatch on every draggable. A fixed id makes both sides agree. */}
         <DndContext id="relationships-board" sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="grid grid-cols-1 gap-4 px-6 pt-6 pb-8 sm:grid-cols-2 md:px-8 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 px-5 pb-10 sm:grid-cols-2 md:px-10 xl:grid-cols-4">
             {COLUMNS.map((col) => (
               <DroppableColumn key={col.id} column={col} people={byColumn[col.id]} onCardClick={setEditingPerson} />
             ))}

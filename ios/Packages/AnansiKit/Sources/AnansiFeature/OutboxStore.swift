@@ -174,7 +174,7 @@ final class OutboxStore {
                 }
             case .capture(let text, let questionId, let capturedAt):
                 let capture = try await APIClient.shared.createCapture(text: text, questionId: questionId,
-                                                                      capturedAt: capturedAt)
+                                                                      capturedAt: capturedAt, clientId: op.id.uuidString)
                 outbox.recordCapture(itemId: op.itemId, serverId: capture.id)
                 CaptureStore.shared.didLand(capture)
             case .voiceCapture(let local, let questionId, let capturedAt, let durationMs, _, let transcript):
@@ -184,7 +184,7 @@ final class OutboxStore {
                 }
                 let capture = try await APIClient.shared.uploadVoiceCapture(
                     fileURL: url, questionId: questionId, capturedAt: capturedAt, durationMs: durationMs,
-                    transcript: transcript)
+                    transcript: transcript, clientId: op.id.uuidString)
                 outbox.recordCapture(itemId: op.itemId, serverId: capture.id)
                 CaptureStore.shared.didLand(capture)
             case .captureTranscript(let transcript):
@@ -220,6 +220,8 @@ final class OutboxStore {
 
     private func scheduleWake() {
         wakeTask?.cancel()
+        // Something still to send: ask the system for a chance to send it if the app is not around by then.
+        if !outbox.pending.isEmpty { OutboxBackground.schedule() }
         guard let next = outbox.nextAttempt, !outbox.isEmpty else {
             background.end()
             return

@@ -70,8 +70,17 @@
   shows `RecorderView`, which records at once). The App Shortcuts (English and Spanish phrases) are in the app
   target, `Anansi/AnansiShortcuts.swift`, which reaches the package's intents through `AppIntentsPackage`
   (`AnansiAppIntents` → `AppFeatureIntents` → `AnansiIntentsPackage` → `AnansiActivityIntents`); keep that chain when
-  adding an intent. A recording goes to a temporary folder and is moved into the outbox only once stopped
-  (`VoiceCaptures.queue`), then uploaded. **The phone does not transcribe**: the server does, with the box's Whisper
+  adding an intent. A recording is written to `Application Support/Recordings/` (`VoiceRecorder.folder`, never purged)
+  and moved into the outbox only once stopped (`VoiceCaptures.queue`), then uploaded.
+  **A thought is never lost:** an interruption (a call, Siri) stops the recording and keeps it (`onInterrupted`; its
+  length comes from the file, since the recorder says 0 once paused); a queue that fails leaves the file where it is;
+  and at launch `RecordingRecovery` queues every WAV left in `Recordings/` (or the old temporary folder) by a
+  recording the app did not live to finish, after writing the real sizes into its header (`Core/WAVFile.swift`).
+  Each capture is sent with its outbox op id as `clientId`, so a send repeated after a lost answer gets the same
+  capture back rather than a second. `OutboxBackground` sends with the app in the background: on the network
+  coming back (`NWPathMonitor`), and in `BGAppRefreshTask` / `BGProcessingTask` runs (identifiers in
+  `BGTaskSchedulerPermittedIdentifiers`, background modes `fetch` and `processing`), asked for whenever the queue
+  is not empty. Discarding a capture the server refused asks first (`DiscardFailedButton`). **The phone does not transcribe**: the server does, with the box's Whisper
   through the LiteLLM gateway's `stt` model (`src/server/transcribe.ts`). That Whisper refuses AAC and the server
   has no ffmpeg, so `VoiceRecorder` records **16 kHz mono 16-bit little-endian linear PCM WAV** (`.wav`, uploaded as
   `audio/wav`, about 1.9 MB a minute, 58 MB at the 30-minute limit); `API.voiceFormat` sends an `.m4a` still in an

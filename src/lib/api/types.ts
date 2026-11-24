@@ -616,6 +616,8 @@ export const createCaptureSchema = z.object({
   /** The moment on the device; the server's now when left out. */
   capturedAt: z.coerce.date().optional(),
   source: z.enum(captureSourceValues),
+  /** The device's id for it: a repeated send answers the capture it already made. */
+  clientId: z.string().min(1).max(64).optional(),
 })
 
 /** A voice note's words, from the phone. Empty means it heard none. */

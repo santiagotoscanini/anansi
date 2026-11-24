@@ -24,6 +24,8 @@ final class RecordingSession {
 
     func start() async {
         startedAt = .now
+        // A call or Siri taking the microphone: stop and keep what there is.
+        recorder.onInterrupted = { [weak self] in self?.stop() }
         await recorder.start()
         if case .failed(let message) = recorder.phase { step = .failed(message) }
     }
@@ -39,7 +41,8 @@ final class RecordingSession {
                                     capturedAt: startedAt, durationMs: durationMs)
             step = .done
         } catch {
-            step = .failed("The recording couldn't be saved: \(error.localizedDescription)")
+            // The file stays in Recordings/, and the next launch queues it (`RecordingRecovery`).
+            step = .failed("The recording couldn't be queued yet (\(error.localizedDescription)). It's kept on this phone and will be sent the next time Anansi opens.")
         }
     }
 

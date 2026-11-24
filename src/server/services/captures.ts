@@ -90,6 +90,40 @@ async function assertQuestion(userId: string, questionId: string) {
   if (!row) throw new AppError('BAD_REQUEST', `No open question has the id ${questionId}.`)
 }
 
+/**
+ * The question a new capture is for. From the phone a thought is never refused
+ * over it: one queued offline may arrive after its question was deleted, and
+ * then it is kept without one (and goes to TickTick). Others are told.
+ */
+async function questionFor(userId: string, questionId: string | null | undefined, source: string) {
+  if (!questionId) return null
+  if (source !== 'phone') {
+    await assertQuestion(userId, questionId)
+    return questionId
+  }
+  try {
+    await assertQuestion(userId, questionId)
+    return questionId
+  } catch {
+    console.warn('[captures] a phone capture named a question that is gone; kept without it', questionId)
+    return null
+  }
+}
+
+/** The capture this device already made under `clientId`, if any. */
+async function byClientId(userId: string, clientId: string | null | undefined) {
+  if (!clientId) return null
+  const [row] = await db
+    .select({ id: captures.id })
+    .from(captures)
+    .where(and(eq(captures.userId, userId), eq(captures.clientId, clientId)))
+    .limit(1)
+  return row?.id ?? null
+}
+
+const isUniqueViolation = (e: unknown) =>
+  typeof e === 'object' && e !== null && (e as { code?: string }).code === '23505'
+
 /** The public origin, for the link back from TickTick. Null when the server does not know it. */
 function publicOrigin(): string | null {
   for (const value of [process.env.APP_PUBLIC_URL, process.env.TICKTICK_REDIRECT_URI]) {
@@ -180,23 +214,29 @@ async function settle(userId: string, id: string, words?: Promise<void>) {
 /** A typed thought. */
 export async function create(userId: string, input: CreateCapture) {
   const data = createCaptureSchema.parse(input)
+  const already = await byClientId(userId, data.clientId)
+  if (already) return await get(userId, already)
   limitRate(userId)
-  if (data.questionId) await assertQuestion(userId, data.questionId)
+  const questionId = await questionFor(userId, data.questionId, data.source)
   const [row] = await db
     .insert(captures)
     .values({
       userId,
       kind: 'text',
       text: data.text,
-      questionId: data.questionId ?? null,
+      questionId,
+      clientId: data.clientId ?? null,
       source: data.source,
       // Stamped here when the device sent none: the column default is the
       // database's clock, which writes local time, and would sort apart from
       // the instants the app writes.
       capturedAt: data.capturedAt ?? new Date(),
     })
+    .onConflictDoNothing()
     .returning({ id: captures.id })
-  return await settle(userId, row!.id)
+  // The same send twice at once: the other one made it.
+  if (!row) return await get(userId, (await byClientId(userId, data.clientId))!)
+  return await settle(userId, row.id)
 }
 
 export interface VoiceCaptureInput {
@@ -206,6 +246,8 @@ export interface VoiceCaptureInput {
   /** When the phone already has the words (builds that transcribed on the device). */
   transcript?: string | null
   source: 'phone' | 'web' | 'mcp'
+  /** The device's id for it: a repeated send answers the capture it already made. */
+  clientId?: string | null
   fileName: string
   /** `audio/*`, as the uploader named it. */
   mimeType: string
@@ -216,6 +258,8 @@ export interface VoiceCaptureInput {
 
 /** A voice note: the audio, streamed to the bucket, and its words when they are known. */
 export async function createVoice(userId: string, input: VoiceCaptureInput) {
+  const already = await byClientId(userId, input.clientId)
+  if (already) return await get(userId, already)
   limitRate(userId)
   if (!/^audio\/[\w.+-]+$/.test(input.mimeType)) {
     throw new AppError('BAD_REQUEST', 'A voice note needs an audio/* Content-Type')
@@ -224,7 +268,7 @@ export async function createVoice(userId: string, input: VoiceCaptureInput) {
   if (input.sizeBytes > MAX_VOICE_CAPTURE_BYTES) {
     throw new AppError('BAD_REQUEST', `A voice note is at most ${MAX_VOICE_CAPTURE_BYTES} bytes`)
   }
-  if (input.questionId) await assertQuestion(userId, input.questionId)
+  const questionId = await questionFor(userId, input.questionId, input.source)
   const transcript = input.transcript == null ? null : input.transcript.trim().slice(0, 20_000)
 
   const file = await saveFileFromPath(userId, {
@@ -243,7 +287,8 @@ export async function createVoice(userId: string, input: VoiceCaptureInput) {
         text: transcript,
         fileId: file.id,
         durationMs: input.durationMs ?? null,
-        questionId: input.questionId ?? null,
+        questionId,
+        clientId: input.clientId ?? null,
         source: input.source,
         capturedAt: input.capturedAt ?? new Date(),
         ...(transcript === null
@@ -254,6 +299,9 @@ export async function createVoice(userId: string, input: VoiceCaptureInput) {
     id = row!.id
   } catch (err) {
     await discardFiles([file.id])
+    // The same send twice at once: the other one made it.
+    const other = isUniqueViolation(err) ? await byClientId(userId, input.clientId) : null
+    if (other) return await get(userId, other)
     throw err
   }
   return await settle(userId, id, transcript === null ? transcribeSoon(id) : undefined)

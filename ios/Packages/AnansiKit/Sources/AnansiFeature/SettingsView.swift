@@ -62,7 +62,7 @@ struct SettingsView: View {
                             HStack {
                                 Button("Try again") { outbox.retry(failed.id) }
                                 Spacer()
-                                Button("Discard", role: .destructive) { outbox.dismiss(failed.id) }
+                                DiscardFailedButton(failed: failed)
                             }
                             .buttonStyle(.borderless)
                         }

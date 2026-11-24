@@ -77,6 +77,11 @@ final class BackgroundRecorder {
             throw RecordingStartFailure.needsApp(reason)
         }
 
+        // A call or Siri taking the microphone: stop and keep what there is, rather than a recording that sits
+        // paused under a Live Activity still counting.
+        recorder.onInterrupted = { [weak self] in
+            Task { await self?.stop() }
+        }
         self.recorder = recorder
         activityId = activity.id
         self.questionId = questionId
@@ -99,17 +104,12 @@ final class BackgroundRecorder {
         self.recorder = nil
         self.activityId = nil
 
+        // Too short (`durationMs` nil): the recorder already dropped it. A queue that fails leaves the file in
+        // `Recordings/`, and the next launch queues it (`RecordingRecovery`); it is never deleted here.
         var saved = false
         if let durationMs {
-            do {
-                try VoiceCaptures.queue(recordingAt: recorder.fileURL, questionId: questionId,
-                                        capturedAt: startedAt, durationMs: durationMs)
-                saved = true
-            } catch {
-                try? FileManager.default.removeItem(at: recorder.fileURL)
-            }
-        } else {
-            try? FileManager.default.removeItem(at: recorder.fileURL)
+            saved = (try? VoiceCaptures.queue(recordingAt: recorder.fileURL, questionId: questionId,
+                                              capturedAt: startedAt, durationMs: durationMs)) != nil
         }
 
         if let activityId {

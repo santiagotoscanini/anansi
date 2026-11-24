@@ -947,11 +947,15 @@ export const captures = pgTable(
     transcribeAfter: timestamp('transcribe_after'),
     transcribedAt: timestamp('transcribed_at'),
     transcriptSource: transcriptSourceEnum('transcript_source'),
+    // The device's own id for the capture (its outbox op), so a send repeated
+    // after a lost answer finds the capture it already made instead of a second.
+    clientId: text('client_id'),
     ...timestamps,
   },
   (t) => [
     index('captures_user_captured_idx').on(t.userId, t.capturedAt.desc()),
     index('captures_transcript_status_idx').on(t.transcriptStatus),
+    uniqueIndex('captures_user_client_unique').on(t.userId, t.clientId),
   ],
 )
 

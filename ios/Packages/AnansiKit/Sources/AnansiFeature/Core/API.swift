@@ -188,8 +188,10 @@ nonisolated enum API {
         get("api/v1/captures", query: [URLQueryItem(name: "limit", value: String(limit))])
     }
 
-    static func createCapture(text: String, questionId: String?, capturedAt: Date) -> Endpoint {
-        send("POST", "api/v1/captures", NewCapture(text: text, questionId: questionId, capturedAt: instant(capturedAt)))
+    /// `clientId` is the outbox op's id: a send repeated after a lost answer gets the capture the first one made.
+    static func createCapture(text: String, questionId: String?, capturedAt: Date, clientId: String? = nil) -> Endpoint {
+        send("POST", "api/v1/captures", NewCapture(text: text, questionId: questionId, capturedAt: instant(capturedAt),
+                                                    clientId: clientId))
     }
 
     /// A recording's Content-Type and name by its file: a WAV (what the server's transcriber takes), or an `.m4a`
@@ -201,11 +203,12 @@ nonisolated enum API {
     /// The body is the recording, sent separately (from disk). `transcript` rides only with ops queued by builds
     /// that transcribed on the phone.
     static func uploadVoiceCapture(questionId: String?, capturedAt: Date, durationMs: Int, transcript: String?,
-                                   localFile: String = "recording.wav") -> Endpoint {
+                                   localFile: String = "recording.wav", clientId: String? = nil) -> Endpoint {
         let format = voiceFormat(localFile: localFile)
         var query = [URLQueryItem(name: "capturedAt", value: instant(capturedAt)),
                      URLQueryItem(name: "durationMs", value: String(max(0, durationMs))),
                      URLQueryItem(name: "fileName", value: format.fileName)]
+        if let clientId { query.append(URLQueryItem(name: "clientId", value: clientId)) }
         if let questionId { query.append(URLQueryItem(name: "questionId", value: questionId)) }
         if let transcript, transcript.count <= transcriptInQueryMax {
             query.append(URLQueryItem(name: "transcript", value: transcript))
@@ -226,6 +229,7 @@ nonisolated enum API {
         var text: String
         var questionId: String?
         var capturedAt: String
+        var clientId: String?
     }
 
     struct HealthDays: Encodable {

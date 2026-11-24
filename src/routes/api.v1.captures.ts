@@ -10,6 +10,7 @@ const createBody = z.object({
   text: z.string(),
   questionId: z.string().min(1).nullable().optional(),
   capturedAt: z.string().datetime({ offset: true }).optional(),
+  clientId: z.string().min(1).max(64).optional(),
 })
 
 export const Route = createFileRoute('/api/v1/captures')({
@@ -33,6 +34,7 @@ export const Route = createFileRoute('/api/v1/captures')({
             text: body.text,
             questionId: body.questionId ?? null,
             capturedAt: body.capturedAt ? new Date(body.capturedAt) : undefined,
+            clientId: body.clientId,
             source: 'phone',
           })
         }),

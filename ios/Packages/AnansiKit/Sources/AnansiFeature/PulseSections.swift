@@ -171,12 +171,15 @@ struct OutboxStatusView: View {
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: "exclamationmark.circle").foregroundStyle(AN.rust)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(failed.op.isUpload ? "A picture for \(failed.op.itemTitle) wasn't accepted" : "Notes for \(failed.op.itemTitle) weren't accepted")
+                            Text(failed.op.isVoiceCapture ? "A voice note wasn't accepted yet"
+                                 : failed.op.isCapture ? "A thought wasn't accepted yet"
+                                 : failed.op.isUpload ? "A picture for \(failed.op.itemTitle) wasn't accepted"
+                                 : "Notes for \(failed.op.itemTitle) weren't accepted")
                                 .font(AN.ui(.subheadline).weight(.medium))
                             Text(failed.message).font(AN.text(.footnote)).foregroundStyle(AN.ink3)
                             HStack {
                                 Button("Try again") { outbox.retry(failed.id) }
-                                Button("Discard", role: .destructive) { outbox.dismiss(failed.id) }
+                                DiscardFailedButton(failed: failed)
                             }
                             .font(AN.ui(.footnote))
                             .padding(.top, 2)

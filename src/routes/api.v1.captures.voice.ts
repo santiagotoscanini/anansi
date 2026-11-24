@@ -19,6 +19,7 @@ const query = z.object({
     .max(24 * 3_600_000)
     .optional(),
   transcript: z.string().max(20_000).optional(),
+  clientId: z.string().min(1).max(64).optional(),
 })
 
 export const Route = createFileRoute('/api/v1/captures/voice')({
@@ -35,6 +36,7 @@ export const Route = createFileRoute('/api/v1/captures/voice')({
                 capturedAt: q.capturedAt ? new Date(q.capturedAt) : undefined,
                 durationMs: q.durationMs ?? null,
                 transcript: q.transcript ?? null,
+                clientId: q.clientId ?? null,
                 source: 'phone',
                 fileName: upload.fileName,
                 mimeType: upload.mimeType,

@@ -11,6 +11,10 @@ public enum AnansiApp {
         // The Live Activity's Stop and the Control Center control reach the recorder through this. A launch the
         // system makes to run one of them comes through here before the intent asks for it.
         VoiceRecordingControl.register(AppVoiceRecording())
+        // Sending with the app in the background: the handlers must be registered before launch finishes.
+        OutboxBackground.register()
+        // Recordings cut off by the app or the phone dying go into the outbox first, then everything is sent.
+        RecordingRecovery.recoverLeftovers()
         OutboxStore.shared.resume()
         // Registers for Health's background wake-ups, which must happen on every launch.
         HealthSync.shared.start()

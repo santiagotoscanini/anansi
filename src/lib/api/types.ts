@@ -643,6 +643,13 @@ export const listCapturesSchema = z.object({
   limit: z.number().int().min(1).max(500).optional(),
 })
 
+/** A dictionary entry: what the transcriber hears and what was meant. */
+export const captureTermSchema = z.object({
+  heard: z.string().trim().min(1).max(100),
+  meant: z.string().trim().min(1).max(100),
+})
+
+export type CaptureTermInput = z.infer<typeof captureTermSchema>
 export type CreateCapture = z.input<typeof createCaptureSchema>
 export type UpdateCapture = z.infer<typeof updateCaptureSchema>
 export type ListCaptures = z.infer<typeof listCapturesSchema>
@@ -999,6 +1006,21 @@ export const backupCaptureSchema = z.object({
   transcribeAfter: z.coerce.date().nullable().optional(),
   transcribedAt: z.coerce.date().nullable().optional(),
   transcriptSource: z.enum(['server', 'phone', 'user']).nullable().optional(),
+  // What was heard, the tidied title and notes, and the list it went to joined later still.
+  heard: z.string().nullable().optional(),
+  title: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  tidiedAt: z.coerce.date().nullable().optional(),
+  tidyError: z.string().nullable().optional(),
+  tickTickListName: z.string().nullable().optional(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+})
+
+export const backupCaptureTermSchema = z.object({
+  id: z.string(),
+  heard: z.string(),
+  meant: z.string(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 })
@@ -1065,6 +1087,7 @@ export const backupSchema = z.object({
   // Captures joined in November 2026.
   captures: z.array(backupCaptureSchema).default([]),
   captureFiles: z.array(backupCaptureFileSchema).default([]),
+  captureTerms: z.array(backupCaptureTermSchema).default([]),
 })
 
 export type Backup = z.infer<typeof backupSchema>

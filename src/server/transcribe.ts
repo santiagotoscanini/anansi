@@ -1,6 +1,6 @@
 // Speech to text with the box's Whisper (Large v3 Turbo), behind the LiteLLM
 // gateway as its `stt` model: an OpenAI-style `POST /v1/audio/transcriptions`.
-// The key the app holds may use that model and nothing else.
+// The key the app holds may use that model and `smart` (server/tidy.ts), nothing else.
 //
 // The Whisper server takes WAV and refuses AAC (`.m4a`), and this image has no
 // ffmpeg to convert, so the phone records 16 kHz mono 16-bit WAV. The language
@@ -47,13 +47,17 @@ export async function transcribe(
   bytes: Uint8Array<ArrayBuffer>,
   fileName: string,
   mimeType: string,
-  opts?: { durationMs?: number | null },
+  opts?: {
+    durationMs?: number | null
+    /** Vocabulary to expect: the user's dictionary (`transcriberPrompt`). */ prompt?: string | null
+  },
 ): Promise<Transcript> {
   if (!transcriptionEnabled) throw new TranscriberUnavailable('The transcriber is not configured')
   const durationMs = opts?.durationMs ?? Math.round((bytes.byteLength / WAV_BYTES_PER_SECOND) * 1000)
   const form = new FormData()
   form.append('model', 'stt')
   form.append('response_format', 'json')
+  if (opts?.prompt) form.append('prompt', opts.prompt)
   form.append('file', new Blob([bytes], { type: mimeType }), fileName)
 
   const url = `${env.LITELLM_BASE_URL!.replace(/\/+$/, '')}/v1/audio/transcriptions`

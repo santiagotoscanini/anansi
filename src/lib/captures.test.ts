@@ -12,6 +12,11 @@ import {
   transcriptView,
   tickTickContent,
   voiceNoteTitle,
+  applyTerms,
+  parseTidy,
+  TIDY_TITLE_MAX,
+  tidyMessages,
+  transcriberPrompt,
 } from './captures.ts'
 
 test('the title is the first line with something on it', () => {
@@ -140,4 +145,65 @@ test('a voice note the transcriber refused is kept, not "waiting for its words"'
   }
   assert.deepEqual(captureDestination({ ...c, transcriptStatus: 'pending' }), { kind: 'transcribing' })
   assert.deepEqual(captureDestination({ ...c, transcriptStatus: 'failed' }), { kind: 'kept' })
+})
+
+test('applyTerms: whole words, any case, the words of a phrase apart or together', () => {
+  const terms = [
+    { heard: 'tic tic', meant: 'TickTick' },
+    { heard: 'anansi', meant: 'Anansi' },
+  ]
+  assert.equal(applyTerms('el tic tic de anansi', terms), 'el TickTick de Anansi')
+  assert.equal(applyTerms('Tic-Tic, TICTIC y tic  tic.', terms), 'TickTick, TickTick y TickTick.')
+  // Inside another word: left alone.
+  assert.equal(applyTerms('ticticas anansis', terms), 'ticticas anansis')
+  // Accented letters count as letters.
+  assert.equal(applyTerms('séanansi', terms), 'séanansi')
+  assert.equal(applyTerms('nothing here', terms), 'nothing here')
+})
+
+test('applyTerms: the longer phrase first; regex characters are plain', () => {
+  const terms = [
+    { heard: 'tic tic', meant: 'TickTick' },
+    { heard: 'tic tic list', meant: 'TickTick list' },
+    { heard: 'c++', meant: 'C++' },
+    { heard: ' ', meant: 'x' },
+  ]
+  assert.equal(applyTerms('the tic tic list', terms), 'the TickTick list')
+  assert.equal(applyTerms('so c++ then', terms), 'so C++ then')
+})
+
+test('transcriberPrompt: the meant words once each, or null', () => {
+  assert.equal(transcriberPrompt([]), null)
+  assert.equal(
+    transcriberPrompt([
+      { heard: 'tic tic', meant: 'TickTick' },
+      { heard: 'tick tick', meant: 'TickTick' },
+      { heard: 'ananci', meant: 'Anansi' },
+    ]),
+    'TickTick, Anansi',
+  )
+})
+
+test('parseTidy: the JSON inside the answer, thinking dropped', () => {
+  assert.deepEqual(
+    parseTidy('<think>{"title":"no"}</think>\n```json\n{"title": "Comprar leche.", "notes": " Mañana. "}\n```'),
+    {
+      title: 'Comprar leche',
+      notes: 'Mañana.',
+    },
+  )
+  assert.deepEqual(parseTidy('{"title":"Call mom"}'), { title: 'Call mom', notes: '' })
+  assert.equal(parseTidy('no json'), null)
+  assert.equal(parseTidy('{"title": ""}'), null)
+  assert.equal(parseTidy('{"title": 3}'), null)
+  assert.equal(parseTidy('{"title": "x",}'), null)
+  assert.equal(parseTidy(`{"title": "${'a'.repeat(150)}"}`)!.title.length, TIDY_TITLE_MAX)
+})
+
+test('tidyMessages: the glossary only when there is one', () => {
+  assert.ok(!tidyMessages('hola', [])[0].content.includes('own names'))
+  assert.ok(
+    tidyMessages('hola', [{ heard: 'tic tic', meant: 'TickTick' }])[0].content.includes('"tic tic" means "TickTick"'),
+  )
+  assert.equal(tidyMessages('hola', [])[1].content, 'hola')
 })

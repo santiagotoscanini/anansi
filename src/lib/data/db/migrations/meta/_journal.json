@@ -120,6 +120,13 @@
       "when": 1795546191001,
       "tag": "0016_capture_device_log",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795559504444,
+      "tag": "0017_capture_tidy_terms",
+      "breakpoints": true
     }
   ]
 }

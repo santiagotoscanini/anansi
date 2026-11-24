@@ -1039,7 +1039,7 @@
     "retranscribeFailed": "Could not send it to the transcriber",
     "noWords": "No words heard",
     "toQuestion": "→ question: {{question}}",
-    "toTickTick": "→ TickTick inbox",
+    "toTickTick": "→ TickTick",
     "forQuestion": "For the question: {{question}}",
     "kept": "Kept here (TickTick is not connected)",
     "waitingWords": "Waiting for its words",
@@ -1054,7 +1054,18 @@
     "unarchive": "Bring back",
     "updateFailed": "Could not change that capture",
     "confirmDelete": "Delete this capture and its audio? Where it went (a note, a TickTick task) stays.",
-    "deleteFailed": "Could not delete that capture"
+    "deleteFailed": "Could not delete that capture",
+    "toTickTickList": "→ TickTick · {{list}}",
+    "showTranscript": "Transcript",
+    "hideTranscript": "Hide transcript",
+    "heardAs": "Heard as: {{text}}",
+    "dictionary": "Dictionary",
+    "dictionaryHelp": "Words the transcriber gets wrong, and what you meant. Every new voice note is corrected with them.",
+    "dictionaryHeard": "Heard (tic tic)",
+    "dictionaryMeant": "Meant (TickTick)",
+    "dictionaryAdd": "Add",
+    "dictionarySaveFailed": "Could not save that word",
+    "dictionaryDeleteFailed": "Could not remove that word"
   },
   "globalError": {
     "title": "Something went wrong",

@@ -1039,7 +1039,7 @@
     "retranscribeFailed": "No se pudo enviar al transcriptor",
     "noWords": "No se oyeron palabras",
     "toQuestion": "→ pregunta: {{question}}",
-    "toTickTick": "→ bandeja de TickTick",
+    "toTickTick": "→ TickTick",
     "forQuestion": "Para la pregunta: {{question}}",
     "kept": "Guardada aquí (TickTick no está conectado)",
     "waitingWords": "Esperando sus palabras",
@@ -1054,7 +1054,18 @@
     "unarchive": "Recuperar",
     "updateFailed": "No se pudo cambiar la captura",
     "confirmDelete": "¿Borrar esta captura y su audio? Lo que generó (una nota, una tarea de TickTick) se queda.",
-    "deleteFailed": "No se pudo borrar la captura"
+    "deleteFailed": "No se pudo borrar la captura",
+    "toTickTickList": "→ TickTick · {{list}}",
+    "showTranscript": "Transcripción",
+    "hideTranscript": "Ocultar transcripción",
+    "heardAs": "Se oyó: {{text}}",
+    "dictionary": "Diccionario",
+    "dictionaryHelp": "Palabras que el transcriptor entiende mal, y lo que quisiste decir. Cada nota de voz nueva se corrige con ellas.",
+    "dictionaryHeard": "Se oye (tic tic)",
+    "dictionaryMeant": "Es (TickTick)",
+    "dictionaryAdd": "Agregar",
+    "dictionarySaveFailed": "No se pudo guardar esa palabra",
+    "dictionaryDeleteFailed": "No se pudo quitar esa palabra"
   },
   "globalError": {
     "title": "Algo salió mal",

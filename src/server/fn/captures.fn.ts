@@ -2,7 +2,7 @@
 // EXPORTS ONLY SERVER FUNCTIONS — see the note in values.fn.ts.
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
-import { listCapturesSchema, updateCaptureSchema } from '~/lib/api/types'
+import { captureTermSchema, listCapturesSchema, updateCaptureSchema } from '~/lib/api/types'
 import { authMiddleware } from '~/server/middleware/auth'
 import * as captures from '~/server/services/captures'
 
@@ -42,3 +42,18 @@ export const retranscribeCapture = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .validator(idInput)
   .handler(({ data, context }) => captures.retranscribe(context.userId, data.id))
+
+/** The dictionary for voice notes: what the transcriber hears, and what was meant. */
+export const listCaptureTerms = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .handler(({ context }) => captures.listTerms(context.userId))
+
+export const saveCaptureTerm = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .validator(captureTermSchema)
+  .handler(({ data, context }) => captures.saveTerm(context.userId, data))
+
+export const deleteCaptureTerm = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .validator(idInput)
+  .handler(({ data, context }) => captures.removeTerm(context.userId, data.id))

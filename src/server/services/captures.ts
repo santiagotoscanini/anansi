@@ -24,17 +24,29 @@
 // them it goes to TickTick as "🎙 Voice note (captured …)" and the words, when
 // they come, rename it.
 //
+// A transcript goes through the user's dictionary (`capture_terms`: "tic tic"
+// → "TickTick", `applyTerms`), whose words Whisper is also given as
+// vocabulary; what Whisper heard is kept in `heard`. The words are then
+// tidied by the gateway's `smart` model into a `title` and `notes`
+// (server/tidy.ts), which are what TickTick or the question get; when that
+// fails the note goes on with its plain words and `tidy_error` says why.
+// Words the user writes clear the tidy: theirs are sent as written.
+//
 // Routing never throws to the caller: a failure is kept in `routeError` and
 // tried again by the TickTick poller (runner.ts) or a Retry. Each capture is
 // routed by one call at a time (`route` chains them), so a create racing its
 // transcript cannot send it twice.
 import { and, desc, eq, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import { db } from '~/lib/data'
-import { captures, files, openQuestions, tickTickConnections } from '~/lib/data/schema'
+import { captures, captureTerms, files, openQuestions, tickTickConnections } from '~/lib/data/schema'
 import { tickTickEnabled, transcriptionEnabled } from '~/lib/env'
 import {
   afterTranscribeAttempt,
+  applyTerms,
+  type CaptureTerm,
   takesServerTranscript,
+  transcriberPrompt,
+  type Tidied,
   type TranscriptSource,
   captureBody,
   captureTitle,
@@ -44,10 +56,12 @@ import {
   voiceNoteTitle,
 } from '~/lib/captures'
 import {
+  captureTermSchema,
   captureTranscriptSchema,
   createCaptureSchema,
   listCapturesSchema,
   updateCaptureSchema,
+  type CaptureTermInput,
   type CreateCapture,
   type ListCaptures,
   type UpdateCapture,
@@ -55,6 +69,7 @@ import {
 import { checkRateLimit } from '~/lib/rate-limit'
 import { tickTick, TickTickAuthError } from '~/server/ticktick/client'
 import { openToken } from '~/server/ticktick/crypto'
+import { tidy } from '~/server/tidy'
 import { transcribe, TranscriberRejected } from '~/server/transcribe'
 import { AppError } from './errors'
 import { fileUrl } from './file-refs'
@@ -146,12 +161,18 @@ const selectCapture = {
   id: captures.id,
   kind: captures.kind,
   text: captures.text,
+  heard: captures.heard,
+  title: captures.title,
+  notes: captures.notes,
+  tidiedAt: captures.tidiedAt,
+  tidyError: captures.tidyError,
   fileId: captures.fileId,
   durationMs: captures.durationMs,
   questionId: captures.questionId,
   question: openQuestions.question,
   noteId: captures.noteId,
   tickTickTaskId: captures.tickTickTaskId,
+  tickTickListName: captures.tickTickListName,
   status: captures.status,
   routeError: captures.routeError,
   routedAt: captures.routedAt,
@@ -328,9 +349,21 @@ export async function setTranscript(userId: string, input: { id: string; transcr
  * TickTick task, its question's note). The server's words land only on a note
  * still waiting for them; answers whether they landed.
  */
-async function storeWords(row: CaptureRow, text: string, source: TranscriptSource): Promise<boolean> {
+async function storeWords(
+  row: CaptureRow,
+  text: string,
+  source: TranscriptSource,
+  server?: { heard: string; tidied: Tidied | null; tidyError: string | null },
+): Promise<boolean> {
   const set = {
     text,
+    // What was heard is kept under the user's correction; only a new transcript replaces it.
+    ...(server ? { heard: server.heard } : {}),
+    // New words make the old tidy stale; the user's own are sent as written.
+    title: server?.tidied?.title ?? null,
+    notes: server?.tidied?.notes ?? null,
+    tidiedAt: server?.tidied ? new Date() : null,
+    tidyError: server?.tidyError ?? null,
     transcriptStatus: 'done' as const,
     transcriptSource: source,
     transcribedAt: new Date(),
@@ -355,11 +388,14 @@ async function storeWords(row: CaptureRow, text: string, source: TranscriptSourc
   }
   if (text) {
     // Sent on without its words: the TickTick task takes them now.
-    if (row.tickTickTaskId) await renameTickTickTask(row.userId, { ...row, text })
+    const now = { ...row, text, title: set.title, notes: set.notes }
+    if (row.tickTickTaskId) await renameTickTickTask(row.userId, now)
     if (row.noteId && text !== row.text) {
-      await openQuestionsService.updateNote(row.userId, { id: row.noteId, content: text }).catch((e: unknown) => {
-        if (!(e instanceof AppError && e.code === 'NOT_FOUND')) throw e
-      })
+      await openQuestionsService
+        .updateNote(row.userId, { id: row.noteId, content: noteContent(now) })
+        .catch((e: unknown) => {
+          if (!(e instanceof AppError && e.code === 'NOT_FOUND')) throw e
+        })
     }
   }
   return true
@@ -384,6 +420,10 @@ export async function update(userId: string, input: UpdateCapture) {
         row.kind === 'voice'
           ? {
               text: data.text,
+              title: null,
+              notes: null,
+              tidiedAt: null,
+              tidyError: null,
               transcriptStatus: 'done',
               transcriptSource: 'user',
               transcribedAt: new Date(),
@@ -393,7 +433,7 @@ export async function update(userId: string, input: UpdateCapture) {
           : { text: data.text },
       )
       .where(eq(captures.id, row.id))
-    row = { ...row, text: data.text }
+    row = { ...row, text: data.text, title: null, notes: null }
     if (row.tickTickTaskId) await renameTickTickTask(userId, row)
   }
 
@@ -408,6 +448,7 @@ export async function update(userId: string, input: UpdateCapture) {
         noteId: null,
         tickTickTaskId: null,
         tickTickProjectId: null,
+        tickTickListName: null,
         routeError: null,
         routedAt: null,
         status: row.status === 'archived' ? 'archived' : 'new',
@@ -505,7 +546,7 @@ async function routeNow(id: string) {
   if (c.questionId) {
     // A note needs words: a voice note waits for its transcript.
     if (c.text === null) return
-    const content = c.text || voiceNoteTitle(c.capturedAt, 'UTC')
+    const content = noteContent(c) || voiceNoteTitle(c.capturedAt, 'UTC')
     try {
       const note = await openQuestionsService.addNote(c.userId, { questionId: c.questionId, content })
       await db
@@ -532,15 +573,16 @@ async function routeNow(id: string) {
   if (c.text === null && !row.waited) return
 
   const words = c.text ?? ''
-  const title = captureTitle(words) || voiceNoteTitle(c.capturedAt, conn.timeZone)
-  const content = tickTickContent(words.trim() ? captureBody(words) : '', captureLink(c.id))
+  const title = taskTitle(c) || voiceNoteTitle(c.capturedAt, conn.timeZone)
+  const content = tickTickContent(words.trim() ? taskBody(c) : '', captureLink(c.id))
   try {
-    const task = await createCaptureTask(tickTick(token), conn, { title, content, tags: ['anansi'] })
+    const { task, listName } = await createCaptureTask(tickTick(token), conn, { title, content, tags: ['anansi'] })
     await db
       .update(captures)
       .set({
         tickTickTaskId: task.id,
         tickTickProjectId: task.projectId,
+        tickTickListName: listName,
         status: 'routed',
         routedAt: new Date(),
         routeError: null,
@@ -570,9 +612,11 @@ async function createCaptureTask(
   conn: typeof tickTickConnections.$inferSelect,
   task: { title: string; content: string; tags: string[] },
 ) {
-  if (!conn.captureProjectId) return tt.createInboxTask(task)
+  const inbox = async () => ({ task: await tt.createInboxTask(task), listName: 'Inbox' })
+  if (!conn.captureProjectId) return await inbox()
   try {
-    return await tt.createTask({ ...task, projectId: conn.captureProjectId })
+    const made = await tt.createTask({ ...task, projectId: conn.captureProjectId })
+    return { task: made, listName: conn.captureProjectName }
   } catch (e) {
     if (e instanceof TickTickAuthError) throw e
     const lists = await tt.listProjects()
@@ -582,7 +626,7 @@ async function createCaptureTask(
       .update(tickTickConnections)
       .set({ captureProjectId: null, captureProjectName: null })
       .where(eq(tickTickConnections.id, conn.id))
-    return tt.createInboxTask(task)
+    return await inbox()
   }
 }
 
@@ -601,8 +645,8 @@ async function renameTickTickTask(userId: string, row: CaptureRow) {
     await tt?.updateTask({
       id: row.tickTickTaskId,
       projectId: row.tickTickProjectId,
-      title: captureTitle(row.text),
-      content: tickTickContent(captureBody(row.text), captureLink(row.id)),
+      title: taskTitle(row),
+      content: tickTickContent(taskBody(row), captureLink(row.id)),
     })
   } catch (e) {
     console.warn('[captures] could not rename the TickTick task', row.id, errorText(e))
@@ -726,19 +770,21 @@ async function transcribeNow(id: string) {
   }
 
   if (!c.fileId || !found.mimeType) return await record({ kind: 'rejected', message: 'The audio is gone' })
-  let words: string
+  const terms = await termsOf(c.userId)
+  let heard: string
   try {
     const bytes = await readFile(c.fileId)
     if (!bytes) return await record({ kind: 'rejected', message: 'The audio is not in storage' })
     // Silence goes nowhere near Whisper, which would make something up ("Thank you."): nothing was heard.
-    const heard = speechSeconds(bytes)
-    if (heard !== null && heard < MIN_SPEECH_SECONDS) {
-      words = ''
+    const sound = speechSeconds(bytes)
+    if (sound !== null && sound < MIN_SPEECH_SECONDS) {
+      heard = ''
     } else {
       const result = await transcribe(bytes, found.fileName ?? 'Voice note.wav', found.mimeType, {
         durationMs: c.durationMs,
+        prompt: transcriberPrompt(terms),
       })
-      words = result.text
+      heard = result.text
     }
   } catch (e) {
     // Refused: the audio itself (an old m4a). Anything else: the transcriber, the network, the bucket; try later.
@@ -746,7 +792,79 @@ async function transcribeNow(id: string) {
     console.warn(`[captures] transcription ${kind}`, c.id, errorText(e))
     return await record({ kind, message: errorText(e) })
   }
-  if (await storeWords(c, words, 'server')) await route(c.id)
+  const words = applyTerms(heard, terms)
+  // Tidied before the words are stored, so the note goes on once, with its title. Best effort.
+  let tidied: Tidied | null = null
+  let tidyError: string | null = null
+  if (words.trim()) {
+    try {
+      tidied = await tidy(words, terms)
+    } catch (e) {
+      tidyError = errorText(e)
+      console.warn('[captures] tidy failed', c.id, tidyError)
+    }
+  }
+  if (await storeWords(c, words, 'server', { heard, tidied, tidyError })) await route(c.id)
+}
+
+// ── What a capture says where it goes ───────────────────────────────────────
+
+type Words = Pick<CaptureRow, 'text' | 'title' | 'notes'>
+
+/** The TickTick title: the tidied one, else the first line of the words. */
+const taskTitle = (c: Words) => c.title ?? captureTitle(c.text ?? '')
+
+/** The TickTick notes: the tidied ones, else the words after the first line. */
+const taskBody = (c: Words) => (c.title !== null ? (c.notes ?? '') : captureBody(c.text ?? ''))
+
+/** A note on a question: the tidied title over its notes, else the words. */
+const noteContent = (c: Words) => (c.title !== null ? [c.title, c.notes].filter(Boolean).join('\n\n') : (c.text ?? ''))
+
+// ── The dictionary ──────────────────────────────────────────────────────────
+
+async function termsOf(userId: string): Promise<CaptureTerm[]> {
+  return await db
+    .select({ heard: captureTerms.heard, meant: captureTerms.meant })
+    .from(captureTerms)
+    .where(eq(captureTerms.userId, userId))
+}
+
+const selectTerm = { id: captureTerms.id, heard: captureTerms.heard, meant: captureTerms.meant }
+
+/** The dictionary, by what is heard. */
+export async function listTerms(userId: string) {
+  return await db
+    .select(selectTerm)
+    .from(captureTerms)
+    .where(eq(captureTerms.userId, userId))
+    .orderBy(sql`lower(${captureTerms.heard})`)
+}
+
+/** Adds an entry, or changes what an already-listed phrase means (case aside). Applies to transcripts from now on. */
+export async function saveTerm(userId: string, input: CaptureTermInput) {
+  const data = captureTermSchema.parse(input)
+  const [same] = await db
+    .select({ id: captureTerms.id })
+    .from(captureTerms)
+    .where(and(eq(captureTerms.userId, userId), sql`lower(${captureTerms.heard}) = lower(${data.heard})`))
+    .limit(1)
+  const [row] = same
+    ? await db
+        .update(captureTerms)
+        .set({ heard: data.heard, meant: data.meant })
+        .where(eq(captureTerms.id, same.id))
+        .returning(selectTerm)
+    : await db.insert(captureTerms).values({ userId, heard: data.heard, meant: data.meant }).returning(selectTerm)
+  return row!
+}
+
+export async function removeTerm(userId: string, id: string) {
+  const gone = await db
+    .delete(captureTerms)
+    .where(and(eq(captureTerms.id, id), eq(captureTerms.userId, userId)))
+    .returning({ id: captureTerms.id })
+  if (!gone.length) throw new AppError('NOT_FOUND', 'Dictionary entry not found or access denied')
+  return { success: true }
 }
 
 /** Voice notes whose words are due another try (or never got a first one: a restart). */

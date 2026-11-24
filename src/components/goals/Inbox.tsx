@@ -1,6 +1,17 @@
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Archive, ArchiveRestore, CornerDownLeft, HelpCircle, Mic, RotateCw, Trash2, Type } from 'lucide-react'
+import {
+  Archive,
+  ArchiveRestore,
+  BookA,
+  CornerDownLeft,
+  HelpCircle,
+  Mic,
+  RotateCw,
+  Trash2,
+  Type,
+  X,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
 import { captureDestination, transcriptView } from '~/lib/captures'
@@ -8,11 +19,13 @@ import { localToday, shiftDay } from '~/lib/journal'
 import {
   useCreateCapture,
   useDeleteCapture,
+  useDeleteCaptureTerm,
   useRetranscribeCapture,
   useRetryCapture,
+  useSaveCaptureTerm,
   useUpdateCapture,
 } from '~/lib/mutations/captures'
-import { capturesQueryOptions, type CaptureRow } from '~/lib/queries/captures'
+import { captureTermsQueryOptions, capturesQueryOptions, type CaptureRow } from '~/lib/queries/captures'
 import { openQuestionsQueryOptions } from '~/lib/queries/self'
 import { useLocalToday } from '~/lib/use-local-today'
 import { Route } from '~/routes/app.inbox'
@@ -20,7 +33,9 @@ import { Btn, Page, ScreenHeader, Section } from './ui'
 
 // The Inbox: everything the user captured, from the phone's Action Button, Siri,
 // Claude or the box at the top, newest first and grouped by day, with where each
-// one went (an open question, the TickTick Inbox) or why it is still here.
+// one went (an open question, a TickTick list) or why it is still here. A voice
+// note shows its tidied title and notes, with the transcript one click away;
+// the Dictionary panel holds the words the transcriber keeps getting wrong.
 //
 // Days and times are the browser's: the server renders the rows under one
 // undated group and the client sorts them into days once it knows "today"
@@ -104,6 +119,7 @@ function CaptureItem({
   const remove = useDeleteCapture()
   const retranscribe = useRetranscribeCapture()
   const [picking, setPicking] = useState(false)
+  const [showWords, setShowWords] = useState(false)
   const destination = captureDestination(capture)
   const words = transcriptView(capture)
   const archived = capture.status === 'archived'
@@ -116,7 +132,13 @@ function CaptureItem({
       case 'question':
         return <span>{t('inbox.toQuestion', { question: capture.question ?? '…' })}</span>
       case 'ticktick':
-        return <span>{t('inbox.toTickTick')}</span>
+        return (
+          <span>
+            {capture.tickTickListName
+              ? t('inbox.toTickTickList', { list: capture.tickTickListName })
+              : t('inbox.toTickTick')}
+          </span>
+        )
       case 'error':
         return (
           <span className="inline-flex flex-wrap items-center gap-2" style={{ color: 'var(--rust)' }}>
@@ -158,7 +180,29 @@ function CaptureItem({
     >
       <Icon className="mt-1 h-4 w-4 shrink-0 text-[var(--ink-4)]" aria-label={t(`inbox.kind.${capture.kind}`)} />
       <div className="min-w-0 flex-1">
-        {words.kind === 'text' ? (
+        {words.kind === 'text' && capture.title !== null ? (
+          <>
+            <p className="text-[15px] font-medium break-words text-[var(--ink)]">{capture.title}</p>
+            {capture.notes && (
+              <p className="mt-0.5 text-sm break-words whitespace-pre-wrap text-[var(--ink-2)]">{capture.notes}</p>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowWords((v) => !v)}
+              className="mt-1 text-xs text-[var(--ink-4)] hover:text-[var(--ink-2)]"
+            >
+              {showWords ? t('inbox.hideTranscript') : t('inbox.showTranscript')}
+            </button>
+            {showWords && (
+              <div className="mt-1 border-l-2 border-[var(--hairline-2)] pl-3 text-sm text-[var(--ink-3)]">
+                <p className="break-words whitespace-pre-wrap">{words.text}</p>
+                {capture.heard !== null && capture.heard !== words.text && (
+                  <p className="mt-1 text-xs break-words">{t('inbox.heardAs', { text: capture.heard })}</p>
+                )}
+              </div>
+            )}
+          </>
+        ) : words.kind === 'text' ? (
           <p className="text-[15px] break-words whitespace-pre-wrap text-[var(--ink)]">{words.text}</p>
         ) : words.kind === 'empty' ? (
           <p className="text-[15px] text-[var(--ink-3)] italic">{t('inbox.noWords')}</p>
@@ -248,6 +292,103 @@ function CaptureItem({
   )
 }
 
+/** The words the transcriber keeps getting wrong, and what was meant: applied to every new voice note. */
+function Dictionary({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation()
+  const { data: terms } = useQuery(captureTermsQueryOptions())
+  const save = useSaveCaptureTerm()
+  const remove = useDeleteCaptureTerm()
+  const [heard, setHeard] = useState('')
+  const [meant, setMeant] = useState('')
+
+  const add = async () => {
+    if (!heard.trim() || !meant.trim()) return
+    try {
+      await save.mutateAsync({ heard: heard.trim(), meant: meant.trim() })
+      setHeard('')
+      setMeant('')
+    } catch {
+      toast.error(t('inbox.dictionarySaveFailed'))
+    }
+  }
+
+  const field =
+    'min-w-0 flex-1 rounded-md border border-[var(--hairline)] bg-transparent px-2.5 py-1.5 text-sm text-[var(--ink)] outline-hidden focus:border-[var(--hairline-2)] placeholder:text-[var(--ink-4)]'
+
+  return (
+    <Section
+      label={t('inbox.dictionary')}
+      count={terms?.length}
+      action={
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={t('common.close')}
+          className="rounded p-1 text-[var(--ink-3)] hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      }
+      className="mt-2"
+    >
+      <p className="mb-3 text-sm text-[var(--ink-3)]">{t('inbox.dictionaryHelp')}</p>
+      {terms && terms.length > 0 && (
+        <ul className="mb-3 divide-y divide-[var(--hairline)]">
+          {terms.map((term) => (
+            <li
+              key={term.id}
+              className="group -mx-2 flex items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-[var(--vellum)]/60"
+            >
+              <span className="min-w-0 flex-1 truncate text-[var(--ink-3)]">{term.heard}</span>
+              <span className="text-[var(--ink-4)]">→</span>
+              <span className="min-w-0 flex-1 truncate text-[var(--ink)]">{term.meant}</span>
+              <button
+                type="button"
+                onClick={() =>
+                  void remove.mutateAsync(term.id).catch(() => toast.error(t('inbox.dictionaryDeleteFailed')))
+                }
+                aria-label={t('common.delete')}
+                title={t('common.delete')}
+                className="rounded p-1 text-[var(--ink-3)] hover:bg-[var(--vellum)] hover:text-[var(--rust)] md:opacity-0 md:group-hover:opacity-100"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="flex flex-wrap items-center gap-2 sm:flex-nowrap"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void add()
+        }}
+      >
+        <input
+          value={heard}
+          onChange={(e) => setHeard(e.target.value)}
+          placeholder={t('inbox.dictionaryHeard')}
+          aria-label={t('inbox.dictionaryHeard')}
+          maxLength={100}
+          className={field}
+        />
+        <span className="text-[var(--ink-4)]">→</span>
+        <input
+          value={meant}
+          onChange={(e) => setMeant(e.target.value)}
+          placeholder={t('inbox.dictionaryMeant')}
+          aria-label={t('inbox.dictionaryMeant')}
+          maxLength={100}
+          className={field}
+        />
+        <Btn kind="primary" size="sm" type="submit" disabled={!heard.trim() || !meant.trim() || save.isPending}>
+          {t('inbox.dictionaryAdd')}
+        </Btn>
+      </form>
+    </Section>
+  )
+}
+
 export default function Inbox() {
   const { t } = useTranslation()
   const { data: all } = useSuspenseQuery(capturesQueryOptions())
@@ -257,6 +398,7 @@ export default function Inbox() {
   const today = useLocalToday()
   const create = useCreateCapture()
   const [draft, setDraft] = useState('')
+  const [dictionary, setDictionary] = useState(false)
 
   const questions = openQuestions.filter((q) => q.status === 'open').map((q) => ({ id: q.id, question: q.question }))
   const showArchived = search.archived === true
@@ -310,15 +452,21 @@ export default function Inbox() {
         }
         sub={newCount ? t('inbox.newCount', { count: newCount }) : t('inbox.subtitle')}
         actions={
-          <Btn
-            kind="ghost"
-            size="sm"
-            onClick={() =>
-              void navigate({ search: (prev) => ({ ...prev, archived: showArchived ? undefined : true }) })
-            }
-          >
-            {showArchived ? t('inbox.hideArchived') : t('inbox.showArchived')}
-          </Btn>
+          <>
+            <Btn kind="ghost" size="sm" onClick={() => setDictionary((v) => !v)}>
+              <BookA className="h-3.5 w-3.5" />
+              {t('inbox.dictionary')}
+            </Btn>
+            <Btn
+              kind="ghost"
+              size="sm"
+              onClick={() =>
+                void navigate({ search: (prev) => ({ ...prev, archived: showArchived ? undefined : true }) })
+              }
+            >
+              {showArchived ? t('inbox.hideArchived') : t('inbox.showArchived')}
+            </Btn>
+          </>
         }
         below={
           <div className="flex items-start gap-2 rounded-lg border border-[var(--hairline)] py-1 pr-1.5 pl-3 transition-colors focus-within:border-[var(--hairline-2)]">
@@ -345,6 +493,8 @@ export default function Inbox() {
           </div>
         }
       />
+
+      {dictionary && <Dictionary onClose={() => setDictionary(false)} />}
 
       {visible.length === 0 ? (
         <p className="py-8 text-center text-sm text-[var(--ink-3)]">{t('inbox.empty')}</p>

@@ -924,8 +924,19 @@ export const captures = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     kind: captureKindEnum('kind').notNull(),
-    // The typed text, or a voice note's transcript once the phone sends it.
+    // The typed text, or a voice note's words: the transcript with the user's
+    // dictionary applied (`capture_terms`), or the words the user wrote.
     text: text('text'),
+    // What the transcriber heard, before the dictionary: kept so a correction can
+    // always be checked against it. Null for typed text and the user's own words.
+    heard: text('heard'),
+    // The voice note tidied by the gateway's `smart` model from `text`: a short
+    // title and clean notes, in the note's language (server/tidy.ts). What goes to
+    // TickTick or the question when present; `text` and `heard` stay as they are.
+    title: text('title'),
+    notes: text('notes'),
+    tidiedAt: timestamp('tidied_at'),
+    tidyError: text('tidy_error'),
     fileId: text('file_id').references(() => files.id, { onDelete: 'set null' }),
     durationMs: integer('duration_ms'),
     questionId: text('question_id').references(() => openQuestions.id, { onDelete: 'set null' }),
@@ -934,6 +945,8 @@ export const captures = pgTable(
     tickTickTaskId: text('ticktick_task_id'),
     // The TickTick list the task landed in (the Inbox's real id), to delete it again.
     tickTickProjectId: text('ticktick_project_id'),
+    // That list's name when the task was made ("Inbox" for the Inbox): what the Inbox tab says.
+    tickTickListName: text('ticktick_list_name'),
     status: captureStatusEnum('status').notNull().default('new'),
     routeError: text('route_error'),
     routedAt: timestamp('routed_at'),
@@ -960,6 +973,27 @@ export const captures = pgTable(
     index('captures_transcript_status_idx').on(t.transcriptStatus),
     uniqueIndex('captures_user_client_unique').on(t.userId, t.clientId),
   ],
+)
+
+// The user's dictionary for voice notes: what the transcriber hears ("tic tic")
+// and what was meant ("TickTick"). Applied to every server transcript before it
+// is stored (`applyTerms` in src/lib/captures.ts), handed to Whisper as
+// vocabulary and to the tidy model as a glossary. One entry per heard phrase,
+// case aside.
+export const captureTerms = pgTable(
+  'capture_terms',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    heard: text('heard').notNull(),
+    meant: text('meant').notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('capture_terms_user_heard_unique').on(t.userId, sql`lower(${t.heard})`)],
 )
 
 // MCP OAuth tables — Anansi acts as its own OAuth 2.1 Authorization Server for

@@ -172,3 +172,112 @@ export function transcriptView(c: {
   if (c.transcriptStatus === 'failed') return { kind: 'failed', message: c.transcribeError ?? '' }
   return { kind: 'transcribing', retrying: c.transcribeAttempts > 0 || c.transcribeError !== null }
 }
+
+// ── The dictionary ──────────────────────────────────────────────────────────
+// The user's corrections for what the transcriber mishears ("tic tic" →
+// "TickTick"), stored in `capture_terms`.
+
+export interface CaptureTerm {
+  heard: string
+  meant: string
+}
+
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * Replaces each heard phrase with what was meant: whole words only, case
+ * ignored, and the words of a phrase may come apart or together ("tic tic",
+ * "Tic-Tic", "tictic"). Longer phrases first, so "tic tic list" wins over
+ * "tic tic". Text with nothing to replace comes back as it was.
+ */
+export function applyTerms(text: string, terms: readonly CaptureTerm[]): string {
+  const usable = terms
+    .map((t) => ({
+      words: t.heard
+        .trim()
+        .split(/[\s-]+/)
+        .filter(Boolean),
+      meant: t.meant.trim(),
+    }))
+    .filter((t) => t.words.length > 0 && t.meant !== '')
+    .sort((a, b) => b.words.join('').length - a.words.join('').length)
+  let out = text
+  for (const t of usable) {
+    const body = t.words.map(escapeRegExp).join('[\\s-]*')
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${body}(?![\\p{L}\\p{N}])`, 'giu')
+    out = out.replace(pattern, () => t.meant)
+  }
+  return out
+}
+
+/** Whisper's prompt: the words that were meant, as vocabulary it should expect. Short (Whisper reads ~224 tokens). */
+export function transcriberPrompt(terms: readonly CaptureTerm[]): string | null {
+  const words = [...new Set(terms.map((t) => t.meant.trim()).filter(Boolean))]
+  let prompt = ''
+  for (const w of words) {
+    const next = prompt ? `${prompt}, ${w}` : w
+    if (next.length > 600) break
+    prompt = next
+  }
+  return prompt || null
+}
+
+// ── Tidying ─────────────────────────────────────────────────────────────────
+// A voice note's words made into a title and clean notes by the gateway's
+// `smart` model (server/tidy.ts). The transcript stays as it was beside them.
+
+export interface Tidied {
+  title: string
+  notes: string
+}
+
+/** The chat the model is given: what to do, the glossary, then the words. */
+type ChatMessage = { role: 'system' | 'user'; content: string }
+
+export function tidyMessages(words: string, terms: readonly CaptureTerm[]): [ChatMessage, ChatMessage] {
+  const glossary = terms.length
+    ? `\nThe speaker's own names and words (spell them this way): ${terms
+        .map((t) => `"${t.heard.trim()}" means "${t.meant.trim()}"`)
+        .join('; ')}.`
+    : ''
+  const system = `You tidy a voice note the user recorded for themselves into a task for their to-do list.
+Answer with JSON only: {"title": string, "notes": string}.
+- Write in the language the note is in (Spanish stays Spanish, English stays English; a note that mixes them keeps that mix).
+- "title": what the note is about or asks for, at most ${TIDY_TITLE_MAX} characters, no ending period, no emoji.
+- "notes": everything the note says, cleaned up: no filler words ("eh", "o sea", "like", "um"), no repetitions or false starts, proper punctuation, short paragraphs or a "- " list when it lists things. Keep every fact, name, number and date. Never add, guess or advise anything that was not said. Empty when the title already says it all.
+- Fix words the transcriber obviously got wrong only when the meaning is clear.${glossary}`
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: words },
+  ]
+}
+
+/** A tidied title is at most this long (TickTick shows about this much). */
+export const TIDY_TITLE_MAX = 100
+
+/**
+ * The model's answer as a title and notes, or null when it is not usable: its
+ * thinking dropped, the JSON object found inside whatever surrounds it, both
+ * fields strings, a title that is not empty.
+ */
+export function parseTidy(answer: string): Tidied | null {
+  const text = answer.replace(/<think>[\s\S]*?<\/think>/g, '')
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start < 0 || end <= start) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text.slice(start, end + 1))
+  } catch {
+    return null
+  }
+  if (!parsed || typeof parsed !== 'object') return null
+  const { title, notes } = parsed as { title?: unknown; notes?: unknown }
+  if (typeof title !== 'string') return null
+  const oneLine = title.replace(/\s+/g, ' ').trim().replace(/\.$/, '')
+  if (!oneLine) return null
+  return {
+    title: oneLine.length <= TIDY_TITLE_MAX ? oneLine : `${oneLine.slice(0, TIDY_TITLE_MAX - 1).trimEnd()}…`,
+    notes: typeof notes === 'string' ? notes.trim() : '',
+  }
+}

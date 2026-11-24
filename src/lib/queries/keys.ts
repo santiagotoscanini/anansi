@@ -85,6 +85,7 @@ export const qk = {
   openQuestions: ['open-questions'] as const,
   /** The Inbox: captured thoughts and voice notes, and where each went. */
   captures: ['captures'] as const,
+  captureTerms: ['captureTerms'] as const,
   /** Personality test results, every test (the Self page). */
   personalityResults: ['personality-results'] as const,
 } as const

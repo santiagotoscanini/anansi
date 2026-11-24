@@ -10,6 +10,7 @@ import {
   bucketListItemPeople,
   bucketListItems,
   captures,
+  captureTerms,
   connections,
   files,
   goalValues,
@@ -210,6 +211,7 @@ export async function exportAll(userId: string) {
     ? await db.select().from(openQuestionPeople).where(inArray(openQuestionPeople.questionId, openQuestionIds))
     : []
   const personalityRows = await db.select().from(personalityResults).where(eq(personalityResults.userId, userId))
+  const captureTermRows = await db.select().from(captureTerms).where(eq(captureTerms.userId, userId))
   const captureRows = await db
     .select({ capture: captures, file: files })
     .from(captures)
@@ -292,6 +294,7 @@ export async function exportAll(userId: string) {
       }
     }),
     captureFiles: exportedCaptureFiles,
+    captureTerms: captureTermRows.map(stripUser),
     // Touched-but-unused — harmless extra context for a future v2 importer.
     // Part of the shipped payload shape, so it stays.
     _trackingItemIds: trackingItemIds,
@@ -378,6 +381,7 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       await tx.delete(personalityResults).where(eq(personalityResults.userId, userId))
       await tx.delete(healthDays).where(eq(healthDays.userId, userId))
       await tx.delete(captures).where(eq(captures.userId, userId))
+      await tx.delete(captureTerms).where(eq(captureTerms.userId, userId))
 
       if (b.values.length) {
         await tx.insert(values).values(b.values.map((v) => ({ ...v, userId })))
@@ -588,6 +592,9 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
           })
         }
         await tx.insert(captures).values(rows)
+      }
+      if (b.captureTerms.length) {
+        await tx.insert(captureTerms).values(b.captureTerms.map((t) => ({ ...t, userId })))
       }
     })
   } catch (err) {

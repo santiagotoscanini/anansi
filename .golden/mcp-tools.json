@@ -1025,6 +1025,32 @@
       "idempotentHint": true,
       "openWorldHint": false
     },
+    "description": "Delete one entry (by `id`, from `list_capture_dictionary`) of the user's dictionary for voice notes.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_capture_dictionary_entry",
+    "title": "Remove from the voice notes' dictionary"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
     "description": "Remove an edge between two goals. Both goals stay.",
     "execution": {
       "taskSupport": "forbidden"
@@ -1778,7 +1804,24 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "The user's raw inbox of thoughts, newest first: ideas, to-dos, questions and voice notes they captured on the go, to help them triage it. Each has `text` (for a voice note, its transcript; null until it has one), `kind` (text or voice, with `audioUrl` and `durationMs`), `transcriptStatus` (a voice note's words: `pending` while the server transcribes it, retried on its own when the transcriber is down, with `transcribeAttempts` and `transcribeError`; `done`; `failed` when the transcriber refused the audio, see `retranscribe_capture`; `none` for typed text), `capturedAt`, `status` (`new` (not routed yet: kept in Anansi, waiting for its words, or failed with `routeError`), `routed` (became a note on `question`, or a TickTick task, in the captures list or the Inbox), `archived` (dealt with).) and where it went: `questionId`/`question` and `noteId` for an open question, `tickTickTaskId` for TickTick. Turn what you find into goals, tasks, journal entries or question notes with the other tools, then archive the capture with `update_capture`.",
+    "description": "The user's dictionary for voice notes: each entry is a phrase the transcriber mishears (`heard`, e.g. \"tic tic\") and what the user meant (`meant`, e.g. \"TickTick\"). Every new transcript is corrected with it (whole words, any case), the transcriber is told to expect the meant words, and the model that tidies a note spells them that way.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object"
+    },
+    "name": "list_capture_dictionary",
+    "title": "List the voice notes' dictionary"
+  },
+  {
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "The user's raw inbox of thoughts, newest first: ideas, to-dos, questions and voice notes they captured on the go, to help them triage it. Each has `text` (for a voice note, its transcript with the user's dictionary applied; null until it has one; `heard` is what the transcriber heard before the dictionary), for a voice note `title` and `notes` (its words tidied by a model, what TickTick got; null when not tidied, `tidyError` says why), `kind` (text or voice, with `audioUrl` and `durationMs`), `transcriptStatus` (a voice note's words: `pending` while the server transcribes it, retried on its own when the transcriber is down, with `transcribeAttempts` and `transcribeError`; `done`; `failed` when the transcriber refused the audio, see `retranscribe_capture`; `none` for typed text), `capturedAt`, `status` (`new` (not routed yet: kept in Anansi, waiting for its words, or failed with `routeError`), `routed` (became a note on `question`, or a TickTick task, in the captures list or the Inbox), `archived` (dealt with).) and where it went: `questionId`/`question` and `noteId` for an open question, `tickTickTaskId` and `tickTickListName` for TickTick. Turn what you find into goals, tasks, journal entries or question notes with the other tools, then archive the capture with `update_capture`.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -2486,6 +2529,42 @@
     },
     "name": "set_avatar",
     "title": "Set your avatar"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Teach the transcription a word: from now on `heard` (what the transcriber writes, e.g. \"tic tic\") becomes `meant` (e.g. \"TickTick\") in every new voice note. A phrase already in the dictionary (case aside) gets the new meaning. Notes already transcribed are not changed; `retranscribe_capture` redoes one. Use it when the user points out a name or word the transcripts keep getting wrong.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "heard": {
+          "description": "The phrase as the transcriber writes it.",
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        },
+        "meant": {
+          "description": "What it should be.",
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "heard",
+        "meant"
+      ],
+      "type": "object"
+    },
+    "name": "set_capture_dictionary_entry",
+    "title": "Add to the voice notes' dictionary"
   },
   {
     "annotations": {

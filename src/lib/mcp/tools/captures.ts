@@ -20,7 +20,7 @@ export function registerCapturesTools(server: McpServer, ctx: McpCtx): void {
     'list_captures',
     {
       title: 'List captured thoughts',
-      description: `The user's raw inbox of thoughts, newest first: ideas, to-dos, questions and voice notes they captured on the go, to help them triage it. Each has \`text\` (for a voice note, its transcript; null until it has one), \`kind\` (text or voice, with \`audioUrl\` and \`durationMs\`), \`transcriptStatus\` (a voice note's words: \`pending\` while the server transcribes it, retried on its own when the transcriber is down, with \`transcribeAttempts\` and \`transcribeError\`; \`done\`; \`failed\` when the transcriber refused the audio, see \`retranscribe_capture\`; \`none\` for typed text), \`capturedAt\`, \`status\` (${STATUS}) and where it went: \`questionId\`/\`question\` and \`noteId\` for an open question, \`tickTickTaskId\` for TickTick. Turn what you find into goals, tasks, journal entries or question notes with the other tools, then archive the capture with \`update_capture\`.`,
+      description: `The user's raw inbox of thoughts, newest first: ideas, to-dos, questions and voice notes they captured on the go, to help them triage it. Each has \`text\` (for a voice note, its transcript with the user's dictionary applied; null until it has one; \`heard\` is what the transcriber heard before the dictionary), for a voice note \`title\` and \`notes\` (its words tidied by a model, what TickTick got; null when not tidied, \`tidyError\` says why), \`kind\` (text or voice, with \`audioUrl\` and \`durationMs\`), \`transcriptStatus\` (a voice note's words: \`pending\` while the server transcribes it, retried on its own when the transcriber is down, with \`transcribeAttempts\` and \`transcribeError\`; \`done\`; \`failed\` when the transcriber refused the audio, see \`retranscribe_capture\`; \`none\` for typed text), \`capturedAt\`, \`status\` (${STATUS}) and where it went: \`questionId\`/\`question\` and \`noteId\` for an open question, \`tickTickTaskId\` and \`tickTickListName\` for TickTick. Turn what you find into goals, tasks, journal entries or question notes with the other tools, then archive the capture with \`update_capture\`.`,
       inputSchema: toolInput({
         status: z.enum(['new', 'routed', 'archived']).optional().describe('Only captures in this state.'),
         limit: z.number().int().min(1).max(500).optional().describe('At most this many (default 100).'),
@@ -110,6 +110,63 @@ export function registerCapturesTools(server: McpServer, ctx: McpCtx): void {
     async ({ id }) => {
       try {
         return mcpJsonResult(await captures.retranscribe(ctx.userId, id))
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'list_capture_dictionary',
+    {
+      title: "List the voice notes' dictionary",
+      description:
+        'The user\'s dictionary for voice notes: each entry is a phrase the transcriber mishears (`heard`, e.g. "tic tic") and what the user meant (`meant`, e.g. "TickTick"). Every new transcript is corrected with it (whole words, any case), the transcriber is told to expect the meant words, and the model that tidies a note spells them that way.',
+      inputSchema: toolInput({}),
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    async () => {
+      try {
+        return mcpJsonResult(await captures.listTerms(ctx.userId))
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'set_capture_dictionary_entry',
+    {
+      title: "Add to the voice notes' dictionary",
+      description:
+        'Teach the transcription a word: from now on `heard` (what the transcriber writes, e.g. "tic tic") becomes `meant` (e.g. "TickTick") in every new voice note. A phrase already in the dictionary (case aside) gets the new meaning. Notes already transcribed are not changed; `retranscribe_capture` redoes one. Use it when the user points out a name or word the transcripts keep getting wrong.',
+      inputSchema: toolInput({
+        heard: z.string().min(1).max(100).describe('The phrase as the transcriber writes it.'),
+        meant: z.string().min(1).max(100).describe('What it should be.'),
+      }),
+      annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async (input) => {
+      try {
+        return mcpJsonResult(await captures.saveTerm(ctx.userId, input))
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'delete_capture_dictionary_entry',
+    {
+      title: "Remove from the voice notes' dictionary",
+      description:
+        "Delete one entry (by `id`, from `list_capture_dictionary`) of the user's dictionary for voice notes.",
+      inputSchema: toolInput({ id: z.string() }),
+      annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ id }) => {
+      try {
+        return mcpJsonResult(await captures.removeTerm(ctx.userId, id))
       } catch (e) {
         return mcpErrorFromUnknown(e)
       }

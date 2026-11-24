@@ -100,8 +100,8 @@
   `src/lib/captures.ts`. The phone does not play a capture's audio back (the server serves it to the web only).
 - Recording without opening the app: "Record a thought" (`RecordThoughtIntent`, the Action Button, Siri, Shortcuts)
   and the Control Center control (`ToggleRecordingIntent`) are `AudioRecordingIntent` + `LiveActivityIntent`, so they
-  run in the app's process, in the background. `BackgroundRecorder` (AnansiFeature) activates the audio session,
-  requests the Live Activity, then starts `VoiceRecorder`; the system stops a background recording that has no Live
+  run in the app's process, in the background. `BackgroundRecorder` (AnansiFeature) requests the Live Activity **first**, then activates the audio session (up to four tries, the last two as a mixable `playAndRecord` session; with the session first iOS refused every background activation, "Session activation failed", build 128),
+  then starts `VoiceRecorder`; the system stops a background recording that has no Live
   Activity, so the two live and end together. A second press, the Live Activity's Stop (`StopRecordingIntent`) or the
   30-minute limit (`RecordingRules`, `Core/Recording.swift`) stop it and queue it like the in-app recorder (the server
   transcribes it). When it cannot start in the background (microphone not yet

@@ -40,16 +40,20 @@ final class VoiceRecorder {
         fileURL = Self.folder.appending(path: "\(UUID().uuidString).wav")
     }
 
-    func start() async {
+    /// `configureSession: false` when the caller already set up and activated the audio session (the background
+    /// recorder, which must do it in a particular order).
+    func start(configureSession: Bool = true) async {
         guard phase == .idle else { return }
         guard await AVAudioApplication.requestRecordPermission() else {
             phase = .failed("Anansi can't use the microphone. Allow it in Settings → Privacy & Security → Microphone.")
             return
         }
         do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.record, mode: .default)
-            try session.setActive(true)
+            if configureSession {
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(.record, mode: .default)
+                try session.setActive(true)
+            }
             let settings: [String: Any] = [
                 AVFormatIDKey: kAudioFormatLinearPCM,
                 AVSampleRateKey: 16_000,

@@ -56,15 +56,9 @@ final class BackgroundRecorder {
             throw RecordingStartFailure.needsApp("Live Activities are off for Anansi.")
         }
 
-        // The session first, then the Live Activity, then the recorder: the order reported to work.
-        let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.record, mode: .default)
-            try session.setActive(true)
-            RecordingLog.shared.noteAudio("session active")
-        } catch {
-            throw RecordingStartFailure.needsApp("The microphone couldn't start: \(error.localizedDescription)")
-        }
+        // The Live Activity first, then the session, then the recorder. iOS lets an app turn the microphone on from
+        // the background only while its recording Live Activity is up: with the session first (builds up to 128)
+        // activation failed every time ("Session activation failed", in the recording log) and the app opened.
         let now = Date.now
         let state = RecordingActivityAttributes.ContentState(startedAt: now, endsBy: RecordingRules.endsBy(startedAt: now))
         let activity: Activity<RecordingActivityAttributes>
@@ -72,12 +66,38 @@ final class BackgroundRecorder {
             activity = try Activity.request(attributes: RecordingActivityAttributes(questionTitle: questionTitle),
                                             content: ActivityContent(state: state, staleDate: nil))
         } catch {
-            try? session.setActive(false, options: .notifyOthersOnDeactivation)
             throw RecordingStartFailure.needsApp("The Live Activity couldn't start: \(error.localizedDescription)")
         }
         RecordingLog.shared.note("live activity requested: \(activity.activityState)")
+        let session = AVAudioSession.sharedInstance()
+        // The system may take a moment to count the new Live Activity: a few tries, a beat apart.
+        var activation: Error?
+        for attempt in 1...4 {
+            do {
+                // Later tries mix with other audio: a mixable session is one iOS lets a background app start.
+                if attempt <= 2 {
+                    try session.setCategory(.record, mode: .default)
+                } else {
+                    try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers])
+                }
+                try session.setActive(true)
+                activation = nil
+                RecordingLog.shared.noteAudio("session active (try \(attempt))")
+                break
+            } catch {
+                activation = error
+                let code = (error as NSError).code
+                RecordingLog.shared.note("session activation failed (try \(attempt), code \(code)): \(error.localizedDescription)")
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+        }
+        if let activation {
+            await Self.endActivity(activity.id, final: nil, linger: false)
+            throw RecordingStartFailure.needsApp("The microphone couldn't start: \(activation.localizedDescription)")
+        }
         let recorder = VoiceRecorder()
-        await recorder.start()
+        // The session is already set up and active: reconfiguring it from the background could fail.
+        await recorder.start(configureSession: false)
         guard recorder.phase == .recording else {
             await Self.endActivity(activity.id, final: nil, linger: false)
             try? session.setActive(false, options: .notifyOthersOnDeactivation)

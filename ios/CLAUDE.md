@@ -43,7 +43,7 @@
   thread resolves colors and draws `Canvas` while anything animates, so `UIColor { traits in … }` providers and
   `Canvas` renderers are the known cases. Build 102 crashed on every screen transition through `Color(light:dark:)`.
   `ThemeThreadingTests` guards it. `PasteButton` was replaced for the same reason.
-- Test: `cd ios/Packages/AnansiKit && xcodebuild test -scheme AnansiKit -destination 'platform=iOS Simulator,name=<an available iPhone>'`
+- Test: `cd ios/Packages/AnansiKit && xcodebuild test -scheme AnansiKit-Package -destination 'platform=iOS Simulator,name=<an available iPhone>'`
 - Build app: `cd ios && xcodebuild build -project Anansi.xcodeproj -scheme Anansi -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO`
 - App identity/versioning lives only in `Config/App.xcconfig`.
 - Anything under `src/` must pass the web app's `pnpm ci` (format, lint, typecheck, tests, MCP golden, build) and

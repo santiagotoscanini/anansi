@@ -99,7 +99,7 @@ ios/
 ## Local commands
 
 ```bash
-cd ios/Packages/AnansiKit && xcodebuild test -scheme AnansiKit -destination 'platform=iOS Simulator,name=iPhone 18 Pro'
+cd ios/Packages/AnansiKit && xcodebuild test -scheme AnansiKit-Package -destination 'platform=iOS Simulator,name=iPhone 18 Pro'
 ```
 
 ```bash

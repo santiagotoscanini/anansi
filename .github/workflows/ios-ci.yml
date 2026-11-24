@@ -54,13 +54,13 @@ jobs:
             -destination "id=${{ steps.sim.outputs.udid }}" \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/build.log"
 
-      # The package's auto-generated scheme picks up every test target automatically.
+      # The package's auto-generated scheme (AnansiKit-Package, since it has two library products) runs every test target.
       - name: Test AnansiKit
         working-directory: ios/Packages/AnansiKit
         run: |
           set -o pipefail
           xcodebuild test \
-            -scheme AnansiKit \
+            -scheme AnansiKit-Package \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -resultBundlePath "$GITHUB_WORKSPACE/build/Tests.xcresult" 2>&1 | tee "$RUNNER_TEMP/test.log"
 

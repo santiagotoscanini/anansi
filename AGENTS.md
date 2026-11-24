@@ -4,6 +4,10 @@ Personal operating system for goals, relationships, and values. Named after Anan
 
 Feature surface: visual goal hierarchies with weighted connections, weekly progress retrospectives, a daily journal, a Personal CRM for reflecting on relationships, user-defined values that tag goals, and custom groups that span both people and tasks (e.g. "Family" can hold both my partner and the "call mom" task).
 
+## Shipping
+
+**Always commit and push to `main` when a change is done and its checks pass** ("Post-change verification" below), without asking. The app has one user, its owner, so there is no review step and no branch to open: a push to `main` is the deploy (live in about 2 minutes, see "Infrastructure"). Say what shipped and when it is live.
+
 ## Local dev
 
 ```bash

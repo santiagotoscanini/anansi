@@ -62,3 +62,18 @@
   button replaces the picture. A replace is an outbox upload with `replaces` set; the old attachment is deleted
   only after the new one has landed. Named `blocks` on a sync item (a transcript, a summary) are shown read-only
   under the notes; they are written on the web or by Claude.
+- Capture (the Inbox): `CaptureIntents.swift` holds "Capture a thought", "Add to an open question" (both
+  `supportedModes = .background`, written through the outbox so they work offline) and "Record a thought"
+  (`.foreground(.immediate)`: it sets `CaptureStore.recording` and HomeView shows `RecorderView`, which records at
+  once). The App Shortcuts (English and Spanish phrases) are in the app target, `Anansi/AnansiShortcuts.swift`,
+  which reaches the package's intents through `AppIntentsPackage` (`AnansiAppIntents` → `AppFeatureIntents` →
+  `AnansiFeatureIntents`); keep that chain when adding an intent. A recording goes to a temporary folder and is moved
+  into the outbox only once stopped; the transcriber (`OnDeviceTranscriber`, SpeechAnalyzer + SpeechTranscriber, off
+  the main actor, the user's language else English, model installed with `AssetInventory`) reads a copy. Its words
+  ride with the queued recording, or follow it as a `captureTranscript` op sent to the server id the recording got
+  (`SyncOutbox.captureIds`). Pure rules (title, where a capture went) are `Core/Capture.swift`, the server's
+  `src/lib/captures.ts`. The phone does not play a capture's audio back (the server serves it to the web only).
+- Next step for Capture (not built): recording from the Action Button WITHOUT opening the app needs an
+  `AudioRecordingIntent` that is also a `LiveActivityIntent`, with a Live Activity shown for the whole recording. That
+  needs a widget extension target (the Live Activity UI, and a Control Center control to start it), a new App ID
+  capability for the extension, and its own signing in `ios-deploy.yml`.

@@ -16,6 +16,15 @@ nonisolated struct OutboxOp: Codable, Hashable, Sendable, Identifiable {
         case upload(localFile: String, fileName: String, fileType: String, byteCount: Int)
         /// Write one day of the journal. A nil field is left as the day holds it.
         case setJournal(content: String?, highlights: [String]?)
+        /// A typed thought for the Inbox (`POST /api/v1/captures`), aimed at an open question or not.
+        case capture(text: String, questionId: String?, capturedAt: Date)
+        /// A voice note: the recording kept on disk under the outbox folder by `localFile` name until it lands,
+        /// and its words when they were known before it went out.
+        case voiceCapture(localFile: String, questionId: String?, capturedAt: Date, durationMs: Int, byteCount: Int,
+                          transcript: String?)
+        /// A voice note's words, transcribed after the recording was queued. Sent to the capture the recording
+        /// became (`SyncOutbox.serverCaptureId`); the queue's order puts it after the recording.
+        case captureTranscript(String)
     }
 
     var id: UUID
@@ -46,7 +55,27 @@ nonisolated struct OutboxOp: Codable, Hashable, Sendable, Identifiable {
 
     var localFile: String? {
         if case .upload(let file, _, _, _) = kind { return file }
+        if case .voiceCapture(let file, _, _, _, _, _) = kind { return file }
         return nil
+    }
+
+    // MARK: Captures
+
+    private static let capturePrefix = "capture:"
+
+    /// The `itemId` of a capture's ops: the recording and its transcript share it.
+    static func captureItemId(_ id: UUID) -> String { capturePrefix + id.uuidString }
+
+    var isCapture: Bool { itemId.hasPrefix(Self.capturePrefix) }
+
+    var isVoiceCapture: Bool {
+        if case .voiceCapture = kind { return true }
+        return false
+    }
+
+    var isCaptureTranscript: Bool {
+        if case .captureTranscript = kind { return true }
+        return false
     }
 
     // MARK: The journal
@@ -91,6 +120,16 @@ nonisolated struct SyncOutbox: Codable, Hashable, Sendable {
     var attempts = 0
     var nextAttempt: Date?
     var lastError: String?
+    /// The server's id for each capture that landed, newest last: what a transcript that comes after its recording
+    /// is sent to. Optional so a queue saved before captures still decodes; the last `captureMemory` are kept.
+    var captureIds: [CaptureLink]?
+
+    nonisolated struct CaptureLink: Codable, Hashable, Sendable {
+        var itemId: String
+        var serverId: String
+    }
+
+    static let captureMemory = 50
 
     init() {}
 
@@ -111,6 +150,18 @@ nonisolated struct SyncOutbox: Codable, Hashable, Sendable {
             }
             pending.removeAll { $0.id != inFlight && $0.itemId == op.itemId && $0.isJournalText }
             op.kind = .setJournal(content: content, highlights: highlights)
+        }
+        if case .voiceCapture(let file, let questionId, let capturedAt, let durationMs, let bytes, var transcript) = op.kind {
+            // A recording put back in the queue (a retry) takes the words that were waiting for it.
+            for existing in pending where existing.id != inFlight && existing.itemId == op.itemId {
+                if case .captureTranscript(let words) = existing.kind { transcript = words }
+            }
+            pending.removeAll { $0.id != inFlight && $0.itemId == op.itemId && $0.isCaptureTranscript }
+            op.kind = .voiceCapture(localFile: file, questionId: questionId, capturedAt: capturedAt,
+                                    durationMs: durationMs, byteCount: bytes, transcript: transcript)
+        }
+        if case .captureTranscript = op.kind {
+            pending.removeAll { $0.id != inFlight && $0.itemId == op.itemId && $0.isCaptureTranscript }
         }
         if case .setText = op.kind {
             pending.removeAll { existing in
@@ -155,7 +206,17 @@ nonisolated struct SyncOutbox: Codable, Hashable, Sendable {
     mutating func didFailPermanently(_ id: UUID, message: String) {
         if inFlight == id { inFlight = nil }
         if let index = pending.firstIndex(where: { $0.id == id }) {
-            failed.append(FailedOp(op: pending.remove(at: index), message: message))
+            var op = pending.remove(at: index)
+            // A refused recording keeps the words waiting for it, so a retry sends both.
+            if case .voiceCapture(let file, let questionId, let capturedAt, let durationMs, let bytes, var transcript) = op.kind {
+                for waiting in pending where waiting.itemId == op.itemId {
+                    if case .captureTranscript(let words) = waiting.kind { transcript = words }
+                }
+                pending.removeAll { $0.itemId == op.itemId && $0.isCaptureTranscript }
+                op.kind = .voiceCapture(localFile: file, questionId: questionId, capturedAt: capturedAt,
+                                        durationMs: durationMs, byteCount: bytes, transcript: transcript)
+            }
+            failed.append(FailedOp(op: op, message: message))
         }
         attempts = 0
         nextAttempt = nil
@@ -176,6 +237,43 @@ nonisolated struct SyncOutbox: Codable, Hashable, Sendable {
     mutating func recoverAfterLaunch() {
         inFlight = nil
         nextAttempt = nil
+    }
+
+    // MARK: Captures
+
+    /// A voice note's words. They ride with the recording while it waits (in the queue, or among the failed);
+    /// once it is on the wire or has landed they go as their own op, after it.
+    mutating func setTranscript(captureItemId: String, title: String, transcript: String, now: Date) {
+        if let index = pending.firstIndex(where: { $0.itemId == captureItemId && $0.isVoiceCapture && $0.id != inFlight }),
+           case .voiceCapture(let file, let questionId, let capturedAt, let durationMs, let bytes, _) = pending[index].kind {
+            pending[index].kind = .voiceCapture(localFile: file, questionId: questionId, capturedAt: capturedAt,
+                                                durationMs: durationMs, byteCount: bytes, transcript: transcript)
+            return
+        }
+        if let index = failed.firstIndex(where: { $0.op.itemId == captureItemId && $0.op.isVoiceCapture }),
+           case .voiceCapture(let file, let questionId, let capturedAt, let durationMs, let bytes, _) = failed[index].op.kind {
+            failed[index].op.kind = .voiceCapture(localFile: file, questionId: questionId, capturedAt: capturedAt,
+                                                  durationMs: durationMs, byteCount: bytes, transcript: transcript)
+            return
+        }
+        enqueue(OutboxOp(itemId: captureItemId, itemTitle: title, kind: .captureTranscript(transcript), queuedAt: now))
+    }
+
+    /// Remembers the server's id for a capture that landed.
+    mutating func recordCapture(itemId: String, serverId: String) {
+        var links = (captureIds ?? []).filter { $0.itemId != itemId }
+        links.append(CaptureLink(itemId: itemId, serverId: serverId))
+        captureIds = Array(links.suffix(Self.captureMemory))
+    }
+
+    /// The server's id for a capture this phone sent, once it landed.
+    func serverCaptureId(_ itemId: String) -> String? {
+        captureIds?.last(where: { $0.itemId == itemId })?.serverId
+    }
+
+    /// Captures still on their way, oldest first (the recording or the text; a lone transcript is not one).
+    var pendingCaptures: [OutboxOp] {
+        pending.filter { $0.isCapture && !$0.isCaptureTranscript }
     }
 
     static func backoff(attempts: Int) -> TimeInterval {

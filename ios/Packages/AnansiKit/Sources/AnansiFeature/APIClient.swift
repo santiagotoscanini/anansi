@@ -198,3 +198,37 @@ extension APIClient {
         try await call(API.people(), as: [PersonRef].self)
     }
 }
+
+// MARK: Captures
+
+extension APIClient {
+    func captures(limit: Int = 50) async throws -> [Capture] {
+        try await call(API.captures(limit: limit), as: [Capture].self)
+    }
+
+    func createCapture(text: String, questionId: String?, capturedAt: Date) async throws -> Capture {
+        try await call(API.createCapture(text: text, questionId: questionId, capturedAt: capturedAt), as: Capture.self)
+    }
+
+    /// The recording from disk, and its words when they are short enough to ride along; longer ones follow in a PATCH.
+    func uploadVoiceCapture(fileURL: URL, questionId: String?, capturedAt: Date, durationMs: Int,
+                            transcript: String?) async throws -> Capture {
+        let body = try await upload(API.uploadVoiceCapture(questionId: questionId, capturedAt: capturedAt,
+                                                           durationMs: durationMs, transcript: transcript),
+                                    fileURL: fileURL, timeout: 600)
+        let capture = try API.decode(Capture.self, from: body)
+        if let transcript, transcript.count > API.transcriptInQueryMax {
+            return try await setCaptureTranscript(capture.id, transcript: transcript)
+        }
+        return capture
+    }
+
+    @discardableResult
+    func setCaptureTranscript(_ id: String, transcript: String) async throws -> Capture {
+        try await call(API.setCaptureTranscript(id, transcript: transcript), as: Capture.self)
+    }
+
+    func openQuestions() async throws -> [OpenQuestionRef] {
+        try await call(API.openQuestions(), as: [OpenQuestionRef].self)
+    }
+}

@@ -64,6 +64,60 @@ final class OutboxStore {
         pump()
     }
 
+    // MARK: Captures
+
+    /// Queues a typed thought for the Inbox. Answers the capture's item id.
+    @discardableResult
+    func capture(text: String, questionId: String?, at date: Date = .now) -> String {
+        let id = UUID()
+        let itemId = OutboxOp.captureItemId(id)
+        outbox.enqueue(OutboxOp(id: id, itemId: itemId, itemTitle: CaptureRules.title(text),
+                                kind: .capture(text: text, questionId: questionId, capturedAt: date), queuedAt: .now))
+        save()
+        pump()
+        return itemId
+    }
+
+    /// Moves a finished recording into the outbox folder and queues its upload. Answers the capture's item id, which
+    /// its transcript is sent with later (`setTranscript`).
+    func addVoiceCapture(recordingAt source: URL, questionId: String?, capturedAt: Date, durationMs: Int) throws -> String {
+        let id = UUID()
+        let local = "\(id.uuidString).m4a"
+        let target = fileURL(local)
+        try? FileManager.default.removeItem(at: target)
+        try FileManager.default.moveItem(at: source, to: target)
+        let bytes = (try? FileManager.default.attributesOfItem(atPath: target.path(percentEncoded: false))[.size] as? Int) ?? 0
+        let itemId = OutboxOp.captureItemId(id)
+        outbox.enqueue(OutboxOp(id: id, itemId: itemId, itemTitle: "Voice note",
+                                kind: .voiceCapture(localFile: local, questionId: questionId, capturedAt: capturedAt,
+                                                    durationMs: durationMs, byteCount: bytes, transcript: nil),
+                                queuedAt: .now))
+        save()
+        pump()
+        return itemId
+    }
+
+    /// A voice note's words, transcribed on the phone (empty when it heard none).
+    func setTranscript(captureItemId: String, transcript: String) {
+        outbox.setTranscript(captureItemId: captureItemId, title: CaptureRules.title(transcript),
+                             transcript: transcript, now: .now)
+        save()
+        pump()
+    }
+
+    /// Waits until nothing of this capture is left in the queue, or the time is up. Answers whether it went.
+    func waitUntilSent(_ itemId: String, timeout: Duration) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while clock.now < deadline {
+            if !outbox.pending.contains(where: { $0.itemId == itemId }) {
+                return !outbox.failed.contains(where: { $0.op.itemId == itemId })
+            }
+            do { try await Task.sleep(for: .milliseconds(250)) } catch { return false }
+        }
+        return false
+    }
+
     func retry(_ id: UUID) {
         outbox.retry(id)
         save()
@@ -126,6 +180,28 @@ final class OutboxStore {
                         AttachmentCache.shared.forget(old)
                     }
                 }
+            case .capture(let text, let questionId, let capturedAt):
+                let capture = try await APIClient.shared.createCapture(text: text, questionId: questionId,
+                                                                      capturedAt: capturedAt)
+                outbox.recordCapture(itemId: op.itemId, serverId: capture.id)
+                CaptureStore.shared.didLand(capture)
+            case .voiceCapture(let local, let questionId, let capturedAt, let durationMs, _, let transcript):
+                let url = fileURL(local)
+                guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
+                    throw OutboxFileMissing()
+                }
+                let capture = try await APIClient.shared.uploadVoiceCapture(
+                    fileURL: url, questionId: questionId, capturedAt: capturedAt, durationMs: durationMs,
+                    transcript: transcript)
+                outbox.recordCapture(itemId: op.itemId, serverId: capture.id)
+                CaptureStore.shared.didLand(capture)
+            case .captureTranscript(let transcript):
+                guard let serverId = outbox.serverCaptureId(op.itemId) else {
+                    throw APIError(status: 400, code: "NO_CAPTURE",
+                                   message: "The voice note these words belong to never reached Anansi.")
+                }
+                let capture = try await APIClient.shared.setCaptureTranscript(serverId, transcript: transcript)
+                CaptureStore.shared.didLand(capture)
             case .setJournal(let content, let highlights):
                 guard let day = op.journalDay else {
                     throw APIError(status: 400, code: "BAD_DAY", message: "This journal entry has no day.")
@@ -136,7 +212,8 @@ final class OutboxStore {
             outbox.didSucceed(op.id)
             landed += 1
         } catch is OutboxFileMissing {
-            outbox.didFailPermanently(op.id, message: "The picture's file is gone from this phone.")
+            outbox.didFailPermanently(op.id, message: op.isVoiceCapture ? "The recording is gone from this phone."
+                                                                         : "The picture's file is gone from this phone.")
         } catch let error as APIError where !error.isRetryable {
             outbox.didFailPermanently(op.id, message: error.localizedDescription)
         } catch {
@@ -170,11 +247,12 @@ final class OutboxStore {
         try? data.write(to: queueURL, options: .atomic)
     }
 
-    /// Deletes pictures nothing in the queue points at any more (sent, dismissed).
+    /// Deletes pictures and recordings nothing in the queue points at any more (sent, dismissed). A recording in
+    /// progress is not here yet: it is moved in only once it is finished (`addVoiceCapture`).
     private func sweepFiles() {
         let keep = outbox.referencedFiles
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path(percentEncoded: false))) ?? []
-        for name in names where name.hasSuffix(".jpg") && !keep.contains(name) {
+        for name in names where (name.hasSuffix(".jpg") || name.hasSuffix(".m4a")) && !keep.contains(name) {
             try? FileManager.default.removeItem(at: fileURL(name))
         }
     }

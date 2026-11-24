@@ -174,7 +174,51 @@ nonisolated enum API {
         send("PUT", "api/v1/health/days", HealthDays(days: days))
     }
 
+    // MARK: Captures
+
+    /// The moment a capture was made, as the server reads it (ISO 8601, UTC, with milliseconds).
+    static func instant(_ date: Date) -> String {
+        Date.ISO8601FormatStyle(includingFractionalSeconds: true).format(date)
+    }
+
+    /// A transcript longer than this goes in its own PATCH rather than in the upload's query string.
+    static let transcriptInQueryMax = 1_500
+
+    static func captures(limit: Int = 50) -> Endpoint {
+        get("api/v1/captures", query: [URLQueryItem(name: "limit", value: String(limit))])
+    }
+
+    static func createCapture(text: String, questionId: String?, capturedAt: Date) -> Endpoint {
+        send("POST", "api/v1/captures", NewCapture(text: text, questionId: questionId, capturedAt: instant(capturedAt)))
+    }
+
+    /// The body is the recording, sent separately (from disk).
+    static func uploadVoiceCapture(questionId: String?, capturedAt: Date, durationMs: Int, transcript: String?,
+                                   contentType: String = "audio/mp4") -> Endpoint {
+        var query = [URLQueryItem(name: "capturedAt", value: instant(capturedAt)),
+                     URLQueryItem(name: "durationMs", value: String(max(0, durationMs))),
+                     URLQueryItem(name: "fileName", value: "Voice note.m4a")]
+        if let questionId { query.append(URLQueryItem(name: "questionId", value: questionId)) }
+        if let transcript, transcript.count <= transcriptInQueryMax {
+            query.append(URLQueryItem(name: "transcript", value: transcript))
+        }
+        return Endpoint(method: "POST", path: "api/v1/captures/voice", query: query, contentType: contentType)
+    }
+
+    static func setCaptureTranscript(_ id: String, transcript: String) -> Endpoint {
+        send("PATCH", "api/v1/captures/\(id)", ["transcript": transcript])
+    }
+
+    /// The open questions, for the question picker.
+    static func openQuestions() -> Endpoint { get("api/v1/open-questions") }
+
     // MARK: Bodies
+
+    struct NewCapture: Encodable {
+        var text: String
+        var questionId: String?
+        var capturedAt: String
+    }
 
     struct HealthDays: Encodable {
         var days: [HealthDay]

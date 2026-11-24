@@ -12,6 +12,7 @@ struct HomeView: View {
     @State private var connection = Connection.shared
     @State private var data = SyncData.shared
     @State private var outbox = OutboxStore.shared
+    @State private var captures = CaptureStore.shared
     @State private var path = NavigationPath()
     @State private var isShowingSettings = false
     @State private var isStarting = false
@@ -44,6 +45,7 @@ struct HomeView: View {
                 if connection.isConnected {
                     ToolbarItem(placement: .primaryAction) {
                         Menu("More", systemImage: "ellipsis.circle") {
+                            Button("Inbox", systemImage: "tray") { path.append(InboxRoute()) }
                             Button("Journal", systemImage: "book.closed") {
                                 path.append(JournalRoute(day: LocalDay.today()))
                             }
@@ -70,6 +72,9 @@ struct HomeView: View {
             .navigationDestination(for: JournalListRoute.self) { _ in
                 JournalListView()
             }
+            .navigationDestination(for: InboxRoute.self) { _ in
+                InboxView()
+            }
             .navigationDestination(for: SetupRoute.self) { _ in
                 SetupView()
             }
@@ -81,6 +86,10 @@ struct HomeView: View {
             }
             .sheet(isPresented: $isShowingSettings) {
                 SettingsView()
+            }
+            // "Record a thought" (the Action Button, Siri) and the mic buttons open the recorder here.
+            .fullScreenCover(item: $captures.recording) { request in
+                RecorderView(request: request)
             }
             .alert("Couldn't start the week", isPresented: .init(get: { startError != nil }, set: { if !$0 { startError = nil } })) {
                 Button("OK") {}
@@ -107,6 +116,7 @@ struct HomeView: View {
             } else {
                 data.clear()
                 JournalStore.shared.clear()
+                CaptureStore.shared.clear()
                 HistoryStore.shared.clear()
             }
         }
@@ -121,6 +131,7 @@ struct HomeView: View {
         outbox.kick()
         await data.refreshPulse()
         await JournalStore.shared.refresh(.today())
+        await CaptureStore.shared.load()
         await LibraryStore.shared.load()
     }
 
@@ -177,6 +188,9 @@ struct HomeView: View {
             SectionHeading(title: "Today")
             JournalCard {
                 path.append(JournalRoute(day: LocalDay.today()))
+            }
+            CaptureCard {
+                path.append(InboxRoute())
             }
         }
         weekSection

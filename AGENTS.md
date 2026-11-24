@@ -277,6 +277,7 @@ One input for everything on the user's mind: press the iPhone's Action Button (o
 - **Failures** are kept in `route_error` (shown with Retry); the TickTick poller retries them every round (`retryPending`, `server/ticktick/runner.ts`), along with the voice notes that waited long enough.
 - **Moving** (`update` with `questionId`, the row's "send to a question") takes it back from where it went (its note or TickTick task is deleted) and routes it afresh; `questionId: null` sends it to TickTick. Editing the text edits the note or the task too. Deleting a capture deletes its audio and leaves the note or task.
 - Claude reads and triages them with `list_captures` / `capture` / `update_capture` / `delete_capture`.
+- On the iPhone: App Intents "Capture a thought", "Add to an open question" and "Record a thought" (Action Button, Siri, Shortcuts), the voice note transcribed on the phone; see `ios/CLAUDE.md`. **Next step, not built:** recording from the Action Button without opening the app (`AudioRecordingIntent` + `LiveActivityIntent` with a Live Activity for the whole recording), which needs a widget extension target.
 
 ### Mentions
 Three texts can name a person, and all three do it the same way: a journal day (text and highlights), the notes on a weekly sync item (and its named blocks), a task's title and description. (A note on an open question is linked the same way on write, but has no index table, so it does not show under the person's mentions.)

@@ -169,9 +169,25 @@ async function reconcile(
   // The sections: found by the shape of their name ("November 2026" is the
   // month section in December too), renamed and reordered to Horizons', and
   // made when missing. A section renamed to something else is made again.
+  // Past due and Later are made only when a task lands in them, as Horizons
+  // shows those columns only then (TickTick cannot delete a section, so an
+  // emptied one stays until deleted by hand).
   const columns = [...(data.columns ?? [])]
   const sectionId = new Map<SectionKey, string>()
+  const sectionKeyOf = new Map<string, SectionKey>()
   const taken = new Set<string>()
+  const makeSection = async (key: SectionKey) => {
+    const s = SECTIONS.find((x) => x.key === key)
+    if (!s) return undefined
+    const name = sectionName(key, today)
+    const made = await tt.createColumn(projectId, name, s.order)
+    columns.push(made)
+    taken.add(made.id)
+    sectionId.set(key, made.id)
+    sectionKeyOf.set(made.id, key)
+    report.toTickTick++
+    return made.id
+  }
   for (const s of SECTIONS) {
     const name = sectionName(s.key, today)
     const free = columns.filter((c) => !taken.has(c.id))
@@ -179,6 +195,7 @@ async function reconcile(
     if (found) {
       taken.add(found.id)
       sectionId.set(s.key, found.id)
+      sectionKeyOf.set(found.id, s.key)
       if (found.name === name && found.sortOrder === s.order) continue
       await attempt(`renaming the "${found.name}" section`, async () => {
         await tt.updateColumn(projectId, found.id, { name, sortOrder: s.order })
@@ -186,15 +203,11 @@ async function reconcile(
       })
       continue
     }
+    if (s.key === 'past' || s.key === 'later') continue
     await attempt(`making the "${name}" section`, async () => {
-      const made = await tt.createColumn(projectId, name, s.order)
-      columns.push(made)
-      taken.add(made.id)
-      sectionId.set(s.key, made.id)
-      report.toTickTick++
+      await makeSection(s.key)
     })
   }
-  const sectionKeyOf = new Map([...sectionId].map(([key, id]) => [id, key]))
 
   // ── Anansi's side ─────────────────────────────────────────────────────────
   const goalRows: GoalRow[] = await db
@@ -266,8 +279,12 @@ async function reconcile(
     ...(r?.tags ?? []).filter((t) => !goalTags.has(norm(t)) && norm(t) !== previous),
     ...(goal ? [goal] : []),
   ]
-  const sectionFor = (f: Fields): string | undefined =>
-    f.completed ? undefined : sectionId.get(sectionOf(f.due, today))
+  /** The section an open task belongs in, made if it is a Past due or Later not there yet. */
+  const sectionFor = async (f: Fields): Promise<string | undefined> => {
+    if (f.completed) return undefined
+    const key = sectionOf(f.due, today)
+    return sectionId.get(key) ?? (await makeSection(key))
+  }
 
   // ── 1. Where each linked TickTick task is ────────────────────────────────
   // `remoteOf` holds an open task as TickTick has it. A closed one has only its
@@ -497,7 +514,7 @@ async function reconcile(
 
       // What TickTick must be told. Only what changes is sent: an update keeps
       // every field it does not name.
-      const wantSection = sectionFor(agreed)
+      const wantSection = await sectionFor(agreed)
       const { completed: pushCompleted, ...fields } = push
       const update: Partial<RemoteTask> = {
         ...(fields.title !== undefined ? { title: fields.title } : {}),
@@ -548,7 +565,7 @@ async function reconcile(
     if (task.completed || !isActive(task.goalId) || linkByLocal.has(task.id)) continue
     await attempt(`sending "${plain(task.title)}"`, async () => {
       const fields = localFields(task)
-      const section = sectionFor(fields)
+      const section = await sectionFor(fields)
       const created = await tt.createTask({
         projectId,
         title: fields.title,

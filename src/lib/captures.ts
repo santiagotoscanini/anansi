@@ -281,3 +281,14 @@ export function parseTidy(answer: string): Tidied | null {
     notes: typeof notes === 'string' ? notes.trim() : '',
   }
 }
+
+/**
+ * A capture's id from what a caller pasted: the id itself, or an Inbox link
+ * (`…/app/inbox?capture=<id>`, the one a TickTick task carries back).
+ */
+export function captureIdFrom(input: string): string {
+  const text = input.trim()
+  const found = /[?&]capture=([^&#\s]+)/.exec(text)
+  if (found) return decodeURIComponent(found[1]!)
+  return text
+}

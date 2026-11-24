@@ -9,7 +9,7 @@ the diff is the finding.
 | File | What it is | Used by |
 |---|---|---|
 | `mcp-tools.json` | `tools/list` result: all **106** tools with full `inputSchema`, sorted by name | **The standing catalog gate** — `pnpm check:mcp-tools`, run in CI on every PR. Diff must be exactly zero. Re-baselined for zod 4 (see below) and on 2026-11-02 to add the sync, Pulse, connection and account tools; the 51 before them stayed byte-identical. Again on 2026-11-13 for the 8 journal tools (and one sentence added to `get_person`), and the same day for `arrange_goals` and `list_person_mentions`, with the mention sentence added to the task and sync-note tools. On 2026-11-14 for `get_tracking_item_history`. On 2026-11-23 for `get_ticktick_status` and `sync_ticktick`, and the same day for `get_tracking_item_history`'s description when weeks moved to Sunday. On 2026-11-24 for the 9 open-question and 4 personality tools, and `interpretation` added to `list_values`, `create_value` and `update_value`. |
-| `mcp-tool-names.tsv` | `domain <TAB> tool_name`, 120 rows, 120 unique | Cross-check that no tool is dropped or renamed |
+| `mcp-tool-names.tsv` | `domain <TAB> tool_name`, 121 rows, 121 unique | Cross-check that no tool is dropped or renamed |
 | `procedures.tsv` | `file <TAB> line <TAB> name`, **84** rows | **Phase 1b checklist** — one service export per row, no exceptions (mitigates R7, the loss of `_def.record` flattening) |
 | `well-known-as.json` | RFC 8414 authorization-server metadata | Phase 3.5 — must stay byte-identical modulo origin |
 | `well-known-pr.json` | RFC 9728 protected-resource metadata | ditto |

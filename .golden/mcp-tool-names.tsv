@@ -6,6 +6,7 @@ bucket_list	update_bucket_list_item
 captures	capture
 captures	delete_capture
 captures	delete_capture_dictionary_entry
+captures	get_capture
 captures	list_capture_dictionary
 captures	list_captures
 captures	retranscribe_capture

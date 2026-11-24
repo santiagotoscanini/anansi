@@ -1547,6 +1547,37 @@
     "title": "Delete a value behavior"
   },
   {
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Everything about one capture of the user's inbox, by its id or by its Inbox link (`…/app/inbox?capture=<id>`, what its TickTick task links back to): its fields as `list_captures` gives them (`heard` = what the transcriber heard, `text` = that with the user's dictionary applied, `title` + `notes` = the tidied note TickTick got, where it went), `deviceLog` (the phone's recording steps for a voice note: app states, levels, never words) and `audio` (name, type, size). With `includeAudio` (default true) a voice note's recording comes too, as audio content, when it is at most 8 MB (about four minutes); `audioUrl` itself needs a browser session and cannot be fetched from here.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "The capture id, or its Inbox link.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "includeAudio": {
+          "description": "Attach the recording (default true).",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "get_capture",
+    "title": "Read one capture, with its audio"
+  },
+  {
     "description": "The user's Apple Health daily totals from `from` to `to` (both included, at most a year), oldest first; days with no data are left out. Each day's `data` may hold `sleepMinutes` (the night that ended that day) with `bedtime` and `wakeTime`, `steps`, `activeEnergyKcal`, `exerciseMinutes`, `workouts` ([{ type, minutes, energyKcal }]), `weightKg`, `bodyFatPercent`, `restingHeartRate` and `hrvMs`; a field Health had nothing for is missing. Sent by the phone when the user turns it on.",
     "execution": {
       "taskSupport": "forbidden"

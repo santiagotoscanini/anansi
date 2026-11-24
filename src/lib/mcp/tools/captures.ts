@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
 import { toolInput } from './fields'
+import { captureIdFrom } from '~/lib/captures'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
 import * as captures from '~/server/services/captures'
 
@@ -14,6 +15,9 @@ import * as captures from '~/server/services/captures'
 
 const STATUS =
   '`new` (not routed yet: kept in Anansi, waiting for its words, or failed with `routeError`), `routed` (became a note on `question`, or a TickTick task, in the captures list or the Inbox), `archived` (dealt with).'
+
+/** Past this a recording is no use in a tool result (base64 makes it a third bigger). */
+const AUDIO_BYTES = 8 * 1024 * 1024
 
 export function registerCapturesTools(server: McpServer, ctx: McpCtx): void {
   server.registerTool(
@@ -30,6 +34,41 @@ export function registerCapturesTools(server: McpServer, ctx: McpCtx): void {
     async ({ status, limit }) => {
       try {
         return mcpJsonResult(await captures.list(ctx.userId, { status, limit }))
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'get_capture',
+    {
+      title: 'Read one capture, with its audio',
+      description:
+        "Everything about one capture of the user's inbox, by its id or by its Inbox link (`…/app/inbox?capture=<id>`, what its TickTick task links back to): its fields as `list_captures` gives them (`heard` = what the transcriber heard, `text` = that with the user's dictionary applied, `title` + `notes` = the tidied note TickTick got, where it went), `deviceLog` (the phone's recording steps for a voice note: app states, levels, never words) and `audio` (name, type, size). With `includeAudio` (default true) a voice note's recording comes too, as audio content, when it is at most 8 MB (about four minutes); `audioUrl` itself needs a browser session and cannot be fetched from here.",
+      inputSchema: toolInput({
+        id: z.string().min(1).describe('The capture id, or its Inbox link.'),
+        includeAudio: z.boolean().optional().describe('Attach the recording (default true).'),
+      }),
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    async ({ id, includeAudio }) => {
+      try {
+        const captureId = captureIdFrom(id)
+        const capture = await captures.detail(ctx.userId, captureId)
+        const result = mcpJsonResult(capture)
+        if (includeAudio === false || !capture.audio) return result
+        if (capture.audio.sizeBytes > AUDIO_BYTES) {
+          return mcpJsonResult({ ...capture, audioNote: 'Too large to attach here. Play it in the app.' })
+        }
+        const bytes = await captures.readAudio(ctx.userId, captureId)
+        if (!bytes) return mcpJsonResult({ ...capture, audioNote: 'The recording is not in storage.' })
+        return {
+          content: [
+            ...result.content,
+            { type: 'audio' as const, data: Buffer.from(bytes).toString('base64'), mimeType: capture.audio.mimeType },
+          ],
+        }
       } catch (e) {
         return mcpErrorFromUnknown(e)
       }

@@ -13,6 +13,7 @@ import {
   tickTickContent,
   voiceNoteTitle,
   applyTerms,
+  captureIdFrom,
   parseTidy,
   TIDY_TITLE_MAX,
   tidyMessages,
@@ -206,4 +207,13 @@ test('tidyMessages: the glossary only when there is one', () => {
     tidyMessages('hola', [{ heard: 'tic tic', meant: 'TickTick' }])[0].content.includes('"tic tic" means "TickTick"'),
   )
   assert.equal(tidyMessages('hola', [])[1].content, 'hola')
+})
+
+test('captureIdFrom: an id, or the Inbox link that carries one', () => {
+  assert.equal(captureIdFrom(' rz8n69s1bp3fgbfecvqo7bu1 '), 'rz8n69s1bp3fgbfecvqo7bu1')
+  assert.equal(
+    captureIdFrom('https://anansi.toscanini.me/app/inbox?capture=rz8n69s1bp3fgbfecvqo7bu1'),
+    'rz8n69s1bp3fgbfecvqo7bu1',
+  )
+  assert.equal(captureIdFrom('/app/inbox?archived=true&capture=abc#x'), 'abc')
 })

@@ -220,6 +220,41 @@ export async function get(userId: string, id: string) {
 }
 
 /**
+ * Everything about one capture, for an agent: what `get` answers plus the
+ * phone's recording log and the audio's name, type and size (its bytes:
+ * `readAudio`).
+ */
+export async function detail(userId: string, id: string) {
+  const capture = await get(userId, id)
+  const [extra] = await db
+    .select({
+      deviceLog: captures.deviceLog,
+      fileName: files.fileName,
+      mimeType: files.mimeType,
+      sizeBytes: files.sizeBytes,
+    })
+    .from(captures)
+    .leftJoin(files, eq(captures.fileId, files.id))
+    .where(eq(captures.id, id))
+    .limit(1)
+  return {
+    ...capture,
+    deviceLog: extra?.deviceLog ?? null,
+    audio:
+      extra?.fileName && extra.mimeType
+        ? { fileName: extra.fileName, mimeType: extra.mimeType, sizeBytes: extra.sizeBytes ?? 0 }
+        : null,
+  }
+}
+
+/** The audio's bytes, or null when it has none (a typed capture, or audio since lost). */
+export async function readAudio(userId: string, id: string) {
+  const row = await owned(userId, id)
+  if (!row.fileId) return null
+  return await readFile(row.fileId)
+}
+
+/**
  * Route it, waiting a little so the answer can say where it went, then answer
  * the capture. `words` is a transcription under way: a short note's words often
  * land within the wait, and its routing follows them.

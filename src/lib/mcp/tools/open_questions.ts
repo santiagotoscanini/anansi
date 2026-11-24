@@ -25,7 +25,7 @@ export function registerOpenQuestionsTools(server: McpServer, ctx: McpCtx): void
     {
       title: 'List open questions',
       description:
-        'The life questions the user is living with: open ones first, then settled ones (with their `answer`). Each carries `context` (why it matters now), its `notes` (dated thinking, newest first), and the `goalIds` / `personIds` it links. Read this before talking a question through, so you build on what the user already thought.',
+        'The life questions the user is living with: open ones first, then settled ones (with their `answer`). Each carries `context` (why it matters now), `summary` (what the user knows so far, with `summaryUpdatedAt` and `notesSinceSummary`: how many notes came after it), its `notes` (dated thinking, newest first), and the `goalIds` / `personIds` it links. Use it to find a question by what it asks ("why I want to be a dad"); use `get_open_question` to read one in full.',
       inputSchema: toolInput({
         status: z.enum(['open', 'settled']).optional().describe('Only open or only settled questions.'),
       }),
@@ -33,6 +33,45 @@ export function registerOpenQuestionsTools(server: McpServer, ctx: McpCtx): void
     async ({ status }) => {
       try {
         return mcpJsonResult(await openQuestions.list(ctx.userId, { status }))
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'get_open_question',
+    {
+      title: 'Read one open question in full',
+      description:
+        'One question with everything the user has gathered on it, to read before summarising or talking it through: `context`, the current `summary` (and `summaryUpdatedAt`), every note OLDEST FIRST as a timeline, `notesSinceSummary`, the linked goals and people, and the answer if it is settled.',
+      inputSchema: toolInput({ id: z.string() }),
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    async ({ id }) => {
+      try {
+        const q = await openQuestions.get(ctx.userId, id)
+        return mcpJsonResult({ ...q, notes: [...q.notes].reverse() })
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'set_open_question_summary',
+    {
+      title: 'Write what the user knows so far on a question',
+      description: `Replace a question's summary: a short synthesis of everything its notes say, in the user's own voice (first person, their language), that they can read instead of the whole history. Read the question with \`get_open_question\` first and build on the current summary; keep what still holds, fold in the newer notes, name tensions and what is still unclear. It is not the answer (\`settle_open_question\` writes that). Show the user the summary before saving when you wrote it yourself. An empty summary clears it. ${MENTIONS}`,
+      inputSchema: toolInput({
+        questionId: z.string(),
+        summary: z.string().max(20_000),
+      }),
+      annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async ({ questionId, summary }) => {
+      try {
+        return mcpJsonResult(await openQuestions.update(ctx.userId, { id: questionId, summary }))
       } catch (e) {
         return mcpErrorFromUnknown(e)
       }
@@ -91,7 +130,7 @@ export function registerOpenQuestionsTools(server: McpServer, ctx: McpCtx): void
     'add_open_question_note',
     {
       title: 'Add a note to an open question',
-      description: `Record a dated thought on a question: what the user said or realised today, in their words. Notes are the question's history, so add one rather than rewriting an old one. ${MENTIONS}`,
+      description: `Record a dated thought on a question: a data point, what the user said or realised today, in their words ("I realised I want to be a dad partly because…"). Notes are the question's history, so add one rather than rewriting an old one; the summary is rewritten from them with \`set_open_question_summary\` when the user asks. ${MENTIONS}`,
       inputSchema: toolInput({
         questionId: z.string(),
         content: z.string().min(1).max(10_000),

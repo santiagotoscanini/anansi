@@ -1468,7 +1468,12 @@
     "confirmDeleteNote": "¿Eliminar esta nota?",
     "settle": "Tengo una respuesta",
     "settleConfirm": "Resolverla",
-    "reopen": "Reabrir"
+    "reopen": "Reabrir",
+    "summaryLabel": "Lo que sé hasta ahora",
+    "summaryPlaceholder": "Juntá lo que dicen las notas, con tus palabras. O pedile a Claude que lo escriba a partir de tus notas.",
+    "notesSinceSummary_one": "{{count}} nota desde entonces",
+    "notesSinceSummary_other": "{{count}} notas desde entonces",
+    "summaryCurrent": "al día"
   },
   "personality": {
     "eyebrow": "Personalidad",

@@ -40,8 +40,10 @@ open_questions	add_open_question_note
 open_questions	create_open_question
 open_questions	delete_open_question
 open_questions	delete_open_question_note
+open_questions	get_open_question
 open_questions	list_open_questions
 open_questions	reopen_open_question
+open_questions	set_open_question_summary
 open_questions	settle_open_question
 open_questions	update_open_question
 open_questions	update_open_question_note

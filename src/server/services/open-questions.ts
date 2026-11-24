@@ -138,6 +138,10 @@ export async function list(userId: string, input?: { status?: 'open' | 'settled'
   return rows.map((r) => ({
     ...r,
     notes: notes.filter((n) => n.questionId === r.id),
+    /** Notes written after the summary was last rewritten: what it does not know yet. */
+    notesSinceSummary: notes.filter(
+      (n) => n.questionId === r.id && (!r.summaryUpdatedAt || n.createdAt > r.summaryUpdatedAt),
+    ).length,
     goalIds: goalLinks.filter((l) => l.questionId === r.id).map((l) => l.goalId),
     personIds: personLinks.filter((l) => l.questionId === r.id).map((l) => l.personId),
   }))
@@ -186,6 +190,8 @@ export async function update(userId: string, input: UpdateOpenQuestion) {
     goalIds: data.goalIds === undefined ? undefined : (await assertLinks(userId, data.goalIds)).goalIds,
     personIds: data.personIds === undefined ? undefined : (await assertLinks(userId, [], data.personIds)).personIds,
   }
+  // A summary names people the way notes do: linked on the way in.
+  const summary = data.summary?.trim() ? (await linkTexts(userId, [data.summary])).texts[0] : data.summary
   await db.transaction(async (tx) => {
     await tx
       .update(openQuestions)
@@ -193,6 +199,9 @@ export async function update(userId: string, input: UpdateOpenQuestion) {
         question: data.question,
         context: prose(data.context),
         answer: prose(data.answer),
+        summary: prose(summary),
+        // The database's clock, as the notes' `createdAt` is: `notesSinceSummary` compares the two.
+        summaryUpdatedAt: data.summary === undefined ? undefined : sql`now()`,
         // Seeded: every field above is optional, and drizzle rejects an empty
         // `.set({})` before $onUpdate can fill it.
         updatedAt: new Date(),

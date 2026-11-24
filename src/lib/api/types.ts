@@ -575,6 +575,8 @@ export const updateOpenQuestionSchema = z.object({
   question: openQuestionText.optional(),
   context: openQuestionProse.nullable().optional(),
   answer: openQuestionProse.nullable().optional(),
+  /** What the user knows so far; writing it stamps `summaryUpdatedAt`. */
+  summary: z.string().max(20_000).nullable().optional(),
   goalIds: z.array(z.string()).max(50).optional(),
   personIds: z.array(z.string()).max(50).optional(),
 })
@@ -883,6 +885,8 @@ export const backupOpenQuestionSchema = z.object({
   context: z.string().nullable(),
   status: z.enum(openQuestionStatusValues),
   answer: z.string().nullable(),
+  summary: z.string().nullable().default(null),
+  summaryUpdatedAt: z.coerce.date().nullable().default(null),
   settledAt: z.coerce.date().nullable(),
   orderIdx: z.number().int(),
   createdAt: z.coerce.date(),

@@ -813,6 +813,10 @@ export const openQuestions = pgTable(
     context: text('context'),
     status: openQuestionStatusEnum('status').notNull().default('open'),
     answer: text('answer'),
+    // What the user knows so far, rewritten now and then from the notes (by
+    // hand or by Claude); not the answer, which is written when it settles.
+    summary: text('summary'),
+    summaryUpdatedAt: timestamp('summary_updated_at'),
     settledAt: timestamp('settled_at'),
     orderIdx: integer('order_idx').notNull().default(0),
     ...timestamps,

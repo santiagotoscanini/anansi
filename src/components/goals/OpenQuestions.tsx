@@ -151,6 +151,7 @@ function QuestionCard({
   const isSettled = q.status === 'settled'
 
   const onError = () => toast.error(t('common.saveFailed'))
+  const summaryPeople = useMentionPeople()
   const linkedGoals = goals.filter((g) => q.goalIds.includes(g.id))
   const linkedPeople = people.filter((p) => q.personIds.includes(p.id))
   const lastNote = q.notes[0]
@@ -259,6 +260,11 @@ function QuestionCard({
           {!expanded && (linkedGoals.length > 0 || linkedPeople.length > 0) && (
             <LinkChips goals={linkedGoals} people={linkedPeople} />
           )}
+          {!expanded && !isSettled && q.summary && (
+            <p className="mt-2 line-clamp-2 text-[14px] leading-relaxed text-[var(--ink-2)]">
+              <MentionText text={q.summary} link={false} />
+            </p>
+          )}
           {!expanded && isSettled && q.answer && (
             <p
               className="mt-2 line-clamp-2 text-[15px] leading-relaxed text-[var(--ink-2)] italic"
@@ -309,6 +315,26 @@ function QuestionCard({
               </div>
             </div>
           )}
+
+          <div>
+            <div className={`mb-1 flex items-baseline justify-between gap-3 ${monoLabel}`}>
+              <span>{t('openQuestions.summaryLabel')}</span>
+              {q.summaryUpdatedAt && (
+                <span className="tracking-normal normal-case">
+                  {q.notesSinceSummary > 0
+                    ? t('openQuestions.notesSinceSummary', { count: q.notesSinceSummary })
+                    : t('openQuestions.summaryCurrent')}
+                </span>
+              )}
+            </div>
+            <EditableProse
+              value={toEditable(q.summary ?? '', summaryPeople)}
+              onSave={(v) => update.mutate({ id: q.id, summary: v }, { onError })}
+              placeholder={t('openQuestions.summaryPlaceholder')}
+              rows={5}
+              variant="story"
+            />
+          </div>
 
           <div>
             <div className={`mb-1 ${monoLabel}`}>{t('openQuestions.contextLabel')}</div>

@@ -15,7 +15,7 @@ enum RecordingIntentError: Error, CustomLocalizedStringResourceConvertible {
 
     var localizedStringResource: LocalizedStringResource {
         switch self {
-        case .notConnected: "This iPhone isn't connected to Anansi yet. Open Anansi and connect it first."
+        case .notConnected: "This phone isn't connected to Anansi yet. Open Anansi and connect it first."
         case .unavailable: "Anansi couldn't start recording. Open Anansi and try again."
         }
     }

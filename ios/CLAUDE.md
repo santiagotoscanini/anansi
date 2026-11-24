@@ -94,3 +94,7 @@
   `RecordingActivityAttributes`, the two intents, and `VoiceRecordingControl`, through which the intents reach the
   recorder the app registers at launch). Don't link AnansiFeature into it. `ios-deploy.yml` ad-hoc signs the
   `.appex` before the app, and `scripts/asc-capability.mjs` registers its App ID.
+- **App Intent text must not name the device.** App Store Connect rejects a build (ITMS-90626, "Invalid Siri
+  Support") when an intent's title, description, parameter or App Shortcut phrase contains "iPhone"; build 123 was
+  refused for "transcribed on this iPhone". Say "this phone" or "this device" in any string the intents, the
+  Live Activity or the widgets carry.

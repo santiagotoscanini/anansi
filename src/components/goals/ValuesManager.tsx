@@ -9,6 +9,7 @@ import { qk } from '~/lib/queries/keys'
 import { valueBehaviorsAllQueryOptions, valuesQueryOptions } from '~/lib/queries/values'
 import toast from 'react-hot-toast'
 import { COLOR_PALETTE as DEFAULT_COLORS } from '~/lib/color-palette'
+import { Btn, Page, ScreenHeader } from './ui'
 import { EditableProse } from './SelfParts'
 
 // Compact, click-to-expand list of the user's values. Each row collapses to
@@ -135,69 +136,36 @@ export default function ValuesManager() {
   }
 
   return (
-    <div className="h-full overflow-y-auto" style={{ background: 'var(--paper)' }}>
-      <header className="px-6 pt-10 pb-7 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
-        <div className="mx-auto max-w-3xl">
-          <div
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              letterSpacing: '0.08em',
-              color: 'var(--ink-3)',
-              textTransform: 'uppercase',
-              marginBottom: 10,
-            }}
-          >
-            {t('valuesManager.eyebrow')}
-          </div>
-          <h1
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 44,
-              lineHeight: 1.2,
-              letterSpacing: '-0.02em',
-              color: 'var(--ink)',
-            }}
-          >
+    <Page>
+      <ScreenHeader
+        title={
+          <>
             {t('valuesManager.titlePre')}
             <span className="brand-em">{t('valuesManager.titleEm')}</span>
             {t('valuesManager.titlePost')}
-          </h1>
-          <p
-            className="mt-3 max-w-2xl"
-            style={{
-              fontFamily: 'var(--font-text)',
-              fontStyle: 'italic',
-              fontSize: 17,
-              color: 'var(--ink-2)',
-              lineHeight: 1.4,
-            }}
-          >
-            {t('valuesManager.subtitle')}
-          </p>
-        </div>
-      </header>
-      <div className="px-6 py-7 md:px-12">
-        {/* Add a new value — single row */}
-        <div className="mb-6 flex gap-2">
-          <input
-            type="text"
-            value={newValueName}
-            onChange={(e) => setNewValueName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && void handleAdd()}
-            placeholder={t('valuesManager.addPlaceholder')}
-            className="flex-1 rounded-md border border-[var(--hairline)] bg-[var(--vellum)] px-3 py-2 text-sm outline-hidden transition-all placeholder:text-[var(--ink-4)] focus:border-[var(--hairline-2)] focus:bg-[var(--vellum)]"
-          />
-          <button
-            onClick={() => void handleAdd()}
-            className="flex items-center gap-1 rounded-md px-3 py-2 text-sm transition-all"
-            style={{ background: 'var(--clay)', color: 'var(--paper)', boxShadow: 'var(--shadow-sm)' }}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {t('common.add')}
-          </button>
-        </div>
-
+          </>
+        }
+        sub={t('valuesManager.subtitle')}
+        below={
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--hairline)] pr-1.5 pl-3 transition-colors focus-within:border-[var(--hairline-2)]">
+            <Plus className="h-4 w-4 shrink-0 text-[var(--ink-4)]" />
+            <input
+              type="text"
+              value={newValueName}
+              onChange={(e) => setNewValueName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void handleAdd()}
+              placeholder={t('valuesManager.addPlaceholder')}
+              className="min-w-0 flex-1 bg-transparent py-2.5 text-sm text-[var(--ink)] outline-hidden placeholder:text-[var(--ink-4)]"
+            />
+            {newValueName.trim() && (
+              <Btn kind="primary" size="sm" onClick={() => void handleAdd()}>
+                {t('common.add')}
+              </Btn>
+            )}
+          </div>
+        }
+      />
+      <div>
         {/* Values list — compact rows, click to expand */}
         <ul className="divide-y divide-[var(--hairline)]">
           {values.map((value) => {
@@ -394,6 +362,6 @@ export default function ValuesManager() {
           </div>
         )}
       </div>
-    </div>
+    </Page>
   )
 }

@@ -16,6 +16,10 @@ import Avatar from './Avatar'
 import OpenQuestions from './OpenQuestions'
 import PersonalityResults from './PersonalityResults'
 import { EditableProse, SectionHeader } from './SelfParts'
+import { Page, ScreenHeader } from './ui'
+import { ViewSwitch } from './ViewSwitch'
+import { Fingerprint, HelpCircle, Repeat, UserCircle2 } from 'lucide-react'
+import { Route, type SelfTab } from '~/routes/app.self'
 import type { SelfListKind, SelfPatternCategory } from '~/lib/api/types'
 
 // ---------------------------------------------------------------------------
@@ -270,6 +274,10 @@ type ListItem = { id: string; content: string }
 
 export default function Self() {
   const { t } = useTranslation()
+  const { tab = 'portrait' } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const setTab = (next: SelfTab) =>
+    void navigate({ search: { tab: next === 'portrait' ? undefined : next }, replace: true })
   const queryClient = useQueryClient()
   const { data: values } = useSuspenseQuery(valuesQueryOptions())
   const { data: me } = useSuspenseQuery(meQueryOptions())
@@ -370,227 +378,259 @@ export default function Self() {
   const onItemUpdate = (id: string, content: string) => updateItemMut.mutate({ id, content })
   const onItemDelete = (id: string) => deleteItemMut.mutate(id)
 
+  const tabs = [
+    { id: 'portrait', label: t('self.tabPortrait'), icon: UserCircle2 },
+    { id: 'patterns', label: t('self.tabPatterns'), icon: Repeat },
+    { id: 'questions', label: t('self.tabQuestions'), icon: HelpCircle },
+    { id: 'personality', label: t('self.tabPersonality'), icon: Fingerprint },
+  ] as const
+
   return (
-    <div className="h-full overflow-y-auto px-6 py-10 md:px-8" style={{ background: 'var(--paper)' }}>
-      <div className="mx-auto max-w-3xl">
-        {/* Hero — avatar + name with display headline + values reminder */}
-        <header className="mb-12">
-          <div className="mb-6 flex items-center gap-5">
-            <Avatar name={me?.name ?? ''} emoji={me?.avatarUrl ?? null} size="lg" shape="circle" />
-            <div>
-              <div
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 10,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  color: 'var(--ink-3)',
-                }}
-              >
-                {t('self.selfEyebrow', { year: currentYear })}
-              </div>
-              <h1
-                className="mt-1.5"
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 44,
-                  lineHeight: 1.2,
-                  letterSpacing: '-0.02em',
-                  color: 'var(--ink)',
-                }}
-              >
-                {me?.name ?? ' '}
-                {me?.name ? (
-                  <>
-                    , <span className="brand-em">{t('self.titleSuffix')}</span>
-                  </>
-                ) : null}
-              </h1>
+    <Page>
+      <ScreenHeader
+        title={
+          <span className="inline-flex items-center gap-3">
+            <Avatar name={me?.name ?? ''} emoji={me?.avatarUrl ?? null} size="sm" shape="circle" />
+            <span>
+              {me?.name ?? ' '}
+              {me?.name ? (
+                <>
+                  , <span className="brand-em">{t('self.titleSuffix')}</span>
+                </>
+              ) : null}
+            </span>
+          </span>
+        }
+        actions={<ViewSwitch label={t('self.tabsLabel')} value={tab} onChange={setTab} options={tabs} />}
+        below={
+          values.length > 0 && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-[var(--ink-3)]">
+              {values.map((v) => (
+                <span key={v.id} title={v.interpretation ?? undefined} className="inline-flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: v.color }} aria-hidden />
+                  {v.name}
+                </span>
+              ))}
             </div>
-          </div>
-          {values.length > 0 && (
-            <div className="rounded-xl border border-[var(--hairline)] bg-[var(--vellum)] px-4 py-3">
-              <div className="mb-2 text-[10px] font-medium tracking-[0.18em] text-[var(--ink-4)] uppercase">
-                {t('self.whatIValue')}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {values.map((v) => (
-                  <span
-                    key={v.id}
-                    title={v.interpretation ?? undefined}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-[var(--hairline)] bg-[var(--vellum)] px-2.5 py-1 text-xs text-[var(--ink-2)]"
-                  >
-                    <span className="h-2 w-2 rounded-full" style={{ background: v.color }} aria-hidden />
-                    {v.name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </header>
+          )
+        }
+      />
 
-        {/* "How I'd describe myself this year" — hero block */}
-        <section className="mb-14">
-          <SectionHeader
-            eyebrow={t('self.thisYearEyebrow', { year: currentYear })}
-            title={t('self.thisYearTitle')}
-            helper={t('self.thisYearHelper')}
-          />
-          <EditableProse
-            value={heroValue}
-            onSave={onHeroSave}
-            placeholder={t('self.thisYearPlaceholder')}
-            rows={6}
-            variant="hero"
-          />
-          {showYearHint && (
-            <p className="mt-2 px-4 text-xs text-[var(--ink-4)]">
-              {t('self.thisYearStaleHint', { lastYear: heroYear, currentYear })}
-            </p>
-          )}
-        </section>
-
-        {/* My story */}
-        <section className="mb-14">
-          <SectionHeader eyebrow={t('self.storyEyebrow')} title={t('self.storyTitle')} helper={t('self.storyHelper')} />
-          <EditableProse
-            value={self?.myStory ?? ''}
-            onSave={(v) => saveSelfField({ myStory: v })}
-            placeholder={t('self.storyPlaceholder')}
-            rows={10}
-            variant="story"
-          />
-        </section>
-
-        {/* Open questions — high on the page: the questions being lived with
-            are the part of Self that changes week to week. */}
-        <OpenQuestions />
-
-        {/* Energizes / Drains — two-column lists */}
-        <section className="mb-14">
-          <SectionHeader
-            eyebrow={t('self.energyEyebrow')}
-            title={t('self.energyTitle')}
-            helper={t('self.energyHelper')}
-          />
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div>
-              <div className="mb-2 text-xs font-medium text-[var(--moss)]">{t('self.energizes')}</div>
-              <ListBucket
-                items={itemsByKind.get('energizer') ?? []}
-                placeholder={t('self.energizerPlaceholder')}
-                emptyAffordance={t('self.addEnergizer')}
-                onAdd={(c) => addItem('energizer', c)}
-                onUpdate={onItemUpdate}
-                onDelete={onItemDelete}
+      <div className="pt-4">
+        {tab === 'portrait' && (
+          <>
+            {/* "How I'd describe myself this year" — hero block */}
+            <section className="mb-14">
+              <SectionHeader
+                eyebrow={t('self.thisYearEyebrow', { year: currentYear })}
+                title={t('self.thisYearTitle')}
+                helper={t('self.thisYearHelper')}
               />
-            </div>
-            <div>
-              <div className="mb-2 text-xs font-medium text-[var(--clay-deep)]">{t('self.drains')}</div>
-              <ListBucket
-                items={itemsByKind.get('drainer') ?? []}
-                placeholder={t('self.drainerPlaceholder')}
-                emptyAffordance={t('self.addDrain')}
-                onAdd={(c) => addItem('drainer', c)}
-                onUpdate={onItemUpdate}
-                onDelete={onItemDelete}
+              <EditableProse
+                value={heroValue}
+                onSave={onHeroSave}
+                placeholder={t('self.thisYearPlaceholder')}
+                rows={6}
+                variant="hero"
               />
-            </div>
-          </div>
-        </section>
+              {showYearHint && (
+                <p className="mt-2 px-4 text-xs text-[var(--ink-4)]">
+                  {t('self.thisYearStaleHint', { lastYear: heroYear, currentYear })}
+                </p>
+              )}
+            </section>
 
-        {/* Just for me */}
-        <section className="mb-14">
-          <SectionHeader
-            eyebrow={t('self.solitudeEyebrow')}
-            title={t('self.solitudeTitle')}
-            helper={t('self.solitudeHelper')}
-          />
-          <ListBucket
-            items={itemsByKind.get('just_for_me') ?? []}
-            placeholder={t('self.justForMePlaceholder')}
-            emptyAffordance={t('self.addOne')}
-            onAdd={(c) => addItem('just_for_me', c)}
-            onUpdate={onItemUpdate}
-            onDelete={onItemDelete}
-          />
-        </section>
+            {/* My story */}
+            <section className="mb-14">
+              <SectionHeader
+                eyebrow={t('self.storyEyebrow')}
+                title={t('self.storyTitle')}
+                helper={t('self.storyHelper')}
+              />
+              <EditableProse
+                value={self?.myStory ?? ''}
+                onSave={(v) => saveSelfField({ myStory: v })}
+                placeholder={t('self.storyPlaceholder')}
+                rows={10}
+                variant="story"
+              />
+            </section>
 
-        {/* What I'm proud of — placed between Solitude and Patterns, so the
-            page flows from quiet self-care to quiet self-acknowledgment
-            before turning toward the harder noticing work. */}
-        <section className="mb-14">
-          <SectionHeader eyebrow={t('self.prideEyebrow')} title={t('self.prideTitle')} helper={t('self.prideHelper')} />
-          <ListBucket
-            items={itemsByKind.get('proud') ?? []}
-            placeholder={t('self.proudPlaceholder')}
-            emptyAffordance={t('self.addOne')}
-            onAdd={(c) => addItem('proud', c)}
-            onUpdate={onItemUpdate}
-            onDelete={onItemDelete}
-          />
-        </section>
-
-        {/* My patterns — five subgrouped lists in a responsive grid. With five
-            categories the wide layout breaks 3-2 (no awkward dangler), the
-            tablet layout 2-2-1, and mobile stacks. Each category sits in its
-            own subtle card so the grouping reads visually. */}
-        <section className="mb-14">
-          <SectionHeader
-            eyebrow={t('self.patternsEyebrow')}
-            title={t('self.patternsTitle')}
-            helper={t('self.patternsHelper')}
-          />
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {PATTERN_CATEGORY_KEYS.map((cat) => {
-              const label = t(cat.labelKey)
-              return (
-                <div
-                  key={cat.value}
-                  className="rounded-xl border border-white/[0.06] bg-[var(--vellum)] p-4 transition-colors hover:border-[var(--hairline)]"
-                >
-                  <div className="mb-2.5">
-                    <div className="text-xs font-medium text-[var(--ink)]">{label}</div>
-                    <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--ink-4)] italic">
-                      {t(cat.helperKey)}
-                    </div>
-                  </div>
+            {/* Energizes / Drains — two-column lists */}
+            <section className="mb-14">
+              <SectionHeader
+                eyebrow={t('self.energyEyebrow')}
+                title={t('self.energyTitle')}
+                helper={t('self.energyHelper')}
+              />
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div>
+                  <div className="mb-2 text-xs font-medium text-[var(--moss)]">{t('self.energizes')}</div>
                   <ListBucket
-                    items={patternsByCategory.get(cat.value) ?? []}
-                    placeholder={t('self.patternPlaceholder', { name: label.toLowerCase() })}
-                    emptyAffordance={t('self.addOne')}
-                    onAdd={(c) => addItem('pattern', c, cat.value)}
+                    items={itemsByKind.get('energizer') ?? []}
+                    placeholder={t('self.energizerPlaceholder')}
+                    emptyAffordance={t('self.addEnergizer')}
+                    onAdd={(c) => addItem('energizer', c)}
                     onUpdate={onItemUpdate}
                     onDelete={onItemDelete}
                   />
                 </div>
-              )
-            })}
-          </div>
-        </section>
+                <div>
+                  <div className="mb-2 text-xs font-medium text-[var(--clay-deep)]">{t('self.drains')}</div>
+                  <ListBucket
+                    items={itemsByKind.get('drainer') ?? []}
+                    placeholder={t('self.drainerPlaceholder')}
+                    emptyAffordance={t('self.addDrain')}
+                    onAdd={(c) => addItem('drainer', c)}
+                    onUpdate={onItemUpdate}
+                    onDelete={onItemDelete}
+                  />
+                </div>
+              </div>
+            </section>
 
-        {/* Triggers */}
-        <section className="mb-14">
-          <SectionHeader
-            eyebrow={t('self.triggersEyebrow')}
-            title={t('self.triggersTitle')}
-            helper={t('self.triggersHelper')}
-          />
-          <ListBucket
-            items={itemsByKind.get('trigger') ?? []}
-            placeholder={t('self.triggerPlaceholder')}
-            emptyAffordance={t('self.addTrigger')}
-            onAdd={(c) => addItem('trigger', c)}
-            onUpdate={onItemUpdate}
-            onDelete={onItemDelete}
-          />
-        </section>
+            {/* Just for me */}
+            <section className="mb-14">
+              <SectionHeader
+                eyebrow={t('self.solitudeEyebrow')}
+                title={t('self.solitudeTitle')}
+                helper={t('self.solitudeHelper')}
+              />
+              <ListBucket
+                items={itemsByKind.get('just_for_me') ?? []}
+                placeholder={t('self.justForMePlaceholder')}
+                emptyAffordance={t('self.addOne')}
+                onAdd={(c) => addItem('just_for_me', c)}
+                onUpdate={onItemUpdate}
+                onDelete={onItemDelete}
+              />
+            </section>
 
-        {/* Personality results — just before "How I relate", which the tests
-            (attachment, love languages) feed into. */}
-        <PersonalityResults />
+            {/* What I'm proud of — placed between Solitude and Patterns, so the
+            page flows from quiet self-care to quiet self-acknowledgment
+            before turning toward the harder noticing work. */}
+            <section className="mb-14">
+              <SectionHeader
+                eyebrow={t('self.prideEyebrow')}
+                title={t('self.prideTitle')}
+                helper={t('self.prideHelper')}
+              />
+              <ListBucket
+                items={itemsByKind.get('proud') ?? []}
+                placeholder={t('self.proudPlaceholder')}
+                emptyAffordance={t('self.addOne')}
+                onAdd={(c) => addItem('proud', c)}
+                onUpdate={onItemUpdate}
+                onDelete={onItemDelete}
+              />
+            </section>
 
-        {/* How I relate — six frameworks, grouped into two natural arcs:
+            {/* Year ahead */}
+            <section className="mb-14">
+              <SectionHeader
+                eyebrow={t('self.yearAheadEyebrow')}
+                title={t('self.yearAheadTitle')}
+                helper={t('self.yearAheadHelper')}
+              />
+              <ListBucket
+                items={itemsByKind.get('year_ahead') ?? []}
+                placeholder={t('self.yearAheadPlaceholder')}
+                emptyAffordance={t('self.addOne')}
+                onAdd={(c) => addItem('year_ahead', c)}
+                onUpdate={onItemUpdate}
+                onDelete={onItemDelete}
+              />
+            </section>
+
+            {/* Released */}
+            <section className="mb-14">
+              <SectionHeader
+                eyebrow={t('self.releasedEyebrow')}
+                title={t('self.releasedTitle')}
+                helper={t('self.releasedHelper')}
+              />
+              <ListBucket
+                items={itemsByKind.get('release') ?? []}
+                placeholder={t('self.releasePlaceholder')}
+                emptyAffordance={t('self.addRelease')}
+                onAdd={(c) => addItem('release', c)}
+                onUpdate={onItemUpdate}
+                onDelete={onItemDelete}
+              />
+            </section>
+
+            {/* Note to future self */}
+            <section className="mb-20">
+              <SectionHeader
+                eyebrow={t('self.futureEyebrow')}
+                title={t('self.futureTitle')}
+                helper={t('self.futureHelper')}
+              />
+              <EditableProse
+                value={self?.noteToFutureSelf ?? ''}
+                onSave={(v) => saveSelfField({ noteToFutureSelf: v })}
+                placeholder={t('self.futurePlaceholder')}
+                rows={6}
+                variant="story"
+              />
+            </section>
+          </>
+        )}
+        {tab === 'patterns' && (
+          <>
+            {/* My patterns — five subgrouped lists in a responsive grid. With five
+            categories the wide layout breaks 3-2 (no awkward dangler), the
+            tablet layout 2-2-1, and mobile stacks. Each category sits in its
+            own subtle card so the grouping reads visually. */}
+            <section className="mb-14">
+              <SectionHeader
+                eyebrow={t('self.patternsEyebrow')}
+                title={t('self.patternsTitle')}
+                helper={t('self.patternsHelper')}
+              />
+              <div className="space-y-7">
+                {PATTERN_CATEGORY_KEYS.map((cat) => {
+                  const label = t(cat.labelKey)
+                  return (
+                    <div key={cat.value}>
+                      <div className="mb-2.5">
+                        <div className="text-sm text-[var(--ink)]">{label}</div>
+                        <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--ink-4)] italic">
+                          {t(cat.helperKey)}
+                        </div>
+                      </div>
+                      <ListBucket
+                        items={patternsByCategory.get(cat.value) ?? []}
+                        placeholder={t('self.patternPlaceholder', { name: label.toLowerCase() })}
+                        emptyAffordance={t('self.addOne')}
+                        onAdd={(c) => addItem('pattern', c, cat.value)}
+                        onUpdate={onItemUpdate}
+                        onDelete={onItemDelete}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+
+            {/* Triggers */}
+            <section className="mb-14">
+              <SectionHeader
+                eyebrow={t('self.triggersEyebrow')}
+                title={t('self.triggersTitle')}
+                helper={t('self.triggersHelper')}
+              />
+              <ListBucket
+                items={itemsByKind.get('trigger') ?? []}
+                placeholder={t('self.triggerPlaceholder')}
+                emptyAffordance={t('self.addTrigger')}
+                onAdd={(c) => addItem('trigger', c)}
+                onUpdate={onItemUpdate}
+                onDelete={onItemDelete}
+              />
+            </section>
+
+            {/* How I relate — six frameworks, grouped into two natural arcs:
             Closeness (what I want and how I show care) and Repair & tension
             (what I do when things go sideways). Inside each arc, the cards
             that pair semantically sit side-by-side: love-give/receive are
@@ -598,122 +638,76 @@ export default function Self() {
             style/stress response are both "what happens under pressure".
             Attachment and apology lead each arc full-width — they're the
             anchor concepts and warrant the breathing room. */}
-        <section className="mb-14">
-          <SectionHeader
-            eyebrow={t('self.relateEyebrow')}
-            title={t('self.relateTitle')}
-            helper={t('self.relateHelper')}
-          />
-
-          <div className="mb-8">
-            <SubsectionHeader label={t('self.closenessLabel')} />
-            <div className="space-y-4">
-              <RelationCard
-                title={t('self.attachmentTitle')}
-                subtitle={t('self.attachmentSubtitle')}
-                value={self?.attachmentTendencies ?? ''}
-                reference={ATTACHMENT_STYLES}
-                onSave={(v) => saveSelfField({ attachmentTendencies: v })}
+            <section className="mb-14">
+              <SectionHeader
+                eyebrow={t('self.relateEyebrow')}
+                title={t('self.relateTitle')}
+                helper={t('self.relateHelper')}
               />
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <RelationCard
-                  title={t('self.loveGiveTitle')}
-                  subtitle={t('self.loveGiveSubtitle')}
-                  value={self?.loveLanguageGive ?? ''}
-                  reference={LOVE_LANGUAGES}
-                  onSave={(v) => saveSelfField({ loveLanguageGive: v })}
-                />
-                <RelationCard
-                  title={t('self.loveReceiveTitle')}
-                  subtitle={t('self.loveReceiveSubtitle')}
-                  value={self?.loveLanguageReceive ?? ''}
-                  reference={LOVE_LANGUAGES}
-                  onSave={(v) => saveSelfField({ loveLanguageReceive: v })}
-                />
+
+              <div className="mb-8">
+                <SubsectionHeader label={t('self.closenessLabel')} />
+                <div className="space-y-4">
+                  <RelationCard
+                    title={t('self.attachmentTitle')}
+                    subtitle={t('self.attachmentSubtitle')}
+                    value={self?.attachmentTendencies ?? ''}
+                    reference={ATTACHMENT_STYLES}
+                    onSave={(v) => saveSelfField({ attachmentTendencies: v })}
+                  />
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <RelationCard
+                      title={t('self.loveGiveTitle')}
+                      subtitle={t('self.loveGiveSubtitle')}
+                      value={self?.loveLanguageGive ?? ''}
+                      reference={LOVE_LANGUAGES}
+                      onSave={(v) => saveSelfField({ loveLanguageGive: v })}
+                    />
+                    <RelationCard
+                      title={t('self.loveReceiveTitle')}
+                      subtitle={t('self.loveReceiveSubtitle')}
+                      value={self?.loveLanguageReceive ?? ''}
+                      reference={LOVE_LANGUAGES}
+                      onSave={(v) => saveSelfField({ loveLanguageReceive: v })}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <div>
-            <SubsectionHeader label={t('self.repairLabel')} />
-            <div className="space-y-4">
-              <RelationCard
-                title={t('self.apologyTitle')}
-                subtitle={t('self.apologySubtitle')}
-                value={self?.apologyLanguage ?? ''}
-                reference={APOLOGY_LANGUAGES}
-                onSave={(v) => saveSelfField({ apologyLanguage: v })}
-              />
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <RelationCard
-                  title={t('self.conflictTitle')}
-                  subtitle={t('self.conflictSubtitle')}
-                  value={self?.conflictStyle ?? ''}
-                  reference={CONFLICT_STYLES}
-                  onSave={(v) => saveSelfField({ conflictStyle: v })}
-                />
-                <RelationCard
-                  title={t('self.stressTitle')}
-                  subtitle={t('self.stressSubtitle')}
-                  value={self?.stressResponse ?? ''}
-                  reference={STRESS_RESPONSES}
-                  onSave={(v) => saveSelfField({ stressResponse: v })}
-                />
+              <div>
+                <SubsectionHeader label={t('self.repairLabel')} />
+                <div className="space-y-4">
+                  <RelationCard
+                    title={t('self.apologyTitle')}
+                    subtitle={t('self.apologySubtitle')}
+                    value={self?.apologyLanguage ?? ''}
+                    reference={APOLOGY_LANGUAGES}
+                    onSave={(v) => saveSelfField({ apologyLanguage: v })}
+                  />
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <RelationCard
+                      title={t('self.conflictTitle')}
+                      subtitle={t('self.conflictSubtitle')}
+                      value={self?.conflictStyle ?? ''}
+                      reference={CONFLICT_STYLES}
+                      onSave={(v) => saveSelfField({ conflictStyle: v })}
+                    />
+                    <RelationCard
+                      title={t('self.stressTitle')}
+                      subtitle={t('self.stressSubtitle')}
+                      value={self?.stressResponse ?? ''}
+                      reference={STRESS_RESPONSES}
+                      onSave={(v) => saveSelfField({ stressResponse: v })}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Released */}
-        <section className="mb-14">
-          <SectionHeader
-            eyebrow={t('self.releasedEyebrow')}
-            title={t('self.releasedTitle')}
-            helper={t('self.releasedHelper')}
-          />
-          <ListBucket
-            items={itemsByKind.get('release') ?? []}
-            placeholder={t('self.releasePlaceholder')}
-            emptyAffordance={t('self.addRelease')}
-            onAdd={(c) => addItem('release', c)}
-            onUpdate={onItemUpdate}
-            onDelete={onItemDelete}
-          />
-        </section>
-
-        {/* Year ahead */}
-        <section className="mb-14">
-          <SectionHeader
-            eyebrow={t('self.yearAheadEyebrow')}
-            title={t('self.yearAheadTitle')}
-            helper={t('self.yearAheadHelper')}
-          />
-          <ListBucket
-            items={itemsByKind.get('year_ahead') ?? []}
-            placeholder={t('self.yearAheadPlaceholder')}
-            emptyAffordance={t('self.addOne')}
-            onAdd={(c) => addItem('year_ahead', c)}
-            onUpdate={onItemUpdate}
-            onDelete={onItemDelete}
-          />
-        </section>
-
-        {/* Note to future self */}
-        <section className="mb-20">
-          <SectionHeader
-            eyebrow={t('self.futureEyebrow')}
-            title={t('self.futureTitle')}
-            helper={t('self.futureHelper')}
-          />
-          <EditableProse
-            value={self?.noteToFutureSelf ?? ''}
-            onSave={(v) => saveSelfField({ noteToFutureSelf: v })}
-            placeholder={t('self.futurePlaceholder')}
-            rows={6}
-            variant="story"
-          />
-        </section>
+            </section>
+          </>
+        )}
+        {tab === 'questions' && <OpenQuestions />}
+        {tab === 'personality' && <PersonalityResults />}
       </div>
-    </div>
+    </Page>
   )
 }

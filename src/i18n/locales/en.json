@@ -868,7 +868,12 @@
     "stressFreezeName": "Freeze",
     "stressFreezeDesc": "Shut down, dissociate, can't act.",
     "stressFawnName": "Fawn",
-    "stressFawnDesc": "Appease, caretake, suppress your own needs to keep the peace."
+    "stressFawnDesc": "Appease, caretake, suppress your own needs to keep the peace.",
+    "tabsLabel": "Parts of the portrait",
+    "tabPortrait": "Portrait",
+    "tabPatterns": "Patterns",
+    "tabQuestions": "Questions",
+    "tabPersonality": "Personality"
   },
   "colorPicker": {
     "pickColor": "Pick color",

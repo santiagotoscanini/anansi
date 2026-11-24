@@ -93,10 +93,11 @@ export function EditableProse({
 // composed, not chaotic.
 export function SectionHeader({ eyebrow, title, helper }: { eyebrow: string; title: string; helper?: string }) {
   return (
-    <div className="mb-4">
-      <div className="text-[10px] font-medium tracking-[0.18em] text-[var(--ink-4)] uppercase">{eyebrow}</div>
-      <h3 className="mt-1.5 text-2xl font-light text-[var(--ink)]">{title}</h3>
-      {helper && <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-[var(--ink-3)]">{helper}</p>}
+    <div className="mb-4" title={eyebrow}>
+      <h3 className="text-[var(--ink)]" style={{ fontFamily: 'var(--font-display)', fontSize: 21, lineHeight: 1.25 }}>
+        {title}
+      </h3>
+      {helper && <p className="mt-1 max-w-xl text-[13px] leading-relaxed text-[var(--ink-3)]">{helper}</p>}
     </div>
   )
 }

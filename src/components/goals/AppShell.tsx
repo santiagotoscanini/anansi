@@ -675,7 +675,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Desktop sidebar */}
-      <div className="hidden md:flex">{renderSidebar(collapsed, { resizable: true, widthPx: sidebarWidth })}</div>
+      <div className="hidden shrink-0 md:flex">{renderSidebar(collapsed, { resizable: true, widthPx: sidebarWidth })}</div>
 
       {/* Mobile drawer — fixed default width, no drag handle */}
       {mobileNavOpen && (
@@ -688,7 +688,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Mobile top bar */}
         <div
           className="flex items-center justify-between px-4 py-3 md:hidden"

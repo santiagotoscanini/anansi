@@ -16,7 +16,14 @@ import { valuesQueryOptions } from '~/lib/queries/values'
 // — the page renders untouched sections as clean pages rather than as
 // unfinished forms. Values are here because Self tags entries with them;
 // goals and people because open questions link to them.
+export type SelfTab = 'portrait' | 'patterns' | 'questions' | 'personality'
+
 export const Route = createFileRoute('/app/self')({
+  // `?tab=`: the page is in four parts; the portrait (the default) has no param.
+  validateSearch: (search: Record<string, unknown>): { tab?: Exclude<SelfTab, 'portrait'> } => ({
+    tab:
+      search.tab === 'patterns' || search.tab === 'questions' || search.tab === 'personality' ? search.tab : undefined,
+  }),
   loader: ({ context }) =>
     prime(
       context.queryClient,

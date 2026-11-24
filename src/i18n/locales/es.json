@@ -868,7 +868,12 @@
     "stressFreezeName": "Paralizarse",
     "stressFreezeDesc": "Bloquearse, disociarse, no poder actuar.",
     "stressFawnName": "Apaciguar",
-    "stressFawnDesc": "Apaciguar, cuidar, suprimir las propias necesidades para mantener la paz."
+    "stressFawnDesc": "Apaciguar, cuidar, suprimir las propias necesidades para mantener la paz.",
+    "tabsLabel": "Partes del retrato",
+    "tabPortrait": "Retrato",
+    "tabPatterns": "Patrones",
+    "tabQuestions": "Preguntas",
+    "tabPersonality": "Personalidad"
   },
   "colorPicker": {
     "pickColor": "Elegir color",

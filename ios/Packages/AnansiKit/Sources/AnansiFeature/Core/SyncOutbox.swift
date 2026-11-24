@@ -26,13 +26,17 @@ nonisolated struct OutboxOp: Codable, Hashable, Sendable, Identifiable {
     var itemTitle: String
     var kind: Kind
     var queuedAt: Date
+    /// For an upload that replaces a picture (an item that takes one a week): the attachment deleted once this
+    /// upload has landed, so a failed upload loses nothing. Optional, so an outbox saved before it still decodes.
+    var replaces: String?
 
-    init(id: UUID = UUID(), itemId: String, itemTitle: String, kind: Kind, queuedAt: Date) {
+    init(id: UUID = UUID(), itemId: String, itemTitle: String, kind: Kind, queuedAt: Date, replaces: String? = nil) {
         self.id = id
         self.itemId = itemId
         self.itemTitle = itemTitle
         self.kind = kind
         self.queuedAt = queuedAt
+        self.replaces = replaces
     }
 
     var isUpload: Bool {

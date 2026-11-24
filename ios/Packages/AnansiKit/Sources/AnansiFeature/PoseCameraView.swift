@@ -6,6 +6,8 @@ struct PictureTarget: Equatable {
     /// The sync item (`weeklySyncItemId`) the picture is attached to, or `OutboxOp.journalItemId` of a day.
     var itemId: String
     var itemTitle: String
+    /// The picture this one replaces (an item that takes one a week), deleted once the new one has landed.
+    var replacing: String? = nil
 }
 
 /// The pose camera: a 3:4 live preview with the item's outline drawn over it and, optionally, last time's picture
@@ -350,7 +352,8 @@ struct PoseCameraView: View {
         }
         do {
             try OutboxStore.shared.addPicture(itemId: target.itemId, title: target.itemTitle, jpeg: jpeg,
-                                              fileName: ImageSizing.fileName(for: .now, calendar: .current))
+                                              fileName: ImageSizing.fileName(for: .now, calendar: .current),
+                                              replacing: target.replacing)
             dismiss()
         } catch {
             self.error = error.localizedDescription

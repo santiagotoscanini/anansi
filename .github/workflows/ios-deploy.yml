@@ -42,11 +42,21 @@ jobs:
       - name: Install App Store Connect API key
         run: echo "${{ secrets.ASC_KEY_P8_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
 
+      # The App ID must have every capability the entitlements name (Apple Health since November 2026), or
+      # the export's cloud-made profile cannot carry them. Idempotent.
+      - name: App ID capabilities
+        env:
+          ASC_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: node scripts/asc-capability.mjs com.santiagotoscanini.anansi HEALTHKIT
+
       # Archive unsigned, sign at export. A signed archive needs an Apple Development certificate whose
       # private key is on the machine; a fresh runner has none, so cloud signing minted a new one every
       # run until the account hit its certificate limit (2026-11-13). Export signs with the
       # cloud-managed distribution certificate through the API key (Admin role), which needs no local
-      # key. This holds while the app has no entitlements: an unsigned archive carries none.
+      # key. An unsigned archive carries no entitlements, so the step after it signs the app ad hoc (no
+      # certificate) with Config/Anansi.entitlements, and the export keeps them in its signature.
       - name: Archive
         run: |
           set -o pipefail
@@ -58,6 +68,13 @@ jobs:
             -archivePath build/Anansi.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             CURRENT_PROJECT_VERSION=$(( ${{ github.run_number }} + 100 ))
+
+      - name: Entitlements into the archive
+        run: |
+          set -o pipefail
+          APP=build/Anansi.xcarchive/Products/Applications/Anansi.app
+          codesign --force --sign - --entitlements Config/Anansi.entitlements --timestamp=none "$APP"
+          codesign -d --entitlements - "$APP"
 
       - name: Export & upload to App Store Connect
         run: |

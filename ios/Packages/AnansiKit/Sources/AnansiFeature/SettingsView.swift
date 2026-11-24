@@ -5,6 +5,7 @@ struct SettingsView: View {
     @State private var connection = Connection.shared
     @State private var outbox = OutboxStore.shared
     @State private var cache = AttachmentCache.shared
+    @State private var health = HealthSync.shared
     @State private var cacheBytes = 0
     @State private var isConfirmingDisconnect = false
     @Environment(\.dismiss) private var dismiss
@@ -70,6 +71,40 @@ struct SettingsView: View {
                     Eyebrow(text: "Sending")
                 } footer: {
                     Text("Notes and pictures are kept on this phone until Anansi confirms them, so nothing is lost offline or if the app closes.")
+                }
+                .anansiRow()
+
+                Section {
+                    if HealthSync.isAvailable {
+                        Toggle("Send Apple Health", isOn: Binding(
+                            get: { health.isEnabled },
+                            set: { on in
+                                if on { Task { await health.enable() } } else { health.disable() }
+                            }
+                        ))
+                        if health.isEnabled {
+                            LabeledContent("Last sent") {
+                                if health.isSending {
+                                    ProgressView()
+                                } else if let lastSent = health.lastSent {
+                                    Text(lastSent, style: .relative)
+                                } else {
+                                    Text("Not yet")
+                                }
+                            }
+                            Button("Send now") { Task { await health.send(days: HealthSync.resendDays) } }
+                                .disabled(health.isSending)
+                        }
+                        if let error = health.lastError {
+                            Text(error).font(AN.text(.footnote)).foregroundStyle(AN.rust)
+                        }
+                    } else {
+                        Text("Apple Health isn't available on this device.").foregroundStyle(AN.ink3)
+                    }
+                } header: {
+                    Eyebrow(text: "Apple Health")
+                } footer: {
+                    Text("Daily totals of your sleep, steps, energy, exercise, workouts, weight, body fat, resting heart rate and HRV go to Anansi a few times a day, even when the app is closed. Nothing is written to Health.")
                 }
                 .anansiRow()
 

@@ -11,6 +11,11 @@ struct AddPictureButton: View {
     /// The library entry behind the item (its outline and last picture frame the camera), or nil for a journal day.
     let trackingItemId: String?
     var compact = false
+    /// How many pictures may still be added this week (nil: any). One means a single pick from the library.
+    var remaining: Int? = nil
+    /// The picture a new one replaces (an item that takes one a week): the button reads "Replace picture" and the
+    /// old one is deleted once the new one has landed.
+    var replacing: String? = nil
 
     @State private var selection: [PhotosPickerItem] = []
     @State private var isShowingLibrary = false
@@ -19,6 +24,8 @@ struct AddPictureButton: View {
     @State private var error: String?
 
     private var hasCamera: Bool { UIImagePickerController.isSourceTypeAvailable(.camera) }
+    private var title: String { replacing == nil ? "Add picture" : "Replace picture" }
+    private var maxSelection: Int { replacing != nil ? 1 : min(10, max(1, remaining ?? 10)) }
 
     var body: some View {
         Menu {
@@ -30,14 +37,14 @@ struct AddPictureButton: View {
             if isPreparing {
                 ProgressView().controlSize(.small)
             } else if compact {
-                Label("Add picture", systemImage: "camera")
+                Label(title, systemImage: "camera")
                     .font(AN.ui(.footnote).weight(.medium))
                     .foregroundStyle(AN.clayDeep)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(AN.clayWash, in: Capsule())
             } else {
-                Label("Add picture", systemImage: "camera")
+                Label(title, systemImage: replacing == nil ? "camera" : "arrow.triangle.2.circlepath.camera")
                     .font(AN.ui(.subheadline).weight(.medium))
                     .foregroundStyle(AN.ink)
                     .frame(maxWidth: .infinity, minHeight: 44)
@@ -46,10 +53,10 @@ struct AddPictureButton: View {
             }
         }
         .disabled(isPreparing)
-        .photosPicker(isPresented: $isShowingLibrary, selection: $selection, maxSelectionCount: 10, matching: .images)
+        .photosPicker(isPresented: $isShowingLibrary, selection: $selection, maxSelectionCount: maxSelection, matching: .images)
         .fullScreenCover(isPresented: $isShowingCamera) {
             PoseCameraView(trackingItemId: trackingItemId, title: itemTitle,
-                           target: PictureTarget(itemId: itemId, itemTitle: itemTitle))
+                           target: PictureTarget(itemId: itemId, itemTitle: itemTitle, replacing: replacing))
         }
         .onChange(of: selection) { _, items in
             guard !items.isEmpty else { return }
@@ -74,7 +81,7 @@ struct AddPictureButton: View {
         isPreparing = true
         defer { isPreparing = false }
         let now = Date.now
-        for (index, data) in datas.enumerated() {
+        for (index, data) in datas.prefix(maxSelection).enumerated() {
             guard let jpeg = await PicturePrep.jpeg(from: data) else {
                 error = "That picture couldn't be read."
                 continue
@@ -85,7 +92,8 @@ struct AddPictureButton: View {
             }
             do {
                 try OutboxStore.shared.addPicture(itemId: itemId, title: itemTitle, jpeg: jpeg,
-                                                  fileName: ImageSizing.fileName(for: now, calendar: .current, index: index))
+                                                  fileName: ImageSizing.fileName(for: now, calendar: .current, index: index),
+                                                  replacing: replacing)
             } catch {
                 self.error = error.localizedDescription
             }

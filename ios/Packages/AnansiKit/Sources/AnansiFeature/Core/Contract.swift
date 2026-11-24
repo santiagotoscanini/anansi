@@ -38,11 +38,27 @@ nonisolated struct SyncItem: Codable, Hashable, Sendable, Identifiable {
     /// Present on Pulse's flat list; the grouped sync names the goal on the group instead.
     var goalTitle: String?
     var createdAt: String?
+    /// Named text blocks under the notes (a transcript, a summary), read-only here. Optional so an older server
+    /// still decodes.
+    var blocks: [SyncItemBlock]?
+    /// How many pictures a week of this item takes (nil: any). See `SyncItemRules`.
+    var photosPerWeek: Int?
+    /// The Apple Health metric the item follows, if any (a key of the server's HEALTH_METRICS).
+    var healthMetric: String?
 
-    /// Answered once it has words or a file (the same rule as Pulse's `isFilled`).
+    /// Answered once it has words (notes or a block) or a file (the same rule as Pulse's `isFilled`).
     var isFilled: Bool {
         !(textContent ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
+            || (blocks ?? []).contains { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
+}
+
+/// A named block on a sync item. Its content is Markdown and may carry mention tokens, like the notes.
+nonisolated struct SyncItemBlock: Codable, Hashable, Sendable, Identifiable {
+    var id: String
+    var title: String
+    var content: String
+    var orderIdx: Int?
 }
 
 /// The `weekly_sync` row.
@@ -178,6 +194,10 @@ nonisolated struct TrackingItem: Codable, Hashable, Sendable, Identifiable {
     var status: String?
     /// The camera outline drawn for this item, if any.
     var overlay: Overlay?
+    /// How many pictures a week it takes (nil: any).
+    var photosPerWeek: Int?
+    /// The Apple Health metric it follows, if any.
+    var healthMetric: String?
 }
 
 /// The newest picture of a tracking item from any week: the camera's "last time" ghost.

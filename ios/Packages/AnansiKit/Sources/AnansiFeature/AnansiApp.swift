@@ -8,5 +8,7 @@ public enum AnansiApp {
     /// Starts sending whatever the outbox kept from the last run (notes and pictures not yet confirmed).
     public static func didFinishLaunching() {
         OutboxStore.shared.resume()
+        // Registers for Health's background wake-ups, which must happen on every launch.
+        HealthSync.shared.start()
     }
 }

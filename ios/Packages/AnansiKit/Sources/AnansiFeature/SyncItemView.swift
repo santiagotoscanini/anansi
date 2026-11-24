@@ -108,6 +108,7 @@ struct SyncItemView: View {
                 .padding(.top, 8)
 
                 notes(item)
+                blocks(item)
                 pictures(item)
             }
             .padding(.horizontal)
@@ -150,6 +151,18 @@ struct SyncItemView: View {
         }
     }
 
+    /// The named blocks under the notes (a transcript, a summary), read-only: they are written on the web or by
+    /// Claude. A long one shows its first lines until tapped.
+    @ViewBuilder private func blocks(_ item: SyncItem) -> some View {
+        if let blocks = item.blocks, !blocks.isEmpty {
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(blocks) { block in
+                    BlockText(block: block)
+                }
+            }
+        }
+    }
+
     private var saveState: String {
         if text != lastQueued { return "editing" }
         if outbox.outbox.pendingText(for: itemId) != nil {
@@ -165,6 +178,10 @@ struct SyncItemView: View {
         let pending = outbox.outbox.pendingUploads(for: itemId)
         let images = item.attachments.filter(\.isImage)
         let files = item.attachments.filter { !$0.isImage }
+        // How many pictures the item takes a week: full hides "add"; one is a single slot that is replaced.
+        let limit = item.photosPerWeek
+        let count = images.count + pending.count
+        let single = SyncItemRules.isSingle(limit: limit)
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Eyebrow(text: "Pictures")
@@ -193,7 +210,13 @@ struct SyncItemView: View {
                     }
                 }
             }
-            AddPictureButton(itemId: itemId, itemTitle: item.title, trackingItemId: item.trackingItemId)
+            if SyncItemRules.canAddPicture(limit: limit, pictures: count) {
+                AddPictureButton(itemId: itemId, itemTitle: item.title, trackingItemId: item.trackingItemId,
+                                 remaining: SyncItemRules.remaining(limit: limit, pictures: count))
+            } else if single, pending.isEmpty, let current = images.last {
+                AddPictureButton(itemId: itemId, itemTitle: item.title, trackingItemId: item.trackingItemId,
+                                 replacing: current.id)
+            }
 
             if !files.isEmpty {
                 Eyebrow(text: "Other files").padding(.top, 6)
@@ -270,6 +293,36 @@ struct AttachmentViewer: View {
                 }
             }
             .task { cache.load(attachment.id) }
+        }
+    }
+}
+
+/// One named block of a sync item: its title over its text. Past twelve lines it folds until tapped.
+struct BlockText: View {
+    let block: SyncItemBlock
+    @State private var isOpen = false
+
+    private var isLong: Bool {
+        block.content.split(separator: "\n", omittingEmptySubsequences: false).count > 12 || block.content.count > 1200
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Eyebrow(text: block.title)
+            if block.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("Empty.").font(AN.text(.subheadline)).italic().foregroundStyle(AN.ink4)
+            } else {
+                Text(MentionStyle.attributed(block.content))
+                    .font(AN.text(.body))
+                    .foregroundStyle(AN.ink)
+                    .lineLimit(isLong && !isOpen ? 12 : nil)
+                    .textSelection(.enabled)
+                if isLong {
+                    Button(isOpen ? "Show less" : "Show all") { isOpen.toggle() }
+                        .font(AN.ui(.footnote))
+                        .foregroundStyle(AN.ink3)
+                }
+            }
         }
     }
 }

@@ -51,3 +51,14 @@
 - JSON and Markdown under `ios/` are part of the web app's `prettier --check .` (run inside its image build), so keep
   them Prettier-clean: `npx prettier --write ios` from the repo root.
 - A push to `main` that changes `ios/` ships a TestFlight build (`ios-deploy.yml`, after `ios-ci.yml` passes).
+- Apple Health (`HealthSync.swift`, pure half in `Core/Health.swift`): off until turned on in Settings, then the last
+  days' totals go to `PUT /api/v1/health/days` (each day replaces the server's). HealthKit calls back on its own
+  queues, so `HealthReader` is `nonisolated` with `@concurrent` methods and only `HealthDay` values cross to the
+  main actor. Read only; the entitlements (`Config/Anansi.entitlements`) reach the TestFlight build through the
+  ad-hoc signature step in `ios-deploy.yml`, and the App ID's HEALTHKIT capability is turned on by
+  `scripts/asc-capability.mjs`. The server's side is `src/lib/health.ts`: keep the fields in step.
+- A sync item may take a fixed number of pictures a week (`photosPerWeek`; rules in `Core/SyncItemRules.swift`, the
+  web's in `src/lib/sync-item.ts`): when full there is no "add", and an item that takes one has a single slot whose
+  button replaces the picture. A replace is an outbox upload with `replaces` set; the old attachment is deleted
+  only after the new one has landed. Named `blocks` on a sync item (a transcript, a summary) are shown read-only
+  under the notes; they are written on the web or by Claude.

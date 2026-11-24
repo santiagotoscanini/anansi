@@ -53,13 +53,13 @@ final class OutboxStore {
         pump()
     }
 
-    /// Keeps a prepared JPEG on disk and queues its upload.
-    func addPicture(itemId: String, title: String, jpeg: Data, fileName: String) throws {
+    /// Keeps a prepared JPEG on disk and queues its upload. `replacing` names a picture to delete once it lands.
+    func addPicture(itemId: String, title: String, jpeg: Data, fileName: String, replacing: String? = nil) throws {
         let local = "\(UUID().uuidString).jpg"
         try jpeg.write(to: fileURL(local), options: .atomic)
         outbox.enqueue(OutboxOp(itemId: itemId, itemTitle: title,
                                 kind: .upload(localFile: local, fileName: fileName, fileType: "image", byteCount: jpeg.count),
-                                queuedAt: .now))
+                                queuedAt: .now, replaces: replacing))
         save()
         pump()
     }
@@ -119,6 +119,12 @@ final class OutboxStore {
                 } else {
                     try await APIClient.shared.uploadAttachment(itemId: op.itemId, fileName: fileName, fileType: fileType,
                                                                 contentType: "image/jpeg", fileURL: url)
+                    // The new picture is in: the one it replaces goes. Best effort, since the upload already
+                    // succeeded; one left behind is just a second picture.
+                    if let old = op.replaces {
+                        try? await APIClient.shared.deleteAttachment(old)
+                        AttachmentCache.shared.forget(old)
+                    }
                 }
             case .setJournal(let content, let highlights):
                 guard let day = op.journalDay else {

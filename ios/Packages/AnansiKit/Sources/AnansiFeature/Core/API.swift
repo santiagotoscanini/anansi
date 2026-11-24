@@ -169,7 +169,16 @@ nonisolated enum API {
 
     static func people() -> Endpoint { get("api/v1/people") }
 
+    /// Apple Health, a few days at a time; each day replaces what the server had for it (Core/Health.swift).
+    static func sendHealthDays(_ days: [HealthDay]) -> Endpoint {
+        send("PUT", "api/v1/health/days", HealthDays(days: days))
+    }
+
     // MARK: Bodies
+
+    struct HealthDays: Encodable {
+        var days: [HealthDay]
+    }
 
     struct StartWeek: Encodable {
         var templateId: String?

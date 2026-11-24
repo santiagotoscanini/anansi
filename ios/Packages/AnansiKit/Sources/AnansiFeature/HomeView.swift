@@ -91,6 +91,7 @@ struct HomeView: View {
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             outbox.kick()
+            Task { await HealthSync.shared.sendIfDue() }
             await refresh()
         }
         .task(id: outbox.landed) {

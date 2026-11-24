@@ -102,7 +102,7 @@
   and the Control Center control (`ToggleRecordingIntent`) are `AudioRecordingIntent` + `LiveActivityIntent`, so they
   run in the app's process, in the background. `BackgroundRecorder` (AnansiFeature) requests the Live Activity **first**, then activates the audio session (a mixable `playAndRecord` session, up to three tries: with the session first iOS refused every background activation, "Session activation failed", build 128, and a plain `.record` session is refused in the background even after it, build 129),
   then starts `VoiceRecorder`; the system stops a background recording that has no Live
-  Activity, so the two live and end together. A second press, the Live Activity's Stop (`StopRecordingIntent`) or the
+  Activity, so the two live and end together. A second press, the Live Activity's Stop (`StopRecordingIntent`, an `AudioRecordingIntent` too: as a plain `LiveActivityIntent` a locked phone asked for Face ID first) or the
   30-minute limit (`RecordingRules`, `Core/Recording.swift`) stop it and queue it like the in-app recorder (the server
   transcribes it). When it cannot start in the background (microphone not yet
   allowed, which only the app can ask; Live Activities off; the system refusing), the intent calls

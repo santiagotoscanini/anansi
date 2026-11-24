@@ -47,8 +47,10 @@ public struct ToggleRecordingIntent: AudioRecordingIntent, LiveActivityIntent {
     }
 }
 
-/// The Live Activity's Stop button.
-public struct StopRecordingIntent: LiveActivityIntent {
+/// The Live Activity's Stop button. An `AudioRecordingIntent` too ("starts, stops, or otherwise modifies audio
+/// recording"): a plain `LiveActivityIntent` on a locked phone waited for Face ID before it ran (build 129), even with
+/// `.alwaysAllowed`.
+public struct StopRecordingIntent: AudioRecordingIntent, LiveActivityIntent {
     public static let title: LocalizedStringResource = "Stop recording"
     public static let description = IntentDescription("Stop the voice note being recorded and save it to Anansi.")
     public static let isDiscoverable = false

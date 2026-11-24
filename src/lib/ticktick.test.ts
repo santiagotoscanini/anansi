@@ -1,12 +1,18 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+  composeTitle,
   dayInZone,
   dueFields,
+  dueForSection,
+  leadingEmoji,
   mergeFields,
   midnightInZone,
   parseTickTickDate,
   remoteDueDay,
+  sectionOf,
+  stripEmoji,
+  taskDay,
   toTickTickDate,
 } from './ticktick.ts'
 
@@ -74,4 +80,55 @@ test('a field the snapshot never saw is pushed, not pulled', () => {
     push: { due: '2026-01-01' },
     pull: {},
   })
+})
+
+test('a due day puts a task in the section Horizons would', () => {
+  const today = '2026-11-23'
+  assert.equal(sectionOf(null, today), 'backlog')
+  assert.equal(sectionOf('2026-11-06', today), 'past')
+  assert.equal(sectionOf('2026-11-23', today), 'month')
+  assert.equal(sectionOf('2026-11-30', today), 'month')
+  assert.equal(sectionOf('2026-12-31', today), 'quarter')
+  assert.equal(sectionOf('2027-01-01', today), 'later')
+  assert.equal(sectionOf('2026-08-01', '2026-05-10'), 'year')
+})
+
+test('a task moved into a section gets the end of that period', () => {
+  const today = '2026-11-23'
+  assert.equal(dueForSection('backlog', today), null)
+  assert.equal(dueForSection('month', today), '2026-11-30')
+  assert.equal(dueForSection('quarter', today), '2026-12-31')
+  assert.equal(dueForSection('year', today), '2026-12-31')
+  assert.equal(dueForSection('month', '2028-02-10'), '2028-02-29')
+  assert.equal(dueForSection('quarter', '2026-04-01'), '2026-06-30')
+  assert.equal(dueForSection('past', today), undefined)
+  assert.equal(dueForSection('later', today), undefined)
+  // The day each one gives lands back in that section.
+  assert.equal(sectionOf(dueForSection('month', today) ?? null, today), 'month')
+  assert.equal(sectionOf(dueForSection('quarter', '2026-04-01') ?? null, '2026-04-01'), 'quarter')
+})
+
+test('a title carries its emoji, and loses it again', () => {
+  assert.equal(composeTitle('🌉', 'Mudarme'), '🌉 Mudarme')
+  assert.equal(composeTitle(null, 'Mudarme'), 'Mudarme')
+  for (const emoji of ['🌉', '🕸️', '🏋🏻', '👨‍👩‍👧', '🇺🇾', '❤️']) {
+    assert.equal(stripEmoji(composeTitle(emoji, 'Hacer algo')), 'Hacer algo', emoji)
+    assert.equal(leadingEmoji(composeTitle(emoji, 'Hacer algo')), emoji, emoji)
+  }
+  assert.equal(stripEmoji('Plain title'), 'Plain title')
+  assert.equal(leadingEmoji('Plain title'), null)
+  assert.equal(stripEmoji('2 ofertas'), '2 ofertas')
+})
+
+test('a date-only Anansi date is its own day in any zone', () => {
+  assert.equal(taskDay(new Date('2026-11-06T00:00:00Z'), 'America/Los_Angeles'), '2026-11-06')
+  assert.equal(taskDay(new Date('2026-11-06T17:00:00Z'), 'America/Los_Angeles'), '2026-11-06')
+  assert.equal(taskDay(new Date('2026-11-07T07:59:59Z'), 'America/Los_Angeles'), '2026-11-06')
+  assert.equal(taskDay(null, 'UTC'), null)
+})
+
+test('a day with no midnight starts at its first instant', () => {
+  // Chile moves its clocks forward at midnight on 2026-09-06.
+  assert.equal(dayInZone(midnightInZone('2026-09-06', 'America/Santiago'), 'America/Santiago'), '2026-09-06')
+  assert.equal(dayInZone(midnightInZone('2026-11-06', 'America/Los_Angeles'), 'America/Los_Angeles'), '2026-11-06')
 })

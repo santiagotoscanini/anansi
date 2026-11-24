@@ -57,6 +57,13 @@
       "when": 1795477267253,
       "tag": "0007_ticktick",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795486952638,
+      "tag": "0008_weeks_start_sunday",
+      "breakpoints": true
     }
   ]
 }

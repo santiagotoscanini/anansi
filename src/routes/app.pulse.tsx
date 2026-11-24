@@ -5,7 +5,7 @@ import { importantDatesQueryOptions, upcomingNextBidsQueryOptions } from '~/lib/
 
 // The retrospective half of Pulse is NOT prefetched here, deliberately.
 //
-// Its cache key is the current week's Monday at LOCAL midnight, and a loader
+// Its cache key is the current week's Sunday at LOCAL midnight, and a loader
 // runs on the server as well as the client. A server in UTC and a browser in
 // UTC-3 compute different instants for "this week", so a prefetch would warm a
 // key the client never reads and the client would refetch anyway. The component

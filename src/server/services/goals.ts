@@ -93,8 +93,9 @@ export async function update(userId: string, input: UpdateGoal) {
   const { id, valueIds, position, ...goalData } = input
 
   if (Object.keys(goalData).length > 0 || position) {
-    // A move on the canvas is not something TickTick holds.
-    if (goalData.title !== undefined || goalData.description !== undefined) requestSync(userId)
+    // A move on the canvas is not something TickTick holds. The title is each
+    // task's tag there and the emoji starts each task's name.
+    if (goalData.title !== undefined || goalData.emoji !== undefined) requestSync(userId)
     const updateData: Partial<typeof goals.$inferInsert> = { ...goalData }
     if (position) {
       updateData.positionX = position.x

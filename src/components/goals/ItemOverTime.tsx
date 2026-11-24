@@ -64,7 +64,7 @@ const monoStyle: CSSProperties = {
   color: 'var(--ink-3)',
 }
 
-/** Formatters for a week's Monday, in the app's language. A day has no time zone, so UTC throughout. */
+/** Formatters for a week's Sunday, in the app's language. A day has no time zone, so UTC throughout. */
 function useDayFormat() {
   const { i18n } = useTranslation()
   const format = (options: Intl.DateTimeFormatOptions) => {

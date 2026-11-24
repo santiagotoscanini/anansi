@@ -49,7 +49,7 @@ final class SyncData {
 
     // MARK: Weeks
 
-    /// `weekStart` must be a Monday (`LocalDay.weekStart`).
+    /// `weekStart` must be a Sunday (`LocalDay.weekStart`).
     func refreshWeek(_ weekStart: LocalDay) async {
         guard Connection.shared.isConnected else { return }
         loadingWeeks.insert(weekStart)

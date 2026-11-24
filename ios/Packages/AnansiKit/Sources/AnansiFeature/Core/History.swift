@@ -21,7 +21,7 @@ nonisolated struct HistoryItem: Codable, Hashable, Sendable {
 
 nonisolated struct HistoryWeek: Codable, Hashable, Sendable, Identifiable {
     var syncItemId: String
-    /// The week's Monday, `YYYY-MM-DD`.
+    /// The week's Sunday, `YYYY-MM-DD`.
     var week: String
     var textContent: String?
     var attachments: [SyncAttachment]
@@ -78,7 +78,7 @@ nonisolated enum History {
         }
     }
 
-    /// Whole weeks from one Monday to another (negative when `to` is earlier).
+    /// Whole weeks from one Sunday to another (negative when `to` is earlier).
     static func weeksBetween(_ from: LocalDay, _ to: LocalDay) -> Int {
         Int((Double(from.days(until: to)) / 7).rounded())
     }
@@ -110,7 +110,7 @@ nonisolated enum History {
         return best
     }
 
-    /// The weeks as a sheet: grouped by the month of their Monday, with the weeks that recorded nothing in
+    /// The weeks as a sheet: grouped by the month of their Sunday, with the weeks that recorded nothing in
     /// between folded into one gap each. A gap sits in the month of its first missing week.
     static func sheet(_ weeks: [HistoryWeek]) -> [HistorySheetMonth] {
         var months: [HistorySheetMonth] = []

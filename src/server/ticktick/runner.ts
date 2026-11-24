@@ -18,25 +18,31 @@ import { syncContext, syncUser, type SyncReport } from './sync'
 const DEBOUNCE_MS = 2_000
 const POLL_MS = 2 * 60_000
 
-const running = new Map<string, Promise<SyncReport | null>>()
+const running = new Map<string, Promise<unknown>>()
 const queued = new Set<string>()
 const timers = new Map<string, ReturnType<typeof setTimeout>>()
 
-/** Runs a sync now, after the one in progress if there is one. */
-export async function runSync(userId: string): Promise<SyncReport | null> {
-  const current = running.get(userId)
-  if (current) {
+/**
+ * Runs `fn` as the only thing touching this user's sync: after the run in
+ * progress, with the next one waiting for it. Changing the list and
+ * disconnecting go through here too, so a run that started against the old
+ * list cannot add links after they were dropped.
+ */
+export async function exclusive<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+  for (let current = running.get(userId); current; current = running.get(userId)) {
     await current.catch(() => null)
-    return runSync(userId)
   }
-  const run = syncContext
-    .run(true, () => syncUser(userId))
-    .finally(() => {
-      running.delete(userId)
-      if (queued.delete(userId)) schedule(userId)
-    })
+  const run = fn().finally(() => {
+    running.delete(userId)
+    if (queued.delete(userId)) schedule(userId)
+  })
   running.set(userId, run)
   return run
+}
+
+/** Runs a sync now, after the one in progress if there is one. */
+export function runSync(userId: string): Promise<SyncReport | null> {
+  return exclusive(userId, () => syncContext.run(true, () => syncUser(userId)))
 }
 
 function schedule(userId: string) {
@@ -63,15 +69,24 @@ export function requestSync(userId: string): void {
   schedule(userId)
 }
 
+let polling = false
+
 async function pollAll() {
-  const rows = await db
-    .select({ userId: tickTickConnections.userId })
-    .from(tickTickConnections)
-    .where(and(isNotNull(tickTickConnections.projectId), eq(tickTickConnections.needsReauth, false)))
-  for (const { userId } of rows) {
-    await runSync(userId).catch((e: unknown) =>
-      console.error('[ticktick] poll failed', e instanceof Error ? e.message : e),
-    )
+  // A slow round must not overlap the next one.
+  if (polling) return
+  polling = true
+  try {
+    const rows = await db
+      .select({ userId: tickTickConnections.userId })
+      .from(tickTickConnections)
+      .where(and(isNotNull(tickTickConnections.projectId), eq(tickTickConnections.needsReauth, false)))
+    for (const { userId } of rows) {
+      await runSync(userId).catch((e: unknown) =>
+        console.error('[ticktick] poll failed', e instanceof Error ? e.message : e),
+      )
+    }
+  } finally {
+    polling = false
   }
 }
 

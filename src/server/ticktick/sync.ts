@@ -1,24 +1,30 @@
 // The two-way sync with one TickTick list, as a reconciliation: every run reads
-// both sides and the last agreed state of each linked item, and settles each
+// both sides and the last agreed state of each linked task, and settles each
 // field with a three-way merge (~/lib/ticktick). There is no outbox: an Anansi
 // write only asks for a run soon (runner.ts), and whatever a failed run missed
 // the next one sees, because the difference is still there.
 //
-// The shape:
-//   goal  ↔ a top-level task in the list
-//   task  ↔ a subtask of its goal's task (TickTick `parentId`)
+// The shape: each Anansi task is a top-level task in the list.
+//   title    `{emoji} {title}`, the emoji being the task's own or its goal's
+//   tag      the goal's title (lowercased, as TickTick keeps tags); changing
+//            it to another goal's tag in TickTick moves the task to that goal
+//   section  the Horizons bucket its due day puts it in (Past due, This month,
+//            This quarter, This year, Later, Backlog). Moving it to another
+//            section in TickTick dates it the way a drop on Horizons does.
+// Goals are not TickTick tasks. Until November 2026 they were, with their
+// tasks as subtasks; a run detaches those subtasks and deletes the old goal
+// tasks (the `kind = 'goal'` links).
 //
-// What syncs: title, description (TickTick `content`), completed, and the due
-// day (an all-day date in the connection's zone). Mentions go out as plain
-// `@Name` and are linked again when text comes back. Emoji, difficulty,
-// referents, groups and TickTick's own fields (priority, tags, reminders,
-// checklists) each stay on their side: an update sends TickTick its own task
-// back with only our fields changed.
+// What else syncs: notes (TickTick `content`), completion, and the due day (an
+// all-day date in the connection's zone). Mentions go out as plain `@Name` and
+// are linked again when text comes back. Difficulty, referents and groups stay
+// in Anansi; TickTick's priority, reminders, checklists and other tags stay
+// there: an update sends only the fields it changes.
 //
-// Deletes: a task deleted (or whose goal is archived) in Anansi is deleted in
+// Deletes: a task deleted in Anansi, or whose goal is archived, is deleted in
 // TickTick. A task deleted in TickTick is completed in Anansi and its link
-// rests as `gone`; a goal whose task was deleted in TickTick stays, unsynced.
-// Either comes back if the TickTick task does (restored from the trash).
+// rests as `gone`; it comes back if the TickTick task does (restored from the
+// trash).
 //
 // Absence: the list's data holds undone tasks only, and recent completions are
 // fetched separately. A linked task still missing after that is looked up ONCE
@@ -26,20 +32,28 @@
 // list and goes missing again.
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { eq, inArray } from 'drizzle-orm'
-import { createGoalSchema, createTaskSchema } from '~/lib/api/types'
+import { createTaskSchema } from '~/lib/api/types'
 import { db } from '~/lib/data'
 import { goals, people, tasks, tickTickConnections, tickTickLinks, type TickTickSnapshot } from '~/lib/data/schema'
+import { isEmojiGlyph, isEmojiUrl } from '~/lib/emoji-utils'
 import { toEditable } from '~/lib/mentions'
 import {
+  composeTitle,
   dayInZone,
   dueFields,
+  dueForSection,
   isDoneStatus,
+  leadingEmoji,
   mergeFields,
   midnightInZone,
   remoteDueDay,
+  SECTIONS,
+  sectionOf,
+  stripEmoji,
+  taskDay,
   toTickTickDate,
+  type SectionKey,
 } from '~/lib/ticktick'
-import * as goalsService from '~/server/services/goals'
 import * as tasksService from '~/server/services/tasks'
 import { openToken } from './crypto'
 import { tickTick, TickTickAuthError, type RemoteTask, type TickTickClient } from './client'
@@ -50,15 +64,16 @@ export const syncContext = new AsyncLocalStorage<true>()
 export interface SyncReport {
   /** Changes sent to TickTick: creates, updates, completions, deletes. */
   toTickTick: number
-  /** Changes made in Anansi: goals and tasks created or updated. */
+  /** Changes made in Anansi: tasks created or updated. */
   fromTickTick: number
   /** Items that failed this run; the next run tries them again. */
   errors: string[]
 }
 
 type Link = typeof tickTickLinks.$inferSelect
-type GoalRow = { id: string; title: string; description: string; status: 'active' | 'archived'; x: number; y: number }
+type GoalRow = { id: string; title: string; emoji: string | null; status: 'active' | 'archived' }
 type TaskRow = typeof tasks.$inferSelect
+type Fields = { title: string; content: string; completed: boolean; due: string | null; goal: string | null }
 
 const COMPLETED_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000
 const COMPLETED_OVERLAP_MS = 60 * 60 * 1000
@@ -66,6 +81,10 @@ const COMPLETED_OVERLAP_MS = 60 * 60 * 1000
 const norm = (s: string) => s.trim().toLowerCase()
 /** TickTick sends "" where it means nothing. */
 const nonEmpty = (s: string | null | undefined) => (s === undefined || s === null || s === '' ? null : s)
+/** A goal's tag: TickTick lowercases tags, so this is how it comes back. */
+const tagOf = (goal: { title: string }) => norm(goal.title)
+/** An emoji that can go in a title: a glyph, not an uploaded picture. */
+const glyph = (emoji: string | null | undefined) => (emoji && !isEmojiUrl(emoji) && isEmojiGlyph(emoji) ? emoji : null)
 
 /**
  * One run for one user. Answers null when there is nothing to sync with (no
@@ -130,27 +149,49 @@ async function reconcile(
 
   // ── TickTick's side ───────────────────────────────────────────────────────
   const data = await tt.projectData(projectId)
-  if (!data) return 'list-gone'
+  if (!data) {
+    // One 404 is not enough to forget every link: only a list that is really
+    // not among the user's lists any more is gone.
+    const lists = await tt.listProjects()
+    if (!lists.some((p) => p.id === projectId)) return 'list-gone'
+    throw new Error('TickTick did not answer for the list; trying again on the next run')
+  }
   const open = new Map((data.tasks ?? []).filter((t) => t.projectId === projectId).map((t) => [t.id, t]))
   const now = Date.now()
   const from = lastSyncedAt ? lastSyncedAt.getTime() - COMPLETED_OVERLAP_MS : now - COMPLETED_LOOKBACK_MS
   const completed = await tt.completedBetween(projectId, toTickTickDate(new Date(from)), toTickTickDate(new Date(now)))
   const done = new Map(completed.filter((t) => t.projectId === projectId).map((t) => [t.id, t]))
+  const today = dayInZone(new Date(now), zone)
+
+  // The sections, made when missing (matched by name, so a renamed one is
+  // made again rather than guessed at).
+  const columns = [...(data.columns ?? [])]
+  const sectionId = new Map<SectionKey, string>()
+  for (const s of SECTIONS) {
+    const found = columns.find((c) => norm(c.name) === norm(s.name))
+    if (found) {
+      sectionId.set(s.key, found.id)
+      continue
+    }
+    await attempt(`making the "${s.name}" section`, async () => {
+      const made = await tt.createColumn(projectId, s.name)
+      columns.push(made)
+      sectionId.set(s.key, made.id)
+      report.toTickTick++
+    })
+  }
+  const sectionKeyOf = new Map([...sectionId].map(([key, id]) => [id, key]))
 
   // ── Anansi's side ─────────────────────────────────────────────────────────
   const goalRows: GoalRow[] = await db
-    .select({
-      id: goals.id,
-      title: goals.title,
-      description: goals.description,
-      status: goals.status,
-      x: goals.positionX,
-      y: goals.positionY,
-    })
+    .select({ id: goals.id, title: goals.title, emoji: goals.emoji, status: goals.status })
     .from(goals)
     .where(eq(goals.userId, userId))
   const goalById = new Map(goalRows.map((g) => [g.id, g]))
   const isActive = (goalId: string) => goalById.get(goalId)?.status === 'active'
+  const activeGoals = goalRows.filter((g) => g.status === 'active')
+  const goalByTag = new Map(activeGoals.map((g) => [tagOf(g), g]))
+  const goalTags = new Set(goalByTag.keys())
   const goalIds = goalRows.map((g) => g.id)
   const taskRows: TaskRow[] = goalIds.length ? await db.select().from(tasks).where(inArray(tasks.goalId, goalIds)) : []
   const taskById = new Map(taskRows.map((t) => [t.id, t]))
@@ -158,49 +199,93 @@ async function reconcile(
   const plain = (text: string | null | undefined) => toEditable(text ?? '', folks)
 
   const links = await db.select().from(tickTickLinks).where(eq(tickTickLinks.userId, userId))
-  const linkByLocal = new Map(links.map((l) => [`${l.kind}:${l.localId}`, l]))
+  const taskLinks = links.filter((l) => l.kind === 'task')
+  const legacyGoalLinks = links.filter((l) => l.kind === 'goal')
+  const linkByLocal = new Map(taskLinks.map((l) => [l.localId, l]))
   const linkByRemote = new Map(links.map((l) => [l.remoteId, l]))
-  const remoteOf = new Map<string, RemoteTask>()
+  const legacyGoalOf = new Map(legacyGoalLinks.map((l) => [l.remoteId, l.localId]))
 
   const saveLink = async (link: Link, patch: Partial<Pick<Link, 'snapshot' | 'remoteState'>>) => {
     Object.assign(link, patch)
     await db.update(tickTickLinks).set(patch).where(eq(tickTickLinks.id, link.id))
   }
-  const addLink = async (kind: 'goal' | 'task', localId: string, remoteId: string, snapshot: TickTickSnapshot) => {
+  const addLink = async (localId: string, remoteId: string, snapshot: TickTickSnapshot) => {
     const [link] = await db
       .insert(tickTickLinks)
-      .values({ userId, kind, localId, remoteId, snapshot, remoteState: snapshot.completed ? 'closed' : 'open' })
+      .values({
+        userId,
+        kind: 'task',
+        localId,
+        remoteId,
+        snapshot,
+        remoteState: snapshot.completed ? 'closed' : 'open',
+      })
       .returning()
     if (!link) throw new Error('link not saved')
-    linkByLocal.set(`${kind}:${localId}`, link)
+    linkByLocal.set(localId, link)
     linkByRemote.set(remoteId, link)
     return link
   }
   const dropLink = async (link: Link) => {
     await db.delete(tickTickLinks).where(eq(tickTickLinks.id, link.id))
-    linkByLocal.delete(`${link.kind}:${link.localId}`)
+    linkByLocal.delete(link.localId)
     linkByRemote.delete(link.remoteId)
   }
 
+  const localFields = (t: TaskRow): Fields => {
+    const goal = goalById.get(t.goalId)
+    return {
+      title: composeTitle(glyph(t.emoji) ?? glyph(goal?.emoji), plain(t.title)),
+      content: plain(t.description),
+      completed: t.completed,
+      due: taskDay(t.scheduledAt, zone),
+      goal: goal ? tagOf(goal) : null,
+    }
+  }
+  /** The goal tag a TickTick task carries: a new one the user added wins over the agreed one. */
+  const remoteGoal = (r: RemoteTask, agreed: string | null | undefined) => {
+    const carried = (r.tags ?? []).map(norm).filter((t) => goalTags.has(t))
+    return carried.find((t) => t !== agreed) ?? carried[0] ?? null
+  }
+  /** Tags to send: the task's other tags kept, goal tags replaced by `goal`'s. */
+  const tagsWith = (r: RemoteTask | undefined, goal: string | null, previous: string | null | undefined) => [
+    ...(r?.tags ?? []).filter((t) => !goalTags.has(norm(t)) && norm(t) !== previous),
+    ...(goal ? [goal] : []),
+  ]
+  const sectionFor = (f: Fields): string | undefined =>
+    f.completed ? undefined : sectionId.get(sectionOf(f.due, today))
+
   // ── 1. Where each linked TickTick task is ────────────────────────────────
-  // `newlyGone` holds the links that went missing in this run, the only ones
-  // whose disappearance is acted on.
+  // `remoteOf` holds an open task as TickTick has it. A closed one has only its
+  // completion to say (the completed list leaves out due dates), so it merges
+  // against the snapshot with `completed` set. `newlyGone` holds the links that
+  // went missing in this run, the only ones whose disappearance is acted on.
+  const remoteOf = new Map<string, RemoteTask>()
+  const closedNow = new Set<string>()
   const newlyGone = new Set<string>()
-  for (const link of links) {
-    const seen = open.get(link.remoteId) ?? done.get(link.remoteId)
-    if (seen) {
-      remoteOf.set(link.id, seen)
-      const state = open.has(link.remoteId) ? 'open' : 'closed'
-      if (link.remoteState !== state) await saveLink(link, { remoteState: state })
+  for (const link of taskLinks) {
+    const openTask = open.get(link.remoteId)
+    if (openTask) {
+      remoteOf.set(link.id, openTask)
+      if (link.remoteState !== 'open') await saveLink(link, { remoteState: 'open' })
+      continue
+    }
+    if (done.has(link.remoteId)) {
+      closedNow.add(link.id)
+      if (link.remoteState !== 'closed') await saveLink(link, { remoteState: 'closed' })
       continue
     }
     // Known to be closed or gone: no lookup until it shows up again.
     if (link.remoteState !== 'open') continue
-    await attempt(`looking up a missing TickTick task`, async () => {
+    await attempt('looking up a missing TickTick task', async () => {
       const found = await tt.getTask(projectId, link.remoteId)
-      if (found?.projectId === projectId && !found.deleted && isDoneStatus(found.status)) {
-        remoteOf.set(link.id, found)
+      const here = found?.projectId === projectId && !found.deleted
+      if (here && isDoneStatus(found.status)) {
+        closedNow.add(link.id)
         await saveLink(link, { remoteState: 'closed' })
+      } else if (here) {
+        // Open, just not in the list's data this time: nothing to act on.
+        remoteOf.set(link.id, found)
       } else {
         newlyGone.add(link.id)
         await saveLink(link, { remoteState: 'gone' })
@@ -208,121 +293,113 @@ async function reconcile(
     })
   }
 
-  // ── 2. New top-level TickTick tasks become goals ─────────────────────────
-  // One with the title of a goal not yet linked is that goal.
-  const unlinkedGoals = new Map(
-    goalRows.filter((g) => g.status === 'active' && !linkByLocal.has(`goal:${g.id}`)).map((g) => [norm(g.title), g]),
-  )
-  let nextY = Math.max(0, ...goalRows.filter((g) => g.status === 'active').map((g) => g.y)) + 240
-  const minX = Math.min(0, ...goalRows.filter((g) => g.status === 'active').map((g) => g.x))
+  // ── 2. Tasks deleted in Anansi, or whose goal was archived ───────────────
+  for (const link of taskLinks) {
+    const task = taskById.get(link.localId)
+    if (task && isActive(task.goalId)) continue
+    await attempt('deleting a task in TickTick', async () => {
+      if (link.remoteState !== 'gone') {
+        await tt.deleteTask(projectId, link.remoteId)
+        report.toTickTick++
+      }
+      await dropLink(link)
+    })
+  }
+
+  // ── 3. TickTick tasks not linked yet ─────────────────────────────────────
+  // Ours when they carry a goal's tag, sit under an old goal task, or start
+  // with exactly one goal's emoji; anything else in the list is left alone.
+  // A task matching an unlinked open Anansi task of that goal by title is that
+  // task (so connecting twice does not double anything); otherwise it is new.
+  const goalByEmoji = new Map<string, GoalRow | null>()
+  for (const g of activeGoals) {
+    const e = glyph(g.emoji)
+    if (e) goalByEmoji.set(e, goalByEmoji.has(e) ? null : g)
+  }
+  const unlinkedLocal = new Map<string, TaskRow[]>()
+  for (const t of taskRows) {
+    if (t.completed || !isActive(t.goalId) || linkByLocal.has(t.id)) continue
+    const key = `${t.goalId}:${norm(plain(t.title))}`
+    unlinkedLocal.set(key, [...(unlinkedLocal.get(key) ?? []), t])
+  }
   for (const r of open.values()) {
-    if (r.parentId || linkByRemote.has(r.id)) continue
+    if (linkByRemote.has(r.id)) continue
+    const parent = nonEmpty(r.parentId)
+    const fromLegacy = parent ? legacyGoalOf.get(parent) : undefined
+    if (parent && !fromLegacy) continue // someone's subtask: it goes where its parent goes
+    const tag = remoteGoal(r, null)
+    const emoji = leadingEmoji(r.title ?? '')
+    const goal =
+      (tag ? goalByTag.get(tag) : undefined) ??
+      (fromLegacy && isActive(fromLegacy) ? goalById.get(fromLegacy) : undefined) ??
+      (emoji ? goalByEmoji.get(emoji) : undefined) ??
+      undefined
+    if (!goal) continue
     await attempt(`importing "${r.title ?? ''}"`, async () => {
-      const snapshot = { title: r.title ?? '', content: r.content ?? '' }
-      const match = unlinkedGoals.get(norm(snapshot.title))
+      const text = stripEmoji(r.title ?? '').trim()
+      const remote: Fields = {
+        title: r.title ?? '',
+        content: r.content ?? '',
+        completed: false,
+        due: remoteDueDay(r, zone) ?? dueOfSection(r),
+        goal: tag,
+      }
+      const match = unlinkedLocal.get(`${goal.id}:${norm(text)}`)?.shift()
       if (match) {
-        unlinkedGoals.delete(norm(snapshot.title))
-        const link = await addLink('goal', match.id, r.id, snapshot)
+        // Each field starts from the side that has something, so neither
+        // side's notes or date are wiped by the other's blank.
+        const local = localFields(match)
+        const base: TickTickSnapshot = {
+          title: remote.title,
+          content: local.content ? remote.content : local.content,
+          completed: false,
+          due: local.due ? remote.due : local.due,
+          goal: remote.goal,
+          section: r.columnId ? (sectionKeyOf.get(r.columnId) ?? null) : null,
+        }
+        const link = await addLink(match.id, r.id, base)
         remoteOf.set(link.id, r)
+        taskLinks.push(link)
         return
       }
-      const created = await goalsService.create(
-        userId,
-        createGoalSchema.parse({
-          title: snapshot.title || 'Untitled',
-          description: snapshot.content,
-          valueIds: [],
-          tasks: [],
-          position: { x: minX, y: nextY },
+      const created = await tasksService.create(userId, {
+        ...createTaskSchema.parse({
+          title: text || 'Untitled',
+          description: nonEmpty(r.content),
+          difficulty: 2,
+          completed: false,
+          scheduledAt: remote.due ? midnightInZone(remote.due, zone) : null,
         }),
-      )
-      nextY += 240
-      const row: GoalRow = {
-        id: created.id,
-        title: created.title,
-        description: created.description,
-        status: 'active',
-        x: created.positionX,
-        y: created.positionY,
-      }
-      goalRows.push(row)
-      goalById.set(row.id, row)
-      const link = await addLink('goal', created.id, r.id, { title: row.title, content: row.description })
+        goalId: goal.id,
+      })
+      const row: TaskRow = { ...created }
+      taskRows.push(row)
+      taskById.set(row.id, row)
+      // The snapshot is TickTick's side, so what Anansi adds (the emoji, the
+      // goal's tag, the section) goes out below.
+      const link = await addLink(created.id, r.id, {
+        ...remote,
+        // The date as TickTick has it: one taken from the section goes out below.
+        due: remoteDueDay(r, zone),
+        section: r.columnId ? (sectionKeyOf.get(r.columnId) ?? null) : null,
+      })
       remoteOf.set(link.id, r)
+      taskLinks.push(link)
       report.fromTickTick++
     })
   }
 
-  // ── 3. Linked goals ───────────────────────────────────────────────────────
-  const removedGoalLinks: Link[] = []
-  for (const link of [...linkByLocal.values()].filter((l) => l.kind === 'goal')) {
-    const goal = goalById.get(link.localId)
-    if (goal?.status !== 'active') {
-      removedGoalLinks.push(link) // after its tasks, below
-      continue
-    }
-    if (link.remoteState === 'gone') continue
-    await attempt(`syncing goal "${goal.title}"`, async () => {
-      const r = remoteOf.get(link.id)
-      const local = { title: goal.title, content: goal.description }
-      const remote = r
-        ? { title: r.title ?? '', content: r.content ?? '' }
-        : { title: link.snapshot.title, content: link.snapshot.content }
-      const { agreed, push, pull } = mergeFields(local, remote, link.snapshot)
-      if (Object.keys(pull).length) {
-        await goalsService.update(userId, { id: goal.id, title: pull.title, description: pull.content })
-        if (pull.title !== undefined) goal.title = pull.title
-        if (pull.content !== undefined) goal.description = pull.content
-        report.fromTickTick++
-      }
-      if (Object.keys(push).length) {
-        const base = r ?? (await tt.getTask(projectId, link.remoteId))
-        if (base) {
-          await tt.updateTask({ ...base, id: link.remoteId, projectId, ...push })
-          report.toTickTick++
-        }
-      }
-      await saveLink(link, { snapshot: agreed })
-    })
+  /** The due day a task's section says, for a task with no date of its own. */
+  function dueOfSection(r: RemoteTask): string | null {
+    const key = r.columnId ? sectionKeyOf.get(r.columnId) : undefined
+    return key ? (dueForSection(key, today) ?? null) : null
   }
 
-  // ── 4. Goals TickTick has not seen ────────────────────────────────────────
-  for (const goal of goalRows) {
-    if (goal.status !== 'active' || linkByLocal.has(`goal:${goal.id}`)) continue
-    await attempt(`sending goal "${goal.title}"`, async () => {
-      const snapshot = { title: goal.title, content: goal.description }
-      const created = await tt.createTask({ projectId, ...snapshot })
-      const link = await addLink('goal', goal.id, created.id, snapshot)
-      remoteOf.set(link.id, created)
-      report.toTickTick++
-    })
-  }
-
-  const parentFor = (goalId: string) => {
-    const link = linkByLocal.get(`goal:${goalId}`)
-    return link && link.remoteState !== 'gone' ? link.remoteId : null
-  }
-  const localTaskFields = (t: TaskRow) => ({
-    title: plain(t.title),
-    content: plain(t.description),
-    completed: t.completed,
-    due: t.scheduledAt ? dayInZone(t.scheduledAt, zone) : null,
-    parent: parentFor(t.goalId),
-  })
-
-  // ── 5. Linked tasks ───────────────────────────────────────────────────────
-  for (const link of [...linkByLocal.values()].filter((l) => l.kind === 'task')) {
+  // ── 4. Linked tasks ───────────────────────────────────────────────────────
+  const detached = new Set<string>()
+  for (const link of taskLinks) {
     const task = taskById.get(link.localId)
-    if (!task || !isActive(task.goalId)) {
-      await attempt('deleting a task in TickTick', async () => {
-        if (link.remoteState !== 'gone') {
-          await tt.deleteTask(projectId, link.remoteId)
-          report.toTickTick++
-        }
-        await dropLink(link)
-      })
-      continue
-    }
+    if (!task || !isActive(task.goalId) || !linkByLocal.has(task.id)) continue
     if (link.remoteState === 'gone') {
       if (newlyGone.has(link.id) && !task.completed) {
         await attempt(`completing "${plain(task.title)}"`, async () => {
@@ -333,142 +410,165 @@ async function reconcile(
       }
       continue
     }
-    await attempt(`syncing task "${plain(task.title)}"`, async () => {
+    await attempt(`syncing "${plain(task.title)}"`, async () => {
       const r = remoteOf.get(link.id)
-      const local = localTaskFields(task)
       const s = link.snapshot
-      const remote = r
+      const local = localFields(task)
+      const remote: Fields = r
         ? {
             title: r.title ?? '',
             content: r.content ?? '',
             completed: isDoneStatus(r.status),
             due: remoteDueDay(r, zone),
-            parent: nonEmpty(r.parentId),
+            goal: remoteGoal(r, s.goal) ?? s.goal ?? null,
           }
         : {
             title: s.title,
             content: s.content,
-            completed: s.completed ?? false,
+            completed: closedNow.has(link.id) || (s.completed ?? false),
             due: s.due ?? null,
-            parent: s.parent ?? null,
+            goal: s.goal ?? null,
           }
-      // A goal whose TickTick task is gone has no parent to offer; its tasks keep
-      // whatever TickTick says rather than being moved to the top level.
-      local.parent ??= remote.parent
+
+      // A move to another section in TickTick is a new date, when the date
+      // itself did not change there. Past due and Later cannot be moved into.
+      const movedTo = r?.columnId ? sectionKeyOf.get(r.columnId) : undefined
+      let bounceSection = false
+      if (r && movedTo && s.section && movedTo !== s.section && remote.due === (s.due ?? null)) {
+        const due = dueForSection(movedTo, today)
+        if (due === undefined) bounceSection = true
+        else remote.due = due
+      }
+
       const { agreed, push, pull } = mergeFields(local, remote, s)
 
-      // A move in TickTick under another linked goal moves the task; a move
-      // anywhere else is undone.
-      if (pull.parent !== undefined) {
-        const goalLink = pull.parent ? linkByRemote.get(pull.parent) : undefined
-        if (goalLink?.kind === 'goal' && goalLink.remoteState !== 'gone' && isActive(goalLink.localId)) {
-          await db.update(tasks).set({ goalId: goalLink.localId, updatedAt: new Date() }).where(eq(tasks.id, task.id))
-          task.goalId = goalLink.localId
+      // A goal tag changed in TickTick moves the task; a tag that names no
+      // goal is not a move (the task keeps its goal and gets its tag back).
+      if (pull.goal !== undefined) {
+        const target = pull.goal ? goalByTag.get(pull.goal) : undefined
+        if (target && target.id !== task.goalId) {
+          await db.update(tasks).set({ goalId: target.id, updatedAt: new Date() }).where(eq(tasks.id, task.id))
+          task.goalId = target.id
           report.fromTickTick++
+          // Its name starts with the new goal's emoji now.
+          const renamed = localFields(task).title
+          if (renamed !== agreed.title) {
+            push.title = renamed
+            agreed.title = renamed
+          }
         } else {
-          push.parent = local.parent
-          agreed.parent = local.parent
+          push.goal = local.goal
+          agreed.goal = local.goal
         }
-        delete pull.parent
+        delete pull.goal
       }
+
+      // A date that came from a section move (or that TickTick otherwise lacks)
+      // is written there too, or the next run would read its absence as a
+      // date cleared in TickTick.
+      if (r && push.due === undefined && agreed.due !== remoteDueDay(r, zone)) push.due = agreed.due
 
       if (Object.keys(pull).length) {
         await tasksService.update(userId, {
           id: task.id,
           goalId: task.goalId,
-          ...(pull.title !== undefined ? { title: pull.title } : {}),
+          ...(pull.title !== undefined ? { title: stripEmoji(pull.title).trim() || plain(task.title) } : {}),
           ...(pull.content !== undefined ? { description: pull.content || null } : {}),
           ...(pull.completed !== undefined ? { completed: pull.completed } : {}),
           ...(pull.due !== undefined ? { scheduledAt: pull.due ? midnightInZone(pull.due, zone) : null } : {}),
         })
+        if (pull.completed !== undefined) task.completed = pull.completed
         report.fromTickTick++
       }
 
-      const { completed: pushCompleted, ...fieldPush } = push
-      const fieldsChanged = Object.keys(fieldPush).length > 0 || pushCompleted === false
-      if (fieldsChanged) {
-        const base = r ?? (await tt.getTask(projectId, link.remoteId))
-        if (base) {
-          await tt.updateTask({
-            ...base,
-            id: link.remoteId,
-            projectId,
-            ...(fieldPush.title !== undefined ? { title: fieldPush.title } : {}),
-            ...(fieldPush.content !== undefined ? { content: fieldPush.content } : {}),
-            ...(fieldPush.due !== undefined ? dueFields(fieldPush.due, zone) : {}),
-            ...(fieldPush.parent !== undefined ? { parentId: fieldPush.parent ?? '' } : {}),
-            ...(pushCompleted === false ? { status: 0, completedTime: null } : {}),
-          })
-          report.toTickTick++
-        }
+      // What TickTick must be told. Only what changes is sent: an update keeps
+      // every field it does not name.
+      const wantSection = sectionFor(agreed)
+      const { completed: pushCompleted, ...fields } = push
+      const update: Partial<RemoteTask> = {
+        ...(fields.title !== undefined ? { title: fields.title } : {}),
+        ...(fields.content !== undefined ? { content: fields.content } : {}),
+        ...(fields.due !== undefined ? dueFields(fields.due, zone) : {}),
+        ...(fields.goal !== undefined ? { tags: tagsWith(r, fields.goal, s.goal) } : {}),
+        ...(pushCompleted === false ? { status: 0 } : {}),
+        // A subtask of an old goal task is lifted to the top of the list.
+        ...(r && nonEmpty(r.parentId) ? { parentId: '' } : {}),
+        // The section follows the date, and time moves dates between sections.
+        ...(r && wantSection && (r.columnId !== wantSection || bounceSection) ? { columnId: wantSection } : {}),
+        ...(!r && pushCompleted === false && wantSection ? { columnId: wantSection } : {}),
+      }
+      if (Object.keys(update).length) {
+        await tt.updateTask({ id: link.remoteId, projectId, ...update })
+        if (update.parentId === '') detached.add(link.remoteId)
+        report.toTickTick++
+      }
+      let snapshot: TickTickSnapshot = {
+        ...agreed,
+        section: wantSection ? (sectionKeyOf.get(wantSection) ?? null) : (s.section ?? null),
       }
       if (pushCompleted === true) {
         await tt.completeTask(projectId, link.remoteId)
         report.toTickTick++
+        // A repeating task stays open with its next date: that is the task now.
+        if (r?.repeatFlag) {
+          const next = await tt.getTask(projectId, link.remoteId)
+          if (next && !isDoneStatus(next.status)) {
+            const due = remoteDueDay(next, zone)
+            await tasksService.update(userId, {
+              id: task.id,
+              goalId: task.goalId,
+              completed: false,
+              scheduledAt: due ? midnightInZone(due, zone) : null,
+            })
+            snapshot = { ...snapshot, completed: false, due }
+          }
+        }
       }
-      await saveLink(link, { snapshot: agreed, remoteState: agreed.completed ? 'closed' : 'open' })
+      await saveLink(link, { snapshot, remoteState: snapshot.completed ? 'closed' : 'open' })
     })
   }
 
-  // ── 6. Tasks TickTick has not seen ────────────────────────────────────────
+  // ── 5. Tasks TickTick has not seen ────────────────────────────────────────
   // Open ones only: a connect does not fill the list with old finished work.
   for (const task of taskRows) {
-    if (task.completed || !isActive(task.goalId) || linkByLocal.has(`task:${task.id}`)) continue
-    const parent = parentFor(task.goalId)
-    if (!parent) continue
-    await attempt(`sending task "${plain(task.title)}"`, async () => {
-      const fields = localTaskFields(task)
+    if (task.completed || !isActive(task.goalId) || linkByLocal.has(task.id)) continue
+    await attempt(`sending "${plain(task.title)}"`, async () => {
+      const fields = localFields(task)
+      const section = sectionFor(fields)
       const created = await tt.createTask({
         projectId,
         title: fields.title,
         content: fields.content,
-        parentId: parent,
+        tags: fields.goal ? [fields.goal] : [],
+        ...(section ? { columnId: section } : {}),
         ...dueFields(fields.due, zone),
       })
-      // The create documentation does not list `parentId`; if it was not
-      // taken, set it the documented way.
-      if (created.parentId !== parent) await tt.updateTask({ ...created, id: created.id, projectId, parentId: parent })
-      await addLink('task', task.id, created.id, fields)
+      await addLink(task.id, created.id, {
+        ...fields,
+        section: section ? (sectionKeyOf.get(section) ?? null) : null,
+      })
       report.toTickTick++
     })
   }
 
-  // ── 7. New TickTick subtasks become tasks ─────────────────────────────────
-  for (const r of open.values()) {
-    if (!r.parentId || linkByRemote.has(r.id)) continue
-    const goalLink = linkByRemote.get(r.parentId)
-    if (goalLink?.kind !== 'goal' || goalLink.remoteState === 'gone' || !isActive(goalLink.localId)) continue
-    await attempt(`importing task "${r.title ?? ''}"`, async () => {
-      const due = remoteDueDay(r, zone)
-      const created = await tasksService.create(userId, {
-        ...createTaskSchema.parse({
-          title: r.title?.trim() ? r.title : 'Untitled',
-          description: nonEmpty(r.content),
-          difficulty: 2,
-          completed: false,
-          scheduledAt: due ? midnightInZone(due, zone) : null,
-        }),
-        goalId: goalLink.localId,
-      })
-      await addLink('task', created.id, r.id, {
-        title: plain(created.title),
-        content: plain(created.description),
-        completed: false,
-        due,
-        parent: r.parentId ?? null,
-      })
-      report.fromTickTick++
-    })
-  }
-
-  // ── 8. Goals removed in Anansi, after their tasks ─────────────────────────
-  for (const link of removedGoalLinks) {
-    await attempt('deleting a goal in TickTick', async () => {
+  // ── 6. The old goal tasks ─────────────────────────────────────────────────
+  // Each is deleted once nothing hangs under it: TickTick deletes subtasks
+  // with their parent, so any left (open or completed, linked or not) are
+  // lifted to the top of the list first.
+  for (const link of legacyGoalLinks) {
+    await attempt('removing an old goal task from TickTick', async () => {
+      const children = [...open.values(), ...done.values()].filter(
+        (t) => nonEmpty(t.parentId) === link.remoteId && !detached.has(t.id),
+      )
+      for (const child of children) {
+        await tt.updateTask({ id: child.id, projectId, parentId: '' })
+        report.toTickTick++
+      }
       if (link.remoteState !== 'gone') {
         await tt.deleteTask(projectId, link.remoteId)
         report.toTickTick++
       }
-      await dropLink(link)
+      await db.delete(tickTickLinks).where(eq(tickTickLinks.id, link.id))
     })
   }
 

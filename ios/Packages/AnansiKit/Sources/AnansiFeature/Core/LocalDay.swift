@@ -1,7 +1,7 @@
 import Foundation
 
 /// A calendar day in the user's own time zone, `YYYY-MM-DD`. Anansi names a week by a day the caller supplies
-/// (its server runs on UTC, and Sunday night here is already its Monday), so every week the phone asks about is
+/// (its server runs on UTC, and Saturday night here is already its Sunday), so every week the phone asks about is
 /// named by one of these, never by an instant.
 nonisolated struct LocalDay: Hashable, Comparable, Codable, Sendable, CustomStringConvertible {
     var year: Int
@@ -64,10 +64,10 @@ nonisolated struct LocalDay: Hashable, Comparable, Codable, Sendable, CustomStri
         return weekday == 1 ? 7 : weekday - 1
     }
 
-    /// The Monday at or before this day: Anansi's week boundary (`weekStartOf`).
-    var weekStart: LocalDay { adding(days: 1 - isoWeekday) }
+    /// The Sunday at or before this day: Anansi's week boundary (`weekStartOf`). Weeks run Sunday to Saturday.
+    var weekStart: LocalDay { adding(days: -(isoWeekday % 7)) }
 
-    /// The Sunday that closes this day's week.
+    /// The Saturday that closes this day's week.
     var weekEnd: LocalDay { weekStart.adding(days: 6) }
 
     /// Whole days from `self` to `other` (positive when `other` is later).

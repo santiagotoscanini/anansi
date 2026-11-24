@@ -45,10 +45,96 @@ export function midnightInZone(day: Day, timeZone: string): Date {
   const [y, m, d] = day.split('-').map(Number)
   const guess = Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1)
   // Twice, because the offset at the guess may differ from the offset at the
-  // answer when a DST change sits between them.
-  let at = guess - zoneOffset(guess, timeZone)
-  at = guess - zoneOffset(at, timeZone)
-  return new Date(at)
+  // answer when a DST change sits between them. In a zone whose clocks jump
+  // at midnight that day has no midnight, and the second pass would land on
+  // the day before: the first one is then the day's first instant.
+  const first = guess - zoneOffset(guess, timeZone)
+  const second = guess - zoneOffset(first, timeZone)
+  return new Date(dayInZone(new Date(second), timeZone) === day ? second : first)
+}
+
+/**
+ * The day an Anansi date names, in the connection's zone. A date written as
+ * exactly UTC midnight came from a caller that meant a calendar day (an MCP
+ * tool given `2026-11-06`), so it is that UTC day; any other instant is read
+ * in the zone, as the browser that wrote it would.
+ */
+export function taskDay(scheduledAt: Date | null, timeZone: string): Day | null {
+  if (!scheduledAt) return null
+  if (scheduledAt.getTime() % 86_400_000 === 0) return scheduledAt.toISOString().slice(0, 10)
+  return dayInZone(scheduledAt, timeZone)
+}
+
+// ── Sections ────────────────────────────────────────────────────────────────
+// The list mirrors Horizons: one section per bucket, and each open task sits in
+// the one its due day puts it in (~/lib/horizon-period has the same rules for
+// the board). Moving a task to another section in TickTick dates it the way a
+// drop on Horizons does; Past due and Later are where tasks land, not where
+// they can be put.
+
+export const SECTIONS = [
+  { key: 'past', name: 'Past due' },
+  { key: 'month', name: 'This month' },
+  { key: 'quarter', name: 'This quarter' },
+  { key: 'year', name: 'This year' },
+  { key: 'later', name: 'Later' },
+  { key: 'backlog', name: 'Backlog' },
+] as const
+
+export type SectionKey = (typeof SECTIONS)[number]['key']
+
+const quarterOf = (month: number) => Math.floor((month - 1) / 3)
+
+/** The section a due day puts a task in, today being `today`. */
+export function sectionOf(due: Day | null, today: Day): SectionKey {
+  if (!due) return 'backlog'
+  if (due < today) return 'past'
+  const [dy, dm] = due.split('-').map(Number) as [number, number]
+  const [ty, tm] = today.split('-').map(Number) as [number, number]
+  if (dy !== ty) return 'later'
+  if (dm === tm) return 'month'
+  if (quarterOf(dm) === quarterOf(tm)) return 'quarter'
+  return 'year'
+}
+
+/**
+ * The due day a task moved into a section gets: none in Backlog, the last day
+ * of the month, quarter or year in theirs (Horizons' `endOfCurrentBucket`).
+ * Undefined for Past due and Later, which a task cannot be moved into.
+ */
+export function dueForSection(section: SectionKey, today: Day): Day | null | undefined {
+  const [y, m] = today.split('-').map(Number) as [number, number]
+  const lastDay = (year: number, month: number) => {
+    const d = new Date(Date.UTC(year, month, 0)).getUTCDate()
+    return `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  }
+  if (section === 'backlog') return null
+  if (section === 'month') return lastDay(y, m)
+  if (section === 'quarter') return lastDay(y, quarterOf(m) * 3 + 3)
+  if (section === 'year') return `${y}-12-31`
+  return undefined
+}
+
+// ── Titles ──────────────────────────────────────────────────────────────────
+// A task is named `{emoji} {title}` in TickTick, the emoji being the task's own
+// or else its goal's, like the user's other lists.
+
+const LEADING_EMOJI =
+  /^(?:\p{Regional_Indicator}{2}|\p{Extended_Pictographic}(?:️|⃣|\p{Emoji_Modifier}|‍\p{Extended_Pictographic})*)️?\s+/u
+
+export function composeTitle(emoji: string | null, title: string): string {
+  return emoji ? `${emoji} ${title}` : title
+}
+
+/** A TickTick title without its leading emoji, if it has one. */
+export function stripEmoji(title: string): string {
+  return title.replace(LEADING_EMOJI, '')
+}
+
+/** The leading emoji of a TickTick title, or null. */
+export function leadingEmoji(title: string): string | null {
+  const m = LEADING_EMOJI.exec(title)
+  return m ? m[0].trim() : null
 }
 
 /** TickTick's wire format, `yyyy-MM-dd'T'HH:mm:ssZ`, always written in UTC. */

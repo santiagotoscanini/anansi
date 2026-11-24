@@ -8,7 +8,7 @@ import { trackingItemHistoryQueryOptions, trackingItemsQueryOptions } from '~/li
 // The library, or with `?item=<id>` that one item over time (`view` picks how:
 // as a time-lapse, two weeks compared, or every week on a sheet). Unlike the
 // week-keyed screens this is prefetched: the service names each week by its
-// Monday's calendar day, so nothing here depends on whose clock runs the loader.
+// Sunday's calendar day, so nothing here depends on whose clock runs the loader.
 //
 // An inline function literal, never a generic helper: see app.bucket.tsx.
 export const Route = createFileRoute('/app/tracking-items')({

@@ -104,7 +104,7 @@ export const trackingItemSchema = z.object({
 export const weeklySyncSchema = z.object({
   id: z.string(),
   userId: z.string(),
-  weekDate: z.date(), // Monday of the retrospective week
+  weekDate: z.date(), // Sunday of the retrospective week
   templateId: z.string().nullable().optional(),
   createdAt: z.date(),
   updatedAt: z.date(),

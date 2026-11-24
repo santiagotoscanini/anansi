@@ -11,7 +11,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { Check, Clock, Inbox, Square } from 'lucide-react'
+import { AlertCircle, Check, Clock, Inbox, Square } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
 import { isEmojiUrl } from '~/lib/emoji-utils'
@@ -28,6 +28,13 @@ import MentionText from './MentionText'
 // Monthly (when September arrives). The user only ever picks one date;
 // the buckets follow.
 type ColumnId = 'backlog' | 'month' | 'quarter' | 'year' | 'later' | 'past'
+
+// Written out so Tailwind sees each class.
+const GRID_COLS: Record<number, string> = {
+  4: 'xl:grid-cols-4',
+  5: 'xl:grid-cols-5',
+  6: 'xl:grid-cols-6',
+}
 
 type FlatTask = {
   id: string
@@ -149,6 +156,9 @@ function DraggableCard({
   )
 }
 
+// Past due and Later are where tasks land as dates pass or lie far off, not
+// where a task can be put, so they take no drops (a card in them can still be
+// dragged out to another column).
 function DroppableColumn({
   columnId,
   title,
@@ -167,19 +177,23 @@ function DroppableColumn({
   onToggleComplete: (t: FlatTask) => void
 }) {
   const { t } = useTranslation()
-  const { setNodeRef, isOver } = useDroppable({ id: columnId })
-  const Icon = columnId === 'backlog' ? Inbox : Clock
+  const readOnly = columnId === 'past' || columnId === 'later'
+  const { setNodeRef, isOver } = useDroppable({ id: columnId, disabled: readOnly })
+  const Icon = columnId === 'backlog' ? Inbox : columnId === 'past' ? AlertCircle : Clock
+  const past = columnId === 'past'
   return (
     <section
       ref={setNodeRef}
-      className={`flex min-w-0 flex-col rounded-xl border bg-[var(--vellum)] transition-colors ${
-        isOver ? 'border-[var(--hairline-2)] bg-[var(--vellum)]' : 'border-[var(--hairline)]'
-      }`}
+      className={`flex min-w-0 flex-col rounded-xl border transition-colors ${
+        past ? 'border-[var(--amber)] bg-[var(--amber-soft)]' : 'bg-[var(--vellum)]'
+      } ${past ? '' : isOver ? 'border-[var(--hairline-2)]' : 'border-[var(--hairline)]'}`}
     >
       <div className="flex h-20 flex-col justify-start border-b border-[var(--hairline)] px-4 py-3">
         <div className="flex items-center justify-between">
-          <h3 className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
-            <Icon className="h-3.5 w-3.5 text-[var(--ink-3)]" />
+          <h3
+            className={`flex items-center gap-2 text-sm font-medium ${past ? 'text-[var(--amber)]' : 'text-[var(--ink)]'}`}
+          >
+            <Icon className={`h-3.5 w-3.5 ${past ? 'text-[var(--amber)]' : 'text-[var(--ink-3)]'}`} />
             {title}
           </h3>
           <span className="rounded-full bg-[var(--vellum)] px-2 py-0.5 text-xs text-[var(--ink-2)]">{count}</span>
@@ -244,6 +258,8 @@ export default function Horizons() {
     const flatById: Record<string, FlatTask> = {}
     for (const g of goals) {
       for (const task of g.tasks) {
+        // The board is what is still to do; a finished task has left it.
+        if (task.completed) continue
         const flat: FlatTask = {
           id: task.id,
           title: task.title,
@@ -260,7 +276,6 @@ export default function Horizons() {
     }
     for (const col of Object.keys(byColumn) as ColumnId[]) {
       byColumn[col].sort((a, b) => {
-        if (a.completed !== b.completed) return a.completed ? 1 : -1
         // Earliest deadline first; nulls last.
         const ta = a.scheduledAt?.getTime() ?? Number.POSITIVE_INFINITY
         const tb = b.scheduledAt?.getTime() ?? Number.POSITIVE_INFINITY
@@ -309,16 +324,29 @@ export default function Horizons() {
     updateTask.mutate({ id: task.id, goalId: task.goalId, completed: !task.completed })
   }
 
-  // Header counts — total open + scheduled across all buckets.
+  // Header counts — open tasks, and the open ones that have a date.
   const openCount = goals.reduce((sum, g) => sum + g.tasks.filter((task) => !task.completed).length, 0)
-  const scheduledCount = goals.reduce((sum, g) => sum + g.tasks.filter((task) => task.scheduledAt).length, 0)
+  const scheduledCount = goals.reduce(
+    (sum, g) => sum + g.tasks.filter((task) => !task.completed && task.scheduledAt).length,
+    0,
+  )
 
-  // Column rendering — we always show the four primary columns. "Past" and
-  // "Later" appear only when populated, as small flagged sections at the top
-  // and bottom respectively. Keeps the default layout four columns wide.
-  const monthLabel = labelForBucket('month', now)
-  const quarterLabel = labelForBucket('quarter', now)
-  const yearLabel = labelForBucket('year', now)
+  // The columns, left to right from no date to furthest off: Backlog, Past due
+  // (only when something is late), this month, quarter and year, then Later
+  // (only when something is past this year). The TickTick list has the same
+  // sections (~/lib/ticktick SECTIONS).
+  const columns: { id: ColumnId; title: string; hint: string }[] = [
+    { id: 'backlog', title: t('horizons.backlog'), hint: t('horizons.backlogHint') },
+    ...(byColumn.past.length > 0
+      ? [{ id: 'past' as const, title: t('horizons.pastDue'), hint: t('horizons.pastDueHint') }]
+      : []),
+    { id: 'month', title: labelForBucket('month', now), hint: t('horizons.monthHint') },
+    { id: 'quarter', title: labelForBucket('quarter', now), hint: t('horizons.quarterHint') },
+    { id: 'year', title: labelForBucket('year', now), hint: t('horizons.yearHint') },
+    ...(byColumn.later.length > 0
+      ? [{ id: 'later' as const, title: t('horizons.later'), hint: t('horizons.laterHint') }]
+      : []),
+  ]
 
   return (
     <div className="flex h-full flex-col overflow-hidden" style={{ background: 'var(--paper)' }}>
@@ -378,90 +406,20 @@ export default function Horizons() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         {/* Explicit `id` for SSR — see RelationshipsBoard for why. */}
         <DndContext id="horizons" sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          {/* Past — overdue, only when populated. Read-only placement; the
-              user must reschedule via the card or open the goal to fix it. */}
-          {byColumn.past.length > 0 && (
-            <div className="px-6 pt-6 pb-4 md:px-8">
-              <div className="rounded-xl border border-[var(--amber)] bg-[var(--amber-soft)] p-3">
-                <h3 className="mb-2 flex items-center gap-2 text-xs font-medium tracking-wide text-[var(--amber)] uppercase">
-                  <Clock className="h-3 w-3" />
-                  {t('horizons.pastDue', { count: byColumn.past.filter((task) => !task.completed).length })}
-                </h3>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {byColumn.past.map((task) => (
-                    <DraggableCard
-                      key={task.id}
-                      task={task}
-                      onClick={() => setOpenGoalId(task.goalId)}
-                      onToggleComplete={() => handleToggleComplete(task)}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-4 px-6 pt-6 pb-8 sm:grid-cols-2 md:px-8 xl:grid-cols-4">
-            <DroppableColumn
-              columnId="backlog"
-              title={t('horizons.backlog')}
-              hint={t('horizons.backlogHint')}
-              count={byColumn.backlog.filter((task) => !task.completed).length}
-              tasks={byColumn.backlog}
-              onCardClick={(task) => setOpenGoalId(task.goalId)}
-              onToggleComplete={handleToggleComplete}
-            />
-            <DroppableColumn
-              columnId="month"
-              title={monthLabel}
-              hint={t('horizons.monthHint')}
-              count={byColumn.month.filter((task) => !task.completed).length}
-              tasks={byColumn.month}
-              onCardClick={(task) => setOpenGoalId(task.goalId)}
-              onToggleComplete={handleToggleComplete}
-            />
-            <DroppableColumn
-              columnId="quarter"
-              title={quarterLabel}
-              hint={t('horizons.quarterHint')}
-              count={byColumn.quarter.filter((task) => !task.completed).length}
-              tasks={byColumn.quarter}
-              onCardClick={(task) => setOpenGoalId(task.goalId)}
-              onToggleComplete={handleToggleComplete}
-            />
-            <DroppableColumn
-              columnId="year"
-              title={yearLabel}
-              hint={t('horizons.yearHint')}
-              count={byColumn.year.filter((task) => !task.completed).length}
-              tasks={byColumn.year}
-              onCardClick={(task) => setOpenGoalId(task.goalId)}
-              onToggleComplete={handleToggleComplete}
-            />
+          <div className={`grid grid-cols-1 gap-4 px-6 pt-6 pb-8 sm:grid-cols-2 md:px-8 ${GRID_COLS[columns.length]}`}>
+            {columns.map((col) => (
+              <DroppableColumn
+                key={col.id}
+                columnId={col.id}
+                title={col.title}
+                hint={col.hint}
+                count={byColumn[col.id].length}
+                tasks={byColumn[col.id]}
+                onCardClick={(task) => setOpenGoalId(task.goalId)}
+                onToggleComplete={handleToggleComplete}
+              />
+            ))}
           </div>
-
-          {/* Later — beyond this year. Read-only; drag is not enabled for
-              this lane (user can shift via DatePicker on the card). */}
-          {byColumn.later.length > 0 && (
-            <div className="px-6 pb-8 md:px-8">
-              <div className="rounded-xl border border-[var(--hairline)] bg-[var(--vellum)] p-3">
-                <h3 className="mb-2 flex items-center gap-2 text-xs font-medium tracking-wide text-[var(--ink-3)] uppercase">
-                  <Clock className="h-3 w-3" />
-                  {t('horizons.later', { count: byColumn.later.filter((task) => !task.completed).length })}
-                </h3>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {byColumn.later.map((task) => (
-                    <DraggableCard
-                      key={task.id}
-                      task={task}
-                      onClick={() => setOpenGoalId(task.goalId)}
-                      onToggleComplete={() => handleToggleComplete(task)}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
 
           <DragOverlay dropAnimation={null}>
             {activeTask ? <TaskCard task={activeTask} isDragging /> : null}

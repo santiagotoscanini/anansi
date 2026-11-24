@@ -6,7 +6,7 @@ import { db } from '~/lib/data'
 import { attachments, goals, trackingItems, weeklySync, weeklySyncItems } from '~/lib/data/schema'
 import type { CreateTrackingItem, UpdateTrackingItem } from '~/lib/api/types'
 import type { Overlay } from '~/lib/overlay'
-import { mondayOf } from '~/lib/week'
+import { weekDayOf } from '~/lib/week'
 import { AppError } from './errors'
 import { fileUrl } from './file-refs'
 
@@ -153,8 +153,8 @@ export async function latestPicture(userId: string, id: string, excludeSyncItemI
 
 /**
  * One item over time: every week that recorded something for it (notes or
- * files), oldest first. A week is named by its Monday's calendar day, so the
- * caller never has to read `week_date`'s instant (see `mondayOf`).
+ * files), oldest first. A week is named by its Sunday's calendar day, so the
+ * caller never has to read `week_date`'s instant (see `weekDayOf`).
  *
  * Archived and soft-deleted items answer too: their weeks are still there,
  * and looking back is what this is for.
@@ -204,7 +204,7 @@ export async function history(userId: string, id: string) {
   const weeks = rows
     .map((row) => ({
       syncItemId: row.syncItemId,
-      week: mondayOf(row.weekDate),
+      week: weekDayOf(row.weekDate),
       textContent: row.textContent?.trim() ? row.textContent : null,
       attachments: files
         .filter((file) => file.parentId === row.syncItemId)

@@ -26,8 +26,8 @@ export const isoDate = z.string().meta({ format: 'date-time' })
 
 /**
  * The user's own calendar day. The tools that work out "this week" take it rather
- * than reading the clock, because the server's clock is UTC and the user's Sunday
- * night is already its Monday. See `weekOfDay` in ~/lib/week.
+ * than reading the clock, because the server's clock is UTC and the user's Saturday
+ * night is already its Sunday. See `weekOfDay` in ~/lib/week.
  */
 export const localDay = z
   .string()

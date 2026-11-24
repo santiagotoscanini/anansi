@@ -35,7 +35,7 @@ async function assertOwnsSyncItem(userId: string, syncItemId: string) {
 /**
  * The user's sync for this week, by week rather than by instant.
  *
- * `week_date` holds whatever Monday the creator's clock said, so an exact match
+ * `week_date` holds whatever Sunday the creator's clock said, so an exact match
  * would miss a sync made on another clock, and the unique index would then let
  * the same week be started twice. See WEEK_MATCH_MS.
  */

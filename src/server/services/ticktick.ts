@@ -2,7 +2,7 @@
 // do. The sync itself is in ~/server/ticktick/ (sync.ts for the rules,
 // runner.ts for when it runs); the OAuth round trip is the two routes under
 // /api/integrations/ticktick/.
-import { and, count, eq, ne } from 'drizzle-orm'
+import { and, count, countDistinct, eq, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '~/lib/data'
 import { tickTickConnections, tickTickLinks } from '~/lib/data/schema'
@@ -10,7 +10,7 @@ import { tickTickEnabled } from '~/lib/env'
 import { isValidTimeZone } from '~/lib/ticktick'
 import { revokeToken, tickTick, TickTickAuthError } from '~/server/ticktick/client'
 import { openToken, sealToken } from '~/server/ticktick/crypto'
-import { runSync } from '~/server/ticktick/runner'
+import { exclusive, runSync } from '~/server/ticktick/runner'
 import { forgetLinks } from '~/server/ticktick/sync'
 import { AppError } from './errors'
 
@@ -61,12 +61,14 @@ async function talking<T>(userId: string, fn: () => Promise<T>): Promise<T> {
 
 export async function status(userId: string): Promise<TickTickStatus> {
   const conn = await connection(userId)
-  const counts = conn
+  // Tasks in the list, and the goals they belong to (a goal is a tag there).
+  const [counts] = conn
     ? await db
-        .select({ kind: tickTickLinks.kind, n: count() })
+        .select({ tasks: count(), goals: countDistinct(sql`${tickTickLinks.snapshot}->>'goal'`) })
         .from(tickTickLinks)
-        .where(and(eq(tickTickLinks.userId, userId), ne(tickTickLinks.remoteState, 'gone')))
-        .groupBy(tickTickLinks.kind)
+        .where(
+          and(eq(tickTickLinks.userId, userId), eq(tickTickLinks.kind, 'task'), ne(tickTickLinks.remoteState, 'gone')),
+        )
     : []
   return {
     available: tickTickEnabled,
@@ -76,10 +78,7 @@ export async function status(userId: string): Promise<TickTickStatus> {
     timeZone: conn?.timeZone ?? null,
     lastSyncedAt: conn?.lastSyncedAt ?? null,
     lastError: conn?.lastError ?? null,
-    linked: {
-      goals: counts.find((c) => c.kind === 'goal')?.n ?? 0,
-      tasks: counts.find((c) => c.kind === 'task')?.n ?? 0,
-    },
+    linked: { goals: counts?.goals ?? 0, tasks: counts?.tasks ?? 0 },
   }
 }
 
@@ -111,11 +110,15 @@ export async function chooseList(userId: string, input: z.input<typeof chooseLis
     if (!found) throw new AppError('NOT_FOUND', 'That TickTick list was not found')
     return found
   })
-  if (conn.projectId !== list.id) await forgetLinks(userId)
-  await db
-    .update(tickTickConnections)
-    .set({ projectId: list.id, projectName: list.name, lastError: null, lastSyncedAt: null })
-    .where(eq(tickTickConnections.id, conn.id))
+  // Under the sync's lock, so a run against the old list cannot add links to it
+  // after they are dropped.
+  await exclusive(userId, async () => {
+    if (conn.projectId !== list.id) await forgetLinks(userId)
+    await db
+      .update(tickTickConnections)
+      .set({ projectId: list.id, projectName: list.name, lastError: null, lastSyncedAt: null })
+      .where(eq(tickTickConnections.id, conn.id))
+  })
   return syncNow(userId)
 }
 
@@ -133,8 +136,10 @@ export async function disconnect(userId: string) {
   const conn = await connection(userId)
   if (!conn) return { success: true }
   const token = openToken(conn.accessToken)
-  await db.delete(tickTickLinks).where(eq(tickTickLinks.userId, userId))
-  await db.delete(tickTickConnections).where(eq(tickTickConnections.id, conn.id))
+  await exclusive(userId, async () => {
+    await db.delete(tickTickLinks).where(eq(tickTickLinks.userId, userId))
+    await db.delete(tickTickConnections).where(eq(tickTickConnections.id, conn.id))
+  })
   if (token) await revokeToken(token)
   return { success: true }
 }

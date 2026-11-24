@@ -58,7 +58,7 @@ struct CoreHistoryTests {
         #expect(frames.first?.note == "First one")
     }
 
-    @Test func weeksAreCountedBetweenMondays() {
+    @Test func weeksAreCountedBetweenWeekStarts() {
         #expect(History.weeksBetween(Self.day("2026-03-02"), Self.day("2026-04-13")) == 6)
         #expect(History.weeksBetween(Self.day("2026-04-13"), Self.day("2026-03-02")) == -6)
         #expect(History.weeksBetween(Self.day("2026-12-28"), Self.day("2027-01-04")) == 1)

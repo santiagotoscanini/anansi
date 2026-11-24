@@ -58,8 +58,8 @@ export default function DatePicker({
   }, [locale])
   const weekdayShortNames = useMemo(() => {
     const fmt = new Intl.DateTimeFormat(locale, { weekday: 'short' })
-    // 2024-01-01 is a Monday; produce 7 short labels Mon..Sun.
-    return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2024, 0, 1 + i)))
+    // 2023-12-31 is a Sunday; produce 7 short labels Sun..Sat (the app's week, see ~/lib/week).
+    return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2023, 11, 31 + i)))
   }, [locale])
 
   // Compute portaled-popover viewport position from the trigger's bounding rect.
@@ -103,10 +103,10 @@ export default function DatePicker({
     }
   }, [open])
 
-  // 6 weeks × 7 days, Monday-first.
+  // 6 weeks × 7 days, Sunday-first.
   const days = useMemo(() => {
     const first = startOfMonth(view)
-    const leadingBlanks = (first.getDay() + 6) % 7 // JS getDay: 0=Sun → shift to Monday-first.
+    const leadingBlanks = first.getDay() // JS getDay: 0=Sun, so it is the days since Sunday.
     const start = new Date(first)
     start.setDate(start.getDate() - leadingBlanks)
     const cells: { date: Date; inMonth: boolean }[] = []

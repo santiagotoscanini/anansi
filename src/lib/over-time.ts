@@ -3,8 +3,8 @@
 // React and no clock, so the web screen and its tests read the same answers.
 // The phone has the same rules in ios/…/Core/History.swift.
 //
-// A week is its Monday as a calendar day (`YYYY-MM-DD`), which is how the
-// service names it (`mondayOf`).
+// A week is its Sunday as a calendar day (`YYYY-MM-DD`), which is how the
+// service names it (`weekDayOf`).
 
 export interface HistoryAttachment {
   id: string
@@ -57,7 +57,7 @@ export function framesOf(weeks: readonly HistoryWeek[]): Frame[] {
   })
 }
 
-/** Whole weeks from one Monday to another (negative when `to` is earlier). */
+/** Whole weeks from one Sunday to another (negative when `to` is earlier). */
 export function weeksBetween(from: string, to: string): number {
   return Math.round((dayTime(to) - dayTime(from)) / (7 * DAY_MS))
 }
@@ -120,7 +120,7 @@ export interface SheetMonth {
 }
 
 /**
- * The weeks as a contact sheet: grouped by the month of their Monday, with the
+ * The weeks as a contact sheet: grouped by the month of their Sunday, with the
  * weeks that recorded nothing in between folded into one gap each. A gap sits
  * in the month of its first missing week.
  */

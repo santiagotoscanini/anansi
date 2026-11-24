@@ -13,14 +13,15 @@ struct CoreLocalDayTests {
         #expect(LocalDay(string: "2025-02-29") == nil)
     }
 
-    @Test func weekStartsOnMonday() throws {
-        let monday = try #require(LocalDay(string: "2026-11-02"))
-        #expect(monday.isoWeekday == 1)
-        #expect(monday.weekStart == monday)
-        #expect(LocalDay(string: "2026-11-08")?.weekStart == monday) // Sunday walks back six days
-        #expect(LocalDay(string: "2026-11-05")?.weekStart == monday)
-        #expect(LocalDay(string: "2026-11-09")?.weekStart == LocalDay(string: "2026-11-09"))
-        #expect(monday.weekEnd == LocalDay(string: "2026-11-08"))
+    @Test func weekStartsOnSunday() throws {
+        let sunday = try #require(LocalDay(string: "2026-11-22"))
+        #expect(sunday.isoWeekday == 7)
+        #expect(sunday.weekStart == sunday)
+        #expect(LocalDay(string: "2026-11-23")?.weekStart == sunday) // Monday walks back one day
+        #expect(LocalDay(string: "2026-11-28")?.weekStart == sunday) // Saturday closes the week
+        #expect(LocalDay(string: "2026-11-21")?.weekStart == LocalDay(string: "2026-11-15"))
+        #expect(LocalDay(string: "2026-11-19")?.weekStart != sunday) // a Thursday and the Sunday after are two weeks
+        #expect(sunday.weekEnd == LocalDay(string: "2026-11-28"))
     }
 
     @Test func movesAcrossMonthsAndYears() {

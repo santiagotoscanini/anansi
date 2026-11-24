@@ -45,7 +45,7 @@ test('frames are the pictures, oldest first, numbered within their week', () => 
   assert.equal(frames[0]?.note, 'First one')
 })
 
-test('weeks are counted between Mondays, across a clock change and a year', () => {
+test('weeks are counted between Sundays, across a clock change and a year', () => {
   assert.equal(weeksBetween('2026-03-02', '2026-04-13'), 6)
   assert.equal(weeksBetween('2026-04-13', '2026-03-02'), -6)
   assert.equal(weeksBetween('2026-12-28', '2027-01-04'), 1)

@@ -18,14 +18,15 @@ struct CoreWordingTests {
     }
 
     @Test func namesWeeks() {
-        let monday = LocalDay(year: 2026, month: 11, day: 2)
-        #expect(Wording.weekOf(monday, currentYear: 2026) == "Week of Nov 2")
-        #expect(Wording.weekOf(monday, currentYear: 2027) == "Week of Nov 2, 2026")
-        #expect(Wording.weekRange(monday) == "Nov 2 – 8")
-        #expect(Wording.weekRange(LocalDay(year: 2026, month: 10, day: 26)) == "Oct 26 – Nov 1")
-        #expect(Wording.weekDistance(from: LocalDay(year: 2026, month: 11, day: 4), to: monday) == "This week")
-        #expect(Wording.weekDistance(from: monday, to: monday.adding(weeks: -1)) == "Last week")
-        #expect(Wording.weekDistance(from: monday, to: monday.adding(weeks: -3)) == "3 weeks ago")
+        let sunday = LocalDay(year: 2026, month: 11, day: 1)
+        #expect(Wording.weekOf(sunday, currentYear: 2026) == "Week of Nov 1")
+        #expect(Wording.weekOf(sunday, currentYear: 2027) == "Week of Nov 1, 2026")
+        #expect(Wording.weekRange(sunday) == "Nov 1 – 7")
+        #expect(Wording.weekRange(LocalDay(year: 2026, month: 10, day: 25)) == "Oct 25 – 31")
+        #expect(Wording.weekRange(LocalDay(year: 2026, month: 11, day: 29)) == "Nov 29 – Dec 5")
+        #expect(Wording.weekDistance(from: LocalDay(year: 2026, month: 11, day: 4), to: sunday) == "This week")
+        #expect(Wording.weekDistance(from: sunday, to: sunday.adding(weeks: -1)) == "Last week")
+        #expect(Wording.weekDistance(from: sunday, to: sunday.adding(weeks: -3)) == "3 weeks ago")
     }
 
     @Test func attentionReasons() {

@@ -6,8 +6,17 @@
 //     endpoint with Basic auth; there is no refresh token.
 //   - GET /project/{id}/data answers the list's UNDONE tasks only. Completed
 //     ones come from POST /task/completed (a time window, at most 200).
-//   - A subtask is a task with `parentId`; `items` is a checklist, not subtasks.
+//   - A subtask is a task with `parentId` (`""` detaches it); `items` is a
+//     checklist, not subtasks.
 //   - Status: -1 won't do, 0 open, 2 completed.
+//
+// And from trying them (November 2026), where the docs say nothing:
+//   - A task carries `columnId`, the section it is in, once it is in one; it
+//     can be set on create and on update.
+//   - An update changes only the fields it sends; `dueDate: null` clears the
+//     date and `status: 0` reopens a completed task.
+//   - Tags come back lowercased.
+//   - /task/completed answers tasks without their due date.
 import { env } from '~/lib/env'
 
 const API = 'https://api.ticktick.com/open/v1'
@@ -26,8 +35,16 @@ export interface RemoteTask {
   isAllDay?: boolean
   timeZone?: string | null
   parentId?: string | null
+  columnId?: string | null
+  tags?: string[]
+  repeatFlag?: string | null
   deleted?: number | boolean
   [key: string]: unknown
+}
+
+export interface RemoteColumn {
+  id: string
+  name: string
 }
 
 export interface RemoteProject {
@@ -59,7 +76,7 @@ async function call<T>(
   method: string,
   path: string,
   body?: unknown,
-  opts: { notFoundIsNull?: boolean } = {},
+  opts: { notFoundIsNull?: boolean; once?: boolean } = {},
 ): Promise<T | null> {
   for (let attempt = 0; ; attempt++) {
     const res = await fetch(`${API}${path}`, {
@@ -73,7 +90,9 @@ async function call<T>(
     })
     if (res.status === 401) throw new TickTickAuthError()
     if (res.status === 404 && opts.notFoundIsNull) return null
-    if ((res.status === 429 || res.status >= 500) && attempt < 2) {
+    // A create is sent once: a retry after an answer that got lost would make a
+    // second task. Anything else is safe to send again.
+    if ((res.status === 429 || res.status >= 500) && attempt < 2 && !opts.once) {
       await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)))
       continue
     }
@@ -89,13 +108,19 @@ export function tickTick(token: string) {
   return {
     listProjects: async () => (await call<RemoteProject[]>(token, 'GET', '/project')) ?? [],
     createProject: async (name: string) => {
-      const project = await call<RemoteProject>(token, 'POST', '/project', { name, viewMode: 'list', kind: 'TASK' })
+      const project = await call<RemoteProject>(
+        token,
+        'POST',
+        '/project',
+        { name, viewMode: 'list', kind: 'TASK' },
+        { once: true },
+      )
       if (!project) throw new TickTickError(500, 'TickTick created no list')
       return project
     },
     /** The list and its undone tasks, or null when the list is gone. */
     projectData: (projectId: string) =>
-      call<{ project?: RemoteProject; tasks?: RemoteTask[] }>(
+      call<{ project?: RemoteProject; tasks?: RemoteTask[]; columns?: RemoteColumn[] }>(
         token,
         'GET',
         `/project/${encodeURIComponent(projectId)}/data`,
@@ -117,9 +142,20 @@ export function tickTick(token: string) {
         { notFoundIsNull: true },
       ),
     createTask: async (task: Partial<RemoteTask> & { projectId: string; title: string }) => {
-      const created = await call<RemoteTask>(token, 'POST', '/task', task)
+      const created = await call<RemoteTask>(token, 'POST', '/task', task, { once: true })
       if (!created?.id) throw new TickTickError(500, 'TickTick created no task')
       return created
+    },
+    createColumn: async (projectId: string, name: string) => {
+      const column = await call<RemoteColumn>(
+        token,
+        'POST',
+        `/project/${encodeURIComponent(projectId)}/column`,
+        { name },
+        { once: true },
+      )
+      if (!column?.id) throw new TickTickError(500, `TickTick made no "${name}" section`)
+      return column
     },
     updateTask: async (task: Partial<RemoteTask> & { id: string; projectId: string }) =>
       call<RemoteTask>(token, 'POST', `/task/${encodeURIComponent(task.id)}`, task),

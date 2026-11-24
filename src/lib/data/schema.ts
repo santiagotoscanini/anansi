@@ -324,7 +324,7 @@ export const weeklySync = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    weekDate: timestamp('week_date').notNull(), // Monday of the retrospective week
+    weekDate: timestamp('week_date').notNull(), // Sunday of the retrospective week
     templateId: text('template_id').references(() => syncTemplates.id, { onDelete: 'set null' }),
     ...timestamps,
   },
@@ -1194,18 +1194,23 @@ export const apiKeys = pgTable(
 
 // ── TickTick ────────────────────────────────────────────────────────────────
 //
-// The two-way sync with one TickTick list (see server/ticktick/). A goal is a
-// top-level task in that list and each of its tasks a subtask of it.
+// The two-way sync with one TickTick list (see server/ticktick/). Each task is
+// a task in that list, named `{emoji} {title}`, tagged with its goal, in the
+// section (Past due, This month, …) its due day puts it in.
 
 /** What the last sync agreed a linked item looks like, in TickTick's terms. */
 export interface TickTickSnapshot {
+  /** As TickTick shows it: `{emoji} {title}`. */
   title: string
   content: string
-  /** Tasks only. */
   completed?: boolean
-  /** Tasks only: the due day, YYYY-MM-DD in the connection's time zone. */
+  /** The due day, YYYY-MM-DD in the connection's time zone. */
   due?: string | null
-  /** Tasks only: the TickTick id of the parent (the goal's task). */
+  /** The goal's tag (its title, lowercased: TickTick lowercases tags). */
+  goal?: string | null
+  /** The section the task was last put in (a `SectionKey`). */
+  section?: string | null
+  /** Legacy: until November 2026 a task was a subtask of its goal's task. */
   parent?: string | null
 }
 
@@ -1233,9 +1238,10 @@ export const tickTickConnections = pgTable('ticktick_connections', {
   ...timestamps,
 })
 
-// A goal or task and the TickTick task it is. No FK to goals/tasks on purpose:
-// the link outlives a local delete, which is how the sync learns to delete the
-// TickTick side.
+// A task and the TickTick task it is. No FK to tasks on purpose: the link
+// outlives a local delete, which is how the sync learns to delete the TickTick
+// side. `kind = 'goal'` rows are legacy (goals were TickTick tasks until
+// November 2026); the sync removes them and their TickTick tasks.
 export const tickTickLinks = pgTable(
   'ticktick_links',
   {

@@ -26,6 +26,5 @@ INFOPLIST_KEY_NSHealthShareUsageDescription = Anansi reads your daily sleep, act
 // Anansi never writes to Health.
 INFOPLIST_KEY_NSHealthUpdateUsageDescription = Anansi does not write to Health. It only reads your daily totals to show them with your weekly syncs.
 
-// Capture: "Record a thought" records a voice note, transcribed on this iPhone (SpeechAnalyzer).
+// Capture: "Record a thought" records a voice note (16 kHz mono WAV); Anansi's server transcribes it.
 INFOPLIST_KEY_NSMicrophoneUsageDescription = Anansi records the voice notes you capture, to keep them in your inbox with what you said.
-INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = Anansi turns your voice notes into text on this iPhone, so they can go to your inbox or an open question.

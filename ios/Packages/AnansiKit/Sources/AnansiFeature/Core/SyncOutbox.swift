@@ -18,12 +18,14 @@ nonisolated struct OutboxOp: Codable, Hashable, Sendable, Identifiable {
         case setJournal(content: String?, highlights: [String]?)
         /// A typed thought for the Inbox (`POST /api/v1/captures`), aimed at an open question or not.
         case capture(text: String, questionId: String?, capturedAt: Date)
-        /// A voice note: the recording kept on disk under the outbox folder by `localFile` name until it lands,
-        /// and its words when they were known before it went out.
+        /// A voice note: the recording (a `.wav`; an `.m4a` from older builds) kept on disk under the outbox folder
+        /// by `localFile` name until it lands. The server transcribes it; `transcript` is set only in ops queued by
+        /// builds that transcribed on the phone, kept so those queues still decode and send.
         case voiceCapture(localFile: String, questionId: String?, capturedAt: Date, durationMs: Int, byteCount: Int,
                           transcript: String?)
-        /// A voice note's words, transcribed after the recording was queued. Sent to the capture the recording
-        /// became (`SyncOutbox.serverCaptureId`); the queue's order puts it after the recording.
+        /// A voice note's words, from builds that transcribed on the phone after the recording was queued (new
+        /// builds queue none; kept for old queues). Sent to the capture the recording became
+        /// (`SyncOutbox.serverCaptureId`); the queue's order puts it after the recording.
         case captureTranscript(String)
     }
 

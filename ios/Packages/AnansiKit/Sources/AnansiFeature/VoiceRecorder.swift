@@ -1,10 +1,10 @@
 import AVFoundation
 import Foundation
 import Observation
-import Speech
 
-/// One recording: microphone to an AAC `.m4a` in a temporary folder (moved into the outbox only once finished, so
-/// the outbox's sweep never sees a file still being written), with the elapsed time and a level for the meter.
+/// One recording: microphone to a 16 kHz mono 16-bit WAV in a temporary folder, moved into the outbox only once
+/// finished (so the outbox's sweep never sees a file still being written), with the elapsed time and a level for the
+/// meter. WAV because the server's Whisper refuses AAC and the server has nothing to convert with (~1.9 MB a minute).
 /// Everything here runs on the main actor; AVAudioRecorder is driven from it and polled for its meter.
 @Observable
 final class VoiceRecorder {
@@ -27,7 +27,7 @@ final class VoiceRecorder {
     init() {
         let folder = FileManager.default.temporaryDirectory.appending(path: "Recordings", directoryHint: .isDirectory)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        fileURL = folder.appending(path: "\(UUID().uuidString).m4a")
+        fileURL = folder.appending(path: "\(UUID().uuidString).wav")
     }
 
     func start() async {
@@ -41,10 +41,13 @@ final class VoiceRecorder {
             try session.setCategory(.record, mode: .default)
             try session.setActive(true)
             let settings: [String: Any] = [
-                AVFormatIDKey: kAudioFormatMPEG4AAC,
-                AVSampleRateKey: 44_100,
+                AVFormatIDKey: kAudioFormatLinearPCM,
+                AVSampleRateKey: 16_000,
                 AVNumberOfChannelsKey: 1,
-                AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
+                AVLinearPCMBitDepthKey: 16,
+                AVLinearPCMIsFloatKey: false,
+                AVLinearPCMIsBigEndianKey: false,
+                AVLinearPCMIsNonInterleaved: false,
             ]
             let recorder = try AVAudioRecorder(url: fileURL, settings: settings)
             recorder.isMeteringEnabled = true
@@ -98,38 +101,4 @@ final class VoiceRecorder {
 
 private struct RecorderError: Error, LocalizedError {
     var errorDescription: String? { "The microphone didn't start." }
-}
-
-/// Speech to text on this iPhone (SpeechAnalyzer + SpeechTranscriber): nothing leaves the phone to be transcribed.
-/// It runs off the main actor; only the file's URL goes in and only the text comes out.
-nonisolated enum OnDeviceTranscriber {
-    /// The user's preferred language when the transcriber has it, else English.
-    @concurrent static func locale() async -> Locale {
-        for identifier in Locale.preferredLanguages {
-            if let match = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: identifier)) {
-                return match
-            }
-        }
-        return await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: "en-US"))
-            ?? Locale(identifier: "en-US")
-    }
-
-    /// The words in a recording, installing the language's model first when the phone doesn't have it yet.
-    @concurrent static func transcribe(_ url: URL) async throws -> String {
-        let transcriber = SpeechTranscriber(locale: await locale(), transcriptionOptions: [], reportingOptions: [],
-                                            attributeOptions: [])
-        if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
-            try await request.downloadAndInstall()
-        }
-        let file = try AVAudioFile(forReading: url)
-        // Starts analysing the whole file at once and finishes when it ends, so the results end too.
-        let analyzer = try await SpeechAnalyzer(inputAudioFile: file, modules: [transcriber], finishAfterFile: true)
-        var parts: [String] = []
-        for try await result in transcriber.results {
-            let words = String(result.text.characters).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !words.isEmpty { parts.append(words) }
-        }
-        withExtendedLifetime(analyzer) {}
-        return parts.joined(separator: " ")
-    }
 }

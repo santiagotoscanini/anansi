@@ -14,8 +14,8 @@ public enum AnansiApp {
         OutboxStore.shared.resume()
         // Registers for Health's background wake-ups, which must happen on every launch.
         HealthSync.shared.start()
-        // Words of voice notes the last run did not have time to transcribe.
-        TranscriptionStore.shared.runPending()
+        // Voice notes are transcribed by the server now; the phone's old copies go.
+        VoiceCaptures.removeOldTranscriptionCopies()
         Task { await BackgroundRecorder.shared.endLeftovers() }
     }
 }

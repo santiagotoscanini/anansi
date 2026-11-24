@@ -192,17 +192,25 @@ nonisolated enum API {
         send("POST", "api/v1/captures", NewCapture(text: text, questionId: questionId, capturedAt: instant(capturedAt)))
     }
 
-    /// The body is the recording, sent separately (from disk).
+    /// A recording's Content-Type and name by its file: a WAV (what the server's transcriber takes), or an `.m4a`
+    /// queued by a build that recorded AAC (the server keeps it, and its transcriber refuses it).
+    static func voiceFormat(localFile: String) -> (contentType: String, fileName: String) {
+        localFile.lowercased().hasSuffix(".m4a") ? ("audio/mp4", "Voice note.m4a") : ("audio/wav", "Voice note.wav")
+    }
+
+    /// The body is the recording, sent separately (from disk). `transcript` rides only with ops queued by builds
+    /// that transcribed on the phone.
     static func uploadVoiceCapture(questionId: String?, capturedAt: Date, durationMs: Int, transcript: String?,
-                                   contentType: String = "audio/mp4") -> Endpoint {
+                                   localFile: String = "recording.wav") -> Endpoint {
+        let format = voiceFormat(localFile: localFile)
         var query = [URLQueryItem(name: "capturedAt", value: instant(capturedAt)),
                      URLQueryItem(name: "durationMs", value: String(max(0, durationMs))),
-                     URLQueryItem(name: "fileName", value: "Voice note.m4a")]
+                     URLQueryItem(name: "fileName", value: format.fileName)]
         if let questionId { query.append(URLQueryItem(name: "questionId", value: questionId)) }
         if let transcript, transcript.count <= transcriptInQueryMax {
             query.append(URLQueryItem(name: "transcript", value: transcript))
         }
-        return Endpoint(method: "POST", path: "api/v1/captures/voice", query: query, contentType: contentType)
+        return Endpoint(method: "POST", path: "api/v1/captures/voice", query: query, contentType: format.contentType)
     }
 
     static func setCaptureTranscript(_ id: String, transcript: String) -> Endpoint {

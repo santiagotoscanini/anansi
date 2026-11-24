@@ -145,7 +145,7 @@ public struct AddToQuestionIntent: AppIntent {
 public struct RecordThoughtIntent: AudioRecordingIntent, LiveActivityIntent {
     public static let title: LocalizedStringResource = "Record a thought"
     public static let description = IntentDescription(
-        "Record a voice note without opening Anansi; run it again to stop. The note is transcribed on this device and kept with its audio.")
+        "Record a voice note without opening Anansi; run it again to stop. Anansi transcribes the note and keeps it with its audio.")
     public static let authenticationPolicy: IntentAuthenticationPolicy = .alwaysAllowed
     public static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
 
@@ -171,7 +171,7 @@ public struct RecordThoughtIntent: AudioRecordingIntent, LiveActivityIntent {
 public struct OpenRecorderIntent: AppIntent {
     public static let title: LocalizedStringResource = "Record in Anansi"
     public static let description = IntentDescription(
-        "Open Anansi straight into a voice recorder. The note is transcribed on this device and kept with its audio.")
+        "Open Anansi straight into a voice recorder. Anansi transcribes the note and keeps it with its audio.")
     public static let supportedModes: IntentModes = .foreground(.immediate)
 
     @Parameter(title: "Open question")

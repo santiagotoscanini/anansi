@@ -24,8 +24,16 @@ nonisolated struct Capture: Codable, Hashable, Sendable, Identifiable {
     var source: String?
     /// ISO 8601: the moment on the device that captured it.
     var capturedAt: String
+    /// A voice note's words, written by the server's transcriber: `pending`, `done`, `failed` (it refused the
+    /// audio), or `none` for typed text. Absent from servers before server transcription.
+    var transcriptStatus: String?
+    var transcribeAttempts: Int?
+    var transcribeError: String?
 
     var isVoice: Bool { kind == "voice" }
+
+    /// A voice note whose words the server has not written yet (and has not given up on).
+    var isTranscribing: Bool { isVoice && text == nil && transcriptStatus != "failed" }
 }
 
 /// An open question, for the question picker (`/api/v1/open-questions`).
@@ -65,8 +73,32 @@ nonisolated enum CaptureRules {
         if c.noteId != nil { return .question(c.question ?? "an open question") }
         if c.tickTickTaskId != nil { return .tickTick }
         if let error = c.routeError { return .failed(error) }
-        if c.isVoice && c.text == nil { return .transcribing }
+        if c.isVoice && c.text == nil && c.transcriptStatus != "failed" { return .transcribing }
         return .kept
+    }
+
+    /// What the Inbox shows in place of a capture's words (the web's `transcriptView`).
+    enum Words: Hashable, Sendable {
+        case text(String)
+        case empty
+        case transcribing(retrying: Bool)
+        case failed(String)
+    }
+
+    static func words(_ c: Capture) -> Words {
+        if let text = c.text { return text.isEmpty ? .empty : .text(text) }
+        if c.transcriptStatus == "failed" { return .failed(c.transcribeError ?? "") }
+        return .transcribing(retrying: (c.transcribeAttempts ?? 0) > 0 || c.transcribeError != nil)
+    }
+
+    /// The words as one line of text, for a row or a card.
+    static func wordsLine(_ c: Capture) -> String {
+        switch words(c) {
+        case .text(let text): text
+        case .empty: "No words heard"
+        case .transcribing(let retrying): retrying ? "Transcribing… (waiting for the transcriber)" : "Transcribing…"
+        case .failed: "Couldn't transcribe it"
+        }
     }
 
     static func label(_ destination: Destination) -> String {

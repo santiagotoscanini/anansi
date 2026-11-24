@@ -3,11 +3,14 @@ import SwiftUI
 struct InboxRoute: Hashable {}
 
 /// The Inbox: what was captured lately and where each one went (an open question, the TickTick inbox), with the
-/// ones still on their way from this phone on top. Write or record from the toolbar.
+/// ones still on their way from this phone on top. Write or record from the toolbar. Voice notes are transcribed
+/// by the server: the list reads again while one is still waiting, and a voice note's words can be corrected.
 struct InboxView: View {
     @State private var store = CaptureStore.shared
     @State private var outbox = OutboxStore.shared
     @State private var isWriting = false
+    @State private var correcting: Capture?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         List {
@@ -32,7 +35,15 @@ struct InboxView: View {
                             .foregroundStyle(AN.ink3)
                     }
                 } else {
-                    ForEach(store.captures) { capture in CaptureRow(capture: capture) }
+                    ForEach(store.captures) { capture in
+                        if capture.isVoice, capture.text != nil {
+                            Button { correcting = capture } label: { CaptureRow(capture: capture) }
+                                .buttonStyle(.plain)
+                                .accessibilityHint("Correct its words")
+                        } else {
+                            CaptureRow(capture: capture)
+                        }
+                    }
                 }
             } header: {
                 Eyebrow(text: "Captured")
@@ -54,7 +65,72 @@ struct InboxView: View {
             }
         }
         .sheet(isPresented: $isWriting) { CaptureComposeView() }
-        .task { await store.load() }
+        .sheet(item: $correcting) { capture in TranscriptEditView(capture: capture) }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            await store.load()
+            // Words still on their way from the server: read again every few seconds for a while.
+            for _ in 0..<24 where store.captures.contains(where: \.isTranscribing) {
+                do { try await Task.sleep(for: .seconds(5)) } catch { return }
+                await store.load()
+            }
+        }
+    }
+}
+
+/// A voice note's words, corrected by hand. They are the user's from then on: the server's transcriber never
+/// replaces them.
+struct TranscriptEditView: View {
+    let capture: Capture
+    @State private var text: String
+    @State private var isSaving = false
+    @State private var problem: String?
+    @Environment(\.dismiss) private var dismiss
+
+    init(capture: Capture) {
+        self.capture = capture
+        _text = State(initialValue: capture.text ?? "")
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextEditor(text: $text)
+                        .font(AN.text(.body))
+                        .frame(minHeight: 160)
+                } footer: {
+                    Text(problem ?? "The first line is its title in TickTick.")
+                        .foregroundStyle(problem == nil ? AN.ink3 : AN.rust)
+                }
+                .anansiRow()
+            }
+            .anansiList()
+            .navigationTitle("Correct the words")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { Task { await save() } }
+                        .disabled(isSaving)
+                }
+            }
+        }
+    }
+
+    private func save() async {
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let saved = try await APIClient.shared.setCaptureTranscript(capture.id, transcript: words)
+            CaptureStore.shared.didLand(saved)
+            dismiss()
+        } catch {
+            problem = "Couldn't save it: \(error.localizedDescription)"
+        }
     }
 }
 
@@ -75,12 +151,14 @@ struct CaptureRow: View {
                 .foregroundStyle(AN.ink4)
             VStack(alignment: .leading, spacing: 4) {
                 Group {
-                    if let text = capture.text, !text.isEmpty {
+                    switch CaptureRules.words(capture) {
+                    case .text(let text):
                         Text(text).foregroundStyle(AN.ink)
-                    } else if capture.text == nil {
-                        Text("Transcribing…").italic().foregroundStyle(AN.ink3)
-                    } else {
-                        Text("No words heard").italic().foregroundStyle(AN.ink3)
+                    case .failed(let message):
+                        Text(message.isEmpty ? "Couldn't transcribe it." : "Couldn't transcribe it: \(message)")
+                            .foregroundStyle(AN.rust)
+                    default:
+                        Text(CaptureRules.wordsLine(capture)).italic().foregroundStyle(AN.ink3)
                     }
                 }
                 .font(AN.text(.body))
@@ -164,7 +242,8 @@ struct CaptureCard: View {
                     }
                     ForEach(latest) { capture in
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(capture.text.map { $0.isEmpty ? "No words heard" : CaptureRules.title($0) } ?? "Transcribing…")
+                            Text(capture.text.map { $0.isEmpty ? "No words heard" : CaptureRules.title($0) }
+                                ?? CaptureRules.wordsLine(capture))
                                 .font(AN.text(.body))
                                 .foregroundStyle(AN.ink)
                                 .lineLimit(1)

@@ -71,19 +71,25 @@
   target, `Anansi/AnansiShortcuts.swift`, which reaches the package's intents through `AppIntentsPackage`
   (`AnansiAppIntents` → `AppFeatureIntents` → `AnansiIntentsPackage` → `AnansiActivityIntents`); keep that chain when
   adding an intent. A recording goes to a temporary folder and is moved into the outbox only once stopped
-  (`VoiceCaptures.queue`); the transcriber (`OnDeviceTranscriber`, SpeechAnalyzer + SpeechTranscriber, off the main
-  actor, the user's language else English, model installed with `AssetInventory`) reads a copy. Its words ride with
-  the queued recording, or follow it as a `captureTranscript` op sent to the server id the recording got
-  (`SyncOutbox.captureIds`). Pure rules (title, where a capture went) are `Core/Capture.swift`, the server's
+  (`VoiceCaptures.queue`), then uploaded. **The phone does not transcribe**: the server does, with the box's Whisper
+  through the LiteLLM gateway's `stt` model (`src/server/transcribe.ts`). That Whisper refuses AAC and the server
+  has no ffmpeg, so `VoiceRecorder` records **16 kHz mono 16-bit little-endian linear PCM WAV** (`.wav`, uploaded as
+  `audio/wav`, about 1.9 MB a minute, 58 MB at the 30-minute limit); `API.voiceFormat` sends an `.m4a` still in an
+  old outbox as `audio/mp4`, which the server keeps and marks `failed` (shown in the Inbox). A capture carries
+  `transcriptStatus` (`pending|done|failed|none`); the Inbox shows "Transcribing…" until the words arrive, reads
+  again on foreground and every few seconds while one is pending, and lets a voice note's words be corrected
+  (`TranscriptEditView`, `PATCH /api/v1/captures/{id}`), which makes them the user's: the server never replaces
+  them. The `transcript` of a queued `voiceCapture` and the `captureTranscript` op are kept only so queues written
+  by builds that transcribed on the phone still decode and send. No speech-recognition permission. Pure rules
+  (title, where a capture went, what its words line says) are `Core/Capture.swift`, the server's
   `src/lib/captures.ts`. The phone does not play a capture's audio back (the server serves it to the web only).
 - Recording without opening the app: "Record a thought" (`RecordThoughtIntent`, the Action Button, Siri, Shortcuts)
   and the Control Center control (`ToggleRecordingIntent`) are `AudioRecordingIntent` + `LiveActivityIntent`, so they
   run in the app's process, in the background. `BackgroundRecorder` (AnansiFeature) activates the audio session,
   requests the Live Activity, then starts `VoiceRecorder`; the system stops a background recording that has no Live
   Activity, so the two live and end together. A second press, the Live Activity's Stop (`StopRecordingIntent`) or the
-  30-minute limit (`RecordingRules`, `Core/Recording.swift`) stop it and queue it like the in-app recorder; its words
-  are worked out by `TranscriptionStore` (a `TranscriptionQueue` on disk), which finishes at the next launch or
-  foregrounding what the background time did not cover. When it cannot start in the background (microphone not yet
+  30-minute limit (`RecordingRules`, `Core/Recording.swift`) stop it and queue it like the in-app recorder (the server
+  transcribes it). When it cannot start in the background (microphone not yet
   allowed, which only the app can ask; Live Activities off; the system refusing), the intent calls
   `continueInForeground` and opens the in-app recorder. The app needs `UIBackgroundModes` `audio` and
   `NSSupportsLiveActivities` (`Config/Info.plist`). The three recording intents set `authenticationPolicy = .alwaysAllowed`.

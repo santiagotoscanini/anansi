@@ -78,11 +78,11 @@ final class OutboxStore {
         return itemId
     }
 
-    /// Moves a finished recording into the outbox folder and queues its upload. Answers the capture's item id, which
-    /// its transcript is sent with later (`setTranscript`).
+    /// Moves a finished recording (a WAV) into the outbox folder and queues its upload. Answers the capture's item id.
+    /// The server transcribes it.
     func addVoiceCapture(recordingAt source: URL, questionId: String?, capturedAt: Date, durationMs: Int) throws -> String {
         let id = UUID()
-        let local = "\(id.uuidString).m4a"
+        let local = "\(id.uuidString).wav"
         let target = fileURL(local)
         try? FileManager.default.removeItem(at: target)
         try FileManager.default.moveItem(at: source, to: target)
@@ -95,14 +95,6 @@ final class OutboxStore {
         save()
         pump()
         return itemId
-    }
-
-    /// A voice note's words, transcribed on the phone (empty when it heard none).
-    func setTranscript(captureItemId: String, transcript: String) {
-        outbox.setTranscript(captureItemId: captureItemId, title: CaptureRules.title(transcript),
-                             transcript: transcript, now: .now)
-        save()
-        pump()
     }
 
     /// Waits until nothing of this capture is left in the queue, or the time is up. Answers whether it went.
@@ -252,7 +244,7 @@ final class OutboxStore {
     private func sweepFiles() {
         let keep = outbox.referencedFiles
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path(percentEncoded: false))) ?? []
-        for name in names where (name.hasSuffix(".jpg") || name.hasSuffix(".m4a")) && !keep.contains(name) {
+        for name in names where (name.hasSuffix(".jpg") || name.hasSuffix(".wav") || name.hasSuffix(".m4a")) && !keep.contains(name) {
             try? FileManager.default.removeItem(at: fileURL(name))
         }
     }

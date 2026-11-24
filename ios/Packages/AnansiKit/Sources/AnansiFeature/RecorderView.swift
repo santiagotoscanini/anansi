@@ -2,16 +2,13 @@ import Foundation
 import Observation
 import SwiftUI
 
-/// One voice note from start to sent: it records as soon as it opens (the Action Button's "Record a thought"),
-/// queues the audio the moment it stops, transcribes it on the phone and lets the words be fixed before they go.
-/// Closing early never loses anything: a recording in progress is stopped and kept, and words still being
-/// transcribed are sent when they are ready.
+/// One voice note from start to saved: it records as soon as it opens (the Action Button's "Record a thought") and
+/// queues the audio the moment it stops. Anansi's server transcribes it; the Inbox shows the words when they come.
+/// Closing early never loses anything: a recording in progress is stopped and kept.
 @Observable
 final class RecordingSession {
     enum Step: Equatable {
         case recording
-        case transcribing
-        case reviewing
         case done
         case failed(String)
     }
@@ -19,12 +16,7 @@ final class RecordingSession {
     let request: RecordRequest
     let recorder = VoiceRecorder()
     private(set) var step: Step = .recording
-    var transcript = ""
-    private(set) var transcriptionProblem: String?
-    @ObservationIgnored private var captureItemId: String?
     @ObservationIgnored private var startedAt = Date.now
-    @ObservationIgnored private var sendWhenTranscribed = false
-    @ObservationIgnored private var sent = false
 
     init(request: RecordRequest) {
         self.request = request
@@ -42,54 +34,18 @@ final class RecordingSession {
             step = .failed("Nothing was recorded.")
             return
         }
-        // The outbox owns the recording from here; the transcriber reads its own copy.
-        let copy: URL
         do {
-            let queued = try VoiceCaptures.queue(recordingAt: recorder.fileURL, questionId: request.questionId,
-                                                 capturedAt: startedAt, durationMs: durationMs)
-            captureItemId = queued.itemId
-            guard let made = queued.copy else {
-                transcriptionProblem = "The recording is saved; it goes to Anansi without its words."
-                step = .done
-                return
-            }
-            copy = made
+            try VoiceCaptures.queue(recordingAt: recorder.fileURL, questionId: request.questionId,
+                                    capturedAt: startedAt, durationMs: durationMs)
+            step = .done
         } catch {
             step = .failed("The recording couldn't be saved: \(error.localizedDescription)")
-            return
         }
-        step = .transcribing
-        Task {
-            do {
-                let words = try await OnDeviceTranscriber.transcribe(copy)
-                transcript = words
-                step = .reviewing
-                if sendWhenTranscribed { send() }
-            } catch {
-                transcriptionProblem = "Couldn't transcribe it on this iPhone (\(error.localizedDescription)). The audio is saved and goes to Anansi as a voice note."
-                step = .done
-            }
-            try? FileManager.default.removeItem(at: copy)
-        }
-    }
-
-    /// The words, as they stand, go after the recording.
-    func send() {
-        guard !sent, let captureItemId, step == .reviewing else { return }
-        sent = true
-        OutboxStore.shared.setTranscript(captureItemId: captureItemId,
-                                         transcript: transcript.trimmingCharacters(in: .whitespacesAndNewlines))
-        step = .done
     }
 
     /// The sheet is going away: keep whatever there is.
     func close() {
-        switch step {
-        case .recording: stop(); sendWhenTranscribed = true
-        case .transcribing: sendWhenTranscribed = true
-        case .reviewing: send()
-        default: break
-        }
+        if step == .recording { stop() }
     }
 }
 
@@ -156,32 +112,16 @@ struct RecorderView: View {
             }
             .accessibilityLabel("Stop recording")
             Text("Tap to stop").font(AN.ui(.footnote)).foregroundStyle(AN.ink3)
-        case .transcribing:
-            Spacer()
-            ProgressView()
-            Text("Transcribing…").font(AN.text(.body)).foregroundStyle(AN.ink2)
-            Text("The audio is already on its way.").font(AN.ui(.footnote)).foregroundStyle(AN.ink3)
-            Spacer()
-        case .reviewing:
-            VStack(alignment: .leading, spacing: 8) {
-                Eyebrow(text: "What you said")
-                TextEditor(text: $session.transcript)
-                    .font(AN.text(.body))
-                    .scrollContentBackground(.hidden)
-                    .anansiRecess()
-                Text("Fix anything, then Done. The first line is its title in TickTick.")
-                    .font(AN.ui(.footnote))
-                    .foregroundStyle(AN.ink3)
-            }
         case .done:
             Spacer()
             Image(systemName: "checkmark.circle").font(.system(size: 44)).foregroundStyle(AN.moss)
-            Text(session.request.questionTitle == nil ? "Saved to your inbox." : "Added to the question.")
+            Text(session.request.questionTitle == nil ? "Saved to your inbox." : "Saved for the question.")
                 .font(AN.text(.body))
                 .foregroundStyle(AN.ink)
-            if let problem = session.transcriptionProblem {
-                Text(problem).font(AN.ui(.footnote)).foregroundStyle(AN.ink3).multilineTextAlignment(.center)
-            }
+            Text("Anansi transcribes it; its words show in the Inbox in a moment.")
+                .font(AN.ui(.footnote))
+                .foregroundStyle(AN.ink3)
+                .multilineTextAlignment(.center)
             Spacer()
         case .failed(let message):
             Spacer()

@@ -8,8 +8,7 @@ import Observation
 /// control, Siri. The system lets an `AudioRecordingIntent` use the microphone from the background only while a Live
 /// Activity shows the recording, so one is started with it (ios/AnansiWidgets draws it) and ended when it stops.
 /// A second press, the Live Activity's Stop or the 30-minute limit (`RecordingRules.maxDuration`) stop it. The
-/// recording then goes exactly like one made in the app: the file into the outbox, the words worked out on the
-/// phone (`TranscriptionStore`, which finishes later what the background time does not cover) and sent after it.
+/// recording then goes exactly like one made in the app: the file into the outbox, and the server transcribes it.
 @Observable
 final class BackgroundRecorder {
     static let shared = BackgroundRecorder()
@@ -103,9 +102,8 @@ final class BackgroundRecorder {
         var saved = false
         if let durationMs {
             do {
-                let queued = try VoiceCaptures.queue(recordingAt: recorder.fileURL, questionId: questionId,
-                                                     capturedAt: startedAt, durationMs: durationMs)
-                if let copy = queued.copy { TranscriptionStore.shared.add(captureItemId: queued.itemId, copy: copy) }
+                try VoiceCaptures.queue(recordingAt: recorder.fileURL, questionId: questionId,
+                                        capturedAt: startedAt, durationMs: durationMs)
                 saved = true
             } catch {
                 try? FileManager.default.removeItem(at: recorder.fileURL)

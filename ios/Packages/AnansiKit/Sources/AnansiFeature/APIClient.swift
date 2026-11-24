@@ -214,7 +214,8 @@ extension APIClient {
     func uploadVoiceCapture(fileURL: URL, questionId: String?, capturedAt: Date, durationMs: Int,
                             transcript: String?) async throws -> Capture {
         let body = try await upload(API.uploadVoiceCapture(questionId: questionId, capturedAt: capturedAt,
-                                                           durationMs: durationMs, transcript: transcript),
+                                                           durationMs: durationMs, transcript: transcript,
+                                                           localFile: fileURL.lastPathComponent),
                                     fileURL: fileURL, timeout: 600)
         let capture = try API.decode(Capture.self, from: body)
         if let transcript, transcript.count > API.transcriptInQueryMax {
@@ -223,6 +224,7 @@ extension APIClient {
         return capture
     }
 
+    /// The user's own words for a voice note (a correction): the server never replaces them with its transcriber's.
     @discardableResult
     func setCaptureTranscript(_ id: String, transcript: String) async throws -> Capture {
         try await call(API.setCaptureTranscript(id, transcript: transcript), as: Capture.self)

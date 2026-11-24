@@ -158,4 +158,56 @@ struct CoreCaptureTests {
         #expect(!long.query.contains(where: { $0.name == "questionId" }))
         #expect(API.instant(Date(timeIntervalSince1970: 0)) == "1970-01-01T00:00:00.000Z")
     }
+
+    // MARK: Server transcription (the web's transcriptView, anansi/src/lib/captures.test.ts)
+
+    func voice(text: String?, status: String?, attempts: Int? = nil, error: String? = nil) -> Capture {
+        var c = capture(kind: "voice", text: text)
+        c.transcriptStatus = status
+        c.transcribeAttempts = attempts
+        c.transcribeError = error
+        return c
+    }
+
+    @Test func theWordsShowWhatTheServerWrote() {
+        #expect(CaptureRules.words(voice(text: "Hi", status: "done")) == .text("Hi"))
+        #expect(CaptureRules.words(voice(text: "", status: "done")) == .empty)
+        #expect(CaptureRules.words(voice(text: nil, status: "pending")) == .transcribing(retrying: false))
+        #expect(CaptureRules.words(voice(text: nil, status: "pending", attempts: 2, error: "503"))
+            == .transcribing(retrying: true))
+        #expect(CaptureRules.words(voice(text: nil, status: "failed", attempts: 1, error: "bad audio"))
+            == .failed("bad audio"))
+        // A server from before server transcription sends no status: still "Transcribing…".
+        #expect(CaptureRules.words(voice(text: nil, status: nil)) == .transcribing(retrying: false))
+        #expect(voice(text: nil, status: "pending").isTranscribing)
+        #expect(!voice(text: nil, status: "failed").isTranscribing)
+        #expect(!voice(text: "Hi", status: "done").isTranscribing)
+    }
+
+    @Test func aRefusedVoiceNoteIsKeptNotWaiting() {
+        #expect(CaptureRules.destination(voice(text: nil, status: "pending")) == .transcribing)
+        #expect(CaptureRules.destination(voice(text: nil, status: "failed")) == .kept)
+    }
+
+    @Test func aCaptureDecodesWithItsTranscriptStatus() throws {
+        let json = """
+        {"id":"c1","kind":"voice","text":null,"durationMs":4200,"status":"new","source":"phone",
+         "capturedAt":"2026-11-24T08:00:00.000Z","transcriptStatus":"failed","transcribeAttempts":1,
+         "transcribeError":"The transcriber refused this audio (400: Invalid request)","transcriptSource":null}
+        """
+        let decoded = try JSONDecoder().decode(Capture.self, from: Data(json.utf8))
+        #expect(CaptureRules.words(decoded) == .failed("The transcriber refused this audio (400: Invalid request)"))
+    }
+
+    @Test func recordingsGoAsWavAndOldOnesAsM4a() {
+        let wav = API.uploadVoiceCapture(questionId: nil, capturedAt: t0, durationMs: 1000, transcript: nil,
+                                         localFile: "A1B2.wav")
+        #expect(wav.contentType == "audio/wav")
+        #expect(wav.query.contains(URLQueryItem(name: "fileName", value: "Voice note.wav")))
+        #expect(!wav.query.contains(where: { $0.name == "transcript" }))
+        let old = API.uploadVoiceCapture(questionId: nil, capturedAt: t0, durationMs: 1000, transcript: nil,
+                                         localFile: "A1B2.m4a")
+        #expect(old.contentType == "audio/mp4")
+        #expect(old.query.contains(URLQueryItem(name: "fileName", value: "Voice note.m4a")))
+    }
 }

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { isEmojiGlyph, isOurStorageImageUrl } from '../emoji-utils'
 import { isCalendarDay } from '../journal'
+import { healthDayDataSchema, healthMetricSchema } from '../health'
 import { overlaySchema } from '../overlay'
 import { personalityTestValues } from '../personality'
 
@@ -332,11 +333,17 @@ export const updateConnectionSchema = connectionSchema.partial().required({ id: 
 
 // Create payload: title required, goalId + description + order optional. userId
 // comes from ctx so it's not part of the input.
+// How many pictures a week of an item takes; null = any number. UI only.
+export const PHOTOS_PER_WEEK_MAX = 12
+export const photosPerWeekSchema = z.number().int().min(1).max(PHOTOS_PER_WEEK_MAX)
+
 export const createTrackingItemSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000).nullable().optional(),
   goalId: z.string().nullable().optional(),
   order: z.number().int().optional(),
+  photosPerWeek: photosPerWeekSchema.nullable().optional(),
+  healthMetric: healthMetricSchema.nullable().optional(),
 })
 export const updateTrackingItemSchema = z.object({
   id: z.string(),
@@ -345,6 +352,8 @@ export const updateTrackingItemSchema = z.object({
   goalId: z.string().nullable().optional(),
   order: z.number().int().optional(),
   status: z.enum(['active', 'archived']).optional(),
+  photosPerWeek: photosPerWeekSchema.nullable().optional(),
+  healthMetric: healthMetricSchema.nullable().optional(),
 })
 
 export const createWeeklySyncSchema = z.object({
@@ -385,6 +394,25 @@ export const setSyncItemTextSchema = z.object({
   weeklySyncItemId: z.string(),
   textContent: z.string(),
 })
+// Named text blocks under a sync item's notes (a transcript, a summary).
+export const SYNC_BLOCK_TITLE_MAX = 120
+export const SYNC_BLOCK_CONTENT_MAX = 200_000
+export const addSyncItemBlockSchema = z.object({
+  weeklySyncItemId: z.string(),
+  title: z.string().trim().min(1).max(SYNC_BLOCK_TITLE_MAX),
+  content: z.string().max(SYNC_BLOCK_CONTENT_MAX).optional(),
+})
+export const updateSyncItemBlockSchema = z.object({
+  id: z.string(),
+  title: z.string().trim().min(1).max(SYNC_BLOCK_TITLE_MAX).optional(),
+  content: z.string().max(SYNC_BLOCK_CONTENT_MAX).optional(),
+})
+export const removeSyncItemBlockSchema = z.object({ id: z.string() })
+export const reorderSyncItemBlocksSchema = z.object({
+  weeklySyncItemId: z.string(),
+  ids: z.array(z.string()).max(200),
+})
+
 export const reorderSyncItemsSchema = z.object({
   weeklySyncId: z.string(),
   ordering: z.array(
@@ -455,6 +483,10 @@ export type AddSyncItem = z.infer<typeof addSyncItemSchema>
 export type RemoveSyncItem = z.infer<typeof removeSyncItemSchema>
 export type SetSyncItemText = z.infer<typeof setSyncItemTextSchema>
 export type ReorderSyncItems = z.infer<typeof reorderSyncItemsSchema>
+export type AddSyncItemBlock = z.infer<typeof addSyncItemBlockSchema>
+export type UpdateSyncItemBlock = z.infer<typeof updateSyncItemBlockSchema>
+export type RemoveSyncItemBlock = z.infer<typeof removeSyncItemBlockSchema>
+export type ReorderSyncItemBlocks = z.infer<typeof reorderSyncItemBlocksSchema>
 
 export type Attachment = z.infer<typeof attachmentSchema>
 export type UploadAttachment = z.infer<typeof uploadAttachmentSchema>
@@ -657,6 +689,9 @@ export const backupTrackingItemSchema = z.object({
   deletedAt: z.coerce.date().nullable(),
   // Optional so backups written before overlays existed still import.
   overlay: overlaySchema.nullable().optional(),
+  // Optional for backups written before November 2026.
+  photosPerWeek: photosPerWeekSchema.nullable().optional(),
+  healthMetric: healthMetricSchema.nullable().optional(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 })
@@ -675,6 +710,24 @@ export const backupWeeklySyncItemSchema = z.object({
   trackingItemId: z.string(),
   textContent: z.string().nullable(),
   orderIdx: z.number().int(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+})
+
+export const backupSyncItemBlockSchema = z.object({
+  id: z.string(),
+  weeklySyncItemId: z.string(),
+  title: z.string().min(1).max(SYNC_BLOCK_TITLE_MAX),
+  content: z.string().max(SYNC_BLOCK_CONTENT_MAX),
+  orderIdx: z.number().int(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+})
+
+export const backupHealthDaySchema = z.object({
+  id: z.string(),
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  data: healthDayDataSchema,
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 })
@@ -922,6 +975,9 @@ export const backupSchema = z.object({
   openQuestionGoals: z.array(backupOpenQuestionGoalSchema).default([]),
   openQuestionPeople: z.array(backupOpenQuestionPersonSchema).default([]),
   personalityResults: z.array(backupPersonalityResultSchema).default([]),
+  // Sync item blocks and Apple Health joined in November 2026.
+  syncItemBlocks: z.array(backupSyncItemBlockSchema).default([]),
+  healthDays: z.array(backupHealthDaySchema).default([]),
 })
 
 export type Backup = z.infer<typeof backupSchema>

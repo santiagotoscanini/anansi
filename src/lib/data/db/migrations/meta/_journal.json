@@ -71,6 +71,13 @@
       "when": 1795498700260,
       "tag": "0009_self_knowledge",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795500893079,
+      "tag": "0010_tracking_photos_blocks_health",
+      "breakpoints": true
     }
   ]
 }

@@ -43,7 +43,7 @@ export function registerWeeklySyncTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Get a weekly sync',
       description:
-        "One week's retrospective: `weeklySync` (null when the week has not been started), its items grouped by goal with notes and attachments, `unscopedItems`, and `allTrackingItems`, the library to add from.",
+        "One week's retrospective: `weeklySync` (null when the week has not been started), its items grouped by goal with notes, named `blocks`, attachments and `health` (the week's Apple Health figure for an item that follows a metric, with each day), `unscopedItems`, and `allTrackingItems`, the library to add from.",
       inputSchema: toolInput({ day: localDay }),
     },
     async ({ day }) => {
@@ -124,6 +124,69 @@ export function registerWeeklySyncTools(server: McpServer, ctx: McpCtx): void {
     async (args) => {
       try {
         return mcpJsonResult(await weeklySync.setItemText(ctx.userId, setSyncItemTextSchema.parse(args)))
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'add_sync_item_block',
+    {
+      title: 'Add a block to a sync item',
+      description:
+        "Add a named text block under one sync item's notes, after its other blocks: a meeting's full transcript under `Transcript`, its summary under `Summary`. Content is Markdown, up to 200,000 characters. `weeklySyncItemId` is the item's `id` in `get_weekly_sync`. " +
+        MENTIONS,
+      inputSchema: toolInput({
+        weeklySyncItemId: z.string(),
+        title: z.string().min(1).max(120).describe('A short heading, such as Transcript or Summary.'),
+        content: z.string().max(200_000).optional(),
+      }),
+      annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    async (args) => {
+      try {
+        return mcpJsonResult(await weeklySync.addBlock(ctx.userId, args))
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'update_sync_item_block',
+    {
+      title: 'Update a sync item block',
+      description:
+        "Change a block's title, its content or both; a field left out stays. Content replaces rather than appends. " +
+        MENTIONS,
+      inputSchema: toolInput({
+        id: z.string().describe('Block id, from `blocks` in `get_weekly_sync`.'),
+        title: z.string().min(1).max(120).optional(),
+        content: z.string().max(200_000).optional(),
+      }),
+      annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    },
+    async (args) => {
+      try {
+        return mcpJsonResult(await weeklySync.updateBlock(ctx.userId, args))
+      } catch (e) {
+        return mcpErrorFromUnknown(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'delete_sync_item_block',
+    {
+      title: 'Delete a sync item block',
+      description: 'Delete one named block from a sync item. The notes and other blocks stay.',
+      inputSchema: toolInput({ id: z.string() }),
+      annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    },
+    async (args) => {
+      try {
+        return mcpJsonResult(await weeklySync.removeBlock(ctx.userId, args))
       } catch (e) {
         return mcpErrorFromUnknown(e)
       }

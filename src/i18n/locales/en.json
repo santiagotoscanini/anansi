@@ -565,7 +565,13 @@
     "emptyPre": "No tracking items yet. Click ",
     "emptyEm": "New item",
     "emptyPost": " to add one.",
-    "unscopedTag": "Unscoped"
+    "unscopedTag": "Unscoped",
+    "photosPerWeek": "Photos each week",
+    "photosAny": "Any",
+    "followsHealth": "Follows Apple Health",
+    "healthNone": "None",
+    "photosMeta_one": "{{count}} photo a week",
+    "photosMeta_other": "{{count}} photos a week"
   },
   "syncDefault": {
     "modalTitle": "Default sync items",
@@ -596,7 +602,19 @@
     "savedAlt": "Saved {{index}}",
     "deleteTitle": "Delete {{name}}",
     "mentionHint": "Type @ to mention someone.",
-    "addNote": "Add a note…"
+    "addNote": "Add a note…",
+    "addPicture": "Add a picture",
+    "replacePicture": "Replace picture",
+    "replaceFailed": "Couldn't replace the picture",
+    "addBlock": "Add a block",
+    "blockTitlePlaceholder": "Title, like Transcript or Summary",
+    "blockContentPlaceholder": "Write or paste…",
+    "blockEmpty": "Empty. Click to write.",
+    "showAll": "Show all",
+    "showLess": "Show less",
+    "deleteBlock": "Delete block",
+    "deleteBlockPrompt": "Delete the block \"{{title}}\"?",
+    "blockSaveFailed": "Couldn't save the block"
   },
   "weeklySync": {
     "eyebrow": "Sync · weekly retrospective",
@@ -1609,5 +1627,40 @@
     "create": "Add “{{name}}” to People",
     "created": "{{name}} added to People",
     "createFailed": "Could not add that person"
+  },
+  "health": {
+    "metric": {
+      "sleep": "Sleep",
+      "steps": "Steps",
+      "activeEnergy": "Active energy",
+      "exercise": "Exercise",
+      "workouts": "Workouts",
+      "weight": "Weight",
+      "bodyFat": "Body fat",
+      "restingHeartRate": "Resting heart rate",
+      "hrv": "HRV"
+    },
+    "unit": {
+      "h": "h",
+      "steps": "steps",
+      "kcal": "kcal",
+      "min": "min",
+      "workouts": "workouts",
+      "kg": "kg",
+      "%": "%",
+      "bpm": "bpm",
+      "ms": "ms"
+    },
+    "over": {
+      "average": "avg",
+      "total": "total",
+      "count": "",
+      "last": "latest"
+    },
+    "days": "{{count}} of 7 days",
+    "nights": "{{count}} of 7 nights",
+    "none": "No Health data this week",
+    "dayTitle": "{{day}}: {{value}}",
+    "dayNone": "{{day}}: nothing"
   }
 }

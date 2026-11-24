@@ -3,7 +3,8 @@ import { Link } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { Plus, Pencil, Trash2, History } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { Goal } from '~/lib/api/types'
+import { PHOTOS_PER_WEEK_MAX, type Goal } from '~/lib/api/types'
+import { HEALTH_METRICS, healthMetricSchema, type HealthMetric } from '~/lib/health'
 import { useCreateTrackingItem, useDeleteTrackingItem, useUpdateTrackingItem } from '~/lib/mutations/tracking-items'
 import { useGoalsData } from '~/lib/queries/goals'
 import { trackingItemsQueryOptions, type TrackingItemRow } from '~/lib/queries/sync'
@@ -15,6 +16,11 @@ import toast from 'react-hot-toast'
 // show an "Unscoped" pill. Editing/creation here is independent of any goal,
 // which is the whole point: you can track things (sleep, journaling cadence,
 // a relationship intention) that aren't anchored to an active objective.
+/** The editor's "Photos each week" value: '' is any number. */
+const photosOf = (v: string) => (v ? Number(v) : null)
+/** The editor's "Follows Apple Health" value: '' is none. */
+const metricOf = (v: string) => healthMetricSchema.safeParse(v).data ?? null
+
 export default function TrackingItemsLibrary() {
   const { t } = useTranslation()
   const { data: items } = useSuspenseQuery(trackingItemsQueryOptions())
@@ -27,10 +33,14 @@ export default function TrackingItemsLibrary() {
   const [draftTitle, setDraftTitle] = useState('')
   const [draftDescription, setDraftDescription] = useState('')
   const [draftGoalId, setDraftGoalId] = useState<string>('')
+  const [draftPhotos, setDraftPhotos] = useState('')
+  const [draftHealth, setDraftHealth] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [editGoalId, setEditGoalId] = useState<string>('')
+  const [editPhotos, setEditPhotos] = useState('')
+  const [editHealth, setEditHealth] = useState('')
 
   const goalsById = useMemo(() => {
     const map = new Map<string, Goal>()
@@ -43,6 +53,8 @@ export default function TrackingItemsLibrary() {
     setEditTitle(item.title)
     setEditDescription(item.description ?? '')
     setEditGoalId(item.goalId ?? '')
+    setEditPhotos(item.photosPerWeek ? String(item.photosPerWeek) : '')
+    setEditHealth(item.healthMetric ?? '')
   }
 
   const cancelEdit = () => {
@@ -50,6 +62,8 @@ export default function TrackingItemsLibrary() {
     setEditTitle('')
     setEditDescription('')
     setEditGoalId('')
+    setEditPhotos('')
+    setEditHealth('')
   }
 
   const cancelCreate = () => {
@@ -57,6 +71,8 @@ export default function TrackingItemsLibrary() {
     setDraftTitle('')
     setDraftDescription('')
     setDraftGoalId('')
+    setDraftPhotos('')
+    setDraftHealth('')
   }
 
   const handleCreate = async () => {
@@ -70,6 +86,8 @@ export default function TrackingItemsLibrary() {
         title,
         description: draftDescription.trim() || undefined,
         goalId: draftGoalId || undefined,
+        photosPerWeek: photosOf(draftPhotos),
+        healthMetric: metricOf(draftHealth),
       })
       toast.success(t('trackingItems.created'))
       cancelCreate()
@@ -91,6 +109,8 @@ export default function TrackingItemsLibrary() {
         title,
         description: editDescription.trim() || null,
         goalId: editGoalId === '' ? null : editGoalId,
+        photosPerWeek: photosOf(editPhotos),
+        healthMetric: metricOf(editHealth),
       })
       toast.success(t('trackingItems.saved'))
       cancelEdit()
@@ -119,6 +139,10 @@ export default function TrackingItemsLibrary() {
     setDescription: (v: string) => void
     goalId: string
     setGoalId: (v: string) => void
+    photos: string
+    setPhotos: (v: string) => void
+    health: string
+    setHealth: (v: string) => void
     onCancel: () => void
     onSave: () => void
     saving: boolean
@@ -139,6 +163,38 @@ export default function TrackingItemsLibrary() {
         rows={2}
         className={field}
       />
+      <div className="flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-[var(--ink-3)]">
+        <label className="flex items-center gap-2 whitespace-nowrap">
+          {t('trackingItems.photosPerWeek')}
+          <select
+            value={props.photos}
+            onChange={(e) => props.setPhotos(e.target.value)}
+            className={`${field} w-auto py-1`}
+          >
+            <option value="">{t('trackingItems.photosAny')}</option>
+            {Array.from({ length: PHOTOS_PER_WEEK_MAX }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 whitespace-nowrap">
+          {t('trackingItems.followsHealth')}
+          <select
+            value={props.health}
+            onChange={(e) => props.setHealth(e.target.value)}
+            className={`${field} w-auto py-1`}
+          >
+            <option value="">{t('trackingItems.healthNone')}</option>
+            {(Object.keys(HEALTH_METRICS) as HealthMetric[]).map((m) => (
+              <option key={m} value={m}>
+                {t(`health.metric.${m}`)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <select
           value={props.goalId}
@@ -203,6 +259,10 @@ export default function TrackingItemsLibrary() {
           setDescription: setDraftDescription,
           goalId: draftGoalId,
           setGoalId: setDraftGoalId,
+          photos: draftPhotos,
+          setPhotos: setDraftPhotos,
+          health: draftHealth,
+          setHealth: setDraftHealth,
           onCancel: cancelCreate,
           onSave: () => void handleCreate(),
           saving: createMutation.isPending,
@@ -230,6 +290,10 @@ export default function TrackingItemsLibrary() {
                       setDescription: setEditDescription,
                       goalId: editGoalId,
                       setGoalId: setEditGoalId,
+                      photos: editPhotos,
+                      setPhotos: setEditPhotos,
+                      health: editHealth,
+                      setHealth: setEditHealth,
                       onCancel: cancelEdit,
                       onSave: () => void handleSaveEdit(),
                       saving: updateMutation.isPending,
@@ -249,6 +313,16 @@ export default function TrackingItemsLibrary() {
                         {item.description && (
                           <span className="mt-0.5 block truncate text-[13px] text-[var(--ink-3)]">
                             {item.description}
+                          </span>
+                        )}
+                        {(item.photosPerWeek !== null || item.healthMetric !== null) && (
+                          <span className="mt-0.5 block truncate text-xs text-[var(--ink-4)]">
+                            {[
+                              item.photosPerWeek && t('trackingItems.photosMeta', { count: item.photosPerWeek }),
+                              item.healthMetric && t(`health.metric.${item.healthMetric}`),
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
                           </span>
                         )}
                       </span>

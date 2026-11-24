@@ -67,6 +67,43 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
+    "description": "Add a named text block under one sync item's notes, after its other blocks: a meeting's full transcript under `Transcript`, its summary under `Summary`. Content is Markdown, up to 200,000 characters. `weeklySyncItemId` is the item's `id` in `get_weekly_sync`. Name a person as `@[Name](person:<id>)` with an id from `list_people`, or as `@[Name]` when exactly one person has that name. A mention is what makes the text show up under that person (`list_person_mentions`); a name that matches nobody is refused, not guessed.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "maxLength": 200000,
+          "type": "string"
+        },
+        "title": {
+          "description": "A short heading, such as Transcript or Summary.",
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "weeklySyncItemId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "weeklySyncItemId",
+        "title"
+      ],
+      "type": "object"
+    },
+    "name": "add_sync_item_block",
+    "title": "Add a block to a sync item"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
     "description": "Append a concrete behavior row (e.g. 'Date night every Saturday') to a value.",
     "execution": {
       "taskSupport": "forbidden"
@@ -773,11 +810,46 @@
           ],
           "description": "Goal this tracks. Omit or null for unscoped."
         },
+        "healthMetric": {
+          "anyOf": [
+            {
+              "enum": [
+                "sleep",
+                "steps",
+                "activeEnergy",
+                "exercise",
+                "workouts",
+                "weight",
+                "bodyFat",
+                "restingHeartRate",
+                "hrv"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The Apple Health metric it follows, shown as the week's figure on each sync (`health` on the item); null for none."
+        },
         "order": {
           "description": "Position in the library. Default 0.",
           "maximum": 9007199254740991,
           "minimum": -9007199254740991,
           "type": "integer"
+        },
+        "photosPerWeek": {
+          "anyOf": [
+            {
+              "maximum": 12,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How many pictures a week of it takes (1 to 12), for the screens to lay out; null for any number."
         },
         "title": {
           "maxLength": 200,
@@ -1235,6 +1307,32 @@
       "idempotentHint": true,
       "openWorldHint": false
     },
+    "description": "Delete one named block from a sync item. The notes and other blocks stay.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_sync_item_block",
+    "title": "Delete a sync item block"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
     "description": "Delete a template. Its tracking items and every existing sync stay as they are.",
     "execution": {
       "taskSupport": "forbidden"
@@ -1363,6 +1461,35 @@
     },
     "name": "delete_value_behavior",
     "title": "Delete a value behavior"
+  },
+  {
+    "description": "The user's Apple Health daily totals from `from` to `to` (both included, at most a year), oldest first; days with no data are left out. Each day's `data` may hold `sleepMinutes` (the night that ended that day) with `bedtime` and `wakeTime`, `steps`, `activeEnergyKcal`, `exerciseMinutes`, `workouts` ([{ type, minutes, energyKcal }]), `weightKg`, `bodyFatPercent`, `restingHeartRate` and `hrvMs`; a field Health had nothing for is missing. Sent by the phone when the user turns it on.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "description": "A day in the user's own time zone, YYYY-MM-DD. Usually today.",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+          "type": "string"
+        },
+        "to": {
+          "description": "A day in the user's own time zone, YYYY-MM-DD. Usually today.",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "type": "object"
+    },
+    "name": "get_health_days",
+    "title": "Get Apple Health days"
   },
   {
     "description": "The contents of a file on a journal day: an image as an image, a text file as text. The `url` on an attachment needs a browser session and cannot be fetched from here.",
@@ -1506,7 +1633,7 @@
     "title": "TickTick sync status"
   },
   {
-    "description": "Every week that recorded something for one item, oldest first: `week` (its Sunday, YYYY-MM-DD; weeks run Sunday to Saturday), that week's notes (`textContent`) and its `attachments`. Use it to look back at how one thing changed, such as a picture retaken every week. Read a picture with `get_sync_attachment`. Works for an archived item too.",
+    "description": "Every week that recorded something for one item, oldest first: `week` (its Sunday, YYYY-MM-DD; weeks run Sunday to Saturday), that week's notes (`textContent`), its named `blocks` (a transcript, a summary), its `attachments`, and `health` (the week's Apple Health figure, when the item follows a metric). Use it to look back at how one thing changed, such as a picture retaken every week. Read a picture with `get_sync_attachment`. Works for an archived item too.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -1528,7 +1655,7 @@
     "title": "One tracking item over time"
   },
   {
-    "description": "One week's retrospective: `weeklySync` (null when the week has not been started), its items grouped by goal with notes and attachments, `unscopedItems`, and `allTrackingItems`, the library to add from.",
+    "description": "One week's retrospective: `weeklySync` (null when the week has not been started), its items grouped by goal with notes, named `blocks`, attachments and `health` (the week's Apple Health figure for an item that follows a metric, with each day), `unscopedItems`, and `allTrackingItems`, the library to add from.",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -3327,6 +3454,42 @@
   },
   {
     "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Change a block's title, its content or both; a field left out stays. Content replaces rather than appends. Name a person as `@[Name](person:<id>)` with an id from `list_people`, or as `@[Name]` when exactly one person has that name. A mention is what makes the text show up under that person (`list_person_mentions`); a name that matches nobody is refused, not guessed.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "maxLength": 200000,
+          "type": "string"
+        },
+        "id": {
+          "description": "Block id, from `blocks` in `get_weekly_sync`.",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_sync_item_block",
+    "title": "Update a sync item block"
+  },
+  {
+    "annotations": {
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false
@@ -3479,6 +3642,28 @@
             }
           ]
         },
+        "healthMetric": {
+          "anyOf": [
+            {
+              "enum": [
+                "sleep",
+                "steps",
+                "activeEnergy",
+                "exercise",
+                "workouts",
+                "weight",
+                "bodyFat",
+                "restingHeartRate",
+                "hrv"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The Apple Health metric it follows, shown as the week's figure on each sync (`health` on the item); null for none."
+        },
         "id": {
           "type": "string"
         },
@@ -3486,6 +3671,19 @@
           "maximum": 9007199254740991,
           "minimum": -9007199254740991,
           "type": "integer"
+        },
+        "photosPerWeek": {
+          "anyOf": [
+            {
+              "maximum": 12,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How many pictures a week of it takes (1 to 12), for the screens to lay out; null for any number."
         },
         "status": {
           "enum": [

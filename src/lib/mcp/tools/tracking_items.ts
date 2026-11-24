@@ -3,13 +3,25 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpCtx } from './types'
 import { toolInput } from './fields'
 import { mcpErrorFromUnknown, mcpJsonResult } from '../errors'
-import { createTrackingItemSchema, updateTrackingItemSchema } from '~/lib/api/types'
+import { createTrackingItemSchema, photosPerWeekSchema, updateTrackingItemSchema } from '~/lib/api/types'
+import { healthMetricSchema } from '~/lib/health'
 import * as trackingItems from '~/server/services/tracking-items'
 
 // Tracking items: the library of things reviewed week to week. A goal link is
 // optional, and an item with none reads as "Unscoped". A sync holds its own
 // snapshot of items, so adding to the library never changes a past week. An item
 // deleted or archived does leave every week's view, past ones included.
+
+const photosPerWeek = photosPerWeekSchema
+  .nullable()
+  .optional()
+  .describe('How many pictures a week of it takes (1 to 12), for the screens to lay out; null for any number.')
+const healthMetric = healthMetricSchema
+  .nullable()
+  .optional()
+  .describe(
+    "The Apple Health metric it follows, shown as the week's figure on each sync (`health` on the item); null for none.",
+  )
 
 export function registerTrackingItemsTools(server: McpServer, ctx: McpCtx): void {
   server.registerTool(
@@ -34,7 +46,7 @@ export function registerTrackingItemsTools(server: McpServer, ctx: McpCtx): void
     {
       title: 'One tracking item over time',
       description:
-        "Every week that recorded something for one item, oldest first: `week` (its Sunday, YYYY-MM-DD; weeks run Sunday to Saturday), that week's notes (`textContent`) and its `attachments`. Use it to look back at how one thing changed, such as a picture retaken every week. Read a picture with `get_sync_attachment`. Works for an archived item too.",
+        "Every week that recorded something for one item, oldest first: `week` (its Sunday, YYYY-MM-DD; weeks run Sunday to Saturday), that week's notes (`textContent`), its named `blocks` (a transcript, a summary), its `attachments`, and `health` (the week's Apple Health figure, when the item follows a metric). Use it to look back at how one thing changed, such as a picture retaken every week. Read a picture with `get_sync_attachment`. Works for an archived item too.",
       inputSchema: toolInput({ id: z.string().describe('Tracking item id, from `list_tracking_items`.') }),
     },
     async ({ id }) => {
@@ -57,6 +69,8 @@ export function registerTrackingItemsTools(server: McpServer, ctx: McpCtx): void
         description: z.string().max(2000).nullable().optional(),
         goalId: z.string().nullable().optional().describe('Goal this tracks. Omit or null for unscoped.'),
         order: z.number().int().optional().describe('Position in the library. Default 0.'),
+        photosPerWeek,
+        healthMetric,
       }),
       annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
@@ -82,6 +96,8 @@ export function registerTrackingItemsTools(server: McpServer, ctx: McpCtx): void
         goalId: z.string().nullable().optional(),
         order: z.number().int().optional(),
         status: z.enum(['active', 'archived']).optional(),
+        photosPerWeek,
+        healthMetric,
       }),
       annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },

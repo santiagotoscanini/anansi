@@ -43,6 +43,7 @@ const SERVER_ROUTES: Record<string, Guard> = {
   // The phone app's REST API, every handler wrapped in withApiKey.
   'api.v1.attachments.$id.ts': 'apikey',
   'api.v1.goals.ts': 'apikey',
+  'api.v1.health.days.ts': 'apikey',
   'api.v1.journal.$day.attachments.ts': 'apikey',
   'api.v1.journal.$day.ts': 'apikey',
   'api.v1.journal.ts': 'apikey',

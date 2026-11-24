@@ -17,6 +17,7 @@ groups	delete_group
 groups	list_group_tasks
 groups	list_groups
 groups	update_group
+health	get_health_days
 important_dates	create_important_date
 important_dates	delete_important_date
 important_dates	list_important_dates
@@ -95,12 +96,15 @@ values	list_value_behaviors
 values	list_values
 values	update_value
 weekly_sync	add_sync_item
+weekly_sync	add_sync_item_block
 weekly_sync	create_weekly_sync
 weekly_sync	delete_sync_attachment
+weekly_sync	delete_sync_item_block
 weekly_sync	get_pulse
 weekly_sync	get_sync_attachment
 weekly_sync	get_weekly_sync
 weekly_sync	remove_sync_item
 weekly_sync	reorder_sync_items
 weekly_sync	set_sync_item_text
+weekly_sync	update_sync_item_block
 weekly_sync	upload_sync_attachment

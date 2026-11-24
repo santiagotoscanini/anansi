@@ -3,7 +3,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import {
+  addSyncItemBlockSchema,
   addSyncItemSchema,
+  removeSyncItemBlockSchema,
+  updateSyncItemBlockSchema,
   createWeeklySyncSchema,
   removeSyncItemSchema,
   reorderSyncItemsSchema,
@@ -61,3 +64,18 @@ export const reorderSyncItems = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .validator(reorderSyncItemsSchema)
   .handler(({ data, context }) => weeklySync.reorderItems(context.userId, data))
+
+export const addSyncItemBlock = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .validator(addSyncItemBlockSchema)
+  .handler(({ data, context }) => weeklySync.addBlock(context.userId, data))
+
+export const updateSyncItemBlock = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .validator(updateSyncItemBlockSchema)
+  .handler(({ data, context }) => weeklySync.updateBlock(context.userId, data))
+
+export const removeSyncItemBlock = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .validator(removeSyncItemBlockSchema)
+  .handler(({ data, context }) => weeklySync.removeBlock(context.userId, data))

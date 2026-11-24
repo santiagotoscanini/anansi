@@ -13,6 +13,7 @@ import {
   files,
   goalValues,
   goals,
+  healthDays,
   importantDates,
   journalEntries,
   journalMentions,
@@ -26,6 +27,7 @@ import {
   personGroups,
   personalityResults,
   selfListItems,
+  syncItemBlocks,
   syncItemMentions,
   syncTemplateItems,
   syncTemplates,
@@ -100,6 +102,10 @@ export async function exportAll(userId: string) {
     ? await db.select().from(weeklySyncItems).where(inArray(weeklySyncItems.weeklySyncId, weeklySyncIds))
     : []
   const weeklySyncItemIds = weeklySyncItemsRows.map((wsi) => wsi.id)
+  const syncItemBlockRows = weeklySyncItemIds.length
+    ? await db.select().from(syncItemBlocks).where(inArray(syncItemBlocks.weeklySyncItemId, weeklySyncItemIds))
+    : []
+  const healthDayRows = await db.select().from(healthDays).where(eq(healthDays.userId, userId))
 
   const syncTemplateRows = await db.select().from(syncTemplates).where(eq(syncTemplates.userId, userId))
   const syncTemplateIds = syncTemplateRows.map((t) => t.id)
@@ -259,6 +265,8 @@ export async function exportAll(userId: string) {
     openQuestionGoals: openQuestionGoalRows,
     openQuestionPeople: openQuestionPersonRows,
     personalityResults: personalityRows.map(stripUser),
+    syncItemBlocks: syncItemBlockRows,
+    healthDays: healthDayRows.map(stripUser),
     // Touched-but-unused — harmless extra context for a future v2 importer.
     // Part of the shipped payload shape, so it stays.
     _trackingItemIds: trackingItemIds,
@@ -328,6 +336,7 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       await tx.delete(bucketListItems).where(eq(bucketListItems.userId, userId))
       await tx.delete(openQuestions).where(eq(openQuestions.userId, userId))
       await tx.delete(personalityResults).where(eq(personalityResults.userId, userId))
+      await tx.delete(healthDays).where(eq(healthDays.userId, userId))
 
       if (b.values.length) {
         await tx.insert(values).values(b.values.map((v) => ({ ...v, userId })))
@@ -375,6 +384,11 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       if (b.syncTemplateItems.length) await tx.insert(syncTemplateItems).values(b.syncTemplateItems)
       if (b.weeklySync.length) await tx.insert(weeklySync).values(b.weeklySync.map((ws) => ({ ...ws, userId })))
       if (b.weeklySyncItems.length) await tx.insert(weeklySyncItems).values(b.weeklySyncItems)
+      // A block whose sync item the backup lacks is dropped.
+      const restoredSyncItems = new Set(b.weeklySyncItems.map((i) => i.id))
+      const blocks = b.syncItemBlocks.filter((bl) => restoredSyncItems.has(bl.weeklySyncItemId))
+      if (blocks.length) await tx.insert(syncItemBlocks).values(blocks)
+      if (b.healthDays.length) await tx.insert(healthDays).values(b.healthDays.map((d) => ({ ...d, userId })))
       if (b.journalEntries.length) {
         await tx.insert(journalEntries).values(b.journalEntries.map((e) => ({ ...e, userId })))
       }
@@ -450,8 +464,11 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
         named(t.title, t.description).map((personId) => ({ taskId: t.id, personId })),
       )
       if (taskMentionRows.length) await tx.insert(taskMentions).values(taskMentionRows)
+      const blockTexts = new Map<string, string[]>()
+      for (const bl of blocks)
+        blockTexts.set(bl.weeklySyncItemId, [...(blockTexts.get(bl.weeklySyncItemId) ?? []), bl.content])
       const syncMentionRows = b.weeklySyncItems.flatMap((i) =>
-        named(i.textContent).map((personId) => ({ weeklySyncItemId: i.id, personId })),
+        named(i.textContent, ...(blockTexts.get(i.id) ?? [])).map((personId) => ({ weeklySyncItemId: i.id, personId })),
       )
       if (syncMentionRows.length) await tx.insert(syncItemMentions).values(syncMentionRows)
       const mentionRows = b.journalEntries.flatMap((e) =>
@@ -535,6 +552,8 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       journalEntries: b.journalEntries.length,
       openQuestions: b.openQuestions.length,
       personalityResults: b.personalityResults.length,
+      syncItemBlocks: b.syncItemBlocks.length,
+      healthDays: b.healthDays.length,
       // NOTE: nextBids, bucketListItems and bucketListItemPeople are imported
       // but deliberately absent from `counts` — that's the shipped shape and
       // the UI renders whatever keys it finds. Adding them is a UI change.

@@ -565,7 +565,13 @@
     "emptyPre": "Sin items de seguimiento todavía. Hacé clic en ",
     "emptyEm": "Nuevo item",
     "emptyPost": " para agregar uno.",
-    "unscopedTag": "Sin alcance"
+    "unscopedTag": "Sin alcance",
+    "photosPerWeek": "Fotos por semana",
+    "photosAny": "Cualquier cantidad",
+    "followsHealth": "Sigue a Apple Salud",
+    "healthNone": "Nada",
+    "photosMeta_one": "{{count}} foto por semana",
+    "photosMeta_other": "{{count}} fotos por semana"
   },
   "syncDefault": {
     "modalTitle": "Items por defecto del sync",
@@ -596,7 +602,19 @@
     "savedAlt": "Guardada {{index}}",
     "deleteTitle": "Eliminar {{name}}",
     "mentionHint": "Escribí @ para mencionar a alguien.",
-    "addNote": "Agregar una nota…"
+    "addNote": "Agregar una nota…",
+    "addPicture": "Agregar una foto",
+    "replacePicture": "Reemplazar foto",
+    "replaceFailed": "No se pudo reemplazar la foto",
+    "addBlock": "Agregar un bloque",
+    "blockTitlePlaceholder": "Título, como Transcripción o Resumen",
+    "blockContentPlaceholder": "Escribí o pegá…",
+    "blockEmpty": "Vacío. Hacé clic para escribir.",
+    "showAll": "Ver todo",
+    "showLess": "Ver menos",
+    "deleteBlock": "Borrar bloque",
+    "deleteBlockPrompt": "¿Borrar el bloque \"{{title}}\"?",
+    "blockSaveFailed": "No se pudo guardar el bloque"
   },
   "weeklySync": {
     "eyebrow": "Sync · retrospectiva semanal",
@@ -1609,5 +1627,40 @@
     "create": "Agregar «{{name}}» a Personas",
     "created": "{{name}} agregado a Personas",
     "createFailed": "No se pudo agregar a esa persona"
+  },
+  "health": {
+    "metric": {
+      "sleep": "Sueño",
+      "steps": "Pasos",
+      "activeEnergy": "Energía activa",
+      "exercise": "Ejercicio",
+      "workouts": "Entrenamientos",
+      "weight": "Peso",
+      "bodyFat": "Grasa corporal",
+      "restingHeartRate": "Frecuencia cardíaca en reposo",
+      "hrv": "VFC"
+    },
+    "unit": {
+      "h": "h",
+      "steps": "pasos",
+      "kcal": "kcal",
+      "min": "min",
+      "workouts": "entrenamientos",
+      "kg": "kg",
+      "%": "%",
+      "bpm": "lpm",
+      "ms": "ms"
+    },
+    "over": {
+      "average": "prom.",
+      "total": "en total",
+      "count": "",
+      "last": "último"
+    },
+    "days": "{{count}} de 7 días",
+    "nights": "{{count}} de 7 noches",
+    "none": "Sin datos de Salud esta semana",
+    "dayTitle": "{{day}}: {{value}}",
+    "dayNone": "{{day}}: nada"
   }
 }

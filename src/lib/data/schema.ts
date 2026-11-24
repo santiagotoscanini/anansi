@@ -1,5 +1,6 @@
 import { createId } from '@paralleldrive/cuid2'
 import { relations, sql } from 'drizzle-orm'
+import type { HealthDayData, HealthMetric } from '../health'
 import type { Overlay } from '../overlay'
 import type { PersonalityDetails, PersonalityTest } from '../personality'
 import {
@@ -310,6 +311,12 @@ export const trackingItems = pgTable(
     // in coordinates normalized to the camera frame. Set from the phone app;
     // null for almost every item. Shape: `overlaySchema` in ~/lib/overlay.
     overlay: jsonb('overlay').$type<Overlay>(),
+    // How many pictures a week of this item takes (1 to 12); null means any
+    // number. Read by the screens only: the server enforces nothing.
+    photosPerWeek: integer('photos_per_week'),
+    // The Apple Health metric this item follows (a key of HEALTH_METRICS in
+    // ~/lib/health), shown as the week's figure in a sync; null for none.
+    healthMetric: text('health_metric').$type<HealthMetric>(),
     ...timestamps,
   },
   (t) => [index('tracking_items_user_idx').on(t.userId)],
@@ -363,6 +370,44 @@ export const weeklySyncItems = pgTable(
   // Every retrospective render reads (weekly_sync_id, order_idx) — give it
   // a covering index so the ORDER BY doesn't sort.
   (t) => [index('weekly_sync_items_sync_order_idx').on(t.weeklySyncId, t.orderIdx)],
+)
+
+// Named text blocks on a sync item, under its notes: a meeting's transcript,
+// its summary. Content can name people like the notes do; the item's
+// `sync_item_mentions` index is rebuilt from the notes and every block.
+export const syncItemBlocks = pgTable(
+  'sync_item_blocks',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    weeklySyncItemId: text('weekly_sync_item_id')
+      .notNull()
+      .references(() => weeklySyncItems.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    content: text('content').notNull().default(''),
+    orderIdx: integer('order_idx').notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [index('sync_item_blocks_item_order_idx').on(t.weeklySyncItemId, t.orderIdx)],
+)
+
+// Apple Health, one row per user per calendar day of daily totals, as the
+// phone last sent it (each send replaces the day). Shape: ~/lib/health.
+export const healthDays = pgTable(
+  'health_days',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    day: date('day', { mode: 'string' }).notNull(),
+    data: jsonb('data').$type<HealthDayData>().notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('health_days_user_day_unique').on(t.userId, t.day)],
 )
 
 // Sync templates — named bundles of tracking items. A template is the default

@@ -5,6 +5,7 @@
 //
 // A week is its Sunday as a calendar day (`YYYY-MM-DD`), which is how the
 // service names it (`weekDayOf`).
+import type { WeekSummary } from './health'
 
 export interface HistoryAttachment {
   id: string
@@ -18,6 +19,10 @@ export interface HistoryWeek {
   week: string
   textContent: string | null
   attachments: HistoryAttachment[]
+  /** Named blocks under the notes (a transcript, a summary). */
+  blocks?: { id: string; title: string; content: string }[]
+  /** The week's Apple Health figure, when the item follows a metric. */
+  health?: WeekSummary | null
 }
 
 /** One picture of the item, in the order it is played. */

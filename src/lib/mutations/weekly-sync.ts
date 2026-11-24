@@ -3,7 +3,10 @@ import { qk } from '~/lib/queries/keys'
 import { deleteAttachment, uploadAttachment } from '~/server/fn/attachments.fn'
 import {
   addSyncItem,
+  addSyncItemBlock,
   createWeeklySync,
+  removeSyncItemBlock,
+  updateSyncItemBlock,
   removeSyncItem,
   reorderSyncItems,
   setSyncItemText,
@@ -118,5 +121,53 @@ export function useDeleteAttachments() {
     },
     // Settled, not success: one that failed halfway still removed the ones before it.
     onSettled: () => invalidateSync(queryClient),
+  })
+}
+
+/** A named block under a sync item's notes. */
+export function useAddSyncItemBlock() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Parameters<typeof addSyncItemBlock>[0]['data']) => addSyncItemBlock({ data }),
+    onSuccess: () => invalidateSync(queryClient),
+  })
+}
+
+/**
+ * Replace one picture of a sync item: the new one is uploaded first and the old
+ * attachment deleted only once it has landed, so a failed upload loses nothing.
+ */
+export function useReplaceSyncAttachment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { weeklySyncItemId: string; oldId: string; fileName: string; data: string }) => {
+      await uploadAttachment({
+        data: {
+          parentType: 'weekly_sync_item',
+          parentId: input.weeklySyncItemId,
+          fileName: input.fileName,
+          fileType: 'image',
+          data: input.data,
+        },
+      })
+      await deleteAttachment({ data: { id: input.oldId } })
+    },
+    onSettled: () => invalidateSync(queryClient),
+  })
+}
+
+export function useUpdateSyncItemBlock() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Parameters<typeof updateSyncItemBlock>[0]['data']) => updateSyncItemBlock({ data }),
+    onSuccess: () => invalidateSync(queryClient),
+  })
+}
+
+export function useRemoveSyncItemBlock() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => removeSyncItemBlock({ data: { id } }),
+    onSuccess: () => invalidateSync(queryClient),
   })
 }

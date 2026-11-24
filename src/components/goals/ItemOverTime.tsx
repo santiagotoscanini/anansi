@@ -27,6 +27,7 @@ import {
 } from '~/lib/over-time'
 import { trackingItemHistoryQueryOptions, trackingItemsQueryOptions } from '~/lib/queries/sync'
 import MarkdownText from './MarkdownText'
+import { BlockView, HealthWeek } from './SyncItemParts'
 import { useMentionPeople } from './MentionText'
 import { Eyebrow } from './ui'
 
@@ -849,12 +850,18 @@ function SheetView({
                     >
                       {day.short(entry.week.week)}
                     </Link>
-                    <div style={notesStyle}>
-                      <MarkdownText
-                        text={entry.week.textContent ?? fileNames(entry.week)}
-                        attachments={entry.week.attachments}
-                        link
-                      />
+                    <div className="space-y-3" style={notesStyle}>
+                      {entry.week.health && <HealthWeek summary={entry.week.health} />}
+                      {(entry.week.textContent !== null || !entry.week.blocks?.length) && (
+                        <MarkdownText
+                          text={entry.week.textContent ?? fileNames(entry.week)}
+                          attachments={entry.week.attachments}
+                          link
+                        />
+                      )}
+                      {entry.week.blocks?.map((block) => (
+                        <BlockView key={block.id} block={block} attachments={entry.week.attachments} />
+                      ))}
                     </div>
                   </li>
                 ),

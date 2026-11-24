@@ -1,12 +1,16 @@
 import { Link } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
-import { History, Image as ImageIcon, Trash2, X } from 'lucide-react'
+import { History, Image as ImageIcon, RefreshCw, Trash2, X } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
 import { toEditable } from '~/lib/mentions'
+import { useReplaceSyncAttachment } from '~/lib/mutations/weekly-sync'
+import { canAddPicture, pictureMode } from '~/lib/sync-item'
 import type { SyncItem } from '~/lib/queries/sync'
 import MentionField from './MentionField'
 import MarkdownText from './MarkdownText'
 import { useMentionPeople } from './MentionText'
+import { HealthWeek, notesStyle, SyncItemBlocks } from './SyncItemParts'
 
 interface Props {
   item: SyncItem
@@ -24,12 +28,14 @@ interface Props {
   context?: string
 }
 
-const notesStyle = {
-  fontFamily: 'var(--font-text)',
-  fontSize: 15,
-  lineHeight: 1.6,
-  color: 'var(--ink)',
-} as const
+/** A file read as the base64 data URL the upload server fn takes. */
+const readAsDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error ?? new Error('read failed'))
+    reader.readAsDataURL(file)
+  })
 
 // One item of the weekly sync: its notes and its pictures. Reads like a page
 // of the journal, on purpose: the notes are prose you click to edit, people
@@ -50,6 +56,29 @@ export default function WeeklySyncItemRow({
   const { t } = useTranslation()
   const people = useMentionPeople()
   const images = item.attachments.filter((a) => a.fileType === 'image')
+  // How many pictures the item takes a week (null: any). Full hides "add"; one makes a single slot that is
+  // replaced rather than added to. Nothing on the server enforces it.
+  const single = pictureMode(item.photosPerWeek) === 'single'
+  const canAdd = canAddPicture(item.photosPerWeek, images.length)
+  const replace = useReplaceSyncAttachment()
+  const replaceInputRef = useRef<HTMLInputElement | null>(null)
+  const replacing = useRef<string | null>(null)
+
+  const handleReplace = async (file: File) => {
+    const oldId = replacing.current
+    replacing.current = null
+    if (!oldId) return
+    try {
+      await replace.mutateAsync({
+        weeklySyncItemId: item.id,
+        oldId,
+        fileName: file.name,
+        data: await readAsDataUrl(file),
+      })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('weeklySyncRow.replaceFailed'))
+    }
+  }
   const stored = item.textContent ?? ''
 
   const [draft, setDraft] = useState<string | null>(null)
@@ -134,6 +163,12 @@ export default function WeeklySyncItemRow({
           </div>
         </div>
 
+        {item.health && (
+          <div className="mt-2">
+            <HealthWeek summary={item.health} />
+          </div>
+        )}
+
         <div className="mt-2">
           {draft !== null ? (
             <>
@@ -190,24 +225,36 @@ export default function WeeklySyncItemRow({
             </button>
           )}
         </div>
+
+        <div className={item.blocks.length ? 'mt-4' : 'mt-1'}>
+          <SyncItemBlocks syncItemId={item.id} blocks={item.blocks} attachments={item.attachments} />
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2 sm:max-w-[55%] sm:justify-end">
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className={`order-last flex items-center justify-center rounded-lg text-[var(--ink-4)] transition-colors hover:bg-[var(--vellum)] hover:text-[var(--ink-2)] md:order-none ${
-            images.length > 0
-              ? 'h-20 w-20 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100'
-              : 'h-9 gap-2 px-3 text-xs'
-          }`}
-          style={{ border: '1px dashed var(--hairline-2)' }}
-          title={t('weeklySyncRow.addImages')}
-          aria-label={t('weeklySyncRow.addImages')}
-        >
-          <ImageIcon className="h-4 w-4" />
-          {images.length === 0 && <span>{t('weeklySyncRow.addImages')}</span>}
-        </button>
+        {canAdd && (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className={`order-last flex items-center justify-center rounded-lg text-[var(--ink-4)] transition-colors hover:bg-[var(--vellum)] hover:text-[var(--ink-2)] md:order-none ${
+              single
+                ? 'h-20 w-20 flex-col gap-1 text-[11px]'
+                : images.length > 0
+                  ? 'h-20 w-20 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100'
+                  : 'h-9 gap-2 px-3 text-xs'
+            }`}
+            style={{ border: '1px dashed var(--hairline-2)' }}
+            title={single ? t('weeklySyncRow.addPicture') : t('weeklySyncRow.addImages')}
+            aria-label={single ? t('weeklySyncRow.addPicture') : t('weeklySyncRow.addImages')}
+          >
+            <ImageIcon className="h-4 w-4" />
+            {single ? (
+              <span>{t('weeklySyncRow.addPicture')}</span>
+            ) : (
+              images.length === 0 && <span>{t('weeklySyncRow.addImages')}</span>
+            )}
+          </button>
+        )}
         {images.map((file, index) => {
           const isDeleting = deletingFileIds.has(file.id)
           return (
@@ -224,17 +271,38 @@ export default function WeeklySyncItemRow({
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--hairline-2)] border-t-[var(--ink)]" />
                 </div>
+              ) : replace.isPending && replace.variables.oldId === file.id ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--hairline-2)] border-t-[var(--ink)]" />
+                </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => onDeleteFileClick(file.id, file.fileName)}
-                  className="absolute top-1 right-1 rounded-full p-1 transition-opacity md:opacity-0 md:group-hover/pic:opacity-100"
-                  style={{ background: 'var(--surface-inverse)', color: 'var(--on-inverse)' }}
-                  title={t('weeklySyncRow.deleteTitle', { name: file.fileName })}
-                  aria-label={t('weeklySyncRow.deleteTitle', { name: file.fileName })}
-                >
-                  <X className="h-3 w-3" />
-                </button>
+                <>
+                  {single && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        replacing.current = file.id
+                        replaceInputRef.current?.click()
+                      }}
+                      className="absolute top-1 left-1 rounded-full p-1 transition-opacity md:opacity-0 md:group-hover/pic:opacity-100"
+                      style={{ background: 'var(--surface-inverse)', color: 'var(--on-inverse)' }}
+                      title={t('weeklySyncRow.replacePicture')}
+                      aria-label={t('weeklySyncRow.replacePicture')}
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onDeleteFileClick(file.id, file.fileName)}
+                    className="absolute top-1 right-1 rounded-full p-1 transition-opacity md:opacity-0 md:group-hover/pic:opacity-100"
+                    style={{ background: 'var(--surface-inverse)', color: 'var(--on-inverse)' }}
+                    title={t('weeklySyncRow.deleteTitle', { name: file.fileName })}
+                    aria-label={t('weeklySyncRow.deleteTitle', { name: file.fileName })}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </>
               )}
             </div>
           )
@@ -245,10 +313,21 @@ export default function WeeklySyncItemRow({
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        multiple
+        multiple={!single && (item.photosPerWeek ?? Infinity) - images.length > 1}
         onChange={(e) => {
           if (e.target.files) void onUploadFiles(e.target.files)
           // Reset so re-selecting the same file fires onChange again.
+          e.target.value = ''
+        }}
+        className="hidden"
+      />
+      <input
+        ref={replaceInputRef}
+        type="file"
+        accept="image/*"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) void handleReplace(file)
           e.target.value = ''
         }}
         className="hidden"

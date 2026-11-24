@@ -184,7 +184,15 @@ export function syncItemsOf<I extends { orderIdx: number; createdAt: Date }>(dat
   })
 }
 
-/** An item counts as answered once it has words or a file. */
-export function isFilled(item: { textContent: string | null; attachments: readonly unknown[] }) {
-  return (item.textContent ?? '').trim().length > 0 || item.attachments.length > 0
+/** An item counts as answered once it has words (notes or a block) or a file. */
+export function isFilled(item: {
+  textContent: string | null
+  attachments: readonly unknown[]
+  blocks?: readonly { content: string }[]
+}) {
+  return (
+    (item.textContent ?? '').trim().length > 0 ||
+    item.attachments.length > 0 ||
+    (item.blocks ?? []).some((b) => b.content.trim().length > 0)
+  )
 }

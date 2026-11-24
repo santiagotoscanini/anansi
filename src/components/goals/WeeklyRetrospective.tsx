@@ -240,7 +240,8 @@ export default function WeeklyRetrospective() {
 
   const getItemStatus = (item: SyncItem): 'complete' | 'partial' | 'missing' => {
     const hasFiles = item.attachments.length > 0
-    const hasText = !!item.textContent && item.textContent.trim().length > 0
+    const hasText =
+      (!!item.textContent && item.textContent.trim().length > 0) || item.blocks.some((b) => b.content.trim().length > 0)
     if (hasFiles && hasText) return 'complete'
     if (hasFiles || hasText) return 'partial'
     return 'missing'

@@ -4,11 +4,18 @@
 import { and, asc, desc, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { db } from '~/lib/data'
 import { attachments, goals, trackingItems, weeklySync, weeklySyncItems } from '~/lib/data/schema'
-import type { CreateTrackingItem, UpdateTrackingItem } from '~/lib/api/types'
+import {
+  createTrackingItemSchema,
+  updateTrackingItemSchema,
+  type CreateTrackingItem,
+  type UpdateTrackingItem,
+} from '~/lib/api/types'
 import type { Overlay } from '~/lib/overlay'
 import { weekDayOf } from '~/lib/week'
 import { AppError } from './errors'
 import { fileUrl } from './file-refs'
+import { summariesFor } from './health'
+import { blocksOf } from './weekly-sync'
 
 /** Throws NOT_FOUND unless the tracking item exists and is the caller's. */
 async function assertOwnsItem(userId: string, id: string) {
@@ -43,7 +50,8 @@ export async function list(userId: string, input?: { goalId?: string }) {
     .orderBy(asc(trackingItems.order), asc(trackingItems.createdAt))
 }
 
-export async function create(userId: string, input: CreateTrackingItem) {
+export async function create(userId: string, raw: CreateTrackingItem) {
+  const input = createTrackingItemSchema.parse(raw)
   if (input.goalId) await assertOwnsGoal(userId, input.goalId)
 
   const [created] = await db
@@ -54,14 +62,16 @@ export async function create(userId: string, input: CreateTrackingItem) {
       title: input.title,
       description: input.description ?? null,
       order: input.order ?? 0,
+      photosPerWeek: input.photosPerWeek ?? null,
+      healthMetric: input.healthMetric ?? null,
     })
     .returning()
   if (!created) throw new AppError('INTERNAL_SERVER_ERROR', 'Failed to create tracking item')
   return created
 }
 
-export async function update(userId: string, input: UpdateTrackingItem) {
-  const { id, ...updateData } = input
+export async function update(userId: string, raw: UpdateTrackingItem) {
+  const { id, ...updateData } = updateTrackingItemSchema.parse(raw)
   await assertOwnsItem(userId, id)
   // Re-point to a different goal only if that goal is also the caller's.
   if (updateData.goalId) await assertOwnsGoal(userId, updateData.goalId)
@@ -168,6 +178,8 @@ export async function history(userId: string, id: string) {
       goalId: trackingItems.goalId,
       status: trackingItems.status,
       deletedAt: trackingItems.deletedAt,
+      photosPerWeek: trackingItems.photosPerWeek,
+      healthMetric: trackingItems.healthMetric,
     })
     .from(trackingItems)
     .where(and(eq(trackingItems.id, id), eq(trackingItems.userId, userId)))
@@ -201,11 +213,25 @@ export async function history(userId: string, id: string) {
         .orderBy(asc(attachments.createdAt))
     : []
 
+  const blocks = await blocksOf(rows.map((row) => row.syncItemId))
+  const metric = item.healthMetric
+  const summary =
+    metric && rows.length
+      ? await summariesFor(
+          userId,
+          rows.map((row) => weekDayOf(row.weekDate)),
+        )
+      : null
+
   const weeks = rows
     .map((row) => ({
       syncItemId: row.syncItemId,
       week: weekDayOf(row.weekDate),
       textContent: row.textContent?.trim() ? row.textContent : null,
+      blocks: blocks
+        .filter((b) => b.weeklySyncItemId === row.syncItemId)
+        .map((b) => ({ id: b.id, title: b.title, content: b.content, orderIdx: b.orderIdx, updatedAt: b.updatedAt })),
+      health: metric && summary ? summary(metric, weekDayOf(row.weekDate)) : null,
       attachments: files
         .filter((file) => file.parentId === row.syncItemId)
         .map((file) => ({
@@ -217,7 +243,7 @@ export async function history(userId: string, id: string) {
           createdAt: file.createdAt,
         })),
     }))
-    .filter((week) => week.textContent !== null || week.attachments.length > 0)
+    .filter((week) => week.textContent !== null || week.attachments.length > 0 || week.blocks.length > 0)
 
   return {
     item: {
@@ -225,6 +251,8 @@ export async function history(userId: string, id: string) {
       title: item.title,
       description: item.description,
       goalId: item.goalId,
+      photosPerWeek: item.photosPerWeek,
+      healthMetric: item.healthMetric,
       archived: item.status === 'archived' || item.deletedAt !== null,
     },
     weeks,

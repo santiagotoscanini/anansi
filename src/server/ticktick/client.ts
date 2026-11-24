@@ -18,7 +18,9 @@
 //   - Tags come back lowercased.
 //   - A section (column) takes `sortOrder` on create and on update, and can
 //     be renamed; it cannot be deleted (DELETE is a 405). A list made with
-//     `viewMode: 'kanban'` shows its sections as columns.
+//     `viewMode: 'kanban'`, or switched to it with an update, shows its
+//     sections as columns and gets no "Not Sectioned" column (switching in
+//     TickTick's app adds one).
 //   - /task/completed answers tasks without their due date.
 import { env } from '~/lib/env'
 
@@ -122,6 +124,9 @@ export function tickTick(token: string) {
       if (!project) throw new TickTickError(500, 'TickTick created no list')
       return project
     },
+    /** Show the list as a board: its sections as columns. */
+    showAsKanban: (projectId: string) =>
+      call<RemoteProject>(token, 'POST', `/project/${encodeURIComponent(projectId)}`, { viewMode: 'kanban' }),
     /** The list and its undone tasks, or null when the list is gone. */
     projectData: (projectId: string) =>
       call<{ project?: RemoteProject; tasks?: RemoteTask[]; columns?: RemoteColumn[] }>(

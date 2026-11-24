@@ -108,6 +108,9 @@ export async function chooseList(userId: string, input: z.input<typeof chooseLis
     if ('newListName' in parsed) return tt.createProject(parsed.newListName)
     const found = (await tt.listProjects()).find((p) => p.id === parsed.listId)
     if (!found) throw new AppError('NOT_FOUND', 'That TickTick list was not found')
+    // A board, like Horizons. Switched here rather than in TickTick's app,
+    // which would add a "Not Sectioned" column the API cannot delete.
+    await tt.showAsKanban(found.id)
     return found
   })
   // Under the sync's lock, so a run against the old list cannot add links to it

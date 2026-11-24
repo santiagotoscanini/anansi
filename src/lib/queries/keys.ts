@@ -22,6 +22,9 @@ export const qk = {
   me: ['me'] as const,
   /** The user's API keys for the phone app (Profile → Devices). */
   apiKeys: ['api-keys'] as const,
+  /** The TickTick connection (Profile → TickTick). */
+  tickTick: ['ticktick'] as const,
+  tickTickLists: ['ticktick', 'lists'] as const,
   /** SSO or password form. Fixed by server env, so nothing ever invalidates it. */
   authMode: ['auth-mode'] as const,
 

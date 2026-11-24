@@ -14,6 +14,9 @@ import { meQueryOptions, sessionQueryOptions } from '~/lib/queries/session'
 // each tab having to redeclare the param.
 const appSearchSchema = z.object({
   modal: z.enum(['profile', 'import']).optional(),
+  // How connecting TickTick went; set by its OAuth callback, read and dropped
+  // by Profile → TickTick.
+  ticktick: z.enum(['connected', 'denied', 'failed']).optional(),
 })
 
 export const Route = createFileRoute('/app')({

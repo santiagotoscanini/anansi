@@ -27,6 +27,7 @@ import {
 import { exportBackup } from '~/server/fn/backup.fn'
 import Avatar from './Avatar'
 import DevicesSection from './DevicesSection'
+import TickTickSection from './TickTickSection'
 import { useTheme, type ThemePref } from '~/lib/theme'
 import { useLocale } from '~/i18n/useLocale'
 
@@ -626,6 +627,7 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
         </div>
 
         <DevicesSection fieldLabel={fieldLabel} inputClass={inputClass} sectionClass={sectionClass} />
+        <TickTickSection fieldLabel={fieldLabel} inputClass={inputClass} sectionClass={sectionClass} />
       </div>
     </div>
   )

@@ -41,6 +41,7 @@ import type { Backup } from '~/lib/api/types'
 import { AppError } from './errors'
 import { MAX_UPLOAD_BYTES } from '~/lib/image-upload'
 import { discardFiles, readFile, removeObjectsOf, saveFile } from './files'
+import { requestSync } from '~/server/ticktick/runner'
 
 /**
  * On import a backup is user-supplied JSON — never trust its emoji columns. An
@@ -452,6 +453,8 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
     throw err
   }
   await removeObjectsOf(replaced)
+  // The goals and tasks were replaced: TickTick is brought in line with them.
+  requestSync(userId)
 
   // `fileFailures` is always empty: a blob that cannot be stored fails the
   // whole import, which then leaves the user's data as it was. It stays in the

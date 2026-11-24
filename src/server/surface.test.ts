@@ -35,6 +35,10 @@ type Guard = 'session' | 'bearer' | 'apikey' | 'open'
 const SERVER_ROUTES: Record<string, Guard> = {
   'api.files.$id.ts': 'session',
   'api.journal.$day.media.ts': 'session', // plus the same-origin check: it writes
+  // Connecting TickTick: the session says whose account it is; the callback
+  // also needs the state cookie its own /connect set.
+  'api.integrations.ticktick.callback.ts': 'session',
+  'api.integrations.ticktick.connect.ts': 'session',
   'api.mcp.ts': 'bearer',
   // The phone app's REST API, every handler wrapped in withApiKey.
   'api.v1.attachments.$id.ts': 'apikey',

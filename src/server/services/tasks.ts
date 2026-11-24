@@ -12,6 +12,7 @@ import type { CreateTask, UpdateTask } from '~/lib/api/types'
 import { AppError } from './errors'
 import { assertOwnsGoal } from './goals'
 import { indexTask, linkTexts, mentionedIn } from './mentions'
+import { requestSync } from '~/server/ticktick/runner'
 
 export async function create(userId: string, input: CreateTask & { goalId: string }) {
   await assertOwnsGoal(userId, input.goalId)
@@ -34,6 +35,7 @@ export async function create(userId: string, input: CreateTask & { goalId: strin
   if (groupIds?.length) {
     await db.insert(tasksToGroups).values(groupIds.map((groupId) => ({ taskId: created.id, groupId })))
   }
+  requestSync(userId)
   return created
 }
 
@@ -88,12 +90,14 @@ export async function update(userId: string, input: UpdateTask & { goalId: strin
       await db.insert(tasksToGroups).values(groupIds.map((groupId) => ({ taskId: id, groupId })))
     }
   }
+  requestSync(userId)
   return updated
 }
 
 export async function remove(userId: string, input: { id: string; goalId: string }) {
   await assertOwnsGoal(userId, input.goalId)
   await db.delete(tasks).where(and(eq(tasks.id, input.id), eq(tasks.goalId, input.goalId)))
+  requestSync(userId)
   return { success: true }
 }
 
@@ -116,5 +120,6 @@ export async function setScheduled(userId: string, input: { id: string; schedule
   if (!owned) throw new AppError('NOT_FOUND', 'Task not found or access denied')
 
   await db.update(tasks).set({ scheduledAt: input.scheduledAt }).where(eq(tasks.id, input.id))
+  requestSync(userId)
   return { success: true }
 }

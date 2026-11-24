@@ -26,6 +26,22 @@ const securityHeadersMiddleware = createMiddleware({ type: 'request' }).server(a
   return { ...result, response: applySecurityHeaders(result.response) }
 })
 
+// The TickTick poller (src/server/ticktick/runner.ts) lives in this process and
+// starts on the first request after boot: there is no other server start hook
+// that also runs under `vite dev`. The import is dynamic and inside the server
+// body, so the client bundle never sees it (`pnpm check:bundle` would catch a
+// drizzle import that leaked).
+let tickTickPollerStarted = false
+const tickTickPollerMiddleware = createMiddleware({ type: 'request' }).server(async ({ next }) => {
+  if (!tickTickPollerStarted) {
+    tickTickPollerStarted = true
+    import('~/server/ticktick/runner')
+      .then((m) => m.ensurePoller())
+      .catch((e: unknown) => console.error('[ticktick] poller did not start', e))
+  }
+  return next()
+})
+
 // CSRF for server functions. Start installs `createCsrfMiddleware` on its own
 // only when the app declares no request middleware; declaring the one above
 // switched it off, and every `/_serverFn/*` call took the session cookie from
@@ -57,5 +73,5 @@ const csrfMiddleware = createCsrfMiddleware({
 
 export const startInstance = createStart(() => ({
   // CSRF after the security headers, so a refusal carries them too.
-  requestMiddleware: [securityHeadersMiddleware, csrfMiddleware],
+  requestMiddleware: [securityHeadersMiddleware, csrfMiddleware, tickTickPollerMiddleware],
 }))

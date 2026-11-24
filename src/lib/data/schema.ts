@@ -1191,3 +1191,72 @@ export const apiKeys = pgTable(
   },
   (t) => [index('api_keys_user_idx').on(t.userId)],
 )
+
+// ── TickTick ────────────────────────────────────────────────────────────────
+//
+// The two-way sync with one TickTick list (see server/ticktick/). A goal is a
+// top-level task in that list and each of its tasks a subtask of it.
+
+/** What the last sync agreed a linked item looks like, in TickTick's terms. */
+export interface TickTickSnapshot {
+  title: string
+  content: string
+  /** Tasks only. */
+  completed?: boolean
+  /** Tasks only: the due day, YYYY-MM-DD in the connection's time zone. */
+  due?: string | null
+  /** Tasks only: the TickTick id of the parent (the goal's task). */
+  parent?: string | null
+}
+
+// One row per user. The access token is encrypted with a key derived from
+// AUTH_SECRET (server/ticktick/crypto.ts); TickTick issues no refresh token,
+// so a token it stops accepting means connecting again (`needsReauth`).
+export const tickTickConnections = pgTable('ticktick_connections', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  userId: uuid('user_id')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  accessToken: text('access_token').notNull(),
+  // The list everything syncs into. Null until one is picked.
+  projectId: text('project_id'),
+  projectName: text('project_name'),
+  // The IANA zone due dates are read in: an Anansi date is a day, a TickTick
+  // all-day date is that day's midnight somewhere.
+  timeZone: text('time_zone').notNull().default('UTC'),
+  needsReauth: boolean('needs_reauth').notNull().default(false),
+  lastSyncedAt: timestamp('last_synced_at'),
+  lastError: text('last_error'),
+  ...timestamps,
+})
+
+// A goal or task and the TickTick task it is. No FK to goals/tasks on purpose:
+// the link outlives a local delete, which is how the sync learns to delete the
+// TickTick side.
+export const tickTickLinks = pgTable(
+  'ticktick_links',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<'goal' | 'task'>().notNull(),
+    localId: text('local_id').notNull(),
+    remoteId: text('remote_id').notNull(),
+    snapshot: jsonb('snapshot').$type<TickTickSnapshot>().notNull(),
+    // open: in the list's undone tasks. closed: completed there, absent from
+    // them, looked up once. gone: deleted or moved out of the list, looked up
+    // once; nothing syncs until it shows up again.
+    remoteState: text('remote_state').$type<'open' | 'closed' | 'gone'>().notNull().default('open'),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('ticktick_links_local_unique').on(t.userId, t.kind, t.localId),
+    uniqueIndex('ticktick_links_remote_unique').on(t.userId, t.remoteId),
+  ],
+)

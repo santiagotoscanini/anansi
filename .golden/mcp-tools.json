@@ -1328,6 +1328,23 @@
     "title": "Read a sync attachment"
   },
   {
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Whether the user's goals and tasks sync with a TickTick list, which list, when it last synced, how many are linked, and the last error. Each goal is a top-level task in that list and its tasks are subtasks; writes made through the other tools reach TickTick within seconds, and TickTick's changes arrive within about two minutes.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object"
+    },
+    "name": "get_ticktick_status",
+    "title": "TickTick sync status"
+  },
+  {
     "description": "Every week that recorded something for one item, oldest first: `week` (the Monday, YYYY-MM-DD), that week's notes (`textContent`) and its `attachments`. Use it to look back at how one thing changed, such as a picture retaken every week. Read a picture with `get_sync_attachment`. Works for an archived item too.",
     "execution": {
       "taskSupport": "forbidden"
@@ -2117,6 +2134,24 @@
     },
     "name": "set_task_scheduled",
     "title": "Set or clear a task's deadline"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    "description": "Run the two-way TickTick sync now instead of waiting for the next one, e.g. right after the user says they changed something in TickTick. Answers how many changes went each way and the status after it.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object"
+    },
+    "name": "sync_ticktick",
+    "title": "Sync with TickTick now"
   },
   {
     "annotations": {

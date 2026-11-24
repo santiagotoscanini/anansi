@@ -8,6 +8,7 @@ import { loadGoalsForUser } from '~/lib/data/queries/load-goals'
 import type { CreateGoal, Goal, UpdateGoal } from '~/lib/api/types'
 import { AppError } from './errors'
 import { indexTask, linkTexts } from './mentions'
+import { requestSync } from '~/server/ticktick/runner'
 
 /**
  * Throws NOT_FOUND unless the goal exists and belongs to the user.
@@ -78,6 +79,7 @@ export async function create(userId: string, input: CreateGoal) {
     if (groupRows.length > 0) await db.insert(tasksToGroups).values(groupRows)
   }
 
+  requestSync(userId)
   return created
 }
 
@@ -91,6 +93,8 @@ export async function update(userId: string, input: UpdateGoal) {
   const { id, valueIds, position, ...goalData } = input
 
   if (Object.keys(goalData).length > 0 || position) {
+    // A move on the canvas is not something TickTick holds.
+    if (goalData.title !== undefined || goalData.description !== undefined) requestSync(userId)
     const updateData: Partial<typeof goals.$inferInsert> = { ...goalData }
     if (position) {
       updateData.positionX = position.x
@@ -133,6 +137,7 @@ export async function remove(userId: string, id: string) {
     await tx.delete(connections).where(eq(connections.target, id))
     await tx.update(trackingItems).set({ status: 'archived' }).where(eq(trackingItems.goalId, id))
 
+    requestSync(userId)
     return { success: true }
   })
 }

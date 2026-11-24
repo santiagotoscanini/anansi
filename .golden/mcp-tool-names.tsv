@@ -67,6 +67,8 @@ tasks	create_task
 tasks	delete_task
 tasks	set_task_scheduled
 tasks	update_task
+ticktick	get_ticktick_status
+ticktick	sync_ticktick
 tracking_items	create_tracking_item
 tracking_items	delete_tracking_item
 tracking_items	get_tracking_item_history

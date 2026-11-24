@@ -84,6 +84,16 @@ export const env = createEnv({
     // which is the deliberate "open registration" state rather than an
     // accident.
     INVITE_CODE: z.string().optional(),
+
+    // ── TickTick ────────────────────────────────────────────────────────────
+    //
+    // The app registered at developer.ticktick.com/manage. Both present = the
+    // TickTick section shows in Profile; either absent = it does not. The
+    // redirect URL registered there is <origin>/api/integrations/ticktick/callback;
+    // TICKTICK_REDIRECT_URI pins it when requests arrive on another origin.
+    TICKTICK_CLIENT_ID: z.string().optional(),
+    TICKTICK_CLIENT_SECRET: z.string().optional(),
+    TICKTICK_REDIRECT_URI: z.string().url().optional(),
   },
   runtimeEnv: process.env,
   // An unset var and a var set to "" should behave identically; without this,
@@ -137,3 +147,6 @@ const oidcEmails: ReadonlySet<string> = new Set(
 export function isOidcEmail(email: string): boolean {
   return oidcEmails.has(email.trim().toLowerCase())
 }
+
+/** Is the TickTick integration configured on this deployment? */
+export const tickTickEnabled = Boolean(env.TICKTICK_CLIENT_ID && env.TICKTICK_CLIENT_SECRET)

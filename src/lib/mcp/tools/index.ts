@@ -21,6 +21,7 @@ import { registerWeeklySyncTools } from './weekly_sync'
 import { registerJournalTools } from './journal'
 import { registerConnectionsTools } from './connections'
 import { registerSystemTools } from './system'
+import { registerTickTickTools } from './ticktick'
 
 // Single entry point — one call per domain. New domains add a new file and
 // a one-line registration here.
@@ -40,4 +41,5 @@ export function registerAllTools(server: McpServer, ctx: McpCtx): void {
   registerWeeklySyncTools(server, ctx)
   registerJournalTools(server, ctx)
   registerConnectionsTools(server, ctx)
+  registerTickTickTools(server, ctx)
 }

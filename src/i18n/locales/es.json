@@ -129,6 +129,7 @@
   "dashboard": {
     "nav": {
       "pulse": "Pulso",
+      "inbox": "Bandeja",
       "self": "Tú",
       "values": "Valores",
       "bucket": "Lista de deseos",
@@ -1002,7 +1003,48 @@
     "openSync": "Abrir el sync",
     "openTasks": "Todas las tareas",
     "peopleToSort_one": "{{count}} persona para ordenar",
-    "peopleToSort_other": "{{count}} personas para ordenar"
+    "peopleToSort_other": "{{count}} personas para ordenar",
+    "capturedToday_one": "Capturado hoy · {{count}}",
+    "capturedToday_other": "Capturado hoy · {{count}}"
+  },
+  "inbox": {
+    "titlePre": "Captu",
+    "titleEm": "rado",
+    "subtitle": "Lo que se te cruzó por la cabeza, desde el teléfono, Siri, Claude o aquí.",
+    "newCount_one": "{{count}} nueva, sin enviar todavía",
+    "newCount_other": "{{count}} nuevas, sin enviar todavía",
+    "placeholder": "Una idea, algo por hacer, una pregunta… Enter para capturar",
+    "capture": "Capturar",
+    "captureFailed": "No se pudo capturar",
+    "empty": "Nada capturado todavía. Presiona el botón de acción del iPhone, o escribe arriba.",
+    "showArchived": "Ver archivadas",
+    "hideArchived": "Ocultar archivadas",
+    "today": "Hoy",
+    "yesterday": "Ayer",
+    "recent": "Recientes",
+    "kind": {
+      "text": "Escrita",
+      "voice": "Nota de voz"
+    },
+    "transcribing": "Transcribiendo…",
+    "noWords": "No se oyeron palabras",
+    "toQuestion": "→ pregunta: {{question}}",
+    "toTickTick": "→ bandeja de TickTick",
+    "forQuestion": "Para la pregunta: {{question}}",
+    "kept": "Guardada aquí (TickTick no está conectado)",
+    "waitingWords": "Esperando sus palabras",
+    "archived": "Archivada",
+    "failed": "No se pudo enviar: {{message}}",
+    "retry": "Reintentar",
+    "retryFailed": "Sigue sin poder enviarse",
+    "sendToQuestion": "Enviar a una pregunta",
+    "outOfQuestion": "Sacar de la pregunta (a TickTick)",
+    "noQuestions": "No hay preguntas abiertas. Agrega una en la página Tú.",
+    "archive": "Archivar",
+    "unarchive": "Recuperar",
+    "updateFailed": "No se pudo cambiar la captura",
+    "confirmDelete": "¿Borrar esta captura y su audio? Lo que generó (una nota, una tarea de TickTick) se queda.",
+    "deleteFailed": "No se pudo borrar la captura"
   },
   "globalError": {
     "title": "Algo salió mal",

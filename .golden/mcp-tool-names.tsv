@@ -3,6 +3,10 @@ bucket_list	delete_bucket_list_item
 bucket_list	list_bucket_list
 bucket_list	toggle_bucket_list_done
 bucket_list	update_bucket_list_item
+captures	capture
+captures	delete_capture
+captures	list_captures
+captures	update_capture
 connections	create_connection
 connections	delete_connection
 connections	list_connections

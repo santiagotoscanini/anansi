@@ -129,6 +129,7 @@
   "dashboard": {
     "nav": {
       "pulse": "Pulse",
+      "inbox": "Inbox",
       "self": "Self",
       "values": "Values",
       "bucket": "Bucket List",
@@ -1002,7 +1003,48 @@
     "openSync": "Open the sync",
     "openTasks": "All tasks",
     "peopleToSort_one": "{{count}} person to sort",
-    "peopleToSort_other": "{{count}} people to sort"
+    "peopleToSort_other": "{{count}} people to sort",
+    "capturedToday_one": "Captured today · {{count}}",
+    "capturedToday_other": "Captured today · {{count}}"
+  },
+  "inbox": {
+    "titlePre": "Cap",
+    "titleEm": "tured",
+    "subtitle": "Whatever crossed your mind, from your phone, Siri, Claude or here.",
+    "newCount_one": "{{count}} new, not sent anywhere yet",
+    "newCount_other": "{{count}} new, not sent anywhere yet",
+    "placeholder": "A thought, a to-do, a question… Enter to capture",
+    "capture": "Capture",
+    "captureFailed": "Could not capture that",
+    "empty": "Nothing captured yet. Press the Action Button on your iPhone, or type above.",
+    "showArchived": "Show archived",
+    "hideArchived": "Hide archived",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "recent": "Recent",
+    "kind": {
+      "text": "Typed",
+      "voice": "Voice note"
+    },
+    "transcribing": "Transcribing…",
+    "noWords": "No words heard",
+    "toQuestion": "→ question: {{question}}",
+    "toTickTick": "→ TickTick inbox",
+    "forQuestion": "For the question: {{question}}",
+    "kept": "Kept here (TickTick is not connected)",
+    "waitingWords": "Waiting for its words",
+    "archived": "Archived",
+    "failed": "Could not send it on: {{message}}",
+    "retry": "Retry",
+    "retryFailed": "Still could not send it",
+    "sendToQuestion": "Send to a question",
+    "outOfQuestion": "Out of the question (to TickTick)",
+    "noQuestions": "No open questions. Add one on the Self page.",
+    "archive": "Archive",
+    "unarchive": "Bring back",
+    "updateFailed": "Could not change that capture",
+    "confirmDelete": "Delete this capture and its audio? Where it went (a note, a TickTick task) stays.",
+    "deleteFailed": "Could not delete that capture"
   },
   "globalError": {
     "title": "Something went wrong",

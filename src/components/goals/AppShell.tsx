@@ -17,6 +17,7 @@ import {
   ListChecks,
   ListTodo,
   Activity,
+  Inbox as InboxIcon,
   NotebookPen,
   UserCircle2,
 } from 'lucide-react'
@@ -57,6 +58,7 @@ type TabType =
   | 'objectives'
   | 'tasks'
   | 'pulse'
+  | 'inbox'
   | 'journal'
   | 'sync'
   | 'tracking-items'
@@ -70,6 +72,7 @@ const TAB_SLUGS: ReadonlySet<TabType> = new Set([
   'objectives',
   'tasks',
   'pulse',
+  'inbox',
   'journal',
   'sync',
   'tracking-items',
@@ -96,6 +99,7 @@ function tabFromPathname(pathname: string): TabType {
 // possible nav-label keys to keep t() happy under the type-augmented module.
 type NavNameKey =
   | 'dashboard.nav.pulse'
+  | 'dashboard.nav.inbox'
   | 'dashboard.nav.self'
   | 'dashboard.nav.values'
   | 'dashboard.nav.bucket'
@@ -114,6 +118,8 @@ type NavItem = { id: TabType; nameKey: NavNameKey; icon: typeof Target }
 //   Goals   — the "what" / active objective work (Objectives, Progress)
 //   Sync    — the "when/how" cadence: the daily Journal, the weekly Sync, Tracking Items
 const pulseNavItem: NavItem = { id: 'pulse', nameKey: 'dashboard.nav.pulse', icon: Activity }
+// The Inbox (captured thoughts) sits right under it, also without a header.
+const inboxNavItem: NavItem = { id: 'inbox', nameKey: 'dashboard.nav.inbox', icon: InboxIcon }
 
 const compassSection: NavItem[] = [
   { id: 'self', nameKey: 'dashboard.nav.self', icon: UserCircle2 },
@@ -397,6 +403,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             setActiveTab('pulse')
             setMobileNavOpen(false)
           })}
+          {renderNavItem(inboxNavItem, isCollapsed, activeTab === 'inbox', () => {
+            setActiveTab('inbox')
+            setMobileNavOpen(false)
+          })}
 
           {/* Compass section */}
           {!isCollapsed ? (
@@ -650,6 +660,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (activeTab === 'objectives') return t('dashboard.nav.objectives')
     if (activeTab === 'tasks') return t('dashboard.nav.tasks')
     if (activeTab === 'pulse') return t('dashboard.nav.pulse')
+    if (activeTab === 'inbox') return t('dashboard.nav.inbox')
     if (activeTab === 'journal') return t('dashboard.nav.journal')
     if (activeTab === 'sync') return t('dashboard.nav.sync')
     if (activeTab === 'tracking-items') return t('dashboard.nav.trackingItems')

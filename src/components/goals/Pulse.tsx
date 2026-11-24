@@ -12,6 +12,9 @@ import {
   useUploadSyncAttachment,
 } from '~/lib/mutations/weekly-sync'
 import { useGoalsData } from '~/lib/queries/goals'
+import { capturesQueryOptions } from '~/lib/queries/captures'
+import { localToday } from '~/lib/journal'
+import { useLocalToday } from '~/lib/use-local-today'
 import { importantDatesQueryOptions, peopleQueryOptions, upcomingNextBidsQueryOptions } from '~/lib/queries/people'
 import { attentionOf, horizonsOf, isFilled, syncItemsOf, upcomingOf } from '~/lib/pulse'
 import { weeklyRetrospectiveQueryOptions, type WeeklyRetrospectiveData as WeeklyRetroData } from '~/lib/queries/sync'
@@ -32,6 +35,13 @@ export default function Pulse() {
   const { data: importantDates } = useSuspenseQuery(importantDatesQueryOptions())
   const { data: upcomingBids } = useSuspenseQuery(upcomingNextBidsQueryOptions())
   const [showYearlySection, setShowYearlySection] = useState(false)
+
+  // "Captured today": counted in the browser's day, so not before it is known.
+  const localDay = useLocalToday()
+  const { data: captures } = useQuery(capturesQueryOptions())
+  const capturedToday = localDay
+    ? (captures ?? []).filter((c) => localToday(new Date(c.capturedAt)) === localDay).length
+    : 0
 
   const createWeeklySync = useCreateWeeklySync()
   const setItemText = useSetSyncItemText()
@@ -138,7 +148,19 @@ export default function Pulse() {
             {greeting}, <span className="brand-em">{t('pulse.greetingSuffix')}</span>
           </>
         }
-        sub={new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+        sub={
+          <>
+            {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+            {capturedToday > 0 && (
+              <>
+                {' · '}
+                <Link to="/app/inbox" className="underline-offset-2 hover:text-[var(--ink)] hover:underline">
+                  {t('pulse.capturedToday', { count: capturedToday })}
+                </Link>
+              </>
+            )}
+          </>
+        }
         actions={progressMeter}
       />
 

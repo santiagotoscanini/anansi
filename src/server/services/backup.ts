@@ -9,6 +9,7 @@ import {
   attachments,
   bucketListItemPeople,
   bucketListItems,
+  captures,
   connections,
   files,
   goalValues,
@@ -209,6 +210,11 @@ export async function exportAll(userId: string) {
     ? await db.select().from(openQuestionPeople).where(inArray(openQuestionPeople.questionId, openQuestionIds))
     : []
   const personalityRows = await db.select().from(personalityResults).where(eq(personalityResults.userId, userId))
+  const captureRows = await db
+    .select({ capture: captures, file: files })
+    .from(captures)
+    .leftJoin(files, eq(captures.fileId, files.id))
+    .where(eq(captures.userId, userId))
 
   // Pull the bytes of every attachment out of the bucket and base64-encode
   // them, one at a time (each is at most an upload's 10 MB). A file whose bytes
@@ -230,6 +236,15 @@ export async function exportAll(userId: string) {
       continue
     }
     exportedFiles.push({ attachmentId: a.id, data: Buffer.from(bytes).toString('base64') })
+  }
+
+  // A capture's audio, by the same rule: past an upload's 10 MB only the row goes.
+  const exportedCaptureFiles: { captureId: string; data: string }[] = []
+  for (const { capture, file } of captureRows) {
+    if (!file || file.sizeBytes > MAX_UPLOAD_BYTES) continue
+    const bytes = await readFile(file.id)
+    if (!bytes) continue
+    exportedCaptureFiles.push({ captureId: capture.id, data: Buffer.from(bytes).toString('base64') })
   }
 
   return {
@@ -267,6 +282,16 @@ export async function exportAll(userId: string) {
     personalityResults: personalityRows.map(stripUser),
     syncItemBlocks: syncItemBlockRows,
     healthDays: healthDayRows.map(stripUser),
+    captures: captureRows.map(({ capture, file }) => {
+      const { fileId: _fileId, userId: _userId, ...rest } = capture
+      return {
+        ...rest,
+        audio: file
+          ? { fileId: file.id, fileName: file.fileName, mimeType: file.mimeType, sizeBytes: file.sizeBytes }
+          : null,
+      }
+    }),
+    captureFiles: exportedCaptureFiles,
     // Touched-but-unused — harmless extra context for a future v2 importer.
     // Part of the shipped payload shape, so it stays.
     _trackingItemIds: trackingItemIds,
@@ -310,8 +335,23 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
   const keptFileOf = new Map(
     held.filter((a) => inBackup.has(a.id) && !carried.has(a.id)).map((a) => [a.id, a.fileId] as const),
   )
-  const keptFiles = new Set(keptFileOf.values())
-  const replaced = held.map((a) => a.fileId).filter((fileId) => !keptFiles.has(fileId))
+  // A capture's audio follows the same rule: one the backup names without its
+  // bytes, still held here as the same file, stays.
+  const heldCaptures = await db
+    .select({ id: captures.id, fileId: captures.fileId })
+    .from(captures)
+    .where(eq(captures.userId, userId))
+  const carriedCaptures = new Set(b.captureFiles.map((f) => f.captureId))
+  const backupAudio = new Map(b.captures.map((c) => [c.id, c.audio?.fileId ?? null] as const))
+  const keptCaptureFileOf = new Map(
+    heldCaptures
+      .filter((c) => c.fileId && !carriedCaptures.has(c.id) && backupAudio.get(c.id) === c.fileId)
+      .map((c) => [c.id, c.fileId!] as const),
+  )
+  const keptFiles = new Set([...keptFileOf.values(), ...keptCaptureFileOf.values()])
+  const replaced = [...held.map((a) => a.fileId), ...heldCaptures.flatMap((c) => (c.fileId ? [c.fileId] : []))].filter(
+    (fileId) => !keptFiles.has(fileId),
+  )
   // The files this import writes, bytes first and rows in the transaction. If
   // it rolls back, their bytes are discarded with it.
   const written: string[] = []
@@ -337,6 +377,7 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       await tx.delete(openQuestions).where(eq(openQuestions.userId, userId))
       await tx.delete(personalityResults).where(eq(personalityResults.userId, userId))
       await tx.delete(healthDays).where(eq(healthDays.userId, userId))
+      await tx.delete(captures).where(eq(captures.userId, userId))
 
       if (b.values.length) {
         await tx.insert(values).values(b.values.map((v) => ({ ...v, userId })))
@@ -512,6 +553,38 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
           }),
         )
       }
+      // Captures, after the questions they may point at. A question the backup
+      // does not hold is dropped from the capture, which keeps its words.
+      if (b.captures.length) {
+        const restoredQuestions = new Set(b.openQuestions.map((q) => q.id))
+        const audioOf = new Map(b.captureFiles.map((f) => [f.captureId, f.data] as const))
+        const rows: (typeof captures.$inferInsert)[] = []
+        for (const c of b.captures) {
+          const { audio, ...rest } = c
+          let fileId: string | null = keptCaptureFileOf.get(c.id) ?? null
+          const base64 = audioOf.get(c.id)
+          if (!fileId && base64 && audio) {
+            const file = await saveFile(
+              userId,
+              {
+                fileName: audio.fileName,
+                mimeType: audio.mimeType,
+                bytes: Buffer.from(base64.replace(/^data:[^;]+;base64,/, ''), 'base64'),
+              },
+              tx,
+            )
+            written.push(file.id)
+            fileId = file.id
+          }
+          rows.push({
+            ...rest,
+            userId,
+            fileId,
+            questionId: c.questionId && restoredQuestions.has(c.questionId) ? c.questionId : null,
+          })
+        }
+        await tx.insert(captures).values(rows)
+      }
     })
   } catch (err) {
     await discardFiles(written)
@@ -554,6 +627,7 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       personalityResults: b.personalityResults.length,
       syncItemBlocks: b.syncItemBlocks.length,
       healthDays: b.healthDays.length,
+      captures: b.captures.length,
       // NOTE: nextBids, bucketListItems and bucketListItemPeople are imported
       // but deliberately absent from `counts` — that's the shipped shape and
       // the UI renders whatever keys it finds. Adding them is a UI change.

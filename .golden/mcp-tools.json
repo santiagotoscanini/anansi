@@ -220,6 +220,38 @@
   {
     "annotations": {
       "destructiveHint": false,
+      "openWorldHint": true
+    },
+    "description": "Drop a thought into the user's inbox, as they would from their phone: an idea, a to-do, something to think about. With `questionId` (from `list_open_questions`) it becomes a dated note on that open question; without it, it goes to their TickTick Inbox as a task (its first line is the title) when TickTick is connected. Use it when the user asks you to note something for later and it is not clearly a task of a goal; answers the capture with where it went.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "questionId": {
+          "description": "The open question it belongs to.",
+          "type": "string"
+        },
+        "text": {
+          "description": "The thought, as the user said it. The first line is its title.",
+          "maxLength": 10000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    },
+    "name": "capture",
+    "title": "Capture a thought"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
       "idempotentHint": false,
       "openWorldHint": false
     },
@@ -960,6 +992,32 @@
     },
     "name": "delete_bucket_list_item",
     "title": "Delete a bucket-list item"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "Delete a capture for good, with its audio. Where it went stays (the note on the question, the TickTick task). Prefer archiving (`update_capture`) for one that was dealt with; delete only what should not have been captured.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_capture",
+    "title": "Delete a capture"
   },
   {
     "annotations": {
@@ -1714,6 +1772,40 @@
     },
     "name": "list_bucket_list",
     "title": "List bucket-list items"
+  },
+  {
+    "annotations": {
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "The user's raw inbox of thoughts, newest first: ideas, to-dos, questions and voice notes they captured on the go, to help them triage it. Each has `text` (for a voice note, its transcript; null while it is being transcribed), `kind` (text or voice, with `audioUrl` and `durationMs`), `capturedAt`, `status` (`new` (not routed yet: kept in Anansi, waiting for its words, or failed with `routeError`), `routed` (became a note on `question`, or a TickTick Inbox task), `archived` (dealt with).) and where it went: `questionId`/`question` and `noteId` for an open question, `tickTickTaskId` for TickTick. Turn what you find into goals, tasks, journal entries or question notes with the other tools, then archive the capture with `update_capture`.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "description": "At most this many (default 100).",
+          "maximum": 500,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "status": {
+          "description": "Only captures in this state.",
+          "enum": [
+            "new",
+            "routed",
+            "archived"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_captures",
+    "title": "List captured thoughts"
   },
   {
     "description": "Every weighted edge between active goals: `source` goal id, `target` goal id, `weight`.",
@@ -2780,6 +2872,55 @@
     },
     "name": "update_bucket_list_item",
     "title": "Update a bucket-list item"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    },
+    "description": "Change one capture of the user's inbox. `status: 'archived'` marks it dealt with (do this after turning it into something else); `'new'` brings an archived one back. `text` replaces its words (also on the question note or TickTick task it became). `questionId` moves it to that open question as a note, taking it back from where it went before (its old note or TickTick task is deleted); `questionId: null` takes it out of its question and sends it to the TickTick Inbox.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "questionId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "new",
+            "routed",
+            "archived"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 10000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_capture",
+    "title": "Archive, edit or move a capture"
   },
   {
     "annotations": {

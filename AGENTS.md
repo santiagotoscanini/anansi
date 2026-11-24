@@ -103,7 +103,7 @@ src/
       errors.ts              #   the AppError taxonomy
       auth.ts values.ts value-behaviors.ts goals.ts tasks.ts connections.ts data.ts
       tracking-items.ts sync-templates.ts weekly-sync.ts journal.ts attachments.ts file-refs.ts files.ts health.ts
-      people.ts groups.ts next-bids.ts important-dates.ts bucket-list.ts
+      people.ts groups.ts next-bids.ts important-dates.ts bucket-list.ts captures.ts
       self.ts self-list-items.ts open-questions.ts personality.ts backup.ts ticktick.ts
     ticktick/               # the TickTick sync: client (Open API), crypto (token at rest), oauth (state cookie),
                              #   sync (the reconciliation), runner (debounce + poller)
@@ -123,11 +123,12 @@ src/
       importance.ts
     api/types.ts             # ~726 lines of zod schemas, shared by services + fns + MCP
     data/                    # schema.ts, db connection, migrations/
-    mcp/                     # MCP server + 112 tools + the OAuth 2.1 provider
+    mcp/                     # MCP server + 116 tools + the OAuth 2.1 provider
     env.ts security-headers.ts horizon-period.ts week.ts image-upload.ts
     over-time.ts             # one tracking item over time: frames, the timeline, the missed weeks (pure; the screen and its tests)
     mentions.ts              # the mention grammar: how any text names a person (pure; server, editors, tests)
     journal.ts               # the journal's calendar-day helpers
+    captures.ts              # captures: the TickTick title/notes rule, where a capture went (pure; tested)
     health.ts                # Apple Health: the phone's payload, HEALTH_METRICS, a metric over a week (pure; tested)
     sync-item.ts             # a sync item's pure rules: its mention ids, the picture limit, when a block folds
     personality.ts           # personality tests: the per-test details union, which result is newest, free-test links (pure; tested)
@@ -144,6 +145,7 @@ src/
       ValuesManager.tsx WeeklyRetrospective.tsx LifeProgress.tsx ItemOverTime.tsx
       PeopleManager.tsx PersonModal.tsx RelationshipsBoard.tsx
       WeeklySyncItemRow.tsx SyncItemParts.tsx (the Health line, the named blocks)
+      Inbox.tsx              (captured thoughts and voice notes)
       Self.tsx SelfParts.tsx OpenQuestions.tsx PersonalityResults.tsx BucketListItemModal.tsx TabError.tsx
       ColorPicker.tsx DatePicker.tsx Avatar.tsx EmojiPickerLazy.tsx
     auth/AuthScreens.tsx
@@ -172,6 +174,7 @@ app.journal.tsx    { day? }  (absent = today, resolved in the browser)
 app.people.tsx     { filter?, groupId?, person?, view?: 'board' }   app.bucket.tsx { item? }
                     (`goal`/`item`/`task` accept an id, or the literal `new` to open the create form)
 app.pulse.tsx  app.self.tsx  app.values.tsx
+app.inbox.tsx      { capture?, archived?: true }  (captured thoughts; `capture` marks one: the link a TickTick task carries back)
 app.tracking-items.tsx { item?, view? }  (the library; with `item`, that item over time)
 app.progress.tsx
 app.horizons.tsx  app.relationships.tsx   redirects only: → /app/tasks, → /app/people?view=board
@@ -203,7 +206,7 @@ component  →  lib/queries/*.ts (queryOptions)  →  server/fn/*.fn.ts (createS
 MCP tool  ────────────────────────────────────────────↗  (direct, in-process)
 ```
 
-- **`server/services/*.ts`** holds all business logic as plain `(userId, input)` async functions. It imports `db`, the zod schemas and `AppError`, and nothing from `@tanstack/*`. That is what lets the 112 MCP tools call it directly: the MCP graph never touches the Start compiler, so there is no function-id registration, no CSRF, no Seroval, no HTTP hop.
+- **`server/services/*.ts`** holds all business logic as plain `(userId, input)` async functions. It imports `db`, the zod schemas and `AppError`, and nothing from `@tanstack/*`. That is what lets the 116 MCP tools call it directly: the MCP graph never touches the Start compiler, so there is no function-id registration, no CSRF, no Seroval, no HTTP hop.
 - Services **re-parse their input** with the shared zod schema. Two entry points means two independent validators; parsing inside the service is the only guarantee that covers both, and it makes each service callable from a script without ceremony.
 - **`server/fn/*.fn.ts`** wraps services for the browser. Every tab loader primes its queries with `prime(queryClient, ...options)` (`lib/queries/prime.ts`) and components read with `useSuspenseQuery`. On the server `prime` waits, so tab data is server-rendered and hydrated; in the browser it only starts the queries, so a tab switch is instant: from the cache when it has the data, else behind `TabSkeleton` (a Suspense boundary around the tab in `AppShell`, keyed by tab so it shows instead of holding the old tab). **Do not await queries in a tab loader in the browser**: that freezes the old page for the round trip, which is what made tabs slow. `AppShell` also preloads every tab (code and data) once the page is idle; the sidebar navigates with buttons, so there is no hover preload. A deep link that must redirect on a missing record (`/app/tracking-items?item=`) still awaits.
 - **`lib/queries/keys.ts`** owns every query key (`qk.*`), replacing tRPC's `utils.*.invalidate()`. Invalidate by key **root** (`qk.people`), not by leaf — prefix matching covers the leaves.
@@ -264,6 +267,16 @@ One entry per user per calendar day, written like a diary: `highlights` (the day
 
 ### Markdown
 A journal day's text and a sync item's notes are stored as typed and shown as Markdown (`MarkdownText`, parsed by the pure `src/lib/markdown.ts`): headings, rules, lists, quotes, code, emphasis, links, and line breaks kept as written. Nothing is turned into HTML: the renderer builds elements from the parsed values. Mentions inside it go through `MentionText` as everywhere. A media marker (`[foto 2]`, `[video 1]`, `[audio 1]`, `[archivo 1]`) shows the nth attachment of that kind of the same day or sync item in its place, in the order they were added; imported diaries carry them where a picture sat. A marker with nothing behind it stays as written. An editor always shows the raw text.
+
+### Capture (the Inbox)
+One input for everything on the user's mind: press the iPhone's Action Button (or ask Siri, or tap a shortcut), say or type it, done. Text or a voice note; the phone transcribes voice **on the device** (SpeechAnalyzer) and keeps the audio. No model runs on the server.
+
+- **Stored and shown.** Every capture is a `captures` row (`services/captures.ts`), listed in the Inbox tab (`/app/inbox`, under Pulse: rows by day, the text or "Transcribing…", an `<audio>` player, where it went, a box at the top to capture from the web; on hover: send to a question, archive, delete). Pulse shows "Captured today · n" when there are any.
+- **Routed once** (`route`, idempotent, one call per capture at a time, never throws to the caller): with `questionId` it becomes a note on that open question (`openQuestions.addNote`, so `@` mentions link) once it has words; otherwise it becomes a task in the user's **TickTick Inbox** (a `POST /task` with no `projectId`; the answer names the Inbox's real id, kept in `ticktick_project_id`), titled with its first line (at most 120 characters, `captureTitle` in `src/lib/captures.ts`), the rest plus a link back to `/app/inbox?capture=<id>` as its notes, tagged `anansi`. These tasks have no `ticktick_links` row: they are the user's to triage in TickTick, and the sync never sees them. TickTick not connected: the capture stays `new` in Anansi.
+- **Voice** waits for its transcript; after 10 minutes without one it goes to TickTick as "🎙 Voice note (captured 24 Nov, 14:05)" and a transcript that arrives later renames the task. A voice note for a question waits for its words.
+- **Failures** are kept in `route_error` (shown with Retry); the TickTick poller retries them every round (`retryPending`, `server/ticktick/runner.ts`), along with the voice notes that waited long enough.
+- **Moving** (`update` with `questionId`, the row's "send to a question") takes it back from where it went (its note or TickTick task is deleted) and routes it afresh; `questionId: null` sends it to TickTick. Editing the text edits the note or the task too. Deleting a capture deletes its audio and leaves the note or task.
+- Claude reads and triages them with `list_captures` / `capture` / `update_capture` / `delete_capture`.
 
 ### Mentions
 Three texts can name a person, and all three do it the same way: a journal day (text and highlights), the notes on a weekly sync item (and its named blocks), a task's title and description. (A note on an open question is linked the same way on write, but has no index table, so it does not show under the person's mentions.)
@@ -473,6 +486,9 @@ Life questions the user is living with.
 - `open_question_notes`: `questionId` (cascade), `content` (mention-linked text). Indexed on `questionId`.
 - `open_question_goals` (`questionId`, `goalId`) and `open_question_people` (`questionId`, `personId`): cascade both sides, UNIQUE pairs. Links to archived goals are hidden on read.
 
+### captures
+One per thing captured (see "Capture" under Features). `userId` (cascade), `kind` (enum `text|voice`), `text` (nullable: the typed text, or the voice note's transcript once the phone sends it; `''` = it heard no words), `fileId` (nullable, FK → files.id, set null: the audio), `durationMs`, `questionId` (nullable, FK → open_questions.id, set null), `noteId` (the note it became, no FK), `tickTickTaskId` + `tickTickProjectId` (the Inbox task it became), `status` (enum `new|routed|archived`), `routeError`, `routedAt`, `source` (enum `phone|web|mcp`), `capturedAt` (the device's moment, as sent; defaults to now). Indexed on `(userId, capturedAt desc)`.
+
 ### personality_results
 One row per test result; a retake is a new row and the newest (by `takenAt`, else `createdAt`) is the one shown.
 - `userId` (cascade), `test` (text, one of `personalityTestValues`: `mbti|enneagram|big_five|clifton_strengths|via_strengths|attachment_style|love_languages|disc|other`), `takenAt` (date, nullable), `source` (nullable), `summary` (the headline: "INFJ-T", "4w5"), `details` (jsonb, the test's structured scores), `notes` (nullable). Indexed on `userId`.
@@ -587,6 +603,10 @@ One file per domain in `src/server/services/`, one thin `.fn.ts` wrapper per fil
 ### personality
 - `list({ test? })`, `record(input)` (the whole result checked against the union; a retake is a new result), `update` (a field passed replaces; the merged result is checked whole, so changing `test` needs fitting `details`), `remove`
 
+### captures (service)
+- `create({ text, questionId?, capturedAt?, source })`, `createVoice({ ..., path, mimeType, sizeBytes, transcript? })` (a streamed `audio/*` file, at most 200 MB), `setTranscript({ id, transcript })`, `list({ status?, limit? })` (newest first, with `audioUrl` and the question's text), `get`, `update({ id, status?, questionId?, text? })`, `retry`, `remove` (the audio's file with it)
+- `route(id)` (see "Capture"), `retryPending()` (the poller's share). Writes wait up to 8 s for the routing so the answer can say where the capture went.
+
 ### bucketList
 - `list` (oldest first; rows hydrate `personIds[]`), `create`, `update` (pass `personIds` to replace link set, omit to leave unchanged), `toggleCompleted`, `delete`
 
@@ -595,7 +615,7 @@ One file per domain in `src/server/services/`, one thin `.fn.ts` wrapper per fil
 
 ### Data export
 - `data.getAll` — all user data (values, goals, connections). Shares `src/lib/data/queries/load-goals.ts` with `goals.getAll` — the 6-query hydration lives there once.
-- `backup.export` / `backup.import` — full user backup including people + userSelf, open questions (notes and links; a link to a goal or person the backup lacks is dropped), personality results (checked against the union on import), value interpretations, the journal (its mentions are read back out of the text on import), sync item blocks (their mentions likewise), `health_days`, and the attachments' bytes (read from / written to the bucket). `import` re-parses its (large, untrusted) payload inside the service; that is not optional there. Its new files' bytes go to the bucket before their rows join the transaction (and are discarded if it rolls back); the replaced attachments' files lose their rows in the transaction and their bytes only after it commits. Person photos and the avatar are not in a backup and are left alone.
+- `backup.export` / `backup.import` — full user backup including people + userSelf, open questions (notes and links; a link to a goal or person the backup lacks is dropped), personality results (checked against the union on import), value interpretations, the journal (its mentions are read back out of the text on import), sync item blocks (their mentions likewise), `health_days`, captures (`captures`, and their audio in `captureFiles` under the same 10 MB rule as attachments; a capture whose question the backup lacks keeps its words), and the attachments' bytes (read from / written to the bucket). `import` re-parses its (large, untrusted) payload inside the service; that is not optional there. Its new files' bytes go to the bucket before their rows join the transaction (and are discarded if it rolls back); the replaced attachments' files lose their rows in the transaction and their bytes only after it commits. Person photos and the avatar are not in a backup and are left alone.
 
 ## File storage
 
@@ -653,9 +673,9 @@ Transport: Streamable HTTP via `@modelcontextprotocol/sdk`'s `WebStandardStreama
 
 ### MCP tool catalog
 
-`registerAllTools()` (in `src/lib/mcp/tools/index.ts`) wires **112 tools** across 19 domain files. All tool names are flat verb-first snake_case (`list_goals`, `update_person`, `set_next_bid_done`, …). Hand-written `title` + `description` drive LLM tool selection; Zod raw shapes give the SDK enough type info to both generate the inputSchema JSON Schema AND validate inputs at call-time.
+`registerAllTools()` (in `src/lib/mcp/tools/index.ts`) wires **116 tools** across 20 domain files. All tool names are flat verb-first snake_case (`list_goals`, `update_person`, `set_next_bid_done`, …). Hand-written `title` + `description` drive LLM tool selection; Zod raw shapes give the SDK enough type info to both generate the inputSchema JSON Schema AND validate inputs at call-time.
 
-Domains: `system` (4: `whoami`, `update_profile`, `set_avatar`, `remove_avatar`), `goals` (5, with `arrange_goals`), `tasks` (4), `values` (7), `people` (12, with `list_person_mentions`), `next_bids` (6), `important_dates` (4), `groups` (5), `bucket_list` (5), `self` (7), `open_questions` (9: list, create, update, settle, reopen, delete, and add/update/delete a note), `personality` (4: `list_personality_results`, `record_personality_result` with every per-test `details` shape spelled out in its description, `update_personality_result`, `delete_personality_result`), `tracking_items` (5, with `get_tracking_item_history`; create and update take `photosPerWeek` and `healthMetric`), `sync_templates` (5), `weekly_sync` (13, with `get_pulse`, the attachments and `add_sync_item_block` / `update_sync_item_block` / `delete_sync_item_block`), `journal` (8, with its attachments), `health` (1: `get_health_days`), `connections` (4), `ticktick` (2: `get_ticktick_status`, `sync_ticktick`). The app is meant to be fully drivable from here. Left on the screens on purpose: connecting TickTick and picking its list, because connecting is a browser sign-in at ticktick.com; password and email changes, because a connector must not be able to take over the account; backup export and import, because one is the whole account with file bytes and the other replaces it. A new feature gets its tools with it.
+Domains: `system` (4: `whoami`, `update_profile`, `set_avatar`, `remove_avatar`), `goals` (5, with `arrange_goals`), `tasks` (4), `values` (7), `people` (12, with `list_person_mentions`), `next_bids` (6), `important_dates` (4), `groups` (5), `bucket_list` (5), `self` (7), `open_questions` (9: list, create, update, settle, reopen, delete, and add/update/delete a note), `captures` (4: `list_captures`, `capture`, `update_capture`, `delete_capture`: the raw inbox of thoughts, for triage), `personality` (4: `list_personality_results`, `record_personality_result` with every per-test `details` shape spelled out in its description, `update_personality_result`, `delete_personality_result`), `tracking_items` (5, with `get_tracking_item_history`; create and update take `photosPerWeek` and `healthMetric`), `sync_templates` (5), `weekly_sync` (13, with `get_pulse`, the attachments and `add_sync_item_block` / `update_sync_item_block` / `delete_sync_item_block`), `journal` (8, with its attachments), `health` (1: `get_health_days`), `connections` (4), `ticktick` (2: `get_ticktick_status`, `sync_ticktick`). The app is meant to be fully drivable from here. Left on the screens on purpose: connecting TickTick and picking its list, because connecting is a browser sign-in at ticktick.com; password and email changes, because a connector must not be able to take over the account; backup export and import, because one is the whole account with file bytes and the other replaces it. A new feature gets its tools with it.
 
 **A week is named by a calendar day (`localDay`), never by the clock.** The server is in UTC and `week_date` holds whatever Sunday the creator's clock said: Sunday 05:00Z from a browser in New York, 00:00Z from a naive server. The unique index cannot see those as one week, so a tool computing `weekStartOf(new Date())` would start a second sync that Pulse never shows. So the tools take the user's `day`, `weekOfDay` turns it into noon UTC on its Sunday, and `weekly-sync.ts` matches by week within `WEEK_MATCH_MS` instead of by instant. That also keeps one sync for a user who opens the app on another clock. Starting a week that has a sync returns that sync.
 
@@ -693,7 +713,7 @@ components/oauth/ConsentScreen.tsx             # Consent UI (EN-only for v1)
 lib/mcp/server.ts                              # Per-request McpServer factory
 lib/mcp/types.ts                               # McpCtx = { userId }
 lib/mcp/errors.ts                              # AppError → MCP error result + mcpJsonResult
-lib/mcp/tools/{system,goals,tasks,values,people,next_bids,important_dates,groups,bucket_list,self,tracking_items,sync_templates,weekly_sync,journal,health,connections}.ts
+lib/mcp/tools/{system,goals,tasks,values,people,next_bids,important_dates,groups,bucket_list,self,captures,tracking_items,sync_templates,weekly_sync,journal,health,connections}.ts
 lib/mcp/tools/attachment-result.ts             # an attachment as a tool result (image, text, or a note)
 lib/mcp/tools/fields.ts                        # isoDate + toolInput/closedObject (zod 4 JSON Schema)
 lib/mcp/oauth/{store,clients,codes,tokens,pkce,consent,metadata,scopes,audit,authorize-validation}.ts
@@ -751,6 +771,10 @@ Keys: created and revoked by the signed-in user in Profile → Devices (`src/ser
 | `/api/v1/journal/{day}/attachments` | POST (body = the file; `?fileName=&fileType=`; `fileType=video\|audio` is streamed, up to 1 GiB) | `journal.uploadAttachment` / `uploadMedia` (read and deleted at `/api/v1/attachments/{id}`) |
 | `/api/v1/people` | GET | `people.list`, cut to id, name, emoji (the mention picker) |
 | `/api/v1/health/days` | PUT `{days: [{day, ...totals}]}` (1 to 400 days) | `health.saveDays` (each day replaces what the server had) |
+| `/api/v1/captures?limit=` | GET (newest first, default 50), POST `{text, questionId?, capturedAt?}` | `captures.list` / `create` (answers the capture, routed if that finished within 8 s) |
+| `/api/v1/captures/voice?questionId=&capturedAt=&durationMs=&transcript=` | POST (body = the audio, `audio/*`, streamed, up to 200 MB) | `captures.createVoice` |
+| `/api/v1/captures/{id}` | PATCH `{transcript}` (empty = no words heard) | `captures.setTranscript` |
+| `/api/v1/open-questions` | GET (open ones: id, question, `summary`'s first line) | `openQuestions.list`, for the phone's question picker |
 
 ## Landing page
 
@@ -944,7 +968,7 @@ Rules:
 
 > **A green `pnpm build` is not evidence that the app runs.** Three separate defects during the migration passed `vite build` and failed on the first real request: `import 'server-only'` (500 on every SSR pass), a mis-registered server-function id (`Invalid server function ID`, only at call time), and a dnd-kit hydration mismatch. **Exercise changes in `pnpm dev` from a real browser**, and include *client-side* navigation — a hard reload runs loaders on the server where a server fn is a direct call, so only client-side navigation tests the RPC path.
 
-`.golden/` holds the pre-migration oracle and is the reference for anything that must not drift: the 112-tool `tools/list` JSON, both `.well-known` documents, the MCP 401 response (which doubles as the security-header baseline), and 29 screenshots. `.golden/README.md` documents the diff procedure, the one deliberate re-baseline (zod 4), and its known false positives (`objectives-*` always differ — React Flow animates its dashed edges).
+`.golden/` holds the pre-migration oracle and is the reference for anything that must not drift: the 116-tool `tools/list` JSON, both `.well-known` documents, the MCP 401 response (which doubles as the security-header baseline), and 29 screenshots. `.golden/README.md` documents the diff procedure, the one deliberate re-baseline (zod 4), and its known false positives (`objectives-*` always differ — React Flow animates its dashed edges).
 
 ## Infrastructure
 
@@ -961,7 +985,7 @@ Rules:
 
 ## Database migrations
 
-Drizzle migrations live in `src/lib/data/db/migrations/`. `0000_perpetual_scream.sql` is the squashed 23-migration history; `0001`–`0011` came after it (`0003_files_data_nullable` and `0004_drop_files_data` retired `files.data` when the bytes moved to the bucket; `0007_ticktick` added the TickTick tables; `0008_weeks_start_sunday` is data only, see "Weekly retrospectives"; `0009_self_knowledge` added `values.interpretation`, the open-question tables and `personality_results`; `0010_tracking_photos_blocks_health` added `tracking_items.photos_per_week` and `.health_metric`, `sync_item_blocks` and `health_days`; `0011_open_question_summary` added `open_questions.summary` and `.summary_updated_at`).
+Drizzle migrations live in `src/lib/data/db/migrations/`. `0000_perpetual_scream.sql` is the squashed 23-migration history; `0001`–`0012` came after it (`0003_files_data_nullable` and `0004_drop_files_data` retired `files.data` when the bytes moved to the bucket; `0007_ticktick` added the TickTick tables; `0008_weeks_start_sunday` is data only, see "Weekly retrospectives"; `0009_self_knowledge` added `values.interpretation`, the open-question tables and `personality_results`; `0010_tracking_photos_blocks_health` added `tracking_items.photos_per_week` and `.health_metric`, `sync_item_blocks` and `health_days`; `0011_open_question_summary` added `open_questions.summary` and `.summary_updated_at`; `0012_captures` added `captures`).
 
 1. **One migration per PR.** Schema changes land as a single consolidated file, not a chain of fixups. Reviewers shouldn't replay your iteration history; squashing after the fact is a merge-conflict magnet.
 2. **If you change schema during a PR and the previous migration isn't committed yet, roll it back before regenerating:**

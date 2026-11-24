@@ -602,6 +602,49 @@ export type SettleOpenQuestion = z.infer<typeof settleOpenQuestionSchema>
 export type AddOpenQuestionNote = z.infer<typeof addOpenQuestionNoteSchema>
 export type UpdateOpenQuestionNote = z.infer<typeof updateOpenQuestionNoteSchema>
 
+// ── Captures ────────────────────────────────────────────────────────────────
+// Whatever was on the user's mind, as text or a voice note; routed to an open
+// question (a note) or to the TickTick Inbox. See services/captures.ts.
+export const captureStatusValues = ['new', 'routed', 'archived'] as const
+export const captureSourceValues = ['phone', 'web', 'mcp'] as const
+
+const captureText = z.string().trim().min(1).max(10_000)
+
+export const createCaptureSchema = z.object({
+  text: captureText,
+  questionId: z.string().min(1).nullable().optional(),
+  /** The moment on the device; the server's now when left out. */
+  capturedAt: z.coerce.date().optional(),
+  source: z.enum(captureSourceValues),
+})
+
+/** A voice note's words, from the phone. Empty means it heard none. */
+export const captureTranscriptSchema = z.object({
+  id: z.string(),
+  transcript: z.string().max(20_000),
+})
+
+/**
+ * A field passed replaces. `status: 'archived'` archives; `'new'` or `'routed'`
+ * brings an archived capture back. `questionId` moves it (null: out of a
+ * question and on to the TickTick Inbox).
+ */
+export const updateCaptureSchema = z.object({
+  id: z.string(),
+  status: z.enum(captureStatusValues).optional(),
+  questionId: z.string().min(1).nullable().optional(),
+  text: captureText.optional(),
+})
+
+export const listCapturesSchema = z.object({
+  status: z.enum(captureStatusValues).optional(),
+  limit: z.number().int().min(1).max(500).optional(),
+})
+
+export type CreateCapture = z.input<typeof createCaptureSchema>
+export type UpdateCapture = z.infer<typeof updateCaptureSchema>
+export type ListCaptures = z.infer<typeof listCapturesSchema>
+
 // ── Personality results ─────────────────────────────────────────────────────
 // The per-test details union lives in ~/lib/personality (pure, shared with the
 // screens and the tests); re-exported here so callers find it with the rest.
@@ -928,6 +971,34 @@ export const backupPersonalityResultSchema = z.object({
   updatedAt: z.coerce.date(),
 })
 
+// A capture's audio travels like an attachment's bytes, keyed by the capture.
+export const backupCaptureSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['text', 'voice']),
+  text: z.string().nullable(),
+  durationMs: z.number().int().nullable(),
+  /** The audio's name, type and size; its bytes are in `captureFiles` when they fit. */
+  audio: z
+    .object({ fileId: z.string(), fileName: z.string(), mimeType: z.string(), sizeBytes: z.number().int() })
+    .nullable(),
+  questionId: z.string().nullable(),
+  noteId: z.string().nullable(),
+  tickTickTaskId: z.string().nullable(),
+  tickTickProjectId: z.string().nullable(),
+  status: z.enum(captureStatusValues),
+  routeError: z.string().nullable(),
+  routedAt: z.coerce.date().nullable(),
+  source: z.enum(captureSourceValues),
+  capturedAt: z.coerce.date(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+})
+
+export const backupCaptureFileSchema = z.object({
+  captureId: z.string(),
+  data: z.string(),
+})
+
 // Files in the backup are now keyed by attachment id (not file path).
 export const backupFileSchema = z.object({
   attachmentId: z.string(),
@@ -982,6 +1053,9 @@ export const backupSchema = z.object({
   // Sync item blocks and Apple Health joined in November 2026.
   syncItemBlocks: z.array(backupSyncItemBlockSchema).default([]),
   healthDays: z.array(backupHealthDaySchema).default([]),
+  // Captures joined in November 2026.
+  captures: z.array(backupCaptureSchema).default([]),
+  captureFiles: z.array(backupCaptureFileSchema).default([]),
 })
 
 export type Backup = z.infer<typeof backupSchema>

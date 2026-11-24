@@ -126,7 +126,9 @@ export function isMediaUpload(request: Request): boolean {
 /**
  * A video or a voice recording: the body is streamed to a temporary file, never
  * held in memory, and `run` gets its path. The file is removed when `run`
- * settles, whatever happened. Past `MAX_MEDIA_UPLOAD_BYTES` the stream is cut.
+ * settles, whatever happened. Past `MAX_MEDIA_UPLOAD_BYTES` (or `opts.maxBytes`)
+ * the stream is cut. `opts.fileType` fixes the kind for a route that takes
+ * only one (a voice capture), instead of reading `?fileType=`.
  */
 export async function withMediaUpload<T>(
   request: Request,
@@ -137,12 +139,13 @@ export async function withMediaUpload<T>(
     path: string
     sizeBytes: number
   }) => Promise<T>,
+  opts: { fileType?: 'video' | 'audio'; maxBytes?: number } = {},
 ): Promise<T> {
+  const maxBytes = Math.min(opts.maxBytes ?? MAX_MEDIA_UPLOAD_BYTES, MAX_MEDIA_UPLOAD_BYTES)
   const declared = Number(request.headers.get('content-length') ?? '0')
-  if (declared > MAX_MEDIA_UPLOAD_BYTES)
-    throw new AppError('BAD_REQUEST', `Upload exceeds ${MAX_MEDIA_UPLOAD_BYTES} bytes`)
+  if (declared > maxBytes) throw new AppError('BAD_REQUEST', `Upload exceeds ${maxBytes} bytes`)
   const url = new URL(request.url)
-  const fileType = z.enum(['video', 'audio']).parse(url.searchParams.get('fileType'))
+  const fileType = opts.fileType ?? z.enum(['video', 'audio']).parse(url.searchParams.get('fileType'))
   const fileName = z
     .string()
     .min(1)
@@ -158,8 +161,7 @@ export async function withMediaUpload<T>(
     const counted = new Transform({
       transform(chunk: Buffer, _encoding, done) {
         sizeBytes += chunk.length
-        if (sizeBytes > MAX_MEDIA_UPLOAD_BYTES)
-          done(new AppError('BAD_REQUEST', `Upload exceeds ${MAX_MEDIA_UPLOAD_BYTES} bytes`))
+        if (sizeBytes > maxBytes) done(new AppError('BAD_REQUEST', `Upload exceeds ${maxBytes} bytes`))
         else done(null, chunk)
       },
     })

@@ -898,6 +898,47 @@ export const personalityResults = pgTable(
   (t) => [index('personality_results_user_idx').on(t.userId)],
 )
 
+// Captures: whatever was on the user's mind, dropped from the phone's Action
+// Button, Siri, the web or Claude, as text or as a voice note (the audio is a
+// file; the phone transcribes it and sends the text after). Each is kept here
+// and routed once (services/captures.ts): aimed at an open question it becomes
+// a note on it (`noteId`), otherwise a task in the user's TickTick Inbox
+// (`tickTickTaskId`, not a `ticktick_links` row: it is not an Anansi task).
+export const captureKindEnum = pgEnum('capture_kind', ['text', 'voice'])
+export const captureStatusEnum = pgEnum('capture_status', ['new', 'routed', 'archived'])
+export const captureSourceEnum = pgEnum('capture_source', ['phone', 'web', 'mcp'])
+
+export const captures = pgTable(
+  'captures',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: captureKindEnum('kind').notNull(),
+    // The typed text, or a voice note's transcript once the phone sends it.
+    text: text('text'),
+    fileId: text('file_id').references(() => files.id, { onDelete: 'set null' }),
+    durationMs: integer('duration_ms'),
+    questionId: text('question_id').references(() => openQuestions.id, { onDelete: 'set null' }),
+    // The open-question note it became. No FK: the note can be deleted on its own.
+    noteId: text('note_id'),
+    tickTickTaskId: text('ticktick_task_id'),
+    // The TickTick list the task landed in (the Inbox's real id), to delete it again.
+    tickTickProjectId: text('ticktick_project_id'),
+    status: captureStatusEnum('status').notNull().default('new'),
+    routeError: text('route_error'),
+    routedAt: timestamp('routed_at'),
+    source: captureSourceEnum('source').notNull(),
+    // The moment on the device that captured it, as it said.
+    capturedAt: timestamp('captured_at').notNull().defaultNow(),
+    ...timestamps,
+  },
+  (t) => [index('captures_user_captured_idx').on(t.userId, t.capturedAt.desc())],
+)
+
 // MCP OAuth tables — Anansi acts as its own OAuth 2.1 Authorization Server for
 // the MCP server at /api/mcp. Five tables: dynamically-registered clients, the
 // short-lived authorization codes minted on consent, access and refresh tokens

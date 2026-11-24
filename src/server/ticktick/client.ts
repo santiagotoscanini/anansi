@@ -22,6 +22,9 @@
 //     sections as columns and gets no "Not Sectioned" column (switching in
 //     TickTick's app adds one).
 //   - /task/completed answers tasks without their due date.
+//   - A task created with no `projectId` lands in the user's Inbox, whose real
+//     id (`inbox<n>`) comes back as the task's `projectId`; deleting it needs
+//     that id. `/project` does not list the Inbox.
 import { env } from '~/lib/env'
 
 const API = 'https://api.ticktick.com/open/v1'
@@ -151,6 +154,12 @@ export function tickTick(token: string) {
         { notFoundIsNull: true },
       ),
     createTask: async (task: Partial<RemoteTask> & { projectId: string; title: string }) => {
+      const created = await call<RemoteTask>(token, 'POST', '/task', task, { once: true })
+      if (!created?.id) throw new TickTickError(500, 'TickTick created no task')
+      return created
+    },
+    /** A task in the user's Inbox (no list named): what a capture becomes. */
+    createInboxTask: async (task: { title: string; content?: string; tags?: string[] }) => {
       const created = await call<RemoteTask>(token, 'POST', '/task', task, { once: true })
       if (!created?.id) throw new TickTickError(500, 'TickTick created no task')
       return created

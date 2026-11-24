@@ -22,3 +22,6 @@ INFOPLIST_FILE = Config/Info.plist
 // export's distribution signature: see ios-deploy.yml.
 CODE_SIGN_ENTITLEMENTS = Config/Anansi.entitlements
 INFOPLIST_KEY_NSHealthShareUsageDescription = Anansi reads your daily sleep, activity, body and heart totals from Health and keeps them with your weekly syncs.
+// App Store validation asks for the write string whenever the HealthKit entitlement is present, even though
+// Anansi never writes to Health.
+INFOPLIST_KEY_NSHealthUpdateUsageDescription = Anansi does not write to Health. It only reads your daily totals to show them with your weekly syncs.

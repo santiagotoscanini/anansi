@@ -17,7 +17,8 @@ final class BackgroundRecorder {
     private(set) var isRecording = false
 
     @ObservationIgnored private var recorder: VoiceRecorder?
-    @ObservationIgnored private var activity: Activity<RecordingActivityAttributes>?
+    /// The Live Activity's id (an `Activity` is not Sendable, so it is looked up again to end it).
+    @ObservationIgnored private var activityId: String?
     @ObservationIgnored private var startedAt = Date.now
     @ObservationIgnored private var questionId: String?
     @ObservationIgnored private var limit: Task<Void, Never>?
@@ -70,7 +71,7 @@ final class BackgroundRecorder {
         let recorder = VoiceRecorder()
         await recorder.start()
         guard recorder.phase == .recording else {
-            await activity.end(nil, dismissalPolicy: .immediate)
+            await Self.endActivity(activity.id, final: nil, linger: false)
             try? session.setActive(false, options: .notifyOthersOnDeactivation)
             var reason = "The recording couldn't start."
             if case .failed(let message) = recorder.phase { reason = message }
@@ -78,7 +79,7 @@ final class BackgroundRecorder {
         }
 
         self.recorder = recorder
-        self.activity = activity
+        activityId = activity.id
         self.questionId = questionId
         startedAt = now
         isRecording = true
@@ -95,9 +96,9 @@ final class BackgroundRecorder {
         limit?.cancel()
         limit = nil
         let durationMs = recorder.stop()
-        let activity = self.activity
+        let activityId = self.activityId
         self.recorder = nil
-        self.activity = nil
+        self.activityId = nil
 
         var saved = false
         if let durationMs {
@@ -113,11 +114,9 @@ final class BackgroundRecorder {
             try? FileManager.default.removeItem(at: recorder.fileURL)
         }
 
-        if let activity {
-            let final = RecordingActivityAttributes.ContentState(startedAt: startedAt,
-                                                                 endsBy: .now, saved: saved)
-            await activity.end(ActivityContent(state: final, staleDate: nil),
-                               dismissalPolicy: saved ? .after(.now.addingTimeInterval(4)) : .immediate)
+        if let activityId {
+            let final = RecordingActivityAttributes.ContentState(startedAt: startedAt, endsBy: .now, saved: saved)
+            await Self.endActivity(activityId, final: final, linger: saved)
         }
     }
 
@@ -125,10 +124,18 @@ final class BackgroundRecorder {
     func endLeftovers() async {
         // Taken in one go, while no recording is starting, so the list holds only leftovers.
         guard !isRecording, !isStarting else { return }
-        let leftovers = Activity<RecordingActivityAttributes>.activities
-        for leftover in leftovers {
-            await leftover.end(nil, dismissalPolicy: .immediate)
+        let leftovers = Activity<RecordingActivityAttributes>.activities.map(\.id)
+        for id in leftovers {
+            await Self.endActivity(id, final: nil, linger: false)
         }
+    }
+
+    /// Ends a Live Activity by id, off the main actor: an `Activity` is not Sendable, so only its id crosses.
+    @concurrent nonisolated private static func endActivity(_ id: String, final: RecordingActivityAttributes.ContentState?,
+                                                         linger: Bool) async {
+        guard let activity = Activity<RecordingActivityAttributes>.activities.first(where: { $0.id == id }) else { return }
+        await activity.end(final.map { ActivityContent(state: $0, staleDate: nil) },
+                           dismissalPolicy: linger ? .after(.now.addingTimeInterval(4)) : .immediate)
     }
 
     // MARK: For the intents (off the main actor)

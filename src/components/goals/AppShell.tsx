@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import {
   ChevronUp,
   LogOut,
@@ -22,7 +22,7 @@ import {
   NotebookPen,
   UserCircle2,
 } from 'lucide-react'
-import { getRouteApi, useNavigate, useRouterState } from '@tanstack/react-router'
+import { getRouteApi, useNavigate, useRouter, useRouterState } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast'
@@ -45,14 +45,15 @@ import ColorPicker from './ColorPicker'
 import ProfileModal from './ProfileModal'
 import Avatar from './Avatar'
 import { AnansiMark, BrandLockup } from './Brand'
+import { TabSkeleton } from './TabSkeleton'
 
 // The authenticated chrome: sidebar, mobile drawer, user menu, and the two
 // global modals. Everything below the top bar is the active tab's route,
 // rendered as `children`.
 //
 // Was GoalsDashboard, which also owned a 12-way switch on the active tab and
-// the tab's loading state. Both are gone: the route tree is the switch, and the
-// loader prefetch removed the loading state entirely.
+// the tab's loading state. The route tree is the switch now; a tab whose data
+// is not in the cache yet shows TabSkeleton (see the Suspense below).
 
 type TabType =
   | 'objectives'
@@ -170,6 +171,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const signOut = useSignOut()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+
+  // Once the page is idle, load every tab's code and start its data, so the
+  // first click on any of them is as quick as the second. Their loaders only
+  // start queries in the browser (lib/queries/prime), so this waits on nothing.
+  const router = useRouter()
+  useEffect(() => {
+    const preload = () => {
+      for (const tab of TAB_SLUGS) void router.preloadRoute({ to: `/app/${tab}` }).catch(() => undefined)
+    }
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(preload, { timeout: 3000 })
+      return () => window.cancelIdleCallback(id)
+    }
+    const id = window.setTimeout(preload, 1500)
+    return () => window.clearTimeout(id)
+  }, [router])
 
   // Desktop sidebar layout. Three knobs:
   //   - userPrefCollapsed: whether the user clicked the collapse button
@@ -713,7 +730,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Each tab route carries its own errorComponent, so a crash is scoped
             here and the sidebar stays usable to navigate out of it. */}
-        <div className="flex-1 overflow-auto">{children}</div>
+        <div className="flex-1 overflow-auto">
+          {/* Keyed by tab: a boundary new to this tab shows the skeleton while
+              its data loads, where one already on screen would hold the old
+              tab instead (a navigation is a transition). */}
+          <Suspense key={activeTab} fallback={<TabSkeleton />}>
+            {children}
+          </Suspense>
+        </div>
       </div>
     </main>
   )

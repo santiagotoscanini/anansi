@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import Self from '~/components/goals/Self'
 import { TabError } from '~/components/goals/TabError'
+import { prime } from '~/lib/queries/prime'
 import { selfListItemsQueryOptions, selfQueryOptions } from '~/lib/queries/self'
 import { valuesQueryOptions } from '~/lib/queries/values'
 
@@ -9,11 +10,7 @@ import { valuesQueryOptions } from '~/lib/queries/values'
 // unfinished forms. Values are here because Self tags entries with them.
 export const Route = createFileRoute('/app/self')({
   loader: ({ context }) =>
-    Promise.all([
-      context.queryClient.ensureQueryData(selfQueryOptions()),
-      context.queryClient.ensureQueryData(selfListItemsQueryOptions()),
-      context.queryClient.ensureQueryData(valuesQueryOptions()),
-    ]),
+    prime(context.queryClient, selfQueryOptions(), selfListItemsQueryOptions(), valuesQueryOptions()),
   component: Self,
   errorComponent: TabError,
 })

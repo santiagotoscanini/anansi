@@ -3,6 +3,7 @@ import ItemOverTime, { type OverTimeView } from '~/components/goals/ItemOverTime
 import { TabError } from '~/components/goals/TabError'
 import TrackingItemsLibrary from '~/components/goals/TrackingItemsLibrary'
 import { parseAppError } from '~/lib/queries/errors'
+import { prime } from '~/lib/queries/prime'
 import { trackingItemHistoryQueryOptions, trackingItemsQueryOptions } from '~/lib/queries/sync'
 
 // The library, or with `?item=<id>` that one item over time (`view` picks how:
@@ -19,15 +20,16 @@ export const Route = createFileRoute('/app/tracking-items')({
   loaderDeps: ({ search }) => ({ item: search.item }),
   loader: async ({ context, deps }) => {
     // No goalId: the library view is every item, including the unscoped ones.
+    // The library alone does not wait in the browser (see prime); a deep link
+    // to one item does, since a gone item redirects.
+    if (!deps.item) return prime(context.queryClient, trackingItemsQueryOptions())
     const library = context.queryClient.ensureQueryData(trackingItemsQueryOptions())
-    if (deps.item) {
-      try {
-        await context.queryClient.ensureQueryData(trackingItemHistoryQueryOptions(deps.item))
-      } catch (error) {
-        // A link to an item that is gone opens the library, not an error card.
-        if (parseAppError(error).code === 'NOT_FOUND') throw redirect({ to: '/app/tracking-items' })
-        throw error
-      }
+    try {
+      await context.queryClient.ensureQueryData(trackingItemHistoryQueryOptions(deps.item))
+    } catch (error) {
+      // A link to an item that is gone opens the library, not an error card.
+      if (parseAppError(error).code === 'NOT_FOUND') throw redirect({ to: '/app/tracking-items' })
+      throw error
     }
     await library
   },

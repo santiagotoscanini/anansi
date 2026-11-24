@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import BucketList from '~/components/goals/BucketList'
 import { TabError } from '~/components/goals/TabError'
 import { bucketListQueryOptions } from '~/lib/queries/people'
+import { prime } from '~/lib/queries/prime'
 
 // People are already loaded by the /app layout; items link to them as "people I
 // want to do this with".
@@ -16,7 +17,7 @@ export const Route = createFileRoute('/app/bucket')({
   validateSearch: (search: Record<string, unknown>): { item?: string } => ({
     item: typeof search.item === 'string' ? search.item : undefined,
   }),
-  loader: ({ context }) => context.queryClient.ensureQueryData(bucketListQueryOptions()),
+  loader: ({ context }) => prime(context.queryClient, bucketListQueryOptions()),
   component: BucketList,
   errorComponent: TabError,
 })

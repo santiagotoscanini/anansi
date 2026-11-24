@@ -3,6 +3,7 @@ import { z } from 'zod'
 import PeopleDirectory from '~/components/goals/PeopleDirectory'
 import { TabError } from '~/components/goals/TabError'
 import { groupTasksQueryOptions } from '~/lib/queries/people'
+import { prime } from '~/lib/queries/prime'
 
 // The filter is a search param rather than component state because the sidebar
 // drives it from outside this route — clicking "Family" in the group list is a
@@ -31,7 +32,7 @@ export const Route = createFileRoute('/app/people')({
     // People and groups come from the /app layout. Only the group's task list is
     // specific to this route, and only when a group is actually selected.
     if (deps.filter !== 'group' || !deps.groupId) return
-    return context.queryClient.ensureQueryData(groupTasksQueryOptions(deps.groupId))
+    return prime(context.queryClient, groupTasksQueryOptions(deps.groupId))
   },
   component: PeopleDirectory,
   errorComponent: TabError,

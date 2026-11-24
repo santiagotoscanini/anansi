@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import Pulse from '~/components/goals/Pulse'
 import { TabError } from '~/components/goals/TabError'
 import { importantDatesQueryOptions, upcomingNextBidsQueryOptions } from '~/lib/queries/people'
+import { prime } from '~/lib/queries/prime'
 
 // The retrospective half of Pulse is NOT prefetched here, deliberately.
 //
@@ -11,11 +12,7 @@ import { importantDatesQueryOptions, upcomingNextBidsQueryOptions } from '~/lib/
 // key the client never reads and the client would refetch anyway. The component
 // computes the week once on mount and fetches it there.
 export const Route = createFileRoute('/app/pulse')({
-  loader: ({ context }) =>
-    Promise.all([
-      context.queryClient.ensureQueryData(upcomingNextBidsQueryOptions()),
-      context.queryClient.ensureQueryData(importantDatesQueryOptions()),
-    ]),
+  loader: ({ context }) => prime(context.queryClient, upcomingNextBidsQueryOptions(), importantDatesQueryOptions()),
   component: Pulse,
   errorComponent: TabError,
 })

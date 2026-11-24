@@ -1,4 +1,9 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { UserPlus } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
+import { useCreatePerson } from '~/lib/mutations/people'
+import { rankMentions } from '~/lib/mentions'
 import Avatar from './Avatar'
 
 export interface MentionCandidate {
@@ -60,6 +65,8 @@ export default function MentionField({
   style,
   'aria-label': ariaLabel,
 }: Props) {
+  const { t } = useTranslation()
+  const createPerson = useCreatePerson()
   const fieldRef = useRef<HTMLTextAreaElement & HTMLInputElement>(null)
   const [caret, setCaret] = useState(value.length)
   const [active, setActive] = useState(0)
@@ -80,18 +87,31 @@ export default function MentionField({
   }, [value])
 
   const at = focused ? mentionAt(value, caret) : null
-  const query = at ? fold(at.query) : ''
-  const matches =
-    at && at.start !== dismissed
-      ? people
-          .filter((p) => {
-            const name = fold(p.name)
-            return name !== query && (name.startsWith(query) || name.split(/\s+/).some((w) => w.startsWith(query)))
-          })
-          .slice(0, 6)
-      : []
-  const open = matches.length > 0
-  const current = Math.min(active, matches.length - 1)
+  const live = at && at.start !== dismissed ? at : null
+  const typed = live ? live.query.trim() : ''
+  const matches = live ? rankMentions(people, live.query).slice(0, 6) : []
+  // Someone not in People yet can be made from here: the name as typed, sorted later on the board.
+  const canCreate = typed.length >= 2 && !people.some((p) => fold(p.name) === fold(typed))
+  const options = matches.length + (canCreate ? 1 : 0)
+  const open = options > 0
+  const current = Math.min(active, options - 1)
+  const isCreate = (i: number) => canCreate && i === matches.length
+
+  const create = async () => {
+    if (!at || createPerson.isPending) return
+    const name = typed.replace(/\s+/g, ' ')
+    try {
+      await createPerson.mutateAsync({ name, category: 'to_process' })
+      pick({ id: '', name, emoji: null })
+      toast.success(t('mentions.created', { name }))
+    } catch {
+      toast.error(t('mentions.createFailed'))
+    }
+  }
+  const choose = (i: number) => {
+    if (isCreate(i)) void create()
+    else if (matches[i]) pick(matches[i])
+  }
 
   const pick = (person: MentionCandidate) => {
     if (!at) return
@@ -109,12 +129,12 @@ export default function MentionField({
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault()
         const step = e.key === 'ArrowDown' ? 1 : -1
-        setActive((current + step + matches.length) % matches.length)
+        setActive((current + step + options) % options)
         return
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault()
-        pick(matches[current]!)
+        choose(current)
         return
       }
       if (e.key === 'Escape') {
@@ -189,6 +209,30 @@ export default function MentionField({
               </button>
             </li>
           ))}
+          {canCreate && (
+            <li
+              role="option"
+              aria-selected={isCreate(current)}
+              style={matches.length ? { borderTop: '1px solid var(--hairline)' } : undefined}
+            >
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  void create()
+                }}
+                onMouseEnter={() => setActive(matches.length)}
+                disabled={createPerson.isPending}
+                className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm"
+                style={{ background: isCreate(current) ? 'var(--vellum)' : 'transparent', color: 'var(--ink-2)' }}
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-[var(--hairline-2)]">
+                  <UserPlus className="h-3 w-3" />
+                </span>
+                <span className="truncate">{t('mentions.create', { name: typed })}</span>
+              </button>
+            </li>
+          )}
         </ul>
       )}
     </div>

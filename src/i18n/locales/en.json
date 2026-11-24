@@ -1604,5 +1604,10 @@
       "otherFields": "Results, one per line",
       "otherPlaceholder": "Type: Architect\nScore: 42"
     }
+  },
+  "mentions": {
+    "create": "Add “{{name}}” to People",
+    "created": "{{name}} added to People",
+    "createFailed": "Could not add that person"
   }
 }

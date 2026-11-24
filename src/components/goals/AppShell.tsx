@@ -675,7 +675,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Desktop sidebar */}
-      <div className="hidden shrink-0 md:flex">{renderSidebar(collapsed, { resizable: true, widthPx: sidebarWidth })}</div>
+      <div className="hidden shrink-0 md:flex">
+        {renderSidebar(collapsed, { resizable: true, widthPx: sidebarWidth })}
+      </div>
 
       {/* Mobile drawer — fixed default width, no drag handle */}
       {mobileNavOpen && (

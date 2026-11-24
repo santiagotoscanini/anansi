@@ -176,3 +176,24 @@ export function linkMentions(
     unresolved,
   }
 }
+
+/**
+ * The people a typed `@query` offers, best first: the one whose name it is,
+ * then names that start with it, then names with a word that does.
+ */
+export function rankMentions<P extends { name: string }>(people: readonly P[], typed: string): P[] {
+  const query = foldName(typed.trim())
+  const rank = (p: P) => {
+    const name = foldName(p.name)
+    if (name === query) return 0
+    if (name.startsWith(query)) return 1
+    return name.split(/\s+/).some((w) => w.startsWith(query)) ? 2 : 3
+  }
+  return people
+    .map((p) => ({ p, r: rank(p) }))
+    .filter((x) => x.r < 3)
+    .sort((a, b) => a.r - b.r || a.p.name.length - b.p.name.length || a.p.name.localeCompare(b.p.name))
+    .map((x) => x.p)
+}
+
+const foldName = (s: string) => s.toLocaleLowerCase()

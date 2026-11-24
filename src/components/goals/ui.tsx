@@ -83,8 +83,8 @@ export function ScreenHeader({
   const accessory = use(HeaderAccessoryContext)
   return (
     <header className="pt-7 pb-5 md:pt-9" style={style}>
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0 flex-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        <div className="min-w-0 sm:flex-1">
           <h1
             style={{
               fontFamily: 'var(--font-display)',

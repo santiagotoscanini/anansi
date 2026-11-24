@@ -268,6 +268,8 @@ Three texts can name a person, and all three do it the same way: a journal day (
 - **Rendering: never print such text raw.** Screens show it through `<MentionText>` (`link` off inside a button or another link) and edit it through `<MentionField>` seeded with `toEditable`: the user edits plain text with `@Name` in it, `@` offers the people, and the text goes back as typed. One-line previews use `toPlain`. The phone does the same with `Core/MentionText.swift`.
 - An optimistic task patch holds the text as typed; `useUpdateTask` refetches the graph when that text has an `@` in it, since the server's copy is the linked one.
 
+- **Picking someone** (`MentionField`): after `@`, the person whose name it is comes first and is selected, then names starting with what was typed, then names with a word that does (`rankMentions` in `src/lib/mentions.ts`). When nobody has that exact name, the last option adds them to People (category To process) and inserts the mention.
+
 ### Personal CRM (People + Self)
 - People are a **reflection surface**, not a contact manager — phone/email/birthday/last-contact/vCard import were intentionally removed.
 - The People tab has two views (`?view=board`): the directory (default) and the 4-column Relationships board (its own tab until November 2026): `to_process`, `exploring`, `long_term`, `context_bound`. Category is required at create time.
@@ -276,7 +278,7 @@ Three texts can name a person, and all three do it the same way: a journal day (
 - **Important dates** — yearly recurring (birthday, anniversary, …); surfaces in Pulse within 30 days.
 - **Bucket list** with optional linked people ("people I want to do this with").
 - **Groups** (user-defined tags) are cross-entity: same group rows tag both people (`people_to_groups`) and tasks (`tasks_to_groups`).
-- **Self page** — "living portrait": prose fields on `user_self` + list buckets in `self_list_items` (energizers, drainers, just-for-me, proud, patterns by category, triggers, released, year-ahead). Empty fields = clean page, not unfinished form. Two more sections live on it, each in its own component (`OpenQuestions.tsx`, `PersonalityResults.tsx`; the shared `EditableProse` / `SectionHeader` are in `SelfParts.tsx`):
+- **Self page** — "living portrait", in four parts (`?tab=`: Portrait, the default, then `patterns`, `questions`, `personality`; a `ViewSwitch` in the header): prose fields on `user_self` + list buckets in `self_list_items` (energizers, drainers, just-for-me, proud, patterns by category, triggers, released, year-ahead). Empty fields = clean page, not unfinished form. Two more sections live on it, each in its own component (`OpenQuestions.tsx`, `PersonalityResults.tsx`; the shared `EditableProse` / `SectionHeader` are in `SelfParts.tsx`):
   - **Open questions** (under "My story"): life questions being lived with ("Why do I want to be a founder?"). Each is an expandable card: why it matters now, linked goals and people (chip picker), a timeline of dated notes (newest first, added inline; the text takes `@` mentions, linked on write like a journal day but **not indexed**, so a note does not show under the person's mentions), and settling with an answer ("Where I landed"). Settled questions fold under "Settled · n" and can be reopened; the answer and notes stay.
   - **Personality** (just before "How I relate"): test results, mostly recorded by Claude through MCP from a PDF/screenshot. One card per test taken (MBTI, Enneagram, Big Five, CliftonStrengths, VIA, attachment, love languages, DISC, other) with a line on what it measures, the newest result drawn to suit the test (single-hue bars, a bipolar bar per MBTI axis, ranked chips for strengths, an anxiety/avoidance plane for attachment) and older ones under "History". Tests not taken are a compact list with a free version to take (`personalityTestLinks`). No in-app test runner. A hand form adds or fixes a result.
 - **Values carry an interpretation**: the user's own words for what the value means to them (`values.interpretation`). Shown under the value's name on the Values tab (collapsed) and edited first in the expanded row, above the behaviours it explains; a tooltip on the Self page's value chips.
@@ -821,6 +823,18 @@ that is exactly what was removed from the Next layout — React 19 warns about a
 Verify with `node scripts/check-shell.mjs <base-url>`, which asserts what the
 server sent by reading the raw HTML — a check that runs after the page settles
 would pass either way, since the client always converges.
+
+## Page layout
+
+Every tab is built from the same few pieces in `src/components/goals/ui.tsx`, so the app reads as one thing. Use them for a new tab rather than hand-rolling a header.
+
+- **`Page`**: the tab's scroll container, one gutter (`px-5 md:px-10`) and one width: `text` (`max-w-4xl`, the default, for reading pages), `page` (`max-w-6xl`, two columns: Pulse), `full` (boards). Boards that manage their own scroll (Tasks board, People board, Objectives) wrap a `ScreenHeader` in `px-5 md:px-10` instead.
+- **`ScreenHeader`**: a 30px display title (a `.brand-em` accent inside is the house style), one quiet italic line, actions on the right (stacked under the title on a phone), and `below` for a search field or filters. No eyebrow (the sidebar already says where you are) and no border. A tab's view switch reaches it through `HeaderAccessory` (Tasks and People do this), so it sits with the actions.
+- **`Section`**: a small uppercase label with an optional count and action, then content.
+- **Lists are rows, not cards.** Rows are separated by `divide-y` hairlines and highlight on hover (`hover:bg-[var(--vellum)]/60`, with `-mx-2 px-2` so the highlight bleeds past the text). Secondary actions (edit, delete, history) appear on hover on desktop (`md:opacity-0 md:group-hover:opacity-100`) and stay visible on touch. Cards are for board columns and the goal graph.
+- **Empty fields are quiet.** An empty note is one italic "Add a note…" line, an empty picture strip a small dashed button; no placeholder boxes.
+- **Modals dim with `--scrim`**, never `--ink` (which is light in dark mode).
+- **Check a change by looking at it**: light and dark, 1440px and 390px. A Playwright script with the system Chromium (`env -u LD_LIBRARY_PATH`, `executablePath` from `nix shell nixpkgs#chromium`) against `vite dev` on a copy of the data is how the November 2026 pass was done. Restart `vite dev` after adding translation keys: its server keeps the old bundles and every page then reports a hydration mismatch.
 
 ## Styling (Tailwind v4)
 

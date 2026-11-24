@@ -62,3 +62,13 @@ test('a name that could break the token is made safe', () => {
   assert.equal(mentionToken(odd), '@[A b](person:odd000000000000000000001)')
   assert.equal(linkMentions('@A b', [odd]).text, mentionToken(odd))
 })
+
+test('the person whose name was typed comes first, then names starting with it, then a word that does', async () => {
+  const { rankMentions } = await import('./mentions.ts')
+  const people = [{ name: 'Juanchi' }, { name: 'Juandi' }, { name: 'Ana Juana' }, { name: 'Juan' }, { name: 'Pedro' }]
+  assert.deepEqual(
+    rankMentions(people, 'Juan').map((p) => p.name),
+    ['Juan', 'Juandi', 'Juanchi', 'Ana Juana'],
+  )
+  assert.deepEqual(rankMentions(people, 'zz'), [])
+})

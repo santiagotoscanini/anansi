@@ -1604,5 +1604,10 @@
       "otherFields": "Resultados, uno por línea",
       "otherPlaceholder": "Tipo: Arquitecto\nPuntaje: 42"
     }
+  },
+  "mentions": {
+    "create": "Agregar «{{name}}» a Personas",
+    "created": "{{name}} agregado a Personas",
+    "createFailed": "No se pudo agregar a esa persona"
   }
 }

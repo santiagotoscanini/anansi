@@ -196,7 +196,7 @@ export default function WeeklySyncItemRow({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className={`flex items-center justify-center rounded-lg text-[var(--ink-4)] transition-colors hover:bg-[var(--vellum)] hover:text-[var(--ink-2)] ${
+          className={`order-last flex items-center justify-center rounded-lg text-[var(--ink-4)] transition-colors hover:bg-[var(--vellum)] hover:text-[var(--ink-2)] md:order-none ${
             images.length > 0
               ? 'h-20 w-20 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100'
               : 'h-9 gap-2 px-3 text-xs'

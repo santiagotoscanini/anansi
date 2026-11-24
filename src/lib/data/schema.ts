@@ -1196,7 +1196,7 @@ export const apiKeys = pgTable(
 //
 // The two-way sync with one TickTick list (see server/ticktick/). Each task is
 // a task in that list, named `{emoji} {title}`, tagged with its goal, in the
-// section (Past due, This month, …) its due day puts it in.
+// section (Past due, November 2026, …) its due day puts it in.
 
 /** What the last sync agreed a linked item looks like, in TickTick's terms. */
 export interface TickTickSnapshot {

@@ -99,7 +99,7 @@
     "devicesRevokeFailed": "No se pudo revocar la clave",
     "devicesKeyLine": "{{prefix}}… · {{used}}",
     "ticktick": "TickTick",
-    "ticktickHelp": "Tené tus tareas en una lista de TickTick, en los dos sentidos. Cada tarea lleva su emoji en el nombre, la etiqueta de su meta, y está en la sección de su columna de Horizontes (Past due, This month, This quarter, This year, Later, Backlog). Se sincronizan títulos, notas, completado, fechas y metas, y mover una tarea a otra sección le pone fecha como soltarla en Horizontes. Un cambio de un lado aparece del otro en un par de minutos.",
+    "ticktickHelp": "Tené tus tareas en una lista de TickTick, en los dos sentidos. Cada tarea lleva su emoji en el nombre, la etiqueta de su meta, y está en la sección de su columna de Horizontes (Backlog, Past due, después el mes, el trimestre y el año por su nombre, como en Horizontes, y Later). Se sincronizan títulos, notas, completado, fechas y metas, y mover una tarea a otra sección le pone fecha como soltarla en Horizontes. Un cambio de un lado aparece del otro en un par de minutos.",
     "ticktickConnect": "Conectar TickTick",
     "ticktickReconnect": "Conectar de nuevo",
     "ticktickReauth": "TickTick ya no acepta el inicio de sesión guardado. Conectalo de nuevo.",

@@ -8,9 +8,10 @@
 //   title    `{emoji} {title}`, the emoji being the task's own or its goal's
 //   tag      the goal's title (lowercased, as TickTick keeps tags); changing
 //            it to another goal's tag in TickTick moves the task to that goal
-//   section  the Horizons bucket its due day puts it in (Past due, This month,
-//            This quarter, This year, Later, Backlog). Moving it to another
-//            section in TickTick dates it the way a drop on Horizons does.
+//   section  the Horizons column its due day puts it in, named and ordered as
+//            there (Backlog, Past due, November 2026, Q4 2026, 2026, Later;
+//            renamed as the calendar turns). Moving it to another section in
+//            TickTick dates it the way a drop on Horizons does.
 // Goals are not TickTick tasks. Until November 2026 they were, with their
 // tasks as subtasks; a run detaches those subtasks and deletes the old goal
 // tasks (the `kind = 'goal'` links).
@@ -47,7 +48,9 @@ import {
   mergeFields,
   midnightInZone,
   remoteDueDay,
+  isSectionName,
   SECTIONS,
+  sectionName,
   sectionOf,
   stripEmoji,
   taskDay,
@@ -163,19 +166,30 @@ async function reconcile(
   const done = new Map(completed.filter((t) => t.projectId === projectId).map((t) => [t.id, t]))
   const today = dayInZone(new Date(now), zone)
 
-  // The sections, made when missing (matched by name, so a renamed one is
-  // made again rather than guessed at).
+  // The sections: found by the shape of their name ("November 2026" is the
+  // month section in December too), renamed and reordered to Horizons', and
+  // made when missing. A section renamed to something else is made again.
   const columns = [...(data.columns ?? [])]
   const sectionId = new Map<SectionKey, string>()
+  const taken = new Set<string>()
   for (const s of SECTIONS) {
-    const found = columns.find((c) => norm(c.name) === norm(s.name))
+    const name = sectionName(s.key, today)
+    const free = columns.filter((c) => !taken.has(c.id))
+    const found = free.find((c) => norm(c.name) === norm(name)) ?? free.find((c) => isSectionName(s.key, c.name))
     if (found) {
+      taken.add(found.id)
       sectionId.set(s.key, found.id)
+      if (found.name === name && found.sortOrder === s.order) continue
+      await attempt(`renaming the "${found.name}" section`, async () => {
+        await tt.updateColumn(projectId, found.id, { name, sortOrder: s.order })
+        report.toTickTick++
+      })
       continue
     }
-    await attempt(`making the "${s.name}" section`, async () => {
-      const made = await tt.createColumn(projectId, s.name)
+    await attempt(`making the "${name}" section`, async () => {
+      const made = await tt.createColumn(projectId, name, s.order)
       columns.push(made)
+      taken.add(made.id)
       sectionId.set(s.key, made.id)
       report.toTickTick++
     })

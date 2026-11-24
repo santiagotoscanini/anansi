@@ -16,6 +16,9 @@
 //   - An update changes only the fields it sends; `dueDate: null` clears the
 //     date and `status: 0` reopens a completed task.
 //   - Tags come back lowercased.
+//   - A section (column) takes `sortOrder` on create and on update, and can
+//     be renamed; it cannot be deleted (DELETE is a 405). A list made with
+//     `viewMode: 'kanban'` shows its sections as columns.
 //   - /task/completed answers tasks without their due date.
 import { env } from '~/lib/env'
 
@@ -45,6 +48,7 @@ export interface RemoteTask {
 export interface RemoteColumn {
   id: string
   name: string
+  sortOrder?: number
 }
 
 export interface RemoteProject {
@@ -112,7 +116,7 @@ export function tickTick(token: string) {
         token,
         'POST',
         '/project',
-        { name, viewMode: 'list', kind: 'TASK' },
+        { name, viewMode: 'kanban', kind: 'TASK' },
         { once: true },
       )
       if (!project) throw new TickTickError(500, 'TickTick created no list')
@@ -146,17 +150,24 @@ export function tickTick(token: string) {
       if (!created?.id) throw new TickTickError(500, 'TickTick created no task')
       return created
     },
-    createColumn: async (projectId: string, name: string) => {
+    createColumn: async (projectId: string, name: string, sortOrder: number) => {
       const column = await call<RemoteColumn>(
         token,
         'POST',
         `/project/${encodeURIComponent(projectId)}/column`,
-        { name },
+        { name, sortOrder },
         { once: true },
       )
       if (!column?.id) throw new TickTickError(500, `TickTick made no "${name}" section`)
       return column
     },
+    updateColumn: (projectId: string, columnId: string, column: { name: string; sortOrder: number }) =>
+      call<RemoteColumn>(
+        token,
+        'POST',
+        `/project/${encodeURIComponent(projectId)}/column/${encodeURIComponent(columnId)}`,
+        column,
+      ),
     updateTask: async (task: Partial<RemoteTask> & { id: string; projectId: string }) =>
       call<RemoteTask>(token, 'POST', `/task/${encodeURIComponent(task.id)}`, task),
     completeTask: (projectId: string, taskId: string) =>

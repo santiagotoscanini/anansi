@@ -5,11 +5,13 @@ import {
   dayInZone,
   dueFields,
   dueForSection,
+  isSectionName,
   leadingEmoji,
   mergeFields,
   midnightInZone,
   parseTickTickDate,
   remoteDueDay,
+  sectionName,
   sectionOf,
   stripEmoji,
   taskDay,
@@ -80,6 +82,22 @@ test('a field the snapshot never saw is pushed, not pulled', () => {
     push: { due: '2026-01-01' },
     pull: {},
   })
+})
+
+test('sections are named like the Horizons columns, and keep being found as the calendar turns', () => {
+  assert.equal(sectionName('month', '2026-11-24'), 'November 2026')
+  assert.equal(sectionName('quarter', '2026-11-24'), 'Q4 2026')
+  assert.equal(sectionName('year', '2026-11-24'), '2026')
+  assert.equal(sectionName('quarter', '2027-01-01'), 'Q1 2027')
+  assert.equal(sectionName('past', '2026-11-24'), 'Past due')
+  assert.ok(isSectionName('month', 'November 2026'))
+  assert.ok(isSectionName('month', 'This month'))
+  assert.ok(!isSectionName('month', 'Q4 2026'))
+  assert.ok(isSectionName('quarter', 'q4 2026'))
+  assert.ok(isSectionName('year', '2026'))
+  assert.ok(!isSectionName('year', 'November 2026'))
+  assert.ok(isSectionName('backlog', 'Backlog'))
+  assert.ok(!isSectionName('later', 'Not Sectioned'))
 })
 
 test('a due day puts a task in the section Horizons would', () => {

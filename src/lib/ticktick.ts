@@ -71,19 +71,66 @@ export function taskDay(scheduledAt: Date | null, timeZone: string): Day | null 
 // the board). Moving a task to another section in TickTick dates it the way a
 // drop on Horizons does; Past due and Later are where tasks land, not where
 // they can be put.
+//
+// They are in Horizons' order and carry its names, which move with the
+// calendar ("November 2026", "Q4 2026", "2026"): a section is found by what
+// its name looks like, not by the name it has today, and renamed when the
+// month turns.
 
 export const SECTIONS = [
-  { key: 'past', name: 'Past due' },
-  { key: 'month', name: 'This month' },
-  { key: 'quarter', name: 'This quarter' },
-  { key: 'year', name: 'This year' },
-  { key: 'later', name: 'Later' },
-  { key: 'backlog', name: 'Backlog' },
+  { key: 'backlog', order: 1000 },
+  { key: 'past', order: 2000 },
+  { key: 'month', order: 3000 },
+  { key: 'quarter', order: 4000 },
+  { key: 'year', order: 5000 },
+  { key: 'later', order: 6000 },
 ] as const
 
 export type SectionKey = (typeof SECTIONS)[number]['key']
 
 const quarterOf = (month: number) => Math.floor((month - 1) / 3)
+
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+const FIXED_NAMES = { past: 'Past due', later: 'Later', backlog: 'Backlog' } as const
+
+/** The section's name today, as Horizons heads its column (`labelForBucket`). */
+export function sectionName(section: SectionKey, today: Day): string {
+  const [y, m] = today.split('-').map(Number) as [number, number]
+  if (section === 'month') return `${MONTHS[m - 1]} ${y}`
+  if (section === 'quarter') return `Q${quarterOf(m) + 1} ${y}`
+  if (section === 'year') return String(y)
+  return FIXED_NAMES[section]
+}
+
+const NAME_SHAPES: Record<'month' | 'quarter' | 'year', RegExp> = {
+  month: new RegExp(`^(?:this month|(?:${MONTHS.join('|')}) \\d{4})$`, 'i'),
+  quarter: /^(?:this quarter|q[1-4] \d{4})$/i,
+  year: /^(?:this year|\d{4})$/i,
+}
+
+/**
+ * Whether a section's name is one this section has had: any month's name for
+ * the month section, and so on (and the "This month" kind the list had at
+ * first).
+ */
+export function isSectionName(section: SectionKey, name: string): boolean {
+  const n = name.trim()
+  if (section === 'month' || section === 'quarter' || section === 'year') return NAME_SHAPES[section].test(n)
+  return n.toLowerCase() === FIXED_NAMES[section].toLowerCase()
+}
 
 /** The section a due day puts a task in, today being `today`. */
 export function sectionOf(due: Day | null, today: Day): SectionKey {

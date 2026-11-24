@@ -186,7 +186,7 @@ export default function GoalModal({ goalId, onClose }: GoalModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/80 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--scrim)]/80 p-4"
       onClick={showValueModal ? undefined : onClose} // Close when clicking the backdrop, unless value modal is open
     >
       <div

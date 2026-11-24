@@ -334,7 +334,7 @@ export default function Horizons() {
   // The columns, left to right from no date to furthest off: Backlog, Past due
   // (only when something is late), this month, quarter and year, then Later
   // (only when something is past this year). The TickTick list has the same
-  // sections (~/lib/ticktick SECTIONS).
+  // sections, names included (~/lib/ticktick SECTIONS, sectionName).
   const columns: { id: ColumnId; title: string; hint: string }[] = [
     { id: 'backlog', title: t('horizons.backlog'), hint: t('horizons.backlogHint') },
     ...(byColumn.past.length > 0

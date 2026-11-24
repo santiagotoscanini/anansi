@@ -44,6 +44,9 @@
   --ink-2: oklch(0.38 0.01 55); /* secondary text */
   --ink-3: oklch(0.55 0.012 60); /* tertiary, metadata */
   --ink-4: oklch(0.72 0.012 65); /* placeholders, icons-rest */
+  /* What dims the page behind a modal: dark in both themes (not --ink, which
+     turns light in dark mode). */
+  --scrim: oklch(0.2 0.012 50);
   --hairline: color-mix(in oklch, var(--ink) 8%, transparent);
   --hairline-2: color-mix(in oklch, var(--ink) 14%, transparent);
 
@@ -140,6 +143,7 @@
   --ink-2: oklch(0.78 0.012 70);
   --ink-3: oklch(0.6 0.012 65);
   --ink-4: oklch(0.42 0.012 60);
+  --scrim: oklch(0.06 0.008 50);
   --hairline: color-mix(in oklch, var(--ink) 10%, transparent);
   --hairline-2: color-mix(in oklch, var(--ink) 18%, transparent);
 

@@ -59,7 +59,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
 
   if (!goal || (!isCreate && !task)) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/80 p-4" onClick={onClose}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--scrim)]/80 p-4" onClick={onClose}>
         <div className="rounded-lg border border-[var(--hairline)] bg-[var(--canvas)] p-6 text-sm text-[var(--ink-2)]">
           {!goal ? t('taskModal.goalNotFound') : t('taskModal.taskNotFound')}
         </div>
@@ -133,7 +133,7 @@ export default function TaskModal({ goalId, taskId, onClose }: TaskModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/80 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--scrim)]/80 p-4" onClick={onClose}>
       <div
         className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--hairline)] bg-[var(--canvas)] shadow-2xl backdrop-blur"
         onClick={(e) => e.stopPropagation()}

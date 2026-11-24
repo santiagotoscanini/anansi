@@ -79,7 +79,7 @@ export default function BackupImportModal({ onClose }: BackupImportModalProps) {
   const b = parsed?.backup
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/80 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--scrim)]/80 p-4" onClick={onClose}>
       <div
         className="w-full max-w-md rounded-lg border border-[var(--hairline-2)] bg-[var(--paper)] p-6"
         onClick={(e) => e.stopPropagation()}

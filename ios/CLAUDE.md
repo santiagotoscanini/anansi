@@ -62,12 +62,14 @@
   button replaces the picture. A replace is an outbox upload with `replaces` set; the old attachment is deleted
   only after the new one has landed. Named `blocks` on a sync item (a transcript, a summary) are shown read-only
   under the notes; they are written on the web or by Claude.
-- Capture (the Inbox): `CaptureIntents.swift` holds "Capture a thought", "Add to an open question" (both
+- Capture (the Inbox): `Sources/AnansiIntents/CaptureIntents.swift` (a target of its own with Swift's default
+  nonisolated isolation, since `@Parameter` properties cannot be made `nonisolated` under the package's main-actor
+  default; it reaches the app only through `CaptureActions`) holds "Capture a thought", "Add to an open question" (both
   `supportedModes = .background`, written through the outbox so they work offline) and "Record a thought"
   (`.foreground(.immediate)`: it sets `CaptureStore.recording` and HomeView shows `RecorderView`, which records at
   once). The App Shortcuts (English and Spanish phrases) are in the app target, `Anansi/AnansiShortcuts.swift`,
   which reaches the package's intents through `AppIntentsPackage` (`AnansiAppIntents` → `AppFeatureIntents` →
-  `AnansiFeatureIntents`); keep that chain when adding an intent. A recording goes to a temporary folder and is moved
+  `AnansiIntentsPackage`); keep that chain when adding an intent. A recording goes to a temporary folder and is moved
   into the outbox only once stopped; the transcriber (`OnDeviceTranscriber`, SpeechAnalyzer + SpeechTranscriber, off
   the main actor, the user's language else English, model installed with `AssetInventory`) reads a copy. Its words
   ride with the queued recording, or follow it as a `captureTranscript` op sent to the server id the recording got

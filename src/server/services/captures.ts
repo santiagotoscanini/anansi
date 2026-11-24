@@ -441,34 +441,45 @@ export async function update(userId: string, input: UpdateCapture) {
   const data = updateCaptureSchema.parse(input)
   let row = await owned(userId, data.id)
 
-  if (data.text !== undefined && data.text !== row.text) {
+  const textChanged = data.text !== undefined && data.text !== row.text
+  const tidyGiven = data.title !== undefined || data.notes !== undefined
+  if (textChanged || tidyGiven) {
+    const text = textChanged ? data.text! : row.text
+    // A title or notes passed are the tidy now; new words alone make the old tidy stale.
+    const title = tidyGiven ? (data.title !== undefined ? data.title : row.title) : null
+    const notes = tidyGiven ? (data.notes !== undefined ? data.notes : row.notes) : null
+    const next = { ...row, text, title, notes }
     if (row.noteId) {
-      await openQuestionsService.updateNote(userId, { id: row.noteId, content: data.text }).catch((e: unknown) => {
-        // The note was deleted on its own: the capture keeps its text anyway.
-        if (!(e instanceof AppError && e.code === 'NOT_FOUND')) throw e
-      })
+      await openQuestionsService
+        .updateNote(userId, { id: row.noteId, content: noteContent(next) })
+        .catch((e: unknown) => {
+          // The note was deleted on its own: the capture keeps its words anyway.
+          if (!(e instanceof AppError && e.code === 'NOT_FOUND')) throw e
+        })
     }
-    // A voice note's words edited by hand are the user's: the transcriber leaves them alone.
     await db
       .update(captures)
-      .set(
-        row.kind === 'voice'
-          ? {
-              text: data.text,
-              title: null,
-              notes: null,
-              tidiedAt: null,
-              tidyError: null,
-              transcriptStatus: 'done',
-              transcriptSource: 'user',
-              transcribedAt: new Date(),
-              transcribeError: null,
-              transcribeAfter: null,
-            }
-          : { text: data.text },
-      )
+      .set({
+        title,
+        notes,
+        tidiedAt: tidyGiven ? new Date() : null,
+        tidyError: null,
+        ...(!textChanged
+          ? {}
+          : row.kind === 'voice'
+            ? {
+                // A voice note's words edited by hand (or by the user's agent) are theirs: the transcriber leaves them alone.
+                text,
+                transcriptStatus: 'done' as const,
+                transcriptSource: 'user' as const,
+                transcribedAt: new Date(),
+                transcribeError: null,
+                transcribeAfter: null,
+              }
+            : { text }),
+      })
       .where(eq(captures.id, row.id))
-    row = { ...row, text: data.text, title: null, notes: null }
+    row = next
     if (row.tickTickTaskId) await renameTickTickTask(userId, row)
   }
 

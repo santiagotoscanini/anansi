@@ -101,11 +101,23 @@ export function registerCapturesTools(server: McpServer, ctx: McpCtx): void {
     {
       title: 'Archive, edit or move a capture',
       description:
-        "Change one capture of the user's inbox. `status: 'archived'` marks it dealt with (do this after turning it into something else); `'new'` brings an archived one back. `text` replaces its words (also on the question note or TickTick task it became; on a voice note they are then the user's, and the transcriber never replaces them). `questionId` moves it to that open question as a note, taking it back from where it went before (its old note or TickTick task is deleted); `questionId: null` takes it out of its question and sends it to TickTick (the captures list, or the Inbox).",
+        "Change one capture of the user's inbox. `status: 'archived'` marks it dealt with (do this after turning it into something else); `'new'` brings an archived one back. `text` replaces its words (on a voice note they are then the user's, and the transcriber never replaces them; the old tidy is dropped unless `title`/`notes` come with it). `title` and `notes` set the tidied note, what its TickTick task and question note show (null clears it, and the words go as they are). Use these to improve a voice note: read it with `get_capture` (the audio, `heard`, `text`), then send the corrected transcript as `text` and a clean `title` and `notes`, in the language it was spoken; if the transcriber keeps mishearing a word, add it with `set_capture_dictionary_entry`. Every change reaches the TickTick task or question note it became. `questionId` moves it to that open question as a note, taking it back from where it went before (its old note or TickTick task is deleted); `questionId: null` takes it out of its question and sends it to TickTick (the captures list, or the Inbox).",
       inputSchema: toolInput({
         id: z.string(),
         status: z.enum(['new', 'routed', 'archived']).optional(),
-        text: z.string().min(1).max(10_000).optional(),
+        text: z
+          .string()
+          .min(1)
+          .max(10_000)
+          .optional()
+          .describe("The words: a typed thought, or a voice note's transcript."),
+        title: z.string().min(1).max(200).nullable().optional().describe("A voice note's tidied title."),
+        notes: z
+          .string()
+          .max(10_000)
+          .nullable()
+          .optional()
+          .describe("A voice note's tidied notes (empty when the title says it all)."),
         questionId: z.string().nullable().optional(),
       }),
       annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: true },

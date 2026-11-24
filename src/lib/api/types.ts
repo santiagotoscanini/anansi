@@ -636,6 +636,9 @@ export const updateCaptureSchema = z.object({
   status: z.enum(captureStatusValues).optional(),
   questionId: z.string().min(1).nullable().optional(),
   text: captureText.optional(),
+  /** The tidied note: what TickTick and a question note get. null clears it (the words go as they are). */
+  title: z.string().trim().min(1).max(200).nullable().optional(),
+  notes: z.string().trim().max(10_000).nullable().optional(),
 })
 
 export const listCapturesSchema = z.object({

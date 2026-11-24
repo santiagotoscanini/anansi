@@ -72,14 +72,11 @@ final class BackgroundRecorder {
         let session = AVAudioSession.sharedInstance()
         // The system may take a moment to count the new Live Activity: a few tries, a beat apart.
         var activation: Error?
-        for attempt in 1...4 {
+        for attempt in 1...3 {
             do {
-                // Later tries mix with other audio: a mixable session is one iOS lets a background app start.
-                if attempt <= 2 {
-                    try session.setCategory(.record, mode: .default)
-                } else {
-                    try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers])
-                }
+                // Mixable: iOS refuses a background app a plain `.record` session (every try failed on the phone,
+                // code 560557684) and grants this one.
+                try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers])
                 try session.setActive(true)
                 activation = nil
                 RecordingLog.shared.noteAudio("session active (try \(attempt))")

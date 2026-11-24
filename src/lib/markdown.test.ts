@@ -108,3 +108,24 @@ test('a mention token passes through untouched, underscores and all', () => {
     { type: 'em', children: [{ type: 'text', text: 'hoy' }] },
   ])
 })
+
+test('a day reads in a list as a title and its first prose, without the markup', async () => {
+  const { previewOf } = await import('./markdown.ts')
+  assert.deepEqual(
+    previewOf('# Comida en lo de Víctor\n## martes, 4 de marzo de 2025 (Apple Journal)\n\nAyer fuimos a un **bloco**.'),
+    { title: 'Comida en lo de Víctor', body: 'Ayer fuimos a un bloco.' },
+  )
+  assert.deepEqual(previewOf('## miércoles, 6 de agosto de 2025 (Apple Journal)\n\nParte de mi conflicto.'), {
+    title: null,
+    body: 'Parte de mi conflicto.',
+  })
+  assert.deepEqual(previewOf('Created at 18:15\n\n###### Highlights del dia\n* Ayer hablé con papá'), {
+    title: null,
+    body: 'Ayer hablé con papá',
+  })
+  assert.deepEqual(previewOf('# Apps\n[audio 1] · Transcripción: algo · Grabado: hoy'), { title: 'Apps', body: '' })
+  assert.deepEqual(previewOf('[foto 1]\n\nLugar: Rio\n\nUn día de [sol](https://x).'), {
+    title: null,
+    body: 'Un día de sol.',
+  })
+})

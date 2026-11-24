@@ -5,6 +5,7 @@ import Horizons from '~/components/goals/Horizons'
 import Tasks from '~/components/goals/Tasks'
 import { TabError } from '~/components/goals/TabError'
 import { ViewSwitch } from '~/components/goals/ViewSwitch'
+import { HeaderAccessory } from '~/components/goals/ui'
 
 export type TasksView = 'board' | 'list'
 
@@ -35,8 +36,8 @@ function TasksTab() {
   const { view = 'board' } = Route.useSearch()
   const navigate = Route.useNavigate()
   return (
-    <div className="relative h-full">
-      <div className="absolute top-4 right-4 z-20 md:top-6 md:right-8">
+    <HeaderAccessory
+      value={
         <ViewSwitch
           label={t('views.label')}
           value={view}
@@ -55,8 +56,9 @@ function TasksTab() {
             { id: 'list', label: t('views.list'), icon: List },
           ]}
         />
-      </div>
+      }
+    >
       {view === 'list' ? <Tasks /> : <Horizons />}
-    </div>
+    </HeaderAccessory>
   )
 }

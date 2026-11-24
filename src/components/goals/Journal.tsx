@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Image as ImageIcon, Plus, Search, Trash2, X 
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
 import { shiftDay } from '~/lib/journal'
+import { previewOf } from '~/lib/markdown'
 import { toEditable, toPlain } from '~/lib/mentions'
 import {
   useDeleteJournalAttachment,
@@ -21,7 +22,7 @@ import Avatar from './Avatar'
 import MentionField, { type MentionCandidate } from './MentionField'
 import MarkdownText from './MarkdownText'
 import MentionText, { useMentionPeople } from './MentionText'
-import { SecLabel } from './ui'
+import { Page, ScreenHeader, SecLabel } from './ui'
 
 // The journal: one page per calendar day. Highlights first (the day in a few
 // lines), then the diary text, then its pictures; the days before it are
@@ -345,7 +346,7 @@ function Pictures({ day, entry }: { day: string; entry: JournalEntryRow | null }
   return (
     <section>
       <SecLabel style={{ marginBottom: 12 }}>{t('journal.pictures')}</SecLabel>
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+      <div className={images.length ? 'grid grid-cols-3 gap-2 sm:grid-cols-4' : 'flex'}>
         {images.map((a) => (
           <div key={a.id} className="group relative aspect-square overflow-hidden rounded-xl bg-[var(--vellum)]">
             <a href={a.url} target="_blank" rel="noreferrer" title={a.fileName}>
@@ -372,7 +373,9 @@ function Pictures({ day, entry }: { day: string; entry: JournalEntryRow | null }
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={busy}
-          className="flex aspect-square flex-col items-center justify-center gap-1.5 rounded-xl text-xs text-[var(--ink-3)] transition-colors hover:bg-[var(--vellum)]/60 hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-60"
+          className={`flex items-center justify-center gap-1.5 rounded-xl text-xs text-[var(--ink-3)] transition-colors hover:bg-[var(--vellum)]/60 hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-60 ${
+            images.length ? 'aspect-square flex-col' : 'h-9 px-3'
+          }`}
           style={{ border: '1px dashed var(--hairline-2)' }}
         >
           <ImageIcon className="h-4 w-4" />
@@ -463,13 +466,18 @@ function Earlier({
     ...journalRecentQueryOptions(query),
     placeholderData: keepPreviousData,
   })
-  const fmt = new Intl.DateTimeFormat(i18n.language, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
+  const weekday = new Intl.DateTimeFormat(i18n.language, { weekday: 'short' })
+  const monthFmt = new Intl.DateTimeFormat(i18n.language, { month: 'long', year: 'numeric' })
+  const [limit, setLimit] = useState(40)
   const shown = entries.filter((e) => query || e.day !== selected)
+  // Days by month, newest first, as many as asked for.
+  const months: { key: string; label: string; days: typeof shown }[] = []
+  for (const e of shown.slice(0, limit)) {
+    const key = e.day.slice(0, 7)
+    const last = months[months.length - 1]
+    if (last?.key === key) last.days.push(e)
+    else months.push({ key, label: monthFmt.format(dateOf(e.day)), days: [e] })
+  }
 
   return (
     <section>
@@ -502,61 +510,83 @@ function Earlier({
           {isPending ? t('common.loading') : query ? t('journal.noResults') : t('journal.noEarlier')}
         </p>
       ) : (
-        <ul>
-          {shown.map((e) => {
-            const lead = e.highlights[0] ?? e.content
-            const pictures = e.attachments.filter((a) => a.fileType === 'image').length
-            return (
-              <li key={e.id} style={{ borderTop: '1px solid var(--hairline)' }}>
-                <button
-                  type="button"
-                  onClick={() => onOpen(e.day)}
-                  className="-mx-3 flex w-[calc(100%+1.5rem)] items-baseline gap-4 rounded-lg px-3 py-3 text-left transition-colors hover:bg-[var(--vellum)]/60"
-                >
-                  <span
-                    className="w-32 shrink-0"
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 11,
-                      letterSpacing: '0.04em',
-                      color: 'var(--ink-3)',
-                    }}
-                  >
-                    {fmt.format(dateOf(e.day))}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="line-clamp-2 text-[15px] text-[var(--ink)]">
-                      {lead ? toPlain(lead, people) : t('journal.picturesOnly')}
-                    </span>
-                    {e.highlights.length > 1 && (
-                      <span className="mt-0.5 block truncate text-sm text-[var(--ink-3)]">
-                        {e.highlights
-                          .slice(1)
-                          .map((h) => toPlain(h, people))
-                          .join(' · ')}
-                      </span>
-                    )}
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2 self-center">
-                    {pictures > 0 && (
-                      <span className="inline-flex items-center gap-1 text-xs text-[var(--ink-3)]">
-                        <ImageIcon className="h-3 w-3" />
-                        {pictures}
-                      </span>
-                    )}
-                    <span className="flex -space-x-1.5">
-                      {e.mentions.slice(0, 4).map((m) => (
-                        <span key={m.personId} className="rounded-full ring-2 ring-[var(--paper)]" title={m.name}>
-                          <Avatar name={m.name} emoji={m.emoji} size="xs" shape="circle" />
+        <>
+          {months.map(({ key, label, days }) => (
+            <div key={key} className="mt-6 first:mt-0">
+              <div
+                className="mb-1 text-[11px] tracking-[0.08em] text-[var(--ink-4)] uppercase"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {label}
+              </div>
+              <ul className="divide-y divide-[var(--hairline)]">
+                {days.map((e) => {
+                  const preview = previewOf(toPlain(e.content, people))
+                  const title = e.highlights[0] ? toPlain(e.highlights[0], people) : preview.title
+                  const body = e.highlights[0]
+                    ? preview.body ||
+                      e.highlights
+                        .slice(1)
+                        .map((h) => toPlain(h, people))
+                        .join(' · ')
+                    : preview.body
+                  const pictures = e.attachments.filter((a) => a.fileType === 'image').length
+                  const date = dateOf(e.day)
+                  return (
+                    <li key={e.id}>
+                      <button
+                        type="button"
+                        onClick={() => onOpen(e.day)}
+                        className="-mx-3 flex w-[calc(100%+1.5rem)] items-start gap-4 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-[var(--vellum)]/60"
+                      >
+                        <span className="w-9 shrink-0 pt-0.5 text-center">
+                          <span className="block text-[15px] leading-none text-[var(--ink)] tabular-nums">
+                            {date.getDate()}
+                          </span>
+                          <span className="mt-1 block text-[10px] text-[var(--ink-4)] uppercase">
+                            {weekday.format(date)}
+                          </span>
                         </span>
-                      ))}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[14px] text-[var(--ink)]">
+                            {title ?? (body || t('journal.picturesOnly'))}
+                          </span>
+                          {title && body && (
+                            <span className="mt-0.5 block truncate text-[13px] text-[var(--ink-3)]">{body}</span>
+                          )}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2 self-center">
+                          {pictures > 0 && (
+                            <span className="inline-flex items-center gap-1 text-xs text-[var(--ink-4)]">
+                              <ImageIcon className="h-3 w-3" />
+                              {pictures}
+                            </span>
+                          )}
+                          <span className="flex -space-x-1.5">
+                            {e.mentions.slice(0, 3).map((m) => (
+                              <span key={m.personId} className="rounded-full ring-2 ring-[var(--paper)]" title={m.name}>
+                                <Avatar name={m.name} emoji={m.emoji} size="xs" shape="circle" />
+                              </span>
+                            ))}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          ))}
+          {shown.length > limit && (
+            <button
+              type="button"
+              onClick={() => setLimit((n) => n + 40)}
+              className="mt-4 rounded-lg px-3 py-1.5 text-sm text-[var(--ink-3)] transition-colors hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
+            >
+              {t('journal.showMore', { count: shown.length - limit })}
+            </button>
+          )}
+        </>
       )}
     </section>
   )
@@ -649,84 +679,66 @@ export default function Journal() {
             : t('journal.past')
 
   const navButton =
-    'flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--hairline-2)] text-[var(--ink-2)] transition-colors hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-40'
+    'flex h-8 w-8 items-center justify-center text-[var(--ink-3)] transition-colors first:rounded-l-lg last:rounded-r-lg hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-30'
 
   return (
-    <div className="h-full overflow-y-auto" style={{ background: 'var(--paper)' }}>
-      <header className="px-6 pt-10 pb-7 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
-        <div className="mx-auto flex max-w-3xl items-end justify-between gap-6">
-          <div className="min-w-0">
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 11,
-                letterSpacing: '0.08em',
-                color: 'var(--ink-3)',
-                textTransform: 'uppercase',
-                marginBottom: 10,
-              }}
-            >
-              {when ? t('journal.eyebrow', { when }) : t('journal.eyebrowBare')}
-            </div>
-            <h1
-              style={{
-                fontFamily: 'var(--font-display)',
-                // A long date at full size takes three lines on a phone.
-                fontSize: 'clamp(30px, 7.5vw, 44px)',
-                lineHeight: 1.2,
-                letterSpacing: '-0.02em',
-                color: 'var(--ink)',
-                minHeight: '1.2em',
-              }}
-            >
-              {date && (
-                <>
-                  <span className="capitalize">{weekday}</span>, <span className="brand-em">{rest}</span>
-                </>
-              )}
-            </h1>
-          </div>
-          {day && today && (
-            <div className="flex shrink-0 items-center gap-1.5 pb-1.5">
+    <Page>
+      <ScreenHeader
+        title={
+          date ? (
+            <>
+              <span className="capitalize">{weekday}</span>, <span className="brand-em">{rest}</span>
+            </>
+          ) : (
+            <span>&nbsp;</span>
+          )
+        }
+        sub={when ? when.charAt(0).toUpperCase() + when.slice(1) : undefined}
+        actions={
+          day &&
+          today && (
+            <div className="flex items-center gap-1">
               {day !== today && (
                 <button
                   type="button"
                   onClick={() => open(today)}
-                  className="mr-1 h-9 rounded-lg border border-[var(--hairline-2)] px-3 text-sm text-[var(--ink-2)] transition-colors hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
+                  className="mr-1 rounded-md px-2 py-1 text-xs text-[var(--ink-3)] transition-colors hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
                 >
                   {t('journal.goToday')}
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => open(shiftDay(day, -1))}
-                aria-label={t('journal.previousDay')}
-                title={t('journal.previousDay')}
-                className={navButton}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => open(shiftDay(day, 1))}
-                disabled={day >= today}
-                aria-label={t('journal.nextDay')}
-                title={t('journal.nextDay')}
-                className={navButton}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
+              <div className="flex items-center rounded-lg border border-[var(--hairline-2)] bg-[var(--canvas)]">
+                <button
+                  type="button"
+                  onClick={() => open(shiftDay(day, -1))}
+                  aria-label={t('journal.previousDay')}
+                  title={t('journal.previousDay')}
+                  className={navButton}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => open(shiftDay(day, 1))}
+                  disabled={day >= today}
+                  aria-label={t('journal.nextDay')}
+                  title={t('journal.nextDay')}
+                  className={navButton}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
-          )}
-        </div>
-      </header>
+          )
+        }
+      />
       {day && today && (
-        <div className="mx-auto max-w-3xl space-y-14 px-6 py-9 md:px-12">
+        <div className="space-y-12 pt-2">
           {/* Keyed by day: every draft and timer inside belongs to one day. */}
           <Day key={day} day={day} today={today} people={people} />
           <Earlier selected={day} people={people} onOpen={open} />
         </div>
       )}
-    </div>
+    </Page>
   )
 }

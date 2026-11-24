@@ -156,3 +156,47 @@ export function parseInline(text: string): Inline[] {
   }
   return out
 }
+
+/** An inline run as plain words: emphasis dropped, links as their text, media markers gone. */
+export function plainInline(inlines: Inline[]): string {
+  return inlines
+    .map((i) => (i.type === 'text' || i.type === 'code' ? i.text : i.type === 'media' ? '' : plainInline(i.children)))
+    .join('')
+}
+
+// Lines an imported diary puts at the top of a day that say nothing about it:
+// the day's own date as a heading, "Created at 18:15", "Lugar: …", "Tomada: …".
+const DATE_LINE = /\b(1[89]|20)\d{2}\b/
+const META_LINE = /^(created at \d|lugar:|tomada:|grabado:|actividad:|transcripción:)/i
+
+/**
+ * What a list of days shows for one: its title (the first heading that is not
+ * a date) and the first words that are prose, both as plain text. The text
+ * itself is not touched; this is only the line under a date.
+ */
+export function previewOf(text: string): { title: string | null; body: string } {
+  let title: string | null = null
+  const words: string[] = []
+  for (const block of parseBlocks(text)) {
+    if (words.join(' ').length > 240) break
+    if (block.type === 'heading') {
+      const h = plainInline(parseInline(block.text)).trim()
+      if (!title && block.level <= 3 && h && !DATE_LINE.test(h)) title = h
+      continue
+    }
+    const lines =
+      block.type === 'paragraph' || block.type === 'quote'
+        ? block.lines
+        : block.type === 'list'
+          ? block.items.map((it) => it.text)
+          : []
+    for (const line of lines) {
+      const plain = plainInline(parseInline(line))
+        .replace(/\s+/g, ' ')
+        .replace(/^[·\s-]+/, '')
+        .trim()
+      if (plain && !META_LINE.test(plain) && !/^[·\s-]*$/.test(plain)) words.push(plain)
+    }
+  }
+  return { title, body: words.join(' ').replace(/^#+\s*/, '') }
+}

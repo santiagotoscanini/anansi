@@ -508,7 +508,8 @@
     "noEarlier": "Todavía no hay otros días.",
     "noResults": "No se encontró nada.",
     "picturesOnly": "Fotos",
-    "mediaTooLarge": "{{name}} pesa más de 1 GB"
+    "mediaTooLarge": "{{name}} pesa más de 1 GB",
+    "showMore": "Ver más ({{count}})"
   },
   "personBids": {
     "sectionTitle": "Próximos gestos",
@@ -594,7 +595,8 @@
     "clickToEdit": "Hacé clic para editar",
     "savedAlt": "Guardada {{index}}",
     "deleteTitle": "Eliminar {{name}}",
-    "mentionHint": "Escribí @ para mencionar a alguien."
+    "mentionHint": "Escribí @ para mencionar a alguien.",
+    "addNote": "Agregar una nota…"
   },
   "weeklySync": {
     "eyebrow": "Sync · retrospectiva semanal",
@@ -647,7 +649,12 @@
     "fileDeleteFailed": "No se pudo eliminar {{name}}",
     "importanceHigh": "Alta",
     "importanceMedium": "Media",
-    "importanceLow": "Baja"
+    "importanceLow": "Baja",
+    "thisWeek": "Esta semana",
+    "previousWeek": "Semana anterior",
+    "nextWeek": "Semana siguiente",
+    "subCurrent": "Esta semana, por meta.",
+    "filledOf": "{{filled}} de {{total}}"
   },
   "relationships": {
     "eyebrow": "Conexiones · vínculos",
@@ -968,7 +975,11 @@
     "itemPlaceholder": "¿Qué pasó con esto, esta semana?",
     "saveFailed": "El guardado falló",
     "removeAttachment": "Quitar adjunto",
-    "addImage": "Agregar imagen"
+    "addImage": "Agregar imagen",
+    "openSync": "Abrir el sync",
+    "openTasks": "Todas las tareas",
+    "peopleToSort_one": "{{count}} persona para ordenar",
+    "peopleToSort_other": "{{count}} personas para ordenar"
   },
   "globalError": {
     "title": "Algo salió mal",

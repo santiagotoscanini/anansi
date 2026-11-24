@@ -2,7 +2,7 @@
 // Cards, Tags, page headers, section labels. Direct ports of the
 // design-system Screens.html primitives, sized for production use.
 
-import type { ComponentType, CSSProperties, ReactNode } from 'react'
+import { createContext, use, type ComponentType, type CSSProperties, type ReactNode } from 'react'
 
 // Semantic color keys. Anything outside this set falls back to "vellum"
 // (neutral) — keeps tag/avatar callers from drifting into random hexes.
@@ -53,39 +53,44 @@ export function Eyebrow({ children, style }: { children: ReactNode; style?: CSSP
   )
 }
 
-// Standard page chrome: eyebrow + display title (with optional inline
-// .brand-em accent inside) + italic Newsreader subtitle + action row.
+// Page chrome, the same on every tab: a compact title (a display face, with an
+// optional .brand-em accent inside), one quiet line under it, and the page's
+// actions on the right. The tab's view switch (Tasks, People) reaches the
+// header through HeaderAccessory, so it sits with the actions instead of
+// floating over the page.
+const HeaderAccessoryContext = createContext<ReactNode>(null)
+
+export function HeaderAccessory({ children, value }: { children: ReactNode; value: ReactNode }) {
+  return <HeaderAccessoryContext value={value}>{children}</HeaderAccessoryContext>
+}
+
 export function ScreenHeader({
-  eyebrow,
   title,
   sub,
   actions,
+  below,
   style,
 }: {
+  /** Kept for old callers; not shown (the sidebar already says where you are). */
   eyebrow?: ReactNode
   title: ReactNode
   sub?: ReactNode
   actions?: ReactNode
+  /** A row under the title: a search field, filters, a week switcher. */
+  below?: ReactNode
   style?: CSSProperties
 }) {
+  const accessory = use(HeaderAccessoryContext)
   return (
-    <header
-      style={{
-        padding: '36px 48px 28px',
-        borderBottom: '1px solid var(--hairline)',
-        ...style,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
+    <header className="pt-7 pb-5 md:pt-9" style={style}>
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <div className="min-w-0 flex-1">
           <h1
             style={{
               fontFamily: 'var(--font-display)',
-              fontSize: 44,
-              lineHeight: 1.3,
-              letterSpacing: '-0.02em',
-              paddingBottom: 4,
+              fontSize: 30,
+              lineHeight: 1.15,
+              letterSpacing: '-0.015em',
               color: 'var(--ink)',
             }}
           >
@@ -93,27 +98,77 @@ export function ScreenHeader({
           </h1>
           {sub && (
             <p
+              className="mt-1.5 max-w-2xl"
               style={{
                 fontFamily: 'var(--font-text)',
                 fontStyle: 'italic',
-                fontSize: 18,
-                color: 'var(--ink-2)',
-                marginTop: 16,
+                fontSize: 15,
+                color: 'var(--ink-3)',
                 lineHeight: 1.4,
-                maxWidth: 620,
               }}
             >
               {sub}
             </p>
           )}
         </div>
-        {actions && (
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', paddingTop: 8, flexWrap: 'wrap' }}>
+        {(actions ?? accessory) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {accessory}
             {actions}
           </div>
         )}
       </div>
+      {below && <div className="mt-5">{below}</div>}
     </header>
+  )
+}
+
+/**
+ * A tab's page: its own scroll, one width and one gutter for every tab.
+ */
+export function Page({
+  children,
+  width = 'text',
+  className,
+}: {
+  children: ReactNode
+  /** `text` for reading pages, `page` for two columns, `full` for boards. */
+  width?: 'text' | 'page' | 'full'
+  className?: string
+}) {
+  const max = width === 'full' ? 'max-w-[1400px]' : width === 'page' ? 'max-w-6xl' : 'max-w-4xl'
+  return (
+    <div className="h-full overflow-y-auto" style={{ background: 'var(--paper)' }}>
+      <div className={`mx-auto w-full px-5 pb-20 md:px-10 ${max} ${className ?? ''}`}>{children}</div>
+    </div>
+  )
+}
+
+/** A section of a page: a small label, an optional count and action, then its content. */
+export function Section({
+  label,
+  count,
+  action,
+  children,
+  className,
+}: {
+  label: ReactNode
+  count?: number
+  action?: ReactNode
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <section className={`mt-8 ${className ?? ''}`}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <SecLabel>
+          {label}
+          {count !== undefined && <span style={{ marginLeft: 8, color: 'var(--ink-4)' }}>{count}</span>}
+        </SecLabel>
+        {action}
+      </div>
+      {children}
+    </section>
   )
 }
 

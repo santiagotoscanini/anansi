@@ -1,16 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState, useCallback } from 'react'
-import {
-  Calendar,
-  Plus,
-  Target,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  ChevronUp,
-  Trash2,
-  Settings,
-} from 'lucide-react'
+import { Calendar, ChevronLeft, ChevronRight, Plus, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   useCreateWeeklySync,
@@ -26,16 +16,9 @@ import { Route } from '~/routes/app.sync'
 import toast from 'react-hot-toast'
 import SyncDefaultEditor from './SyncDefaultEditor'
 import WeeklySyncItemRow from './WeeklySyncItemRow'
+import { Btn, Page, ScreenHeader } from './ui'
 
 type GoalGroup = WeeklyRetrospectiveData['goals'][number]
-
-type ImportanceKey = 'weeklySync.importanceLow' | 'weeklySync.importanceMedium' | 'weeklySync.importanceHigh'
-const importanceKey = (importance: 'Low' | 'Medium' | 'High'): ImportanceKey =>
-  importance === 'High'
-    ? 'weeklySync.importanceHigh'
-    : importance === 'Medium'
-      ? 'weeklySync.importanceMedium'
-      : 'weeklySync.importanceLow'
 
 // Each rendered group — either a real goal (from data.goals) or the synthesized
 // "Unscoped" bucket for items whose underlying tracking item has goalId IS NULL.
@@ -132,13 +115,6 @@ export default function WeeklyRetrospective() {
     fileName: '',
   })
   const [deletingFiles, setDeletingFiles] = useState<Set<string>>(new Set())
-
-  const getWeekDateRange = useCallback((weekStart: Date) => {
-    const weekEnd = new Date(weekStart)
-    weekEnd.setDate(weekEnd.getDate() + 6)
-    const formatDate = (date: Date) => date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-    return `${formatDate(weekStart)} - ${formatDate(weekEnd)}, ${weekStart.getFullYear()}`
-  }, [])
 
   const isCurrentWeek = useCallback((weekStart: Date) => {
     return weekStart.getTime() === weekStartOf(new Date()).getTime()
@@ -309,303 +285,238 @@ export default function WeeklyRetrospective() {
   }
   const addableItems = (retrospectiveData?.allTrackingItems ?? []).filter((i) => !itemsOnSync.has(i.id))
 
+  const filledCount = (group: DisplayGroup) => group.items.filter((it) => getItemStatus(it) !== 'missing').length
+  const weekEnd = new Date(selectedWeek)
+  weekEnd.setDate(weekEnd.getDate() + 6)
+  const shortDate = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const current = isCurrentWeek(selectedWeek)
+
+  const weekSwitch = (
+    <div className="flex items-center gap-1">
+      {!current && (
+        <button
+          type="button"
+          onClick={() => setSelectedWeek(weekStartOf(new Date()))}
+          className="mr-1 rounded-md px-2 py-1 text-xs text-[var(--ink-3)] transition-colors hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
+        >
+          {t('weeklySync.thisWeek')}
+        </button>
+      )}
+      <div className="flex items-center rounded-lg border border-[var(--hairline-2)] bg-[var(--canvas)]">
+        <button
+          type="button"
+          onClick={() => handleWeekChange('prev')}
+          className="rounded-l-lg p-1.5 text-[var(--ink-3)] transition-colors hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
+          aria-label={t('weeklySync.previousWeek')}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="min-w-[8.5rem] px-1 text-center text-sm text-[var(--ink)] tabular-nums">
+          {shortDate(selectedWeek)} –{' '}
+          {weekEnd.getMonth() === selectedWeek.getMonth() ? weekEnd.getDate() : shortDate(weekEnd)}
+        </span>
+        <button
+          type="button"
+          onClick={() => handleWeekChange('next')}
+          className="rounded-r-lg p-1.5 text-[var(--ink-3)] transition-colors hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
+          aria-label={t('weeklySync.nextWeek')}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={() => setDefaultEditorOpen(true)}
+        className="ml-1 rounded-lg p-2 text-[var(--ink-3)] transition-colors hover:bg-[var(--vellum)] hover:text-[var(--ink)]"
+        title={t('weeklySync.defaultItemsTitle')}
+        aria-label={t('weeklySync.defaultItems')}
+      >
+        <Settings className="h-4 w-4" />
+      </button>
+    </div>
+  )
+
   return (
-    <div className="h-full overflow-y-auto" style={{ background: 'var(--paper)' }}>
+    <Page>
       {defaultEditorOpen && <SyncDefaultEditor onClose={() => setDefaultEditorOpen(false)} />}
-      <header className="px-6 pt-10 pb-7 md:px-12" style={{ borderBottom: '1px solid var(--hairline)' }}>
-        <div className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 11,
-                letterSpacing: '0.08em',
-                color: 'var(--ink-3)',
-                textTransform: 'uppercase',
-                marginBottom: 10,
-              }}
-            >
-              {t('weeklySync.eyebrow')}
-            </div>
-            <h1
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 44,
-                lineHeight: 1.2,
-                letterSpacing: '-0.02em',
-                color: 'var(--ink)',
-              }}
-            >
-              {t('weeklySync.titlePre')}
-              <span className="brand-em">{t('weeklySync.titleEm')}</span>
-              {t('weeklySync.titlePost')}
-            </h1>
-            <p
-              className="mt-3 max-w-2xl"
-              style={{
-                fontFamily: 'var(--font-text)',
-                fontStyle: 'italic',
-                fontSize: 17,
-                color: 'var(--ink-2)',
-                lineHeight: 1.4,
-              }}
-            >
-              {t('weeklySync.subtitle')}
-            </p>
-          </div>
-          <button
-            onClick={() => setDefaultEditorOpen(true)}
-            className="flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm transition-all"
-            style={{
-              border: '1px solid var(--hairline-2)',
-              background: 'var(--canvas)',
-              color: 'var(--ink)',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-            title={t('weeklySync.defaultItemsTitle')}
-          >
-            <Settings className="h-4 w-4" />
-            {t('weeklySync.defaultItems')}
-          </button>
+      <ScreenHeader
+        title={
+          <>
+            {t('weeklySync.titlePre')}
+            <span className="brand-em">{t('weeklySync.titleEm')}</span>
+            {t('weeklySync.titlePost')}
+          </>
+        }
+        sub={current ? t('weeklySync.subCurrent') : t('weeklySync.weekOf', { date: shortDate(selectedWeek) })}
+        actions={weekSwitch}
+      />
+
+      {hasError && (
+        <div className="mb-6 rounded-lg border border-[var(--rust)] bg-[var(--rust-soft)] px-4 py-3 text-sm text-[var(--rust)]">
+          <span className="font-medium">{t('weeklySync.errorBackend')}</span>{' '}
+          {hasError.message || t('weeklySync.errorDefault')}
         </div>
-      </header>
-      <div className="mx-auto max-w-6xl px-6 py-7 md:px-12">
-        {/* Week Selector */}
-        <div className="mb-8 flex items-center justify-between rounded-lg border border-[var(--hairline-2)] bg-[var(--vellum)] p-4">
-          <button
-            onClick={() => handleWeekChange('prev')}
-            className="rounded-lg p-2 transition-all hover:bg-[var(--vellum)]"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
+      )}
 
-          <div className="text-center">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              <span className="text-lg font-semibold">
-                {t('weeklySync.weekOf', {
-                  date: selectedWeek.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-                })}
-              </span>
-              {isCurrentWeek(selectedWeek) && (
-                <span className="rounded-full bg-[var(--moss-soft)] px-2 py-1 text-xs text-[var(--moss)]">
-                  {t('weeklySync.currentTag')}
-                </span>
-              )}
+      {isLoading ? (
+        <div className="animate-pulse space-y-6 pt-4" aria-busy="true">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="space-y-3">
+              <div className="h-4 w-48 rounded bg-[var(--hairline-2)]" />
+              <div className="h-20 rounded-xl bg-[var(--hairline)]" />
             </div>
-            <span className="text-sm opacity-60">{getWeekDateRange(selectedWeek)}</span>
-          </div>
-
-          <button
-            onClick={() => handleWeekChange('next')}
-            className="rounded-lg p-2 transition-all hover:bg-[var(--vellum)]"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
+          ))}
         </div>
-
-        {/* Error Display */}
-        {hasError && (
-          <div className="mb-6 rounded-lg border border-[var(--rust)] bg-[var(--rust-soft)] p-4">
-            <div className="flex items-center gap-2">
-              <div className="h-4 w-4 rounded-full bg-[var(--rust)]"></div>
-              <span className="font-medium text-[var(--rust)]">{t('weeklySync.errorBackend')}</span>
-            </div>
-            <p className="mt-2 text-sm text-[var(--rust)]">{hasError.message || t('weeklySync.errorDefault')}</p>
-            <p className="mt-1 text-xs opacity-60">{t('weeklySync.errorDisabled')}</p>
-          </div>
-        )}
-
-        {/* Main Content */}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[var(--hairline-2)] border-t-white"></div>
-              <p className="mt-2 text-sm opacity-60">{t('weeklySync.loading')}</p>
-            </div>
-          </div>
-        ) : !weeklySync ? (
-          <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-12 text-center">
-            <Calendar className="mx-auto h-12 w-12 opacity-30" />
-            <p className="mt-4 text-lg font-light">{t('weeklySync.noSync')}</p>
-            <p className="mt-2 text-sm opacity-60">{t('weeklySync.noSyncHelp')}</p>
-            <button
-              onClick={handleStartWeeklySync}
-              disabled={!!hasError}
-              className={`mt-6 rounded-lg border px-4 py-2 transition-all ${
-                hasError
-                  ? 'cursor-not-allowed border-[var(--rust)] bg-[var(--rust-soft)] text-[var(--rust)] opacity-50'
-                  : 'border-transparent bg-[var(--clay)] text-[var(--paper)] shadow-[var(--shadow-sm)]'
-              }`}
-            >
-              <Plus className="mr-2 inline h-4 w-4" />
-              {t('weeklySync.startWeeklySync')}
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {/* Inline "+ Add item to sync" picker — pulls from the user's
-                library, filtering out items already on this sync. */}
-            <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">{t('weeklySync.addItemTitle')}</p>
-                  <p className="mt-1 text-xs opacity-60">{t('weeklySync.addItemHelp')}</p>
-                </div>
+      ) : !weeklySync ? (
+        <div className="flex flex-col items-center py-20 text-center">
+          <Calendar className="h-8 w-8 text-[var(--ink-4)]" />
+          <p className="mt-4 text-[var(--ink)]" style={{ fontFamily: 'var(--font-display)', fontSize: 22 }}>
+            {t('weeklySync.noSync')}
+          </p>
+          <p className="mt-1 text-sm text-[var(--ink-3)]">{t('weeklySync.noSyncHelp')}</p>
+          <Btn
+            kind="primary"
+            icon={Plus}
+            onClick={() => void handleStartWeeklySync()}
+            disabled={!!hasError}
+            style={{ marginTop: 20 }}
+          >
+            {t('weeklySync.startWeeklySync')}
+          </Btn>
+        </div>
+      ) : (
+        <div className="space-y-10 pt-2">
+          {allGroups.map((group) => {
+            const isCollapsed = collapsedGoals[group.id]
+            const groupStatus = getGoalStatus(group)
+            const filled = filledCount(group)
+            return (
+              <section key={group.id}>
                 <button
-                  onClick={() => setPickerOpen((p) => !p)}
-                  disabled={addableItems.length === 0}
-                  className="flex items-center gap-2 rounded-md border border-[var(--hairline-2)] px-3 py-1.5 text-sm hover:bg-[var(--vellum)] disabled:opacity-50"
+                  type="button"
+                  onClick={() => toggleGoalCollapse(group.id)}
+                  className="group/head flex w-full items-center gap-2.5 pb-2 text-left"
+                  style={{ borderBottom: '1px solid var(--hairline)' }}
+                  aria-expanded={!isCollapsed}
                 >
-                  <Plus className="h-4 w-4" />
-                  {pickerOpen
-                    ? t('weeklySync.closePicker')
-                    : addableItems.length === 0
-                      ? t('weeklySync.nothingToAdd')
-                      : t('weeklySync.pickItem')}
-                </button>
-              </div>
-              {pickerOpen && addableItems.length > 0 && (
-                <ul className="mt-3 max-h-56 overflow-y-auto rounded-md border border-[var(--hairline)] bg-[var(--paper-deep)] p-2">
-                  {addableItems.map((item) => (
-                    <li key={item.id}>
-                      <button
-                        onClick={() => void handleAddItemToSync(item.id)}
-                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-[var(--vellum)]"
-                      >
-                        <span className="truncate">{item.title}</span>
-                        <span className="ml-2 shrink-0 rounded-full bg-[var(--vellum)] px-2 py-0.5 text-[10px] tracking-wide uppercase opacity-70">
-                          {item.goalTitle ?? t('weeklySync.unscopedTag')}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {allGroups.map((group) => {
-              const isCollapsed = collapsedGoals[group.id]
-              const groupStatus = getGoalStatus(group)
-
-              return (
-                <div key={group.id} className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-6">
-                  {/* Group Header */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => toggleGoalCollapse(group.id)}
-                        className="rounded p-1 transition-all hover:bg-[var(--vellum)]"
-                      >
-                        {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-                      </button>
-
-                      <Target className="h-5 w-5 opacity-60" />
-
-                      <div>
-                        <h3 className="font-semibold">{group.title}</h3>
-                        <p className="text-sm opacity-60">{group.description}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {isCurrentWeek(selectedWeek) && (
-                        <div
-                          className={`h-3 w-3 rounded-full ${
+                  <ChevronRight
+                    className={`h-3.5 w-3.5 shrink-0 text-[var(--ink-4)] transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
+                  />
+                  <span
+                    className="min-w-0 flex-1 truncate text-[var(--ink)]"
+                    style={{ fontFamily: 'var(--font-display)', fontSize: 19 }}
+                  >
+                    {group.title}
+                  </span>
+                  {group.items.length > 0 && (
+                    <span className="flex shrink-0 items-center gap-1.5 text-xs text-[var(--ink-3)] tabular-nums">
+                      {current && (
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
                             groupStatus === 'complete'
                               ? 'bg-[var(--moss)]'
                               : groupStatus === 'partial'
                                 ? 'bg-[var(--amber)]'
-                                : 'bg-[var(--rust)]'
+                                : 'bg-[var(--ink-4)]'
                           }`}
-                          title={t('weeklySync.goalStatus', { status: groupStatus })}
                         />
                       )}
-
-                      <span
-                        className={`rounded-full px-2 py-1 text-xs ${
-                          group.importance === 'High'
-                            ? 'bg-[var(--rust-soft)] text-[var(--rust)]'
-                            : group.importance === 'Medium'
-                              ? 'bg-[var(--amber-soft)] text-[var(--amber)]'
-                              : 'bg-[var(--ink-3-soft)] text-[var(--ink-3)]'
-                        }`}
-                      >
-                        {t(importanceKey(group.importance))}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Items */}
-                  {!isCollapsed && (
-                    <div className="mt-4 space-y-4">
-                      {group.items.length > 0 ? (
-                        group.items.map((item) => (
-                          <WeeklySyncItemRow
-                            key={item.id}
-                            item={item}
-                            deletingFileIds={deletingFiles}
-                            onSaveText={(content) => saveItemText(item, content)}
-                            onUploadFiles={(files) => uploadItemFiles(item, files)}
-                            onDeleteFileClick={handleDeleteFileClick}
-                            onRemoveFromSync={() => handleRemoveFromSync(item.id, item.title)}
-                          />
-                        ))
-                      ) : (
-                        <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-4 text-center">
-                          <p className="text-sm opacity-60">{t('weeklySync.noItemsForGoal')}</p>
-                        </div>
-                      )}
-                    </div>
+                      {t('weeklySync.filledOf', { filled, total: group.items.length })}
+                    </span>
                   )}
-                </div>
-              )
-            })}
+                </button>
+                {!isCollapsed && (
+                  <div className="divide-y divide-[var(--hairline)]">
+                    {group.items.length > 0 ? (
+                      group.items.map((item) => (
+                        <WeeklySyncItemRow
+                          key={item.id}
+                          item={item}
+                          deletingFileIds={deletingFiles}
+                          onSaveText={(content) => saveItemText(item, content)}
+                          onUploadFiles={(files) => uploadItemFiles(item, files)}
+                          onDeleteFileClick={handleDeleteFileClick}
+                          onRemoveFromSync={() => handleRemoveFromSync(item.id, item.title)}
+                        />
+                      ))
+                    ) : (
+                      <p className="py-4 text-sm text-[var(--ink-3)]">{t('weeklySync.noItemsForGoal')}</p>
+                    )}
+                  </div>
+                )}
+              </section>
+            )
+          })}
 
-            {allGroups.length === 0 && (
-              <div className="rounded-lg border border-[var(--hairline)] bg-[var(--vellum)] p-12 text-center">
-                <Target className="mx-auto h-12 w-12 opacity-30" />
-                <p className="mt-4 text-lg font-light">{t('weeklySync.noItemsHere')}</p>
-                <p className="mt-2 text-sm opacity-60">{t('weeklySync.noItemsHereHelp')}</p>
-              </div>
+          {allGroups.length === 0 && (
+            <p className="py-10 text-center text-sm text-[var(--ink-3)]">{t('weeklySync.noItemsHereHelp')}</p>
+          )}
+
+          {/* Adding an item from the library: a quiet line at the end, a short list when open. */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setPickerOpen((p) => !p)}
+              disabled={addableItems.length === 0}
+              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-[var(--ink-3)] transition-colors hover:bg-[var(--vellum)] hover:text-[var(--ink)] disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              {addableItems.length === 0 ? t('weeklySync.nothingToAdd') : t('weeklySync.addItemTitle')}
+            </button>
+            {pickerOpen && addableItems.length > 0 && (
+              <ul className="mt-2 max-h-64 overflow-y-auto rounded-xl border border-[var(--hairline-2)] bg-[var(--canvas)] p-1 shadow-[var(--shadow-md)]">
+                {addableItems.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPickerOpen(false)
+                        void handleAddItemToSync(item.id)
+                      }}
+                      className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-[var(--vellum)]"
+                    >
+                      <span className="truncate text-[var(--ink)]">{item.title}</span>
+                      <span className="shrink-0 truncate text-xs text-[var(--ink-3)]">
+                        {item.goalTitle ?? t('weeklySync.unscopedTag')}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Delete Confirmation Dialog */}
-        {deleteConfirmation.isOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--paper-deep)]">
-            <div className="mx-4 w-full max-w-md rounded-lg border border-[var(--hairline-2)] bg-[var(--ink-3)] p-6">
-              <div className="mb-4 flex items-start gap-3">
-                <div className="shrink-0 rounded-full bg-[var(--rust-soft)] p-2">
-                  <Trash2 className="h-5 w-5 text-[var(--rust)]" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-[var(--ink)]">{t('weeklySync.deleteFileTitle')}</h3>
-                  <p className="mt-1 text-sm text-[var(--ink-3)]">
-                    {t('weeklySync.deleteFilePrompt', { name: deleteConfirmation.fileName })}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={handleDeleteCancel}
-                  className="flex-1 rounded-lg border border-[var(--hairline-2)] px-4 py-2 text-sm transition-all hover:bg-[var(--vellum)]"
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  onClick={handleDeleteConfirm}
-                  className="flex-1 rounded-lg bg-[var(--rust)] px-4 py-2 text-sm text-[var(--ink)] transition-all hover:bg-[var(--rust)]"
-                >
-                  {t('common.delete')}
-                </button>
-              </div>
+      {deleteConfirmation.isOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--scrim)]/60 p-4 backdrop-blur-xs"
+          onClick={handleDeleteCancel}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-[var(--hairline-2)] bg-[var(--canvas)] p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-medium text-[var(--ink)]">{t('weeklySync.deleteFileTitle')}</h3>
+            <p className="mt-1 text-sm text-[var(--ink-3)]">
+              {t('weeklySync.deleteFilePrompt', { name: deleteConfirmation.fileName })}
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Btn kind="ghost" size="sm" onClick={handleDeleteCancel}>
+                {t('common.cancel')}
+              </Btn>
+              <Btn
+                kind="primary"
+                size="sm"
+                onClick={() => void handleDeleteConfirm()}
+                style={{ background: 'var(--rust)' }}
+              >
+                {t('common.delete')}
+              </Btn>
             </div>
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </Page>
   )
 }

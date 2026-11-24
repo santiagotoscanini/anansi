@@ -6,6 +6,7 @@ import PeopleDirectory from '~/components/goals/PeopleDirectory'
 import RelationshipsBoard from '~/components/goals/RelationshipsBoard'
 import { TabError } from '~/components/goals/TabError'
 import { ViewSwitch } from '~/components/goals/ViewSwitch'
+import { HeaderAccessory } from '~/components/goals/ui'
 import { groupTasksQueryOptions } from '~/lib/queries/people'
 import { prime } from '~/lib/queries/prime'
 
@@ -50,8 +51,8 @@ function PeopleTab() {
   const navigate = Route.useNavigate()
   const current = view ?? 'list'
   return (
-    <div className="relative h-full">
-      <div className="absolute top-4 right-4 z-20 md:top-6 md:right-8">
+    <HeaderAccessory
+      value={
         <ViewSwitch
           label={t('views.label')}
           value={current}
@@ -63,8 +64,9 @@ function PeopleTab() {
             { id: 'board', label: t('views.board'), icon: Columns3 },
           ]}
         />
-      </div>
+      }
+    >
       {current === 'board' ? <RelationshipsBoard /> : <PeopleDirectory />}
-    </div>
+    </HeaderAccessory>
   )
 }

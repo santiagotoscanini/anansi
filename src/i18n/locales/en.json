@@ -508,7 +508,8 @@
     "noEarlier": "No other days yet.",
     "noResults": "Nothing found.",
     "picturesOnly": "Pictures",
-    "mediaTooLarge": "{{name}} is over 1 GB"
+    "mediaTooLarge": "{{name}} is over 1 GB",
+    "showMore": "Show more ({{count}})"
   },
   "personBids": {
     "sectionTitle": "Next bids",
@@ -594,7 +595,8 @@
     "clickToEdit": "Click to edit",
     "savedAlt": "Saved {{index}}",
     "deleteTitle": "Delete {{name}}",
-    "mentionHint": "Type @ to mention someone."
+    "mentionHint": "Type @ to mention someone.",
+    "addNote": "Add a note…"
   },
   "weeklySync": {
     "eyebrow": "Sync · weekly retrospective",
@@ -647,7 +649,12 @@
     "fileDeleteFailed": "Failed to delete {{name}}",
     "importanceHigh": "High",
     "importanceMedium": "Medium",
-    "importanceLow": "Low"
+    "importanceLow": "Low",
+    "thisWeek": "This week",
+    "previousWeek": "Previous week",
+    "nextWeek": "Next week",
+    "subCurrent": "This week, grouped by goal.",
+    "filledOf": "{{filled}} of {{total}}"
   },
   "relationships": {
     "eyebrow": "Connections · relationships",
@@ -968,7 +975,11 @@
     "itemPlaceholder": "What happened with this, this week?",
     "saveFailed": "Save failed",
     "removeAttachment": "Remove attachment",
-    "addImage": "Add image"
+    "addImage": "Add image",
+    "openSync": "Open the sync",
+    "openTasks": "All tasks",
+    "peopleToSort_one": "{{count}} person to sort",
+    "peopleToSort_other": "{{count}} people to sort"
   },
   "globalError": {
     "title": "Something went wrong",

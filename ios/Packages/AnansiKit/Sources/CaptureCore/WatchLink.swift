@@ -127,7 +127,9 @@ public nonisolated enum WatchLink {
         }
         components?.queryItems = query
         // `+` is a space in a query string to the server: spell it out, as the phone's API client does.
-        components?.percentEncodedQuery = components?.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
+        if let encoded = components?.percentEncodedQuery {
+            components?.percentEncodedQuery = encoded.replacingOccurrences(of: "+", with: "%2B")
+        }
         return components?.url
     }
 

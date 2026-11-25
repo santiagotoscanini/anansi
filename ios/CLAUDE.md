@@ -33,7 +33,7 @@
 - The journal is one entry per `LocalDay` (`/api/v1/journal/{day}`). Journal text and pictures go through the outbox
   under the item id `journal:YYYY-MM-DD` (`OutboxOp.journalItemId`), and a write replaces the whole prose or the
   whole highlight list, so the day screen only edits a day it has read.
-- Don't hand-edit `project.pbxproj` to add files: `Anansi/` and `AnansiWidgets/` are synchronized folders, and package
+- Don't hand-edit `project.pbxproj` to add files: `Anansi/`, `AnansiWidgets/`, `AnansiWatch/` and `AnansiWatchWidgets/` are synchronized folders, and package
   files are picked up automatically. Adding a target is the one reason to edit it.
 - Targets: iOS 27, Swift 6 language mode, default MainActor isolation. Use `@Observable`, not ObservableObject. Use
   Swift Testing (`@Test`, `#expect`), not XCTest.
@@ -119,3 +119,26 @@
   Support") when an intent's title, description, parameter or App Shortcut phrase contains "iPhone"; build 123 was
   refused for "transcribed on this iPhone". Say "this phone" or "this device" in any string the intents, the
   Live Activity or the widgets carry.
+- **The Apple Watch app** (`AnansiWatch/`, target `AnansiWatch`, bundle id `com.santiagotoscanini.anansi.watchkitapp`,
+  `Config/Watch.xcconfig` + `Config/Watch-Info.plist`, watchOS 27, embedded in the phone app by its "Embed Watch
+  Content" phase) records voice notes from the wrist: one screen with one button (a double tap of the fingers presses
+  it), started also from the complication (`AnansiWatchWidgets/`, bundle id `…watchkitapp.Widgets`, which opens
+  `anansiwatch://record`), the Ultra's Action Button (Settings → Action Button → Shortcut → "Record a thought", the
+  watch's `RecordThoughtIntent`), Siri and Shortcuts; a second press stops it. It records the same 16 kHz mono WAV as
+  the phone (`WatchRecorder`, background audio so it goes on with the wrist down; interruptions and the 30-minute
+  limit stop and keep it; a haptic on start and stop) and keeps a per-note log (`NoteLog`, sent as `clientLog`). Its
+  code is in the target itself (it links only the package's `CaptureCore`, the pure part it shares with the phone:
+  `WAVFile`/`WAVDisk`, `RecordingRules`, `WatchLink`, `WatchQueue`; AnansiFeature re-exports it).
+  **A watch note is never lost:** it is written to `Recordings/`, moved to `Notes/` and listed in `notes.json`
+  (`NoteStore`) when stopped, and leaves the watch only once the server has it. It travels two ways at once, under
+  one id (the server's `clientId`, so it becomes one capture whichever lands first): the watch uploads it itself
+  (`DirectUpload`, a background `URLSession` with the phone's key, lent in WatchConnectivity's application context
+  and kept in the watch's Keychain, `device=watch`), and hands the file to the phone (`PhoneLink`, `transferFile`).
+  The phone (`WatchBridge`, AnansiFeature) stages a received file before the delegate returns (details first, then
+  the file, in `Application Support/FromWatch/`), puts it in the outbox under the watch's id with `device = watch`
+  and the watch's log, and answers through `transferUserInfo`: `received` once it is queued, `landed` once uploaded
+  (said again on every activation for the last 200). A note the watch's own upload delivered is dropped from the
+  phone's outbox unsent. At launch the watch repairs and queues any note cut off while recording, and re-queues a
+  note file its queue lost. `ios-deploy.yml` ad-hoc signs the watch's extension, then the watch app, before the
+  phone's bundles, and `scripts/asc-capability.mjs` registers both App IDs. The server shows the device in the Inbox
+  and puts "Recorded from my Apple Watch" (or "my iPhone") on the TickTick task.

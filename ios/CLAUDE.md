@@ -123,8 +123,10 @@
   `Config/Watch.xcconfig` + `Config/Watch-Info.plist`, watchOS 27, embedded in the phone app by its "Embed Watch
   Content" phase) records voice notes from the wrist: one screen with one button (a double tap of the fingers presses
   it), started also from the complication (`AnansiWatchWidgets/`, bundle id `…watchkitapp.Widgets`, which opens
-  `anansiwatch://record`), the Ultra's Action Button (Settings → Action Button → Shortcut → "Record a thought", the
-  watch's `RecordThoughtIntent`), Siri and Shortcuts; a second press stops it. It records the same 16 kHz mono WAV as
+  `anansiwatch://record`), the Ultra's Action Button (the watch's Settings → Action Button → Control → "Record a
+  thought": watchOS offers controls there, not shortcuts; `RecordWatchControl` in the widget extension), Siri and
+  Shortcuts, all running `ToggleWatchRecordingIntent` (package target `WatchActivity`, linked by the watch app and
+  its extension; the app registers its recorder in `WatchRecordingControl` at launch); a second press stops it. It records the same 16 kHz mono WAV as
   the phone (`WatchRecorder`, background audio so it goes on with the wrist down; interruptions and the 30-minute
   limit stop and keep it; a haptic on start and stop) and keeps a per-note log (`NoteLog`, sent as `clientLog`). Its
   code is in the target itself (it links only the package's `CaptureCore`, the pure part it shares with the phone:

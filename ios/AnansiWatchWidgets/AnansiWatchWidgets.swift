@@ -1,14 +1,37 @@
+import AppIntents
 import SwiftUI
+import WatchActivity
 import WidgetKit
 
-// The watch face's way in: a complication (and Smart Stack widget) that opens the Apple Watch app at
-// `anansiwatch://record`, which starts a voice note at once (or stops the one being recorded). It only draws: it
-// reads nothing and holds no state.
+// The watch's ways in, which only draw (they read nothing and hold no state):
+// - the control, for the Ultra's Action Button (watch Settings → Action Button → Control → Record a thought) and the
+//   watch's Control Center: it runs `ToggleWatchRecordingIntent`, which opens the app recording (or stops it);
+// - the complication (and Smart Stack widget), which opens the app at `anansiwatch://record`, to the same effect.
 
 @main
 struct AnansiWatchWidgets: WidgetBundle {
     var body: some Widget {
         RecordComplication()
+        RecordWatchControl()
+    }
+}
+
+/// Lets this extension's App Intents metadata include the intent its control runs.
+struct AnansiWatchWidgetsIntents: AppIntentsPackage {
+    static var includedPackages: [any AppIntentsPackage.Type] { [WatchActivityIntents.self] }
+}
+
+struct RecordWatchControl: ControlWidget {
+    static let kind = "com.santiagotoscanini.anansi.watch.record-thought"
+
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: Self.kind) {
+            ControlWidgetButton(action: ToggleWatchRecordingIntent()) {
+                Label("Record a thought", systemImage: "mic.fill")
+            }
+        }
+        .displayName("Record a thought")
+        .description("Record a voice note for your Anansi inbox. Press again to stop and send it.")
     }
 }
 

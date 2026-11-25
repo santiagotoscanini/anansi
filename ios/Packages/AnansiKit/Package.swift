@@ -8,6 +8,8 @@ import PackageDescription
 // attributes and the intents its Stop button and the Control Center control run. It imports no other target.
 // `CaptureCore` is pure (Foundation only) and builds for watchOS too: what the Apple Watch app (ios/AnansiWatch) and
 // the phone share about voice notes (WAV files, the recording limits, how a watch note reaches the phone).
+// `WatchActivity` is the watch's "Record a thought" intent, shared by the watch app and its widget extension (the
+// Action Button's control), like `AnansiActivity` on the phone.
 let uiSettings: [SwiftSetting] = [
     .defaultIsolation(MainActor.self),
     .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
@@ -28,10 +30,12 @@ let package = Package(
         .library(name: "AppFeature", targets: ["AppFeature"]),
         .library(name: "AnansiActivity", targets: ["AnansiActivity"]),
         .library(name: "CaptureCore", targets: ["CaptureCore"]),
+        .library(name: "WatchActivity", targets: ["WatchActivity"]),
     ],
     targets: [
         .target(name: "AnansiActivity", swiftSettings: intentSettings),
         .target(name: "CaptureCore", swiftSettings: intentSettings),
+        .target(name: "WatchActivity", swiftSettings: intentSettings),
         .target(name: "AnansiFeature", dependencies: ["AnansiActivity", "CaptureCore"], swiftSettings: uiSettings),
         .target(name: "AnansiIntents", dependencies: ["AnansiFeature", "AnansiActivity"], swiftSettings: intentSettings),
         .target(name: "AppFeature", dependencies: ["AnansiFeature", "AnansiIntents", "AnansiActivity"],

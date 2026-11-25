@@ -1,4 +1,6 @@
+import AppIntents
 import SwiftUI
+import WatchActivity
 import WatchKit
 
 // The Apple Watch app: one screen with one button that records a voice note and sends it to Anansi. Started from
@@ -20,6 +22,8 @@ struct AnansiWatchApp: App {
 
 final class WatchAppDelegate: NSObject, WKApplicationDelegate {
     func applicationDidFinishLaunching() {
+        // The Action Button's control, Siri and Shortcuts reach the recorder through this.
+        WatchRecordingControl.register(AppWatchRecording())
         // Notes a crash or a dead battery cut off are made whole and queued before anything records.
         NoteStore.shared.recoverLeftovers()
         PhoneLink.shared.start()
@@ -45,6 +49,18 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
             }
         }
     }
+}
+
+/// The recorder, for "Record a thought" (`ToggleWatchRecordingIntent`, WatchActivity).
+nonisolated struct AppWatchRecording: WatchRecordingController {
+    func toggle(from origin: String) async {
+        await WatchRecorder.shared.toggle(from: origin)
+    }
+}
+
+/// Lets this app's App Intents metadata include the intent in WatchActivity.
+nonisolated struct AnansiWatchIntents: AppIntentsPackage {
+    static var includedPackages: [any AppIntentsPackage.Type] { [WatchActivityIntents.self] }
 }
 
 /// Both ways a note travels, started together.

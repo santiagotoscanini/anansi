@@ -13,6 +13,8 @@
 		D1A000000000000000000200 /* AnansiWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = D1A000000000000000000201 /* AnansiWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D1A000000000000000000202 /* AnansiWatchWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D1A000000000000000000203 /* AnansiWatchWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D1A000000000000000000204 /* CaptureCore in Frameworks */ = {isa = PBXBuildFile; productRef = D1A000000000000000000205 /* CaptureCore */; };
+		D1A000000000000000000240 /* WatchActivity in Frameworks */ = {isa = PBXBuildFile; productRef = D1A000000000000000000241 /* WatchActivity */; };
+		D1A000000000000000000242 /* WatchActivity in Frameworks */ = {isa = PBXBuildFile; productRef = D1A000000000000000000243 /* WatchActivity */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -131,6 +133,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D1A000000000000000000204 /* CaptureCore in Frameworks */,
+				D1A000000000000000000240 /* WatchActivity in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -138,6 +141,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D1A000000000000000000242 /* WatchActivity in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -251,6 +255,7 @@
 			name = AnansiWatch;
 			packageProductDependencies = (
 				D1A000000000000000000205 /* CaptureCore */,
+				D1A000000000000000000241 /* WatchActivity */,
 			);
 			productName = AnansiWatch;
 			productReference = D1A000000000000000000201 /* AnansiWatch.app */;
@@ -272,6 +277,9 @@
 				D1A000000000000000000209 /* AnansiWatchWidgets */,
 			);
 			name = AnansiWatchWidgets;
+			packageProductDependencies = (
+				D1A000000000000000000243 /* WatchActivity */,
+			);
 			productName = AnansiWatchWidgets;
 			productReference = D1A000000000000000000203 /* AnansiWatchWidgets.appex */;
 			productType = "com.apple.product-type.app-extension";
@@ -738,6 +746,14 @@
 		D1A000000000000000000205 /* CaptureCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = CaptureCore;
+		};
+		D1A000000000000000000241 /* WatchActivity */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = WatchActivity;
+		};
+		D1A000000000000000000243 /* WatchActivity */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = WatchActivity;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -191,7 +191,7 @@ nonisolated enum API {
     /// `clientId` is the outbox op's id: a send repeated after a lost answer gets the capture the first one made.
     static func createCapture(text: String, questionId: String?, capturedAt: Date, clientId: String? = nil) -> Endpoint {
         send("POST", "api/v1/captures", NewCapture(text: text, questionId: questionId, capturedAt: instant(capturedAt),
-                                                    clientId: clientId))
+                                                    clientId: clientId, device: CaptureDevice.iphone.rawValue))
     }
 
     /// A recording's Content-Type and name by its file: a WAV (what the server's transcriber takes), or an `.m4a`
@@ -204,12 +204,14 @@ nonisolated enum API {
     /// that transcribed on the phone.
     static func uploadVoiceCapture(questionId: String?, capturedAt: Date, durationMs: Int, transcript: String?,
                                    localFile: String = "recording.wav", clientId: String? = nil,
-                                   clientLog: String? = nil) -> Endpoint {
+                                   clientLog: String? = nil, device: CaptureDevice = .iphone) -> Endpoint {
         let format = voiceFormat(localFile: localFile)
         var query = [URLQueryItem(name: "capturedAt", value: instant(capturedAt)),
                      URLQueryItem(name: "durationMs", value: String(max(0, durationMs))),
                      URLQueryItem(name: "fileName", value: format.fileName)]
         if let clientId { query.append(URLQueryItem(name: "clientId", value: clientId)) }
+        // Which device recorded it: the Apple Watch's notes reach the server through this phone too.
+        query.append(URLQueryItem(name: "device", value: device.rawValue))
         // The recording log (`RecordingLog`), kept with the note on the server to see how the recording went.
         if let clientLog, !clientLog.isEmpty { query.append(URLQueryItem(name: "clientLog", value: clientLog)) }
         if let questionId { query.append(URLQueryItem(name: "questionId", value: questionId)) }
@@ -233,6 +235,7 @@ nonisolated enum API {
         var questionId: String?
         var capturedAt: String
         var clientId: String?
+        var device: String?
     }
 
     struct HealthDays: Encodable {

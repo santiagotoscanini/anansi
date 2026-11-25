@@ -168,6 +168,9 @@ struct CaptureRow: View {
                     if let ms = capture.durationMs, capture.isVoice {
                         Text("· \(CaptureRules.duration(seconds: Double(ms) / 1000))")
                     }
+                    if capture.isFromWatch {
+                        Text("· Apple Watch")
+                    }
                     Text("· \(CaptureRules.label(destination))")
                         .foregroundStyle(destinationColor(destination))
                         .lineLimit(2)

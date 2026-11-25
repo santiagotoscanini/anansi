@@ -80,8 +80,10 @@ final class OutboxStore {
 
     /// Moves a finished recording (a WAV) into the outbox folder and queues its upload. Answers the capture's item id.
     /// The server transcribes it.
-    func addVoiceCapture(recordingAt source: URL, questionId: String?, capturedAt: Date, durationMs: Int) throws -> String {
-        let id = UUID()
+    /// `id`, `device` and `clientLog` are set for a note made on the Apple Watch (`WatchBridge`): its id is the
+    /// watch's, so the watch's own upload and this one make one capture.
+    func addVoiceCapture(recordingAt source: URL, questionId: String?, capturedAt: Date, durationMs: Int,
+                         id: UUID = UUID(), device: CaptureDevice? = nil, clientLog: String? = nil) throws -> String {
         let local = "\(id.uuidString).wav"
         let target = fileURL(local)
         try? FileManager.default.removeItem(at: target)
@@ -91,10 +93,22 @@ final class OutboxStore {
         outbox.enqueue(OutboxOp(id: id, itemId: itemId, itemTitle: "Voice note",
                                 kind: .voiceCapture(localFile: local, questionId: questionId, capturedAt: capturedAt,
                                                     durationMs: durationMs, byteCount: bytes, transcript: nil),
-                                queuedAt: .now))
+                                queuedAt: .now, device: device, clientLog: clientLog))
         save()
         pump()
         return itemId
+    }
+
+    /// Whether an Apple Watch note (by its id) is already here, waiting, refused or landed.
+    func holdsCapture(_ id: UUID) -> Bool { outbox.holdsCapture(id) }
+
+    func hasLanded(_ id: UUID) -> Bool { outbox.hasLanded(id) }
+
+    /// The server has this note from the watch itself: it goes unsent (and its file with it).
+    func dropDelivered(_ id: UUID) {
+        guard outbox.dropDelivered(id) else { return }
+        save()
+        sweepFiles()
     }
 
     /// Waits until nothing of this capture is left in the queue, or the time is up. Answers whether it went.
@@ -182,13 +196,17 @@ final class OutboxStore {
                 guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
                     throw OutboxFileMissing()
                 }
-                let log = RecordingLog.shared.unsent()
+                // A note from the watch carries the watch's log; this phone's waits for its own next note.
+                let log = op.madeOn == .watch ? nil : RecordingLog.shared.unsent()
                 let capture = try await APIClient.shared.uploadVoiceCapture(
                     fileURL: url, questionId: questionId, capturedAt: capturedAt, durationMs: durationMs,
-                    transcript: transcript, clientId: op.id.uuidString, clientLog: log?.text)
+                    transcript: transcript, clientId: op.id.uuidString, clientLog: op.clientLog ?? log?.text,
+                    device: op.madeOn)
                 if let log { RecordingLog.shared.markSent(upTo: log.upTo) }
                 outbox.recordCapture(itemId: op.itemId, serverId: capture.id)
                 CaptureStore.shared.didLand(capture)
+                // The watch keeps its copy until it hears this.
+                if op.madeOn == .watch { WatchBridge.shared.didLand(op.id) }
             case .captureTranscript(let transcript):
                 guard let serverId = outbox.serverCaptureId(op.itemId) else {
                     throw APIError(status: 400, code: "NO_CAPTURE",

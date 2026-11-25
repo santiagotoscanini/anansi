@@ -40,15 +40,25 @@ nonisolated struct OutboxOp: Codable, Hashable, Sendable, Identifiable {
     /// For an upload that replaces a picture (an item that takes one a week): the attachment deleted once this
     /// upload has landed, so a failed upload loses nothing. Optional, so an outbox saved before it still decodes.
     var replaces: String?
+    /// For a capture: the device it was made on. Nil is this phone (and every op queued before the Apple Watch app).
+    var device: CaptureDevice?
+    /// For a voice note from the Apple Watch: the watch's recording log, sent with it in place of the phone's.
+    var clientLog: String?
 
-    init(id: UUID = UUID(), itemId: String, itemTitle: String, kind: Kind, queuedAt: Date, replaces: String? = nil) {
+    init(id: UUID = UUID(), itemId: String, itemTitle: String, kind: Kind, queuedAt: Date, replaces: String? = nil,
+         device: CaptureDevice? = nil, clientLog: String? = nil) {
         self.id = id
         self.itemId = itemId
         self.itemTitle = itemTitle
         self.kind = kind
         self.queuedAt = queuedAt
         self.replaces = replaces
+        self.device = device
+        self.clientLog = clientLog
     }
+
+    /// Where the capture was made, as the server is told.
+    var madeOn: CaptureDevice { device ?? .iphone }
 
     var isUpload: Bool {
         if case .upload = kind { return true }
@@ -266,6 +276,27 @@ nonisolated struct SyncOutbox: Codable, Hashable, Sendable {
         var links = (captureIds ?? []).filter { $0.itemId != itemId }
         links.append(CaptureLink(itemId: itemId, serverId: serverId))
         captureIds = Array(links.suffix(Self.captureMemory))
+    }
+
+    /// Whether the capture with this op id (an Apple Watch note's id) is anywhere here: waiting, refused, or landed.
+    func holdsCapture(_ id: UUID) -> Bool {
+        pending.contains { $0.id == id } || failed.contains { $0.id == id } || hasLanded(id)
+    }
+
+    /// Whether the capture with this op id reached the server from this phone (within the last `captureMemory`).
+    func hasLanded(_ id: UUID) -> Bool {
+        serverCaptureId(OutboxOp.captureItemId(id)) != nil
+    }
+
+    /// A capture the server already has from elsewhere (an Apple Watch note its watch uploaded itself) leaves the
+    /// queue unsent, unless it is on the wire now. Answers whether it went.
+    @discardableResult
+    mutating func dropDelivered(_ id: UUID) -> Bool {
+        guard id != inFlight else { return false }
+        let before = pending.count + failed.count
+        pending.removeAll { $0.id == id }
+        failed.removeAll { $0.id == id }
+        return pending.count + failed.count < before
     }
 
     /// The server's id for a capture this phone sent, once it landed.

@@ -54,6 +54,9 @@ jobs:
           # The widget extension (the recording's Live Activity, the Control Center control): no capability, but
           # cloud signing needs its App ID to exist.
           node scripts/asc-capability.mjs com.santiagotoscanini.anansi.Widgets
+          # The Apple Watch app and its complication (no capabilities either).
+          node scripts/asc-capability.mjs com.santiagotoscanini.anansi.watchkitapp
+          node scripts/asc-capability.mjs com.santiagotoscanini.anansi.watchkitapp.Widgets
 
       # Archive unsigned, sign at export. A signed archive needs an Apple Development certificate whose
       # private key is on the machine; a fresh runner has none, so cloud signing minted a new one every
@@ -73,23 +76,28 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CURRENT_PROJECT_VERSION=$(( ${{ github.run_number }} + 100 ))
 
-      # Inner code first, then the app (no --deep): codesign refuses to sign an app holding unsigned code. The
-      # widget extension has no entitlements of its own.
+      # Inner code first, then what holds it (no --deep): codesign refuses to sign a bundle holding unsigned code.
+      # The Apple Watch app (Watch/, with its complication inside) and the widget extensions have no entitlements of
+      # their own; the export re-signs each with its own profile.
       - name: Entitlements into the archive
         run: |
           set -o pipefail
           APP=build/Anansi.xcarchive/Products/Applications/Anansi.app
+          for WATCH in "$APP"/Watch/*.app; do
+            [ -d "$WATCH" ] || continue
+            for EXT in "$WATCH"/PlugIns/*.appex; do
+              [ -d "$EXT" ] || continue
+              codesign --force --sign - --timestamp=none "$EXT"
+            done
+            codesign --force --sign - --timestamp=none "$WATCH"
+          done
           for EXT in "$APP"/PlugIns/*.appex; do
             [ -d "$EXT" ] || continue
             codesign --force --sign - --timestamp=none "$EXT"
           done
           codesign --force --sign - --entitlements Config/Anansi.entitlements --timestamp=none "$APP"
           codesign -d --entitlements - "$APP"
-          codesign --verify --deep --strict "$APP"|
-          set -o pipefail
-          APP=build/Anansi.xcarchive/Products/Applications/Anansi.app
-          codesign --force --sign - --entitlements Config/Anansi.entitlements --timestamp=none "$APP"
-          codesign -d --entitlements - "$APP"
+          codesign --verify --deep --strict "$APP"
 
       - name: Export & upload to App Store Connect
         run: |

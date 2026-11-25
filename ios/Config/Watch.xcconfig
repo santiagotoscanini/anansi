@@ -1,0 +1,19 @@
+// The Apple Watch app (AnansiWatch/: record a voice note, send it to Anansi). Identity and versioning come from
+// App.xcconfig, so the watch app always carries the phone app's version and build, as the App Store requires; only
+// what a watchOS app must differ in is set here.
+#include "App.xcconfig"
+
+PRODUCT_BUNDLE_IDENTIFIER = com.santiagotoscanini.anansi.watchkitapp
+INFOPLIST_FILE = Config/Watch-Info.plist
+// No entitlements: WatchConnectivity and the Keychain need none.
+CODE_SIGN_ENTITLEMENTS =
+INFOPLIST_KEY_CFBundleDisplayName = Anansi
+INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.santiagotoscanini.anansi
+INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO
+// Embedded in the phone app (its "Embed Watch Content" phase), never installed on its own.
+SKIP_INSTALL = YES
+
+SDKROOT = watchos
+SUPPORTED_PLATFORMS = watchos watchsimulator
+TARGETED_DEVICE_FAMILY = 4
+WATCHOS_DEPLOYMENT_TARGET = 27.0

@@ -213,11 +213,12 @@ extension APIClient {
 
     /// The recording from disk, and its words when they are short enough to ride along; longer ones follow in a PATCH.
     func uploadVoiceCapture(fileURL: URL, questionId: String?, capturedAt: Date, durationMs: Int,
-                            transcript: String?, clientId: String, clientLog: String?) async throws -> Capture {
+                            transcript: String?, clientId: String, clientLog: String?,
+                            device: CaptureDevice = .iphone) async throws -> Capture {
         let body = try await upload(API.uploadVoiceCapture(questionId: questionId, capturedAt: capturedAt,
                                                            durationMs: durationMs, transcript: transcript,
                                                            localFile: fileURL.lastPathComponent, clientId: clientId,
-                                                           clientLog: clientLog),
+                                                           clientLog: clientLog, device: device),
                                     fileURL: fileURL, timeout: 600)
         let capture = try API.decode(Capture.self, from: body)
         if let transcript, transcript.count > API.transcriptInQueryMax {

@@ -29,8 +29,11 @@ nonisolated struct Capture: Codable, Hashable, Sendable, Identifiable {
     var transcriptStatus: String?
     var transcribeAttempts: Int?
     var transcribeError: String?
+    /// `iphone` or `watch`: the device it was made on. Absent from servers before the Apple Watch app.
+    var device: String?
 
     var isVoice: Bool { kind == "voice" }
+    var isFromWatch: Bool { device == CaptureDevice.watch.rawValue }
 
     /// A voice note whose words the server has not written yet (and has not given up on).
     var isTranscribing: Bool { isVoice && text == nil && transcriptStatus != "failed" }

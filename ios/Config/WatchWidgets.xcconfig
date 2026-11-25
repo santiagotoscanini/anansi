@@ -1,0 +1,14 @@
+// The Apple Watch app's widget extension (AnansiWatchWidgets/: the complication that starts a voice note).
+// Identity and versioning come from App.xcconfig, like every bundle in the app.
+#include "App.xcconfig"
+
+PRODUCT_BUNDLE_IDENTIFIER = com.santiagotoscanini.anansi.watchkitapp.Widgets
+INFOPLIST_FILE = Config/WatchWidgets-Info.plist
+CODE_SIGN_ENTITLEMENTS =
+INFOPLIST_KEY_CFBundleDisplayName = Anansi
+SKIP_INSTALL = YES
+
+SDKROOT = watchos
+SUPPORTED_PLATFORMS = watchos watchsimulator
+TARGETED_DEVICE_FAMILY = 4
+WATCHOS_DEPLOYMENT_TARGET = 27.0

@@ -57,6 +57,7 @@ final class Connection {
             self.key = key
             self.me = me
             keyRejected = false
+            WatchBridge.shared.shareCredentials()
             return true
         } catch {
             lastError = (error as? APIError)?.isUnauthorized == true
@@ -77,11 +78,13 @@ final class Connection {
         key = nil
         me = nil
         keyRejected = false
+        WatchBridge.shared.shareCredentials()
     }
 
     /// The server answered 401 with the saved key: it was revoked.
     func didLoseAuthorization() {
         keyRejected = true
+        WatchBridge.shared.shareCredentials()
         lastError = "Anansi no longer accepts this phone's key. Create a new one in Profile → Devices and scan it."
     }
 

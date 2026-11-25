@@ -17,6 +17,8 @@ public enum AnansiApp {
         OutboxBackground.register()
         // Recordings cut off by the app or the phone dying go into the outbox first, then everything is sent.
         RecordingRecovery.recoverLeftovers()
+        // The Apple Watch's notes: those it handed over before the app last stopped are queued, then the link opens.
+        WatchBridge.shared.start()
         OutboxStore.shared.resume()
         // Registers for Health's background wake-ups, which must happen on every launch.
         HealthSync.shared.start()

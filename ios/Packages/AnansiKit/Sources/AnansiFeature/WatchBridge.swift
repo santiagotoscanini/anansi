@@ -147,7 +147,7 @@ final class WatchBridge {
                 continue
             }
             do {
-                try OutboxStore.shared.addVoiceCapture(recordingAt: wav, questionId: nil, capturedAt: note.capturedAt,
+                _ = try OutboxStore.shared.addVoiceCapture(recordingAt: wav, questionId: nil, capturedAt: note.capturedAt,
                                                        durationMs: note.durationMs, id: note.id, device: .watch,
                                                        clientLog: note.log)
                 try? fm.removeItem(at: details)

@@ -70,7 +70,8 @@ struct CoreWatchLinkTests {
         #expect(queue.toHandOver(inTransfer: []).isEmpty)
         // The phone holding it is no reason not to upload it from the watch too.
         #expect(queue.toUpload(uploading: []).map(\.id) == [id])
-        #expect(queue.landed([id]) == ["\(id.uuidString).wav"])
+        let files = queue.landed([id])
+        #expect(files == ["\(id.uuidString).wav"])
         #expect(queue.isEmpty)
     }
 
@@ -108,12 +109,14 @@ struct CoreWatchLinkTests {
         #expect(!outbox.holdsCapture(other))
         #expect(outbox.pending.first?.madeOn == .watch)
         // The watch's own upload got there: the phone's copy goes unsent…
-        #expect(outbox.dropDelivered(id))
+        let dropped = outbox.dropDelivered(id)
+        #expect(dropped)
         #expect(!outbox.holdsCapture(id))
         // …unless it is on the wire.
         outbox.enqueue(op)
         outbox.begin(op)
-        #expect(!outbox.dropDelivered(id))
+        let droppedInFlight = outbox.dropDelivered(id)
+        #expect(!droppedInFlight)
         outbox.didSucceed(id)
         outbox.recordCapture(itemId: OutboxOp.captureItemId(id), serverId: "c1")
         #expect(outbox.hasLanded(id))

@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
 import { withApiKey, withMediaUpload } from '~/server/api/v1'
+import { captureDeviceValues } from '~/lib/api/types'
 import { MAX_VOICE_CAPTURE_BYTES } from '~/lib/captures'
 import * as captures from '~/server/services/captures'
 
@@ -21,6 +22,9 @@ const query = z.object({
   transcript: z.string().max(20_000).optional(),
   clientId: z.string().min(1).max(64).optional(),
   clientLog: z.string().max(8000).optional(),
+  // Which device recorded it: `watch` for the Apple Watch's notes (sent by the
+  // watch itself or handed on by the phone). Builds before it send none.
+  device: z.enum(captureDeviceValues).optional(),
 })
 
 export const Route = createFileRoute('/api/v1/captures/voice')({
@@ -40,6 +44,7 @@ export const Route = createFileRoute('/api/v1/captures/voice')({
                 clientId: q.clientId ?? null,
                 deviceLog: q.clientLog ?? null,
                 source: 'phone',
+                device: q.device ?? 'iphone',
                 fileName: upload.fileName,
                 mimeType: upload.mimeType,
                 path: upload.path,

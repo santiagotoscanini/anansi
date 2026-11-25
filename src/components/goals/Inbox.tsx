@@ -238,6 +238,12 @@ function CaptureItem({
           {showTime && (
             <span className="tabular-nums">
               {timeOf(new Date(capture.capturedAt))}
+              {(where ?? capture.device) && ' · '}
+            </span>
+          )}
+          {capture.device && (
+            <span>
+              {t(capture.device === 'watch' ? 'inbox.fromWatch' : 'inbox.fromIphone')}
               {where && ' · '}
             </span>
           )}

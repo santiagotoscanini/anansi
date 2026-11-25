@@ -607,6 +607,8 @@ export type UpdateOpenQuestionNote = z.infer<typeof updateOpenQuestionNoteSchema
 // question (a note) or to the TickTick Inbox. See services/captures.ts.
 export const captureStatusValues = ['new', 'routed', 'archived'] as const
 export const captureSourceValues = ['phone', 'web', 'mcp'] as const
+export const captureDeviceValues = ['iphone', 'watch'] as const
+export type CaptureDevice = (typeof captureDeviceValues)[number]
 
 const captureText = z.string().trim().min(1).max(10_000)
 
@@ -616,6 +618,8 @@ export const createCaptureSchema = z.object({
   /** The moment on the device; the server's now when left out. */
   capturedAt: z.coerce.date().optional(),
   source: z.enum(captureSourceValues),
+  /** The device it was made on (from the phone API). */
+  device: z.enum(captureDeviceValues).nullable().optional(),
   /** The device's id for it: a repeated send answers the capture it already made. */
   clientId: z.string().min(1).max(64).optional(),
 })
@@ -1016,6 +1020,8 @@ export const backupCaptureSchema = z.object({
   tidiedAt: z.coerce.date().nullable().optional(),
   tidyError: z.string().nullable().optional(),
   tickTickListName: z.string().nullable().optional(),
+  // The device (iPhone or Apple Watch) joined later still.
+  device: z.enum(captureDeviceValues).nullable().optional(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 })

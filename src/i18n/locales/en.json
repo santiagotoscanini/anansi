@@ -1056,6 +1056,8 @@
     "confirmDelete": "Delete this capture and its audio? Where it went (a note, a TickTick task) stays.",
     "deleteFailed": "Could not delete that capture",
     "toTickTickList": "→ TickTick · {{list}}",
+    "fromWatch": "Apple Watch",
+    "fromIphone": "iPhone",
     "showTranscript": "Transcript",
     "hideTranscript": "Hide transcript",
     "heardAs": "Heard as: {{text}}",

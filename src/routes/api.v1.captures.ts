@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
+import { captureDeviceValues } from '~/lib/api/types'
 import { readJson, withApiKey } from '~/server/api/v1'
 import * as captures from '~/server/services/captures'
 
@@ -11,6 +12,7 @@ const createBody = z.object({
   questionId: z.string().min(1).nullable().optional(),
   capturedAt: z.string().datetime({ offset: true }).optional(),
   clientId: z.string().min(1).max(64).optional(),
+  device: z.enum(captureDeviceValues).optional(),
 })
 
 export const Route = createFileRoute('/api/v1/captures')({
@@ -36,6 +38,7 @@ export const Route = createFileRoute('/api/v1/captures')({
             capturedAt: body.capturedAt ? new Date(body.capturedAt) : undefined,
             clientId: body.clientId,
             source: 'phone',
+            device: body.device ?? 'iphone',
           })
         }),
     },

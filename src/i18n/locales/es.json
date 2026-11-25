@@ -1056,6 +1056,8 @@
     "confirmDelete": "¿Borrar esta captura y su audio? Lo que generó (una nota, una tarea de TickTick) se queda.",
     "deleteFailed": "No se pudo borrar la captura",
     "toTickTickList": "→ TickTick · {{list}}",
+    "fromWatch": "Apple Watch",
+    "fromIphone": "iPhone",
     "showTranscript": "Transcripción",
     "hideTranscript": "Ocultar transcripción",
     "heardAs": "Se oyó: {{text}}",

@@ -907,6 +907,9 @@ export const personalityResults = pgTable(
 export const captureKindEnum = pgEnum('capture_kind', ['text', 'voice'])
 export const captureStatusEnum = pgEnum('capture_status', ['new', 'routed', 'archived'])
 export const captureSourceEnum = pgEnum('capture_source', ['phone', 'web', 'mcp'])
+// Which of the user's devices made a phone capture: the iPhone itself, or the
+// Apple Watch (whose notes reach the server directly or through the phone).
+export const captureDeviceEnum = pgEnum('capture_device', ['iphone', 'watch'])
 // A voice note's words come from the server's transcriber (the box's Whisper,
 // services/captures.ts): `pending` until they do, `failed` when it refused the
 // audio, `none` for a typed capture. `transcript_source` says who wrote them;
@@ -951,6 +954,8 @@ export const captures = pgTable(
     routeError: text('route_error'),
     routedAt: timestamp('routed_at'),
     source: captureSourceEnum('source').notNull(),
+    // The device it was made on (`phone` captures only; null for the web and MCP).
+    device: captureDeviceEnum('device'),
     // The moment on the device that captured it, as it said.
     capturedAt: timestamp('captured_at').notNull().defaultNow(),
     transcriptStatus: transcriptStatusEnum('transcript_status').notNull().default('none'),

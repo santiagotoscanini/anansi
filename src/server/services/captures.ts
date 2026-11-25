@@ -51,6 +51,7 @@ import {
   captureBody,
   captureTitle,
   MAX_VOICE_CAPTURE_BYTES,
+  captureOrigin,
   tickTickContent,
   VOICE_TRANSCRIPT_WAIT_MS,
   voiceNoteTitle,
@@ -61,6 +62,7 @@ import {
   createCaptureSchema,
   listCapturesSchema,
   updateCaptureSchema,
+  type CaptureDevice,
   type CaptureTermInput,
   type CreateCapture,
   type ListCaptures,
@@ -177,6 +179,7 @@ const selectCapture = {
   routeError: captures.routeError,
   routedAt: captures.routedAt,
   source: captures.source,
+  device: captures.device,
   capturedAt: captures.capturedAt,
   transcriptStatus: captures.transcriptStatus,
   transcribeAttempts: captures.transcribeAttempts,
@@ -284,6 +287,7 @@ export async function create(userId: string, input: CreateCapture) {
       questionId,
       clientId: data.clientId ?? null,
       source: data.source,
+      device: data.device ?? null,
       // Stamped here when the device sent none: the column default is the
       // database's clock, which writes local time, and would sort apart from
       // the instants the app writes.
@@ -303,6 +307,8 @@ export interface VoiceCaptureInput {
   /** When the phone already has the words (builds that transcribed on the device). */
   transcript?: string | null
   source: 'phone' | 'web' | 'mcp'
+  /** The device it was recorded on (from the phone API). */
+  device?: CaptureDevice | null
   /** The device's id for it: a repeated send answers the capture it already made. */
   clientId?: string | null
   /** The phone's recording log since its last voice note, kept for diagnosis. */
@@ -350,6 +356,7 @@ export async function createVoice(userId: string, input: VoiceCaptureInput) {
         clientId: input.clientId ?? null,
         deviceLog: input.deviceLog?.slice(0, 8000) ?? null,
         source: input.source,
+        device: input.device ?? null,
         capturedAt: input.capturedAt ?? new Date(),
         ...(transcript === null
           ? { transcriptStatus: 'pending' as const }
@@ -620,7 +627,7 @@ async function routeNow(id: string) {
 
   const words = c.text ?? ''
   const title = taskTitle(c) || voiceNoteTitle(c.capturedAt, conn.timeZone)
-  const content = tickTickContent(words.trim() ? taskBody(c) : '', captureLink(c.id))
+  const content = tickTickContent(words.trim() ? taskBody(c) : '', captureLink(c.id), madeOn(c))
   try {
     const { task, listName } = await createCaptureTask(tickTick(token), conn, { title, content, tags: ['anansi'] })
     await db
@@ -692,7 +699,7 @@ async function renameTickTickTask(userId: string, row: CaptureRow) {
       id: row.tickTickTaskId,
       projectId: row.tickTickProjectId,
       title: taskTitle(row),
-      content: tickTickContent(taskBody(row), captureLink(row.id)),
+      content: tickTickContent(taskBody(row), captureLink(row.id), madeOn(row)),
     })
   } catch (e) {
     console.warn('[captures] could not rename the TickTick task', row.id, errorText(e))
@@ -862,6 +869,9 @@ const taskTitle = (c: Words) => c.title ?? captureTitle(c.text ?? '')
 
 /** The TickTick notes: the tidied ones, else the words after the first line. */
 const taskBody = (c: Words) => (c.title !== null ? (c.notes ?? '') : captureBody(c.text ?? ''))
+
+/** "Recorded from my Apple Watch": which device made it, for the TickTick notes. */
+const madeOn = (c: Pick<CaptureRow, 'kind' | 'device'>) => captureOrigin(c.kind, c.device)
 
 /** A note on a question: the tidied title over its notes, else the words. */
 const noteContent = (c: Words) => (c.title !== null ? [c.title, c.notes].filter(Boolean).join('\n\n') : (c.text ?? ''))

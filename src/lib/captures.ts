@@ -59,8 +59,19 @@ export function voiceNoteTitle(capturedAt: Date, timeZone: string): string {
 }
 
 /** The notes of the TickTick task a capture becomes: its text after the title, then the way back to Anansi. */
-export function tickTickContent(body: string, link: string | null): string {
-  return [body.trim(), link ? `Captured in Anansi: ${link}` : ''].filter(Boolean).join('\n\n')
+export function tickTickContent(body: string, link: string | null, origin: string | null = null): string {
+  return [body.trim(), origin ?? '', link ? `Captured in Anansi: ${link}` : ''].filter(Boolean).join('\n\n')
+}
+
+const DEVICE_NAMES = { iphone: 'iPhone', watch: 'Apple Watch' } as const
+
+/**
+ * "Recorded from my Apple Watch", "Written on my iPhone": the line a capture's
+ * TickTick task carries about where it was made. Null for the web and MCP.
+ */
+export function captureOrigin(kind: 'text' | 'voice', device: keyof typeof DEVICE_NAMES | null): string | null {
+  if (!device) return null
+  return kind === 'voice' ? `Recorded from my ${DEVICE_NAMES[device]}` : `Written on my ${DEVICE_NAMES[device]}`
 }
 
 export type CaptureDestination =

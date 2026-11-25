@@ -10,6 +10,7 @@ import {
   transcribeBackoffMs,
   transcribeTimeoutMs,
   transcriptView,
+  captureOrigin,
   tickTickContent,
   voiceNoteTitle,
   applyTerms,
@@ -52,6 +53,18 @@ test('the task notes carry the body, then the link back', () => {
   assert.equal(tickTickContent('rest', 'https://x/app/inbox'), 'rest\n\nCaptured in Anansi: https://x/app/inbox')
   assert.equal(tickTickContent('', 'https://x/app/inbox'), 'Captured in Anansi: https://x/app/inbox')
   assert.equal(tickTickContent('rest', null), 'rest')
+  assert.equal(
+    tickTickContent('rest', 'https://x/app/inbox', 'Recorded from my Apple Watch'),
+    'rest\n\nRecorded from my Apple Watch\n\nCaptured in Anansi: https://x/app/inbox',
+  )
+  assert.equal(tickTickContent('', null, 'Recorded from my iPhone'), 'Recorded from my iPhone')
+})
+
+test('which device a capture was made on', () => {
+  assert.equal(captureOrigin('voice', 'watch'), 'Recorded from my Apple Watch')
+  assert.equal(captureOrigin('voice', 'iphone'), 'Recorded from my iPhone')
+  assert.equal(captureOrigin('text', 'iphone'), 'Written on my iPhone')
+  assert.equal(captureOrigin('voice', null), null)
 })
 
 test('where a capture went', () => {

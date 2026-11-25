@@ -127,6 +127,13 @@
       "when": 1795559504444,
       "tag": "0017_capture_tidy_terms",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795568523250,
+      "tag": "0018_capture_device",
+      "breakpoints": true
     }
   ]
 }

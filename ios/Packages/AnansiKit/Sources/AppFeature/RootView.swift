@@ -1,7 +1,7 @@
 import AnansiFeature
 import SwiftUI
 
-/// The app's root: Anansi, directly. One product, no tab bar.
+/// The app's root: Anansi, directly (its tab bar, Pulse first).
 public struct RootView: View {
     public init() {}
 

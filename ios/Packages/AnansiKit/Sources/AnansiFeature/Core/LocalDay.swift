@@ -82,7 +82,7 @@ nonisolated struct LocalDay: Hashable, Comparable, Codable, Sendable, CustomStri
         return calendar
     }
 
-    private static func daysIn(month: Int, year: Int) -> Int {
+    static func daysIn(month: Int, year: Int) -> Int {
         switch month {
         case 2: (year % 4 == 0 && year % 100 != 0) || year % 400 == 0 ? 29 : 28
         case 4, 6, 9, 11: 30

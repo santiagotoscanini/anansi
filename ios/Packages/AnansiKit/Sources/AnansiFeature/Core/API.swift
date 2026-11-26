@@ -136,6 +136,31 @@ nonisolated enum API {
 
     static func goals() -> Endpoint { get("api/v1/goals") }
 
+    /// Every active goal with its tasks, progress, values and life chapters (the Goals screen).
+    static func goalBoard() -> Endpoint { get("api/v1/goals/board") }
+
+    static func setTaskCompleted(_ id: String, completed: Bool) -> Endpoint {
+        send("PATCH", "api/v1/tasks/\(id)", ["completed": completed])
+    }
+
+    // MARK: Life
+
+    static func life() -> Endpoint { get("api/v1/life") }
+
+    static func setLife(birthDate: LocalDay?, lifeExpectancyYears: Int?) -> Endpoint {
+        send("PUT", "api/v1/life", LifeSettingsBody(birthDate: birthDate?.string, lifeExpectancyYears: lifeExpectancyYears))
+    }
+
+    static func lifeWeek(day: LocalDay) -> Endpoint { get("api/v1/life/weeks/\(day.string)") }
+
+    static func createChapter(_ fields: ChapterFields) -> Endpoint { send("POST", "api/v1/life/chapters", fields) }
+
+    static func updateChapter(_ id: String, _ fields: ChapterFields) -> Endpoint {
+        send("PATCH", "api/v1/life/chapters/\(id)", fields)
+    }
+
+    static func deleteChapter(_ id: String) -> Endpoint { bare("DELETE", "api/v1/life/chapters/\(id)") }
+
     // MARK: Journal
 
     static func journal(day: LocalDay) -> Endpoint { get("api/v1/journal/\(day.string)") }
@@ -229,6 +254,41 @@ nonisolated enum API {
     static func openQuestions() -> Endpoint { get("api/v1/open-questions") }
 
     // MARK: Bodies
+
+    /// Birth date and life expectancy; a field left nil is left out and stays as it is.
+    struct LifeSettingsBody: Encodable {
+        var birthDate: String?
+        var lifeExpectancyYears: Int?
+    }
+
+    /// A whole chapter, as the editor saves it: a nil start or end is sent as `null` (since birth, until the end),
+    /// a nil emoji or notes clears them, `goalIds` and `viewIds` replace the sets.
+    struct ChapterFields: Encodable, Equatable {
+        var title: String
+        var emoji: String?
+        var color: String
+        var notes: String?
+        var startDay: LocalDay?
+        var endDay: LocalDay?
+        var goalIds: [String]
+        var viewIds: [String]
+
+        enum CodingKeys: String, CodingKey { case title, emoji, color, notes, startDay, endDay, goalIds, viewIds }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(title, forKey: .title)
+            let emoji = self.emoji?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let emoji, !emoji.isEmpty { try container.encode(emoji, forKey: .emoji) } else { try container.encodeNil(forKey: .emoji) }
+            try container.encode(color, forKey: .color)
+            let notes = self.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let notes, !notes.isEmpty { try container.encode(notes, forKey: .notes) } else { try container.encodeNil(forKey: .notes) }
+            if let startDay { try container.encode(startDay.string, forKey: .startDay) } else { try container.encodeNil(forKey: .startDay) }
+            if let endDay { try container.encode(endDay.string, forKey: .endDay) } else { try container.encodeNil(forKey: .endDay) }
+            try container.encode(goalIds, forKey: .goalIds)
+            try container.encode(viewIds, forKey: .viewIds)
+        }
+    }
 
     struct NewCapture: Encodable {
         var text: String

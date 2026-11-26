@@ -19,20 +19,8 @@ struct HomeView: View {
     @State private var startError: String?
     @Environment(\.scenePhase) private var scenePhase
 
-    /// The recorder takes the whole screen while it is open (the Action Button, Siri, the mic buttons), instead of
-    /// being presented over it: a presentation fails silently when another sheet is already up somewhere, which left
-    /// the Action Button opening the app without recording. Anything presented underneath goes away with it; the
-    /// navigation path is kept and comes back after.
+    // The recorder's whole-screen takeover lives in MainTabs, above the tab bar.
     var body: some View {
-        if let request = captures.recording {
-            RecorderView(request: request)
-                .id(request.id)
-        } else {
-            main
-        }
-    }
-
-    private var main: some View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
@@ -58,10 +46,6 @@ struct HomeView: View {
                 if connection.isConnected {
                     ToolbarItem(placement: .primaryAction) {
                         Menu("More", systemImage: "ellipsis.circle") {
-                            Button("Inbox", systemImage: "tray") { path.append(InboxRoute()) }
-                            Button("Journal", systemImage: "book.closed") {
-                                path.append(JournalRoute(day: LocalDay.today()))
-                            }
                             Button("Weekly sync", systemImage: "calendar") {
                                 path.append(WeekRoute(weekStart: LocalDay.today().weekStart))
                             }
@@ -73,30 +57,7 @@ struct HomeView: View {
                     }
                 }
             }
-            .navigationDestination(for: ItemRoute.self) { route in
-                SyncItemView(itemId: route.id)
-            }
-            .navigationDestination(for: WeekRoute.self) { route in
-                WeekView(initialWeek: route.weekStart)
-            }
-            .navigationDestination(for: JournalRoute.self) { route in
-                JournalDayView(initialDay: route.day)
-            }
-            .navigationDestination(for: JournalListRoute.self) { _ in
-                JournalListView()
-            }
-            .navigationDestination(for: InboxRoute.self) { _ in
-                InboxView()
-            }
-            .navigationDestination(for: SetupRoute.self) { _ in
-                SetupView()
-            }
-            .navigationDestination(for: OverTimeListRoute.self) { _ in
-                OverTimeListView()
-            }
-            .navigationDestination(for: OverTimeRoute.self) { route in
-                OverTimeView(trackingItemId: route.trackingItemId, title: route.title)
-            }
+            .anansiDestinations()
             .sheet(isPresented: $isShowingSettings) {
                 SettingsView()
             }

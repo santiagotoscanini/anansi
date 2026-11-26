@@ -3,7 +3,16 @@
 - This folder is the iPhone app for Anansi, the web app at the repo root. The phone's server side is the REST API in
   `src/routes/api.v1.*.ts` (helpers in `src/server/api/v1.ts`, keys in `src/server/services/api-keys.ts`); change it
   together with the app, keep it calling the service layer, and never touch the MCP tool catalog for the phone.
-- One iOS app, one product. The root view is Pulse; there is no tab bar.
+- One iOS app, one product. The root is a tab bar (`MainTabs`): Pulse first (where the app opens), then Life, Goals,
+  Journal and the Inbox. Each tab has its own `NavigationStack` with every route (`anansiDestinations()`), so a link
+  works in any tab; until the phone is connected the other tabs show the connect card. The recorder takes the whole
+  screen above the tab bar (`MainTabs`, not a sheet).
+- Life (`LifeView.swift`, rules and contract in `Core/Life.swift`, the web's in `src/lib/life.ts` with the same test
+  cases): the grid of weeks is one `Canvas` drawing plain `Cell` values computed on the main actor; a tap opens that
+  week (`LifeWeekView`, `GET /api/v1/life/weeks/{day}`: chapters, pictures, journal days, sync notes). Chapters are
+  added and edited on the phone (`ChapterEditor`, `/api/v1/life/chapters`); views are made on the web and picked here.
+- Goals (`GoalsView.swift`, `Core/Goals.swift`): `GET /api/v1/goals/board` (progress computed on the server by the
+  web's engine) and `PATCH /api/v1/tasks/{id}` to tick a task; nothing else about goals is edited on the phone.
 - Keep the app target thin (`Anansi/`: @main, assets). All code lives in `Packages/AnansiKit`:
   `Sources/AnansiFeature` (UI, stores, networking) and `Sources/AppFeature` (RootView + app delegate hooks).
 - `Sources/AnansiFeature/Core/` is pure logic: Foundation only, no UIKit/SwiftUI/CryptoKit imports. The contract
@@ -66,7 +75,7 @@
   nonisolated isolation, since `@Parameter` properties cannot be made `nonisolated` under the package's main-actor
   default; it reaches the app only through `CaptureActions`) holds "Capture a thought", "Add to an open question" (both
   `supportedModes = .background`, written through the outbox so they work offline), "Record a thought" (below) and
-  "Record in Anansi" (`OpenRecorderIntent`, `.foreground(.immediate)`: it sets `CaptureStore.recording` and HomeView
+  "Record in Anansi" (`OpenRecorderIntent`, `.foreground(.immediate)`: it sets `CaptureStore.recording` and MainTabs
   shows `RecorderView`, which records at once). The App Shortcuts (English and Spanish phrases) are in the app
   target, `Anansi/AnansiShortcuts.swift`, which reaches the package's intents through `AppIntentsPackage`
   (`AnansiAppIntents` → `AppFeatureIntents` → `AnansiIntentsPackage` → `AnansiActivityIntents`); keep that chain when
@@ -84,7 +93,7 @@
   step of a recording (the press, the session, the Live Activity, the recorder, a level line a second, interruptions,
   app and lock state, the stop and why) in `Application Support/recording-log.txt`; the lines not yet sent go with
   the next voice note (`clientLog`, kept as `captures.device_log`), and Settings → Recording log shows them. The
-  in-app recorder takes the whole screen while open (HomeView swaps it in rather than presenting it, since a
+  in-app recorder takes the whole screen while open (MainTabs swaps it in rather than presenting it, since a
   presentation fails silently over another sheet), starts only once the scene is active (iOS will not start the
   microphone for an app still coming up), and a second "open the recorder" while it is open stops and saves. **The phone does not transcribe**: the server does, with the box's Whisper
   through the LiteLLM gateway's `stt` model (`src/server/transcribe.ts`). That Whisper refuses AAC and the server

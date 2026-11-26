@@ -237,3 +237,27 @@ extension APIClient {
         try await call(API.openQuestions(), as: [OpenQuestionRef].self)
     }
 }
+
+// MARK: Life and goals
+
+extension APIClient {
+    func life() async throws -> LifeData { try await call(API.life(), as: LifeData.self) }
+
+    func setLife(birthDate: LocalDay?, lifeExpectancyYears: Int?) async throws -> LifeData {
+        try await call(API.setLife(birthDate: birthDate, lifeExpectancyYears: lifeExpectancyYears), as: LifeData.self)
+    }
+
+    func lifeWeek(day: LocalDay) async throws -> LifeWeek { try await call(API.lifeWeek(day: day), as: LifeWeek.self) }
+
+    func createChapter(_ fields: API.ChapterFields) async throws { try await data(API.createChapter(fields)) }
+
+    func updateChapter(_ id: String, _ fields: API.ChapterFields) async throws { try await data(API.updateChapter(id, fields)) }
+
+    func deleteChapter(_ id: String) async throws { try await data(API.deleteChapter(id)) }
+
+    func goalBoard() async throws -> [GoalCard] { try await call(API.goalBoard(), as: [GoalCard].self) }
+
+    func setTaskCompleted(_ id: String, completed: Bool) async throws {
+        try await data(API.setTaskCompleted(id, completed: completed))
+    }
+}

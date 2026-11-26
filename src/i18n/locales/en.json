@@ -137,6 +137,7 @@
       "pulse": "Pulse",
       "inbox": "Inbox",
       "self": "Self",
+      "life": "Life",
       "values": "Values",
       "bucket": "Bucket List",
       "objectives": "Objectives",
@@ -1732,5 +1733,121 @@
     "none": "No Health data this week",
     "dayTitle": "{{day}}: {{value}}",
     "dayNone": "{{day}}: nothing"
+  },
+  "life": {
+    "titlePre": "Your life in ",
+    "titleEm": "weeks",
+    "subtitle": "Every week you have lived and every week still ahead, and what you give them to.",
+    "stats": "Age {{age}} · {{lived}} weeks lived · {{ahead}} ahead · {{percent}}% of the way",
+    "newChapter": "New chapter",
+    "start": {
+      "title": "When were you born?",
+      "body": "A life in weeks starts there. Say how many years you plan on too; you can change it any time.",
+      "submit": "Draw my weeks"
+    },
+    "settings": {
+      "title": "Your life",
+      "birthDate": "Born",
+      "years": "Years",
+      "help": "How many years you plan on. The grid ends there.",
+      "badYears": "Years must be a whole number from 1 to 130",
+      "saved": "Saved"
+    },
+    "views": {
+      "all": "All chapters",
+      "new": "View"
+    },
+    "view": {
+      "namePlaceholder": "Education, Where I lived…",
+      "help": "Pick the chapters to see together.",
+      "noChapters": "No chapters yet.",
+      "needsName": "Give the view a name",
+      "confirmDelete": "Delete the view \"{{name}}\"? Its chapters stay.",
+      "delete": "Delete view",
+      "create": "Create view"
+    },
+    "legend": {
+      "lived": "Lived",
+      "now": "This week",
+      "ahead": "Ahead",
+      "recorded": "Journal or sync that week",
+      "drag": "Drag across weeks to start a chapter"
+    },
+    "list": {
+      "now": "Now",
+      "future": "Ahead",
+      "past": "Behind",
+      "birth": "Birth",
+      "end": "the end",
+      "emptyView": "This view has no chapters yet.",
+      "pickChapters": "Pick its chapters",
+      "startWith": "Start with",
+      "emptyBody": "Chapters are the periods of your life, behind you or ahead: a school, a city, a job, a family. They can overlap.",
+      "askClaude": "Or tell Claude about your life and it can fill the chapters in for you.",
+      "pacing": "Goals {{done}}% done · {{time}}% of the time gone"
+    },
+    "suggestions": {
+      "primarySchool": "Primary school",
+      "highSchool": "High school",
+      "university": "University",
+      "firstJob": "First job",
+      "livingIn": "Living in…",
+      "relationship": "Together with…",
+      "startFamily": "Starting a family",
+      "retire": "Retirement"
+    },
+    "chapter": {
+      "titlePlaceholder": "Name this chapter",
+      "emoji": "Emoji",
+      "emojiSearch": "Search",
+      "noEmoji": "No emoji",
+      "from": "From",
+      "to": "To",
+      "sinceBirth": "Birth",
+      "untilEnd": "The end",
+      "aDate": "A date",
+      "month": "Month",
+      "year": "Year",
+      "ages": "Age {{from}} to {{to}}",
+      "years_one": "{{count}} year",
+      "years_other": "{{count}} years",
+      "months_one": "{{count}} month",
+      "months_other": "{{count}} months",
+      "weeks_one": "{{count}} week",
+      "weeks_other": "{{count}} weeks",
+      "goals": "Goals for this chapter",
+      "findGoal": "Find a goal",
+      "noGoals": "No goals yet.",
+      "views": "Views",
+      "notes": "Notes",
+      "notesPlaceholder": "What this chapter is about",
+      "needsTitle": "Give the chapter a name",
+      "badDates": "The end comes before the start",
+      "saveFailed": "Couldn't save the chapter",
+      "confirmDelete": "Delete the chapter \"{{title}}\"? Its goals stay.",
+      "add": "Add chapter"
+    },
+    "grid": {
+      "aria": "Your life in weeks",
+      "now": "now",
+      "thisWeek": "This week",
+      "weekOf": "Week of {{date}}",
+      "age_one": "Age {{count}}",
+      "age_other": "Age {{count}}",
+      "journalDays_one": "{{count}} journal day",
+      "journalDays_other": "{{count}} journal days",
+      "syncNotes_one": "{{count}} sync note",
+      "syncNotes_other": "{{count}} sync notes",
+      "pictures_one": "{{count}} picture",
+      "pictures_other": "{{count}} pictures"
+    },
+    "week": {
+      "future": "This week hasn't happened yet.",
+      "startHere": "Start a chapter here",
+      "nothing": "Nothing recorded this week.",
+      "journal": "Journal",
+      "sync": "Weekly sync",
+      "openSync": "Open the sync"
+    }
   }
 }

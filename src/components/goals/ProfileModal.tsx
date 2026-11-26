@@ -28,6 +28,7 @@ import { exportBackup } from '~/server/fn/backup.fn'
 import Avatar from './Avatar'
 import DevicesSection from './DevicesSection'
 import TickTickSection from './TickTickSection'
+import LifeSection from '../life/LifeSection'
 import { useTheme, type ThemePref } from '~/lib/theme'
 import { useLocale } from '~/i18n/useLocale'
 
@@ -355,6 +356,8 @@ export default function ProfileModal({ onClose, onImportBackup }: ProfileModalPr
             </button>
           </div>
         </div>
+
+        <LifeSection fieldLabel={fieldLabel} sectionClass={sectionClass} />
 
         {/* Password */}
         <div className={sectionClass}>

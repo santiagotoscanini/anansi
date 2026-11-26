@@ -480,6 +480,120 @@
       "idempotentHint": false,
       "openWorldHint": false
     },
+    "description": "A period of the user's life, past or planned: \"Primary school\", \"Living in SF\", \"Starting a family\", \"Building the company\". Chapters may overlap. Optionally linked to goals (ids from list_goals) and placed in views (ids from get_life). Each end takes a date (YYYY, YYYY-MM or YYYY-MM-DD: a year or month widens to its first day for a start and its last day for an end) or an age in whole years (startAge 6 = the 6th birthday; endAge 12 = the day before the 12th). Leave the start out for \"since I was born\" and the end out for \"until the end\" (the expected life). Pass null in an update to open an end again.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "description": "#rrggbb. Left out on create: the next unused chapter colour.",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "type": "string"
+        },
+        "emoji": {
+          "description": "One emoji glyph.",
+          "maxLength": 16,
+          "type": "string"
+        },
+        "end": {
+          "description": "YYYY, YYYY-MM or YYYY-MM-DD.",
+          "maxLength": 10,
+          "type": "string"
+        },
+        "endAge": {
+          "maximum": 130,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "goalIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "notes": {
+          "description": "What the chapter is or was about, in the user's words.",
+          "maxLength": 20000,
+          "type": "string"
+        },
+        "start": {
+          "description": "YYYY, YYYY-MM or YYYY-MM-DD.",
+          "maxLength": 10,
+          "type": "string"
+        },
+        "startAge": {
+          "maximum": 130,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "viewIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "type": "object"
+    },
+    "name": "create_life_chapter",
+    "title": "Add a life chapter"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "description": "A named selection of chapters shown together on the Life tab: \"Education\", \"Where I lived\", \"Family\", \"Work\".",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "chapterIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "emoji": {
+          "description": "One emoji glyph.",
+          "maxLength": 16,
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "name": "create_life_view",
+    "title": "Add a life view"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
     "description": "Record an actionable bid toward a person. `dueAt` is optional — bids without a deadline appear in the person's list but never on the upcoming feed.",
     "execution": {
       "taskSupport": "forbidden"
@@ -1209,6 +1323,58 @@
       "idempotentHint": true,
       "openWorldHint": false
     },
+    "description": "Remove a chapter for good (its goals stay). Confirm with the user.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_life_chapter",
+    "title": "Delete a life chapter"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Remove a view. Its chapters stay.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "delete_life_view",
+    "title": "Delete a life view"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
     "description": "Hard-delete. Only use for entries that were captured incorrectly — prefer `set_next_bid_done`.",
     "execution": {
       "taskSupport": "forbidden"
@@ -1650,6 +1816,42 @@
     },
     "name": "get_journal_entry",
     "title": "Read a journal day"
+  },
+  {
+    "description": "The user's birth date, life expectancy (years), every life chapter (past and planned, with start/end days: null start = since birth, null end = until the end of the expected life; and the goals each is linked to) and their views (named selections of chapters).",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object"
+    },
+    "name": "get_life",
+    "title": "Get my life in chapters"
+  },
+  {
+    "description": "One Sunday-to-Saturday week: the chapters it falls in, its journal days, its weekly sync notes and how many pictures it holds.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "day": {
+          "description": "Any day of the week, YYYY-MM-DD.",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "day"
+      ],
+      "type": "object"
+    },
+    "name": "get_life_week",
+    "title": "Get one week of my life"
   },
   {
     "annotations": {
@@ -2603,6 +2805,44 @@
       "idempotentHint": true,
       "openWorldHint": false
     },
+    "description": "Set the user's birth date and/or how many years they plan on living (default 80). Together they are the grid of weeks on the Life tab.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "birthDate": {
+          "anyOf": [
+            {
+              "description": "A day in the user's own time zone, YYYY-MM-DD. Usually today.",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "YYYY-MM-DD. null clears it."
+        },
+        "lifeExpectancyYears": {
+          "maximum": 130,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "name": "set_life_settings",
+    "title": "Set birth date and life expectancy"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
     "description": "Toggle completion. Done bids stay visible — the trail of fulfilled bids is intentional.",
     "execution": {
       "taskSupport": "forbidden"
@@ -3273,6 +3513,174 @@
     },
     "name": "update_important_date",
     "title": "Update an important date"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Change a chapter. Pass only what changes; `goalIds` and `viewIds` replace the whole set. Each end takes a date (YYYY, YYYY-MM or YYYY-MM-DD: a year or month widens to its first day for a start and its last day for an end) or an age in whole years (startAge 6 = the 6th birthday; endAge 12 = the day before the 12th). Leave the start out for \"since I was born\" and the end out for \"until the end\" (the expected life). Pass null in an update to open an end again.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "description": "#rrggbb. Left out on create: the next unused chapter colour.",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "type": "string"
+        },
+        "emoji": {
+          "anyOf": [
+            {
+              "description": "One emoji glyph.",
+              "maxLength": 16,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "end": {
+          "anyOf": [
+            {
+              "description": "YYYY, YYYY-MM or YYYY-MM-DD.",
+              "maxLength": 10,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "endAge": {
+          "anyOf": [
+            {
+              "maximum": 130,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "goalIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "maxLength": 20000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start": {
+          "anyOf": [
+            {
+              "description": "YYYY, YYYY-MM or YYYY-MM-DD.",
+              "maxLength": 10,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "startAge": {
+          "anyOf": [
+            {
+              "maximum": 130,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "viewIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_life_chapter",
+    "title": "Update a life chapter"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    },
+    "description": "Rename a view or change its chapters; `chapterIds` replaces the whole set.",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "chapterIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "emoji": {
+          "anyOf": [
+            {
+              "description": "One emoji glyph.",
+              "maxLength": 16,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "name": "update_life_view",
+    "title": "Update a life view"
   },
   {
     "annotations": {

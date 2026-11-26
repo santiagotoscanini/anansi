@@ -39,6 +39,15 @@ journal	get_journal_entry
 journal	list_journal_entries
 journal	upload_journal_attachment
 journal	write_journal_entry
+life	create_life_chapter
+life	create_life_view
+life	delete_life_chapter
+life	delete_life_view
+life	get_life
+life	get_life_week
+life	set_life_settings
+life	update_life_chapter
+life	update_life_view
 next_bids	create_next_bid
 next_bids	delete_next_bid
 next_bids	list_next_bids

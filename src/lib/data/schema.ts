@@ -121,6 +121,11 @@ export const users = pgTable('users', {
   // adapter created (OIDC sign-ins bypass registerUser). Nullable exactly for
   // that window between adapter insert and first read.
   inviteCode: text('invite_code').unique(),
+  // The Life tab: the day the user was born (their own calendar day) and how
+  // many years they plan on. Together they are the grid of weeks; a null birth
+  // date makes the tab ask for it first.
+  birthDate: date('birth_date', { mode: 'string' }),
+  lifeExpectancyYears: integer('life_expectancy_years').notNull().default(80),
   ...timestamps,
 })
 
@@ -1526,4 +1531,86 @@ export const tickTickLinks = pgTable(
     uniqueIndex('ticktick_links_local_unique').on(t.userId, t.kind, t.localId),
     uniqueIndex('ticktick_links_remote_unique').on(t.userId, t.remoteId),
   ],
+)
+
+// The Life tab: chapters of the user's life, past or planned ("Primary school",
+// "Living in SF", "Starting a family"). They may overlap and may link goals.
+// A null start is "since I was born", a null end "until the end" (the birth
+// date plus the life expectancy), so an open-ended chapter is the rest of a
+// life rather than an undefined one. Past or future is never stored: it
+// follows from the dates and today.
+export const lifeChapters = pgTable(
+  'life_chapters',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    emoji: text('emoji'),
+    color: text('color').notNull(),
+    notes: text('notes'),
+    startDay: date('start_day', { mode: 'string' }),
+    endDay: date('end_day', { mode: 'string' }),
+    ...timestamps,
+  },
+  (t) => [index('life_chapters_user_idx').on(t.userId)],
+)
+
+export const lifeChapterGoals = pgTable(
+  'life_chapter_goals',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    chapterId: text('chapter_id')
+      .notNull()
+      .references(() => lifeChapters.id, { onDelete: 'cascade' }),
+    goalId: text('goal_id')
+      .notNull()
+      .references(() => goals.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('life_chapter_goals_pair_unique').on(t.chapterId, t.goalId),
+    index('life_chapter_goals_goal_idx').on(t.goalId),
+  ],
+)
+
+// Views: named selections of chapters ("Education", "Where I lived", "Family"),
+// so the grid shows a few at a time instead of every chapter at once.
+export const lifeViews = pgTable(
+  'life_views',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    emoji: text('emoji'),
+    orderIdx: integer('order_idx').notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [index('life_views_user_idx').on(t.userId)],
+)
+
+export const lifeViewChapters = pgTable(
+  'life_view_chapters',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    viewId: text('view_id')
+      .notNull()
+      .references(() => lifeViews.id, { onDelete: 'cascade' }),
+    chapterId: text('chapter_id')
+      .notNull()
+      .references(() => lifeChapters.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('life_view_chapters_pair_unique').on(t.viewId, t.chapterId)],
 )

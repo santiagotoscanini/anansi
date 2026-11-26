@@ -134,6 +134,13 @@
       "when": 1795568523250,
       "tag": "0018_capture_device",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795728605535,
+      "tag": "0019_life",
+      "breakpoints": true
     }
   ]
 }

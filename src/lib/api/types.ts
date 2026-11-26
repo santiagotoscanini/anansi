@@ -4,6 +4,12 @@ import { isCalendarDay } from '../journal'
 import { healthDayDataSchema, healthMetricSchema } from '../health'
 import { overlaySchema } from '../overlay'
 import { personalityTestValues } from '../personality'
+import {
+  backupLifeChapterGoalSchema,
+  backupLifeChapterSchema,
+  backupLifeViewChapterSchema,
+  backupLifeViewSchema,
+} from './life'
 
 // `emoji` columns accept ONE of two shapes:
 //   1. A short Unicode glyph (✨, 👨‍👩‍👧‍👦, …)
@@ -1052,6 +1058,9 @@ export const backupSchema = z.object({
   user: z.object({
     name: z.string(),
     email: z.string(),
+    // The Life tab's two settings joined in November 2026.
+    birthDate: z.string().nullable().optional(),
+    lifeExpectancyYears: z.number().int().optional(),
   }),
   values: z.array(backupValueSchema),
   goals: z.array(backupGoalSchema),
@@ -1097,6 +1106,11 @@ export const backupSchema = z.object({
   captures: z.array(backupCaptureSchema).default([]),
   captureFiles: z.array(backupCaptureFileSchema).default([]),
   captureTerms: z.array(backupCaptureTermSchema).default([]),
+  // The Life tab joined in November 2026.
+  lifeChapters: z.array(backupLifeChapterSchema).default([]),
+  lifeChapterGoals: z.array(backupLifeChapterGoalSchema).default([]),
+  lifeViews: z.array(backupLifeViewSchema).default([]),
+  lifeViewChapters: z.array(backupLifeViewChapterSchema).default([]),
 })
 
 export type Backup = z.infer<typeof backupSchema>

@@ -19,6 +19,10 @@ import {
   importantDates,
   journalEntries,
   journalMentions,
+  lifeChapterGoals,
+  lifeChapters,
+  lifeViewChapters,
+  lifeViews,
   nextBids,
   openQuestionGoals,
   openQuestionNotes,
@@ -212,6 +216,30 @@ export async function exportAll(userId: string) {
     : []
   const personalityRows = await db.select().from(personalityResults).where(eq(personalityResults.userId, userId))
   const captureTermRows = await db.select().from(captureTerms).where(eq(captureTerms.userId, userId))
+  const lifeChapterRows = await db.select().from(lifeChapters).where(eq(lifeChapters.userId, userId))
+  const lifeChapterGoalRows = lifeChapterRows.length
+    ? await db
+        .select()
+        .from(lifeChapterGoals)
+        .where(
+          inArray(
+            lifeChapterGoals.chapterId,
+            lifeChapterRows.map((c) => c.id),
+          ),
+        )
+    : []
+  const lifeViewRows = await db.select().from(lifeViews).where(eq(lifeViews.userId, userId))
+  const lifeViewChapterRows = lifeViewRows.length
+    ? await db
+        .select()
+        .from(lifeViewChapters)
+        .where(
+          inArray(
+            lifeViewChapters.viewId,
+            lifeViewRows.map((v) => v.id),
+          ),
+        )
+    : []
   const captureRows = await db
     .select({ capture: captures, file: files })
     .from(captures)
@@ -252,7 +280,12 @@ export async function exportAll(userId: string) {
   return {
     version: 1 as const,
     exportedAt: new Date(),
-    user: { name: userRow.name, email: userRow.email },
+    user: {
+      name: userRow.name,
+      email: userRow.email,
+      birthDate: userRow.birthDate,
+      lifeExpectancyYears: userRow.lifeExpectancyYears,
+    },
     values: valuesRows.map(stripUser),
     goals: goalsRows.map(stripUser),
     tasks: tasksRows,
@@ -295,6 +328,10 @@ export async function exportAll(userId: string) {
     }),
     captureFiles: exportedCaptureFiles,
     captureTerms: captureTermRows.map(stripUser),
+    lifeChapters: lifeChapterRows.map(stripUser),
+    lifeChapterGoals: lifeChapterGoalRows,
+    lifeViews: lifeViewRows.map(stripUser),
+    lifeViewChapters: lifeViewChapterRows,
     // Touched-but-unused — harmless extra context for a future v2 importer.
     // Part of the shipped payload shape, so it stays.
     _trackingItemIds: trackingItemIds,
@@ -382,6 +419,8 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       await tx.delete(healthDays).where(eq(healthDays.userId, userId))
       await tx.delete(captures).where(eq(captures.userId, userId))
       await tx.delete(captureTerms).where(eq(captureTerms.userId, userId))
+      await tx.delete(lifeChapters).where(eq(lifeChapters.userId, userId))
+      await tx.delete(lifeViews).where(eq(lifeViews.userId, userId))
 
       if (b.values.length) {
         await tx.insert(values).values(b.values.map((v) => ({ ...v, userId })))
@@ -596,6 +635,30 @@ export async function importAll(userId: string, input: { backup: Backup; confirm
       if (b.captureTerms.length) {
         await tx.insert(captureTerms).values(b.captureTerms.map((t) => ({ ...t, userId })))
       }
+      // The Life tab. A link to a goal, chapter or view the backup lacks is dropped.
+      if (b.user.birthDate !== undefined || b.user.lifeExpectancyYears !== undefined) {
+        await tx
+          .update(users)
+          .set({
+            ...(b.user.birthDate !== undefined ? { birthDate: b.user.birthDate } : {}),
+            ...(b.user.lifeExpectancyYears !== undefined ? { lifeExpectancyYears: b.user.lifeExpectancyYears } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, userId))
+      }
+      if (b.lifeChapters.length) await tx.insert(lifeChapters).values(b.lifeChapters.map((c) => ({ ...c, userId })))
+      if (b.lifeViews.length) await tx.insert(lifeViews).values(b.lifeViews.map((v) => ({ ...v, userId })))
+      const restoredChapters = new Set(b.lifeChapters.map((c) => c.id))
+      const restoredViews = new Set(b.lifeViews.map((v) => v.id))
+      const restoredGoalIds = new Set(b.goals.map((g) => g.id))
+      const chapterGoals = b.lifeChapterGoals.filter(
+        (l) => restoredChapters.has(l.chapterId) && restoredGoalIds.has(l.goalId),
+      )
+      if (chapterGoals.length) await tx.insert(lifeChapterGoals).values(chapterGoals)
+      const viewChapters = b.lifeViewChapters.filter(
+        (l) => restoredViews.has(l.viewId) && restoredChapters.has(l.chapterId),
+      )
+      if (viewChapters.length) await tx.insert(lifeViewChapters).values(viewChapters)
     })
   } catch (err) {
     await discardFiles(written)

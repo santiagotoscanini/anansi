@@ -88,4 +88,9 @@ export const qk = {
   captureTerms: ['captureTerms'] as const,
   /** Personality test results, every test (the Self page). */
   personalityResults: ['personality-results'] as const,
+
+  /** The Life tab: settings, chapters, views and the weeks' records. */
+  life: ['life'] as const,
+  // Under the life root, so any Life write refreshes an open week too.
+  lifeWeek: (day: string) => ['life', 'week', day] as const,
 } as const

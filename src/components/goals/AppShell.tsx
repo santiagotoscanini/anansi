@@ -20,6 +20,7 @@ import {
   Inbox as InboxIcon,
   NotebookPen,
   UserCircle2,
+  Hourglass,
 } from 'lucide-react'
 import { getRouteApi, useNavigate, useRouter, useRouterState } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
@@ -63,6 +64,7 @@ type TabType =
   | 'sync'
   | 'tracking-items'
   | 'self'
+  | 'life'
   | 'values'
   | 'progress'
   | 'bucket'
@@ -77,6 +79,7 @@ const TAB_SLUGS: ReadonlySet<TabType> = new Set([
   'sync',
   'tracking-items',
   'self',
+  'life',
   'values',
   'progress',
   'bucket',
@@ -101,6 +104,7 @@ type NavNameKey =
   | 'dashboard.nav.pulse'
   | 'dashboard.nav.inbox'
   | 'dashboard.nav.self'
+  | 'dashboard.nav.life'
   | 'dashboard.nav.values'
   | 'dashboard.nav.bucket'
   | 'dashboard.nav.objectives'
@@ -114,7 +118,7 @@ type NavItem = { id: TabType; nameKey: NavNameKey; icon: typeof Target }
 
 // Pulse — the at-a-glance summary of Anansi. Lives at the top of the
 // sidebar, above all other sections, no header. The other sections are:
-//   Compass — the "why" / aspirational surfaces (Values, Bucket List)
+//   Compass — the "why" / aspirational surfaces (Self, Life, Values, Bucket List)
 //   Goals   — the "what" / active objective work (Objectives, Progress)
 //   Sync    — the "when/how" cadence: the daily Journal, the weekly Sync, Tracking Items
 const pulseNavItem: NavItem = { id: 'pulse', nameKey: 'dashboard.nav.pulse', icon: Activity }
@@ -123,6 +127,7 @@ const inboxNavItem: NavItem = { id: 'inbox', nameKey: 'dashboard.nav.inbox', ico
 
 const compassSection: NavItem[] = [
   { id: 'self', nameKey: 'dashboard.nav.self', icon: UserCircle2 },
+  { id: 'life', nameKey: 'dashboard.nav.life', icon: Hourglass },
   { id: 'values', nameKey: 'dashboard.nav.values', icon: Palette },
   { id: 'bucket', nameKey: 'dashboard.nav.bucket', icon: Mountain },
 ]
@@ -665,6 +670,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (activeTab === 'sync') return t('dashboard.nav.sync')
     if (activeTab === 'tracking-items') return t('dashboard.nav.trackingItems')
     if (activeTab === 'self') return t('dashboard.nav.self')
+    if (activeTab === 'life') return t('dashboard.nav.life')
     if (activeTab === 'values') return t('dashboard.nav.values')
     if (activeTab === 'progress') return t('dashboard.nav.progress')
     if (activeTab === 'bucket') return t('dashboard.nav.bucket')

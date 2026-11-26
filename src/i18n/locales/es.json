@@ -137,6 +137,7 @@
       "pulse": "Pulso",
       "inbox": "Bandeja",
       "self": "Tú",
+      "life": "Vida",
       "values": "Valores",
       "bucket": "Lista de deseos",
       "objectives": "Objetivos",
@@ -1732,5 +1733,121 @@
     "none": "Sin datos de Salud esta semana",
     "dayTitle": "{{day}}: {{value}}",
     "dayNone": "{{day}}: nada"
+  },
+  "life": {
+    "titlePre": "Tu vida en ",
+    "titleEm": "semanas",
+    "subtitle": "Cada semana que viviste y cada semana que queda, y a qué se las das.",
+    "stats": "{{age}} años · {{lived}} semanas vividas · {{ahead}} por delante · {{percent}}% del camino",
+    "newChapter": "Nuevo capítulo",
+    "start": {
+      "title": "¿Cuándo naciste?",
+      "body": "Una vida en semanas empieza ahí. Decí también cuántos años contás con vivir; se puede cambiar cuando quieras.",
+      "submit": "Dibujar mis semanas"
+    },
+    "settings": {
+      "title": "Tu vida",
+      "birthDate": "Nacimiento",
+      "years": "Años",
+      "help": "Cuántos años contás con vivir. La grilla termina ahí.",
+      "badYears": "Los años tienen que ser un número entero de 1 a 130",
+      "saved": "Guardado"
+    },
+    "views": {
+      "all": "Todos los capítulos",
+      "new": "Vista"
+    },
+    "view": {
+      "namePlaceholder": "Estudios, Dónde viví…",
+      "help": "Elegí los capítulos para ver juntos.",
+      "noChapters": "Todavía no hay capítulos.",
+      "needsName": "Ponele un nombre a la vista",
+      "confirmDelete": "¿Borrar la vista \"{{name}}\"? Sus capítulos quedan.",
+      "delete": "Borrar vista",
+      "create": "Crear vista"
+    },
+    "legend": {
+      "lived": "Vivida",
+      "now": "Esta semana",
+      "ahead": "Por delante",
+      "recorded": "Diario o sync esa semana",
+      "drag": "Arrastrá sobre las semanas para empezar un capítulo"
+    },
+    "list": {
+      "now": "Ahora",
+      "future": "Por delante",
+      "past": "Atrás",
+      "birth": "Nacimiento",
+      "end": "el final",
+      "emptyView": "Esta vista todavía no tiene capítulos.",
+      "pickChapters": "Elegir sus capítulos",
+      "startWith": "Empezá por",
+      "emptyBody": "Los capítulos son los períodos de tu vida, pasados o por venir: una escuela, una ciudad, un trabajo, una familia. Se pueden superponer.",
+      "askClaude": "O contale tu vida a Claude y puede completar los capítulos por vos.",
+      "pacing": "Metas {{done}}% hechas · {{time}}% del tiempo pasado"
+    },
+    "suggestions": {
+      "primarySchool": "Escuela",
+      "highSchool": "Liceo",
+      "university": "Facultad",
+      "firstJob": "Primer trabajo",
+      "livingIn": "Viviendo en…",
+      "relationship": "Juntos con…",
+      "startFamily": "Formar una familia",
+      "retire": "Jubilación"
+    },
+    "chapter": {
+      "titlePlaceholder": "Nombrá este capítulo",
+      "emoji": "Emoji",
+      "emojiSearch": "Buscar",
+      "noEmoji": "Sin emoji",
+      "from": "Desde",
+      "to": "Hasta",
+      "sinceBirth": "Nacimiento",
+      "untilEnd": "El final",
+      "aDate": "Una fecha",
+      "month": "Mes",
+      "year": "Año",
+      "ages": "De los {{from}} a los {{to}} años",
+      "years_one": "{{count}} año",
+      "years_other": "{{count}} años",
+      "months_one": "{{count}} mes",
+      "months_other": "{{count}} meses",
+      "weeks_one": "{{count}} semana",
+      "weeks_other": "{{count}} semanas",
+      "goals": "Metas de este capítulo",
+      "findGoal": "Buscar una meta",
+      "noGoals": "Todavía no hay metas.",
+      "views": "Vistas",
+      "notes": "Notas",
+      "notesPlaceholder": "De qué se trata este capítulo",
+      "needsTitle": "Ponele un nombre al capítulo",
+      "badDates": "El final viene antes del comienzo",
+      "saveFailed": "No se pudo guardar el capítulo",
+      "confirmDelete": "¿Borrar el capítulo \"{{title}}\"? Sus metas quedan.",
+      "add": "Agregar capítulo"
+    },
+    "grid": {
+      "aria": "Tu vida en semanas",
+      "now": "hoy",
+      "thisWeek": "Esta semana",
+      "weekOf": "Semana del {{date}}",
+      "age_one": "{{count}} año",
+      "age_other": "{{count}} años",
+      "journalDays_one": "{{count}} día de diario",
+      "journalDays_other": "{{count}} días de diario",
+      "syncNotes_one": "{{count}} nota de sync",
+      "syncNotes_other": "{{count}} notas de sync",
+      "pictures_one": "{{count}} foto",
+      "pictures_other": "{{count}} fotos"
+    },
+    "week": {
+      "future": "Esta semana todavía no pasó.",
+      "startHere": "Empezar un capítulo acá",
+      "nothing": "Nada registrado esta semana.",
+      "journal": "Diario",
+      "sync": "Sync semanal",
+      "openSync": "Abrir el sync"
+    }
   }
 }

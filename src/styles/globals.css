@@ -587,3 +587,66 @@
   transform-style: preserve-3d;
   will-change: transform;
 }
+
+/* The Life tab's weeks grid (components/life/LifeWeeks.tsx). SVG fills come
+   from classes because a CSS variable cannot be a presentation attribute. */
+.lw-past {
+  fill: color-mix(in oklch, var(--ink) 22%, transparent);
+}
+.lw-future {
+  fill: transparent;
+  stroke: color-mix(in oklch, var(--ink) 20%, transparent);
+  stroke-width: 0.8;
+}
+.lw-now {
+  fill: var(--clay);
+  animation: lw-pulse 2.4s var(--ease) infinite;
+}
+@keyframes lw-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lw-now {
+    animation: none;
+  }
+}
+.lw-dot {
+  fill: var(--ink);
+  opacity: 0.75;
+}
+.lw-dot-on {
+  fill: var(--paper);
+  opacity: 0.9;
+}
+.lw-label {
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  fill: var(--ink-4);
+}
+.lw-label-strong {
+  fill: var(--ink-3);
+}
+.lw-veil {
+  fill: var(--paper);
+  opacity: 0.78;
+}
+.lw-hover {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.2;
+}
+.lw-select {
+  fill: color-mix(in oklch, var(--clay) 35%, transparent);
+  stroke: var(--clay);
+  stroke-width: 1;
+}
+.lw-label-now {
+  fill: var(--clay);
+  font-weight: 500;
+}

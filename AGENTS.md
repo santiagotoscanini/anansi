@@ -2,7 +2,7 @@
 
 Personal operating system for goals, relationships, and values. Named after Anansi — the West African spider trickster — whose Adinkra symbol **Ananse Ntontan** (the spider's web) represents wisdom, creativity, and the complexity of life. The app's icon is that web.
 
-Feature surface: visual goal hierarchies with weighted connections, weekly progress retrospectives, a daily journal, a Personal CRM for reflecting on relationships, user-defined values that tag goals, and custom groups that span both people and tasks (e.g. "Family" can hold both my partner and the "call mom" task).
+Feature surface: your life in weeks with its chapters (past and planned), visual goal hierarchies with weighted connections, weekly progress retrospectives, a daily journal, a Personal CRM for reflecting on relationships, user-defined values that tag goals, and custom groups that span both people and tasks (e.g. "Family" can hold both my partner and the "call mom" task).
 
 ## Shipping
 
@@ -104,7 +104,7 @@ src/
       auth.ts values.ts value-behaviors.ts goals.ts tasks.ts connections.ts data.ts
       tracking-items.ts sync-templates.ts weekly-sync.ts journal.ts attachments.ts file-refs.ts files.ts health.ts
       people.ts groups.ts next-bids.ts important-dates.ts bucket-list.ts captures.ts
-      self.ts self-list-items.ts open-questions.ts personality.ts backup.ts ticktick.ts
+      self.ts self-list-items.ts open-questions.ts personality.ts backup.ts ticktick.ts life.ts
     ticktick/               # the TickTick sync: client (Open API), crypto (token at rest), oauth (state cookie),
                              #   sync (the reconciliation), runner (debounce + poller)
     bucket.ts                # the app's bucket from S3_* (memory store outside production)
@@ -125,7 +125,7 @@ src/
       importance.ts
     api/types.ts             # ~726 lines of zod schemas, shared by services + fns + MCP
     data/                    # schema.ts, db connection, migrations/
-    mcp/                     # MCP server + 121 tools + the OAuth 2.1 provider
+    mcp/                     # MCP server + 130 tools + the OAuth 2.1 provider
     env.ts security-headers.ts horizon-period.ts week.ts image-upload.ts
     over-time.ts             # one tracking item over time: frames, the timeline, the missed weeks (pure; the screen and its tests)
     mentions.ts              # the mention grammar: how any text names a person (pure; server, editors, tests)
@@ -137,6 +137,8 @@ src/
     personality-form.ts      # the manual result form's fields <-> a test's details (pure; tested)
     computation/arrange.ts   # the goal graph's automatic layout (pure; the Arrange button and arrange_goals)
     ticktick.ts              # the TickTick sync's pure rules: days in a zone, TickTick dates, the three-way merge
+    life.ts                  # the Life tab: the grid of weeks, chapter ranges, loose dates, chapter colours (pure; tested)
+    api/life.ts              # the Life tab's zod schemas (settings, chapters, views, backups)
     theme.ts color-palette.ts emoji-utils.ts
 
   components/
@@ -150,6 +152,8 @@ src/
       Inbox.tsx              (captured thoughts and voice notes)
       Self.tsx SelfParts.tsx OpenQuestions.tsx PersonalityResults.tsx BucketListItemModal.tsx TabError.tsx
       ColorPicker.tsx DatePicker.tsx Avatar.tsx EmojiPickerLazy.tsx
+    life/                    # the Life tab: Life (page), LifeWeeks (the SVG grid), ChapterModal, ViewModal,
+                             #   WeekPanel, LifeSettingsForm + LifeSection (also in Profile)
     auth/AuthScreens.tsx
   i18n/                      # config, Provider, resources (lazy), en.json + es.json, useLocale
   styles/globals.css         # Tailwind v4 entry + ~70 design tokens
@@ -176,6 +180,7 @@ app.journal.tsx    { day? }  (absent = today, resolved in the browser)
 app.people.tsx     { filter?, groupId?, person?, view?: 'board' }   app.bucket.tsx { item? }
                     (`goal`/`item`/`task` accept an id, or the literal `new` to open the create form)
 app.pulse.tsx  app.self.tsx  app.values.tsx
+app.life.tsx       { view?, chapter?: id | 'new', week?: YYYY-MM-DD }  (the Life tab: a view, a chapter's editor, a week's panel)
 app.inbox.tsx      { capture?, archived?: true }  (captured thoughts; `capture` marks one: the link a TickTick task carries back)
 app.tracking-items.tsx { item?, view? }  (the library; with `item`, that item over time)
 app.progress.tsx
@@ -208,7 +213,7 @@ component  →  lib/queries/*.ts (queryOptions)  →  server/fn/*.fn.ts (createS
 MCP tool  ────────────────────────────────────────────↗  (direct, in-process)
 ```
 
-- **`server/services/*.ts`** holds all business logic as plain `(userId, input)` async functions. It imports `db`, the zod schemas and `AppError`, and nothing from `@tanstack/*`. That is what lets the 121 MCP tools call it directly: the MCP graph never touches the Start compiler, so there is no function-id registration, no CSRF, no Seroval, no HTTP hop.
+- **`server/services/*.ts`** holds all business logic as plain `(userId, input)` async functions. It imports `db`, the zod schemas and `AppError`, and nothing from `@tanstack/*`. That is what lets the 130 MCP tools call it directly: the MCP graph never touches the Start compiler, so there is no function-id registration, no CSRF, no Seroval, no HTTP hop.
 - Services **re-parse their input** with the shared zod schema. Two entry points means two independent validators; parsing inside the service is the only guarantee that covers both, and it makes each service callable from a script without ceremony.
 - **`server/fn/*.fn.ts`** wraps services for the browser. Every tab loader primes its queries with `prime(queryClient, ...options)` (`lib/queries/prime.ts`) and components read with `useSuspenseQuery`. On the server `prime` waits, so tab data is server-rendered and hydrated; in the browser it only starts the queries, so a tab switch is instant: from the cache when it has the data, else behind `TabSkeleton` (a Suspense boundary around the tab in `AppShell`, keyed by tab so it shows instead of holding the old tab). **Do not await queries in a tab loader in the browser**: that freezes the old page for the round trip, which is what made tabs slow. `AppShell` also preloads every tab (code and data) once the page is idle; the sidebar navigates with buttons, so there is no hover preload. A deep link that must redirect on a missing record (`/app/tracking-items?item=`) still awaits.
 - **`lib/queries/keys.ts`** owns every query key (`qk.*`), replacing tRPC's `utils.*.invalidate()`. Invalidate by key **root** (`qk.people`), not by leaf — prefix matching covers the leaves.
@@ -224,6 +229,15 @@ MCP tool  ───────────────────────�
 **Week-keyed queries are never prefetched in a loader.** `weekStartOf` works in local time and a loader also runs on the server, so a server in UTC and a browser in UTC−3 would key differently and refetch on hydration. Pulse and WeeklyRetrospective use plain `useQuery` and compute the week client-side.
 
 ## Features
+
+### Life (your life in weeks)
+The Life tab (`/app/life`, under Compass in the sidebar) draws a life as weeks: one row per year of age starting at the birthday, one cell per Sunday-to-Saturday week (52 per row, now and then 53), from the birth date (`users.birth_date`) to the life expectancy (`users.life_expectancy_years`, default 80). Both are set on the tab (its first visit asks for the birth date) and in Profile → Your life.
+
+- **Chapters** (`life_chapters`) are the periods of a life, behind or ahead: "Primary school", "Living in SF", "Starting a family". A title, an optional emoji, a colour (from `CHAPTER_COLORS` in `src/lib/life.ts`, the next unused one by default), notes, a start and an end. **A null start is the birth and a null end is the end of the expected life**, never "undefined". Past, now or ahead is computed from the dates, never stored. Chapters overlap freely. Each can link any number of goals (`life_chapter_goals`, archived goals hidden), and the list shows a pacing line for a chapter that is not over: its goals' progress (`useGoalProgress`) against how much of its time is gone.
+- **Views** (`life_views` + `life_view_chapters`) are named selections of chapters ("Education", "Where I lived", "Family"): the pills above the grid. "All chapters" is the implicit view. A chapter created inside a view joins it.
+- **The grid** (`LifeWeeks.tsx`) is one SVG, every pointer event handled on the SVG and the cell found from the coordinates. A cell takes the colour of the shortest chapter on it (`weekChapters`): solid behind, a tinted outline ahead; this week pulses in clay. Hovering a chapter in the list veils the grid and lights that chapter's weeks; hovering a cell lists its chapters and records. **Dragging across weeks starts a chapter over them**; clicking a week opens its panel.
+- **The record.** A past week carries a dot sized by what was written then: sync items with notes, a block or a file, and journal days (`weeks` in `life.overview`, keyed by Sunday). The week panel (`?week=`, `life.week`) shows the chapters it falls in, its pictures, its journal days (each a link to `/app/journal?day=`) and its sync notes (a link to `/app/sync?week=`). A future week offers to start a chapter there.
+- The editor takes dates by month and year; Claude can say them loosely (`2005`, `2005-03`) or as ages (`startAge: 6`), made exact by `looseDay` / the birthday in `lib/mcp/tools/life.ts`. The list suggests first chapters when there are none.
 
 ### Goals
 - Hierarchical goals with parent-child links and free-positioned cards on a React Flow canvas.
@@ -389,7 +403,7 @@ Tasks sync both ways with one TickTick list the user picks (or makes) in Profile
 
 ### users
 - `id` (uuid, PK, `defaultRandom()` — generated locally on user creation; no external auth-table FK)
-- `name`, `email` (UNIQUE), `passwordHash` (nullable — bcrypt-hashed by the `signUp` / `changePassword` server fns), `emailVerified` (timestamp, nullable — unused in v1; Auth.js adapter type compatibility), `image` (text, nullable — Auth.js adapter compatibility, unused), `avatarUrl` (text, nullable — `/api/files/{id}` pointer; null = `Avatar.tsx` initial fallback), `locale` (BCP-47 code, nullable)
+- `name`, `email` (UNIQUE), `passwordHash` (nullable — bcrypt-hashed by the `signUp` / `changePassword` server fns), `emailVerified` (timestamp, nullable — unused in v1; Auth.js adapter type compatibility), `image` (text, nullable — Auth.js adapter compatibility, unused), `avatarUrl` (text, nullable — `/api/files/{id}` pointer; null = `Avatar.tsx` initial fallback), `locale` (BCP-47 code, nullable), `birthDate` (date, nullable) + `lifeExpectancyYears` (int, default 80): the Life tab
 
 ### accounts (Auth.js)
 - Created by `@auth/drizzle-adapter`. Empty under the Credentials provider (it doesn't write here); one row per user under OIDC, linking `provider`/`provider_account_id` to the existing `users.id`. **Two `users` rows with the same email means `allowDangerousEmailAccountLinking` didn't take.**
@@ -435,6 +449,12 @@ Named bundles of tracking items. **Partial unique index** enforces "at most one 
 - `weeklySync`: `userId`, `weekDate` (NOT NULL, Sunday of the week: weeks run Sunday to Saturday), `templateId` (nullable, ON DELETE SET NULL — the template snapshotted from at create time)
 - `weeklySyncItems`: `weeklySyncId` (cascade), `trackingItemId` (cascade), `textContent` (nullable, inline notes — replaces old notes.txt files), `orderIdx` (NOT NULL, default 0)
 - `sync_item_blocks`: `weeklySyncItemId` (cascade), `title` (short), `content` (text, NOT NULL, default '', up to 200k by zod), `orderIdx`. Indexed on `(weeklySyncItemId, orderIdx)`. Mentions in `content` are linked on write and indexed into the item's `sync_item_mentions`, which is rebuilt from the notes and every block on any write to either.
+
+### life_chapters + life_chapter_goals + life_views + life_view_chapters
+The Life tab (see "Life" under Features). Birth date and life expectancy live on `users` (`birth_date` date, `life_expectancy_years` int NOT NULL default 80).
+- `life_chapters`: `userId` (cascade), `title`, `emoji` (nullable), `color` (hex, NOT NULL), `notes` (nullable), `startDay` / `endDay` (**date**, nullable: null start = birth, null end = the end of the expected life). Indexed on `userId`.
+- `life_chapter_goals`: `chapterId` (cascade), `goalId` (cascade), UNIQUE pair, indexed on `goalId`.
+- `life_views`: `userId` (cascade), `name`, `emoji` (nullable), `orderIdx`. `life_view_chapters`: `viewId` (cascade), `chapterId` (cascade), UNIQUE pair.
 
 ### health_days
 Apple Health from the phone. `userId` (cascade), `day` (**date**, the user's calendar day), `data` (jsonb `HealthDayData`: `sleepMinutes`, `bedtime`, `wakeTime`, `steps`, `activeEnergyKcal`, `exerciseMinutes`, `workouts`, `weightKg`, `bodyFatPercent`, `restingHeartRate`, `hrvMs`, each optional; shape in `src/lib/health.ts`). UNIQUE(userId, day); a send replaces the whole day.
@@ -564,6 +584,13 @@ One file per domain in `src/server/services/`, one thin `.fn.ts` wrapper per fil
 - `getWeeklyRetrospectiveData` items carry `blocks`, `photosPerWeek`, `healthMetric` and `health` (the week's `weekSummary` plus its label, or null)
 - `addBlock({ weeklySyncItemId, title, content? })`, `updateBlock({ id, title?, content? })`, `removeBlock({ id })`, `reorderBlocks({ weeklySyncItemId, ids })` (every block once), `blocksOf(syncItemIds)`
 
+### life
+- `settings`, `setSettings({ birthDate?, lifeExpectancyYears? })` (a birth date in the future is refused)
+- `overview` (settings, chapters with `goalIds`, views with `chapterIds`, and `weeks`: per Sunday, filled sync items, journal days and pictures; what the tab draws), `list` (the same without `weeks`; `get_life`)
+- `createChapter`, `updateChapter` (a field passed replaces; `goalIds` / `viewIds` replace the set; an end before the start is refused), `removeChapter`
+- `createView`, `updateView` (`chapterIds` replaces the set), `removeView`, `reorderViews`
+- `week({ day })`: one week's chapters, journal days, sync notes and pictures
+
 ### health
 - `saveDays(input)` (the phone's payload, `healthDaysInputSchema`; upserts each day, replacing its data), `listDays({ from, to })` (at most 400 days, oldest first, days with data only), `weekFor(sunday)`, `summariesFor(sundays)` (one read, then a metric's `weekSummary` per week; what the sync and the history use)
 
@@ -627,7 +654,7 @@ One file per domain in `src/server/services/`, one thin `.fn.ts` wrapper per fil
 
 ### Data export
 - `data.getAll` — all user data (values, goals, connections). Shares `src/lib/data/queries/load-goals.ts` with `goals.getAll` — the 6-query hydration lives there once.
-- `backup.export` / `backup.import` — full user backup including people + userSelf, open questions (notes and links; a link to a goal or person the backup lacks is dropped), personality results (checked against the union on import), value interpretations, the journal (its mentions are read back out of the text on import), sync item blocks (their mentions likewise), `health_days`, captures (`captures`, and their audio in `captureFiles` under the same 10 MB rule as attachments; a capture whose question the backup lacks keeps its words), and the attachments' bytes (read from / written to the bucket). `import` re-parses its (large, untrusted) payload inside the service; that is not optional there. Its new files' bytes go to the bucket before their rows join the transaction (and are discarded if it rolls back); the replaced attachments' files lose their rows in the transaction and their bytes only after it commits. Person photos and the avatar are not in a backup and are left alone.
+- `backup.export` / `backup.import` — full user backup including people + userSelf, open questions (notes and links; a link to a goal or person the backup lacks is dropped), personality results (checked against the union on import), value interpretations, the journal (its mentions are read back out of the text on import), sync item blocks (their mentions likewise), `health_days`, captures (`captures`, and their audio in `captureFiles` under the same 10 MB rule as attachments; a capture whose question the backup lacks keeps its words), the Life tab (the birth date and life expectancy under `user`, `lifeChapters`, `lifeChapterGoals`, `lifeViews`, `lifeViewChapters`; a link to a goal, chapter or view the backup lacks is dropped), and the attachments' bytes (read from / written to the bucket). `import` re-parses its (large, untrusted) payload inside the service; that is not optional there. Its new files' bytes go to the bucket before their rows join the transaction (and are discarded if it rolls back); the replaced attachments' files lose their rows in the transaction and their bytes only after it commits. Person photos and the avatar are not in a backup and are left alone.
 
 ## File storage
 
@@ -685,9 +712,9 @@ Transport: Streamable HTTP via `@modelcontextprotocol/sdk`'s `WebStandardStreama
 
 ### MCP tool catalog
 
-`registerAllTools()` (in `src/lib/mcp/tools/index.ts`) wires **121 tools** across 20 domain files. All tool names are flat verb-first snake_case (`list_goals`, `update_person`, `set_next_bid_done`, …). Hand-written `title` + `description` drive LLM tool selection; Zod raw shapes give the SDK enough type info to both generate the inputSchema JSON Schema AND validate inputs at call-time.
+`registerAllTools()` (in `src/lib/mcp/tools/index.ts`) wires **130 tools** across 21 domain files. All tool names are flat verb-first snake_case (`list_goals`, `update_person`, `set_next_bid_done`, …). Hand-written `title` + `description` drive LLM tool selection; Zod raw shapes give the SDK enough type info to both generate the inputSchema JSON Schema AND validate inputs at call-time.
 
-Domains: `system` (4: `whoami`, `update_profile`, `set_avatar`, `remove_avatar`), `goals` (5, with `arrange_goals`), `tasks` (4), `values` (7), `people` (12, with `list_person_mentions`), `next_bids` (6), `important_dates` (4), `groups` (5), `bucket_list` (5), `self` (7), `open_questions` (9: list, create, update, settle, reopen, delete, and add/update/delete a note), `captures` (9: `list_captures`, `get_capture` (by id or Inbox link: every field, the phone's recording log, and the recording itself as audio content up to 8 MB), `capture`, `update_capture`, `delete_capture`, `retranscribe_capture`: the raw inbox of thoughts, for triage; `list_capture_dictionary`, `set_capture_dictionary_entry`, `delete_capture_dictionary_entry`: the voice notes' dictionary), `personality` (4: `list_personality_results`, `record_personality_result` with every per-test `details` shape spelled out in its description, `update_personality_result`, `delete_personality_result`), `tracking_items` (5, with `get_tracking_item_history`; create and update take `photosPerWeek` and `healthMetric`), `sync_templates` (5), `weekly_sync` (13, with `get_pulse`, the attachments and `add_sync_item_block` / `update_sync_item_block` / `delete_sync_item_block`), `journal` (8, with its attachments), `health` (1: `get_health_days`), `connections` (4), `ticktick` (2: `get_ticktick_status`, `sync_ticktick`). The app is meant to be fully drivable from here. Left on the screens on purpose: connecting TickTick and picking its list, because connecting is a browser sign-in at ticktick.com; password and email changes, because a connector must not be able to take over the account; backup export and import, because one is the whole account with file bytes and the other replaces it. A new feature gets its tools with it.
+Domains: `system` (4: `whoami`, `update_profile`, `set_avatar`, `remove_avatar`), `goals` (5, with `arrange_goals`), `tasks` (4), `values` (7), `people` (12, with `list_person_mentions`), `next_bids` (6), `important_dates` (4), `groups` (5), `bucket_list` (5), `self` (7), `open_questions` (9: list, create, update, settle, reopen, delete, and add/update/delete a note), `captures` (9: `list_captures`, `get_capture` (by id or Inbox link: every field, the phone's recording log, and the recording itself as audio content up to 8 MB), `capture`, `update_capture`, `delete_capture`, `retranscribe_capture`: the raw inbox of thoughts, for triage; `list_capture_dictionary`, `set_capture_dictionary_entry`, `delete_capture_dictionary_entry`: the voice notes' dictionary), `personality` (4: `list_personality_results`, `record_personality_result` with every per-test `details` shape spelled out in its description, `update_personality_result`, `delete_personality_result`), `tracking_items` (5, with `get_tracking_item_history`; create and update take `photosPerWeek` and `healthMetric`), `sync_templates` (5), `weekly_sync` (13, with `get_pulse`, the attachments and `add_sync_item_block` / `update_sync_item_block` / `delete_sync_item_block`), `journal` (8, with its attachments), `health` (1: `get_health_days`), `connections` (4), `ticktick` (2: `get_ticktick_status`, `sync_ticktick`), `life` (9: `get_life`, `set_life_settings`, `create_life_chapter` / `update_life_chapter` (ends as a loose date or an age) / `delete_life_chapter`, `create_life_view` / `update_life_view` / `delete_life_view`, `get_life_week`). The app is meant to be fully drivable from here. Left on the screens on purpose: connecting TickTick and picking its list, because connecting is a browser sign-in at ticktick.com; password and email changes, because a connector must not be able to take over the account; backup export and import, because one is the whole account with file bytes and the other replaces it. A new feature gets its tools with it.
 
 **A week is named by a calendar day (`localDay`), never by the clock.** The server is in UTC and `week_date` holds whatever Sunday the creator's clock said: Sunday 05:00Z from a browser in New York, 00:00Z from a naive server. The unique index cannot see those as one week, so a tool computing `weekStartOf(new Date())` would start a second sync that Pulse never shows. So the tools take the user's `day`, `weekOfDay` turns it into noon UTC on its Sunday, and `weekly-sync.ts` matches by week within `WEEK_MATCH_MS` instead of by instant. That also keeps one sync for a user who opens the app on another clock. Starting a week that has a sync returns that sync.
 
@@ -725,7 +752,7 @@ components/oauth/ConsentScreen.tsx             # Consent UI (EN-only for v1)
 lib/mcp/server.ts                              # Per-request McpServer factory
 lib/mcp/types.ts                               # McpCtx = { userId }
 lib/mcp/errors.ts                              # AppError → MCP error result + mcpJsonResult
-lib/mcp/tools/{system,goals,tasks,values,people,next_bids,important_dates,groups,bucket_list,self,captures,tracking_items,sync_templates,weekly_sync,journal,health,connections}.ts
+lib/mcp/tools/{system,goals,tasks,values,people,next_bids,important_dates,groups,bucket_list,self,captures,tracking_items,sync_templates,weekly_sync,journal,health,connections,life}.ts
 lib/mcp/tools/attachment-result.ts             # an attachment as a tool result (image, text, or a note)
 lib/mcp/tools/fields.ts                        # isoDate + toolInput/closedObject (zod 4 JSON Schema)
 lib/mcp/oauth/{store,clients,codes,tokens,pkce,consent,metadata,scopes,audit,authorize-validation}.ts
@@ -980,7 +1007,7 @@ Rules:
 
 > **A green `pnpm build` is not evidence that the app runs.** Three separate defects during the migration passed `vite build` and failed on the first real request: `import 'server-only'` (500 on every SSR pass), a mis-registered server-function id (`Invalid server function ID`, only at call time), and a dnd-kit hydration mismatch. **Exercise changes in `pnpm dev` from a real browser**, and include *client-side* navigation — a hard reload runs loaders on the server where a server fn is a direct call, so only client-side navigation tests the RPC path.
 
-`.golden/` holds the pre-migration oracle and is the reference for anything that must not drift: the 121-tool `tools/list` JSON, both `.well-known` documents, the MCP 401 response (which doubles as the security-header baseline), and 29 screenshots. `.golden/README.md` documents the diff procedure, the one deliberate re-baseline (zod 4), and its known false positives (`objectives-*` always differ — React Flow animates its dashed edges).
+`.golden/` holds the pre-migration oracle and is the reference for anything that must not drift: the `tools/list` JSON (130 tools since the Life tab), both `.well-known` documents, the MCP 401 response (which doubles as the security-header baseline), and 29 screenshots. `.golden/README.md` documents the diff procedure, the one deliberate re-baseline (zod 4), and its known false positives (`objectives-*` always differ — React Flow animates its dashed edges).
 
 ## Infrastructure
 
@@ -997,7 +1024,7 @@ Rules:
 
 ## Database migrations
 
-Drizzle migrations live in `src/lib/data/db/migrations/`. `0000_perpetual_scream.sql` is the squashed 23-migration history; `0001`–`0018` came after it (`0003_files_data_nullable` and `0004_drop_files_data` retired `files.data` when the bytes moved to the bucket; `0007_ticktick` added the TickTick tables; `0008_weeks_start_sunday` is data only, see "Weekly retrospectives"; `0009_self_knowledge` added `values.interpretation`, the open-question tables and `personality_results`; `0010_tracking_photos_blocks_health` added `tracking_items.photos_per_week` and `.health_metric`, `sync_item_blocks` and `health_days`; `0011_open_question_summary` added `open_questions.summary` and `.summary_updated_at`; `0012_captures` added `captures`; `0013_capture_transcripts` added the server-transcription columns, marking old voice notes with words `done`/`phone` and those without `pending`; `0014_capture_list` added `ticktick_connections.capture_project_id` and `.capture_project_name`; `0015_capture_client_id` added `captures.client_id` and its unique index; `0016_capture_device_log` added `captures.device_log`; `0017_capture_tidy_terms` added `captures.heard`, `.title`, `.notes`, `.tidied_at`, `.tidy_error` and `.ticktick_list_name` (filled for the captures already sent) and the `capture_terms` table; `0018_capture_device` added `captures.device`, setting `iphone` on every phone capture before it).
+Drizzle migrations live in `src/lib/data/db/migrations/`. `0000_perpetual_scream.sql` is the squashed 23-migration history; `0001`–`0019` came after it (`0003_files_data_nullable` and `0004_drop_files_data` retired `files.data` when the bytes moved to the bucket; `0007_ticktick` added the TickTick tables; `0008_weeks_start_sunday` is data only, see "Weekly retrospectives"; `0009_self_knowledge` added `values.interpretation`, the open-question tables and `personality_results`; `0010_tracking_photos_blocks_health` added `tracking_items.photos_per_week` and `.health_metric`, `sync_item_blocks` and `health_days`; `0011_open_question_summary` added `open_questions.summary` and `.summary_updated_at`; `0012_captures` added `captures`; `0013_capture_transcripts` added the server-transcription columns, marking old voice notes with words `done`/`phone` and those without `pending`; `0014_capture_list` added `ticktick_connections.capture_project_id` and `.capture_project_name`; `0015_capture_client_id` added `captures.client_id` and its unique index; `0016_capture_device_log` added `captures.device_log`; `0017_capture_tidy_terms` added `captures.heard`, `.title`, `.notes`, `.tidied_at`, `.tidy_error` and `.ticktick_list_name` (filled for the captures already sent) and the `capture_terms` table; `0018_capture_device` added `captures.device`, setting `iphone` on every phone capture before it; `0019_life` added `users.birth_date` and `.life_expectancy_years` and the four Life tables).
 
 1. **One migration per PR.** Schema changes land as a single consolidated file, not a chain of fixups. Reviewers shouldn't replay your iteration history; squashing after the fact is a merge-conflict magnet.
 2. **If you change schema during a PR and the previous migration isn't committed yet, roll it back before regenerating:**

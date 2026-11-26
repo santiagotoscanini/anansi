@@ -1068,7 +1068,10 @@
     "dictionaryMeant": "Meant (TickTick)",
     "dictionaryAdd": "Add",
     "dictionarySaveFailed": "Could not save that word",
-    "dictionaryDeleteFailed": "Could not remove that word"
+    "dictionaryDeleteFailed": "Could not remove that word",
+    "doneInTickTick": "Done in TickTick",
+    "doneInTickTickList": "Done in TickTick · {{list}}",
+    "deletedInTickTick": "Deleted in TickTick"
   },
   "globalError": {
     "title": "Something went wrong",

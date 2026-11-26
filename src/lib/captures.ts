@@ -74,9 +74,25 @@ export function captureOrigin(kind: 'text' | 'voice', device: keyof typeof DEVIC
   return kind === 'voice' ? `Recorded from my ${DEVICE_NAMES[device]}` : `Written on my ${DEVICE_NAMES[device]}`
 }
 
+/**
+ * What became of a capture's TickTick task: the user triages it there, so it
+ * can be done or deleted while Anansi still holds the capture.
+ */
+export type TickTickTaskState = 'open' | 'done' | 'deleted'
+
+/**
+ * A task as a lookup found it (null: TickTick knows no such task) and what that
+ * means. Status 0 is open; 2 (completed) and -1 (won't do) are both done. A task
+ * in the trash comes back with `deleted` set.
+ */
+export function tickTickTaskState(found: { status?: number; deleted?: number | boolean } | null): TickTickTaskState {
+  if (!found || found.deleted) return 'deleted'
+  return !found.status ? 'open' : 'done'
+}
+
 export type CaptureDestination =
   | { kind: 'question'; questionId: string | null }
-  | { kind: 'ticktick' }
+  | { kind: 'ticktick'; state: TickTickTaskState }
   | { kind: 'error'; message: string }
   | { kind: 'transcribing' }
   | { kind: 'kept' }
@@ -90,13 +106,15 @@ export function captureDestination(c: {
   questionId: string | null
   noteId: string | null
   tickTickTaskId: string | null
+  /** Null until the poller has looked (and on rows from before it did): taken as open. */
+  tickTickState?: TickTickTaskState | null
   routeError: string | null
   /** Left out by callers that predate server transcription (the phone's mirror). */
   transcriptStatus?: 'pending' | 'done' | 'failed' | 'none'
 }): CaptureDestination {
   if (c.status === 'archived') return { kind: 'archived' }
   if (c.noteId) return { kind: 'question', questionId: c.questionId }
-  if (c.tickTickTaskId) return { kind: 'ticktick' }
+  if (c.tickTickTaskId) return { kind: 'ticktick', state: c.tickTickState ?? 'open' }
   if (c.routeError) return { kind: 'error', message: c.routeError }
   // A note the transcriber refused is kept here; its words line says why.
   if (c.kind === 'voice' && c.text === null && c.transcriptStatus !== 'failed') return { kind: 'transcribing' }

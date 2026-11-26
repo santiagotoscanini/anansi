@@ -180,11 +180,15 @@ struct CaptureRow: View {
             }
         }
         .padding(.vertical, 2)
+        .opacity(CaptureRules.isSettled(destination) ? 0.6 : 1)
     }
 
     private func destinationColor(_ d: CaptureRules.Destination) -> Color {
-        if case .failed = d { return AN.rust }
-        return AN.ink3
+        switch d {
+        case .failed: AN.rust
+        case .tickTick(_, .done): AN.moss
+        default: AN.ink3
+        }
     }
 }
 

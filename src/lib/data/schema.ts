@@ -921,6 +921,10 @@ export const captureDeviceEnum = pgEnum('capture_device', ['iphone', 'watch'])
 // the user's own words are never replaced by a late server result.
 export const transcriptStatusEnum = pgEnum('transcript_status', ['pending', 'done', 'failed', 'none'])
 export const transcriptSourceEnum = pgEnum('transcript_source', ['server', 'phone', 'user'])
+// What became of a capture's TickTick task, as the poller last saw it
+// (services/captures.ts `checkTickTickTasks`): still `open`, `done` (completed
+// or won't do), or `deleted` (in TickTick's trash, or nowhere to be found).
+export const captureTickTickStateEnum = pgEnum('capture_ticktick_state', ['open', 'done', 'deleted'])
 
 export const captures = pgTable(
   'captures',
@@ -955,6 +959,11 @@ export const captures = pgTable(
     tickTickProjectId: text('ticktick_project_id'),
     // That list's name when the task was made ("Inbox" for the Inbox): what the Inbox tab says.
     tickTickListName: text('ticktick_list_name'),
+    // What became of that task in TickTick, and when the poller last looked.
+    // Null when there is no task. A task moved to another list is followed:
+    // the project and the list's name above are updated.
+    tickTickState: captureTickTickStateEnum('ticktick_state'),
+    tickTickCheckedAt: timestamp('ticktick_checked_at'),
     status: captureStatusEnum('status').notNull().default('new'),
     routeError: text('route_error'),
     routedAt: timestamp('routed_at'),

@@ -1026,6 +1026,9 @@ export const backupCaptureSchema = z.object({
   tidiedAt: z.coerce.date().nullable().optional(),
   tidyError: z.string().nullable().optional(),
   tickTickListName: z.string().nullable().optional(),
+  // What became of the TickTick task joined later still.
+  tickTickState: z.enum(['open', 'done', 'deleted']).nullable().optional(),
+  tickTickCheckedAt: z.coerce.date().nullable().optional(),
   // The device (iPhone or Apple Watch) joined later still.
   device: z.enum(captureDeviceValues).nullable().optional(),
   createdAt: z.coerce.date(),

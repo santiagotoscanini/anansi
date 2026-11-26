@@ -53,6 +53,8 @@ import {
   MAX_VOICE_CAPTURE_BYTES,
   captureOrigin,
   tickTickContent,
+  tickTickTaskState,
+  type TickTickTaskState,
   VOICE_TRANSCRIPT_WAIT_MS,
   voiceNoteTitle,
 } from '~/lib/captures'
@@ -69,7 +71,8 @@ import {
   type UpdateCapture,
 } from '~/lib/api/types'
 import { checkRateLimit } from '~/lib/rate-limit'
-import { tickTick, TickTickAuthError } from '~/server/ticktick/client'
+import { toTickTickDate } from '~/lib/ticktick'
+import { tickTick, TickTickAuthError, type RemoteTask, type TickTickClient } from '~/server/ticktick/client'
 import { openToken } from '~/server/ticktick/crypto'
 import { tidy } from '~/server/tidy'
 import { transcribe, TranscriberRejected } from '~/server/transcribe'
@@ -175,6 +178,7 @@ const selectCapture = {
   noteId: captures.noteId,
   tickTickTaskId: captures.tickTickTaskId,
   tickTickListName: captures.tickTickListName,
+  tickTickState: captures.tickTickState,
   status: captures.status,
   routeError: captures.routeError,
   routedAt: captures.routedAt,
@@ -502,6 +506,8 @@ export async function update(userId: string, input: UpdateCapture) {
         tickTickTaskId: null,
         tickTickProjectId: null,
         tickTickListName: null,
+        tickTickState: null,
+        tickTickCheckedAt: null,
         routeError: null,
         routedAt: null,
         status: row.status === 'archived' ? 'archived' : 'new',
@@ -636,6 +642,8 @@ async function routeNow(id: string) {
         tickTickTaskId: task.id,
         tickTickProjectId: task.projectId,
         tickTickListName: listName,
+        tickTickState: 'open',
+        tickTickCheckedAt: new Date(),
         status: 'routed',
         routedAt: new Date(),
         routeError: null,
@@ -747,6 +755,131 @@ export async function retryPending(): Promise<void> {
     .orderBy(captures.createdAt)
     .limit(50)
   for (const { id } of rows) await route(id)
+}
+
+// ── What became of the TickTick tasks ───────────────────────────────────────
+// A capture's task is the user's to triage in TickTick: done, deleted, moved to
+// another list. The poller (runner.ts) looks each round, so the Inbox does not
+// show as waiting what is long dealt with. Per user: one read of each list that
+// holds an open capture's task; a task missing from its list's undone tasks is
+// looked up by itself (at most every LOOKUP_EVERY_MS), and one found nowhere is
+// looked for in the user's other lists, which is how a move is followed. A done
+// or deleted task is not looked up again, but turns open when it shows up in a
+// list read anyway (reopened, restored from the trash).
+
+/** The least time between two lookups of one capture's task by itself. */
+const LOOKUP_EVERY_MS = 5 * 60_000
+
+export async function checkTickTickTasks(): Promise<void> {
+  if (!tickTickEnabled) return
+  const conns = await db.select().from(tickTickConnections).where(eq(tickTickConnections.needsReauth, false))
+  for (const conn of conns) {
+    const token = openToken(conn.accessToken)
+    if (!token) continue
+    try {
+      await checkUserTasks(conn.userId, tickTick(token))
+    } catch (e) {
+      if (e instanceof TickTickAuthError) {
+        await db
+          .update(tickTickConnections)
+          .set({ needsReauth: true, lastError: e.message })
+          .where(eq(tickTickConnections.id, conn.id))
+      } else {
+        console.warn('[captures] could not check the TickTick tasks', errorText(e))
+      }
+    }
+  }
+}
+
+async function checkUserTasks(userId: string, tt: TickTickClient) {
+  const rows = await db
+    .select({
+      id: captures.id,
+      taskId: captures.tickTickTaskId,
+      projectId: captures.tickTickProjectId,
+      listName: captures.tickTickListName,
+      state: captures.tickTickState,
+      checkedAt: captures.tickTickCheckedAt,
+      capturedAt: captures.capturedAt,
+    })
+    .from(captures)
+    .where(
+      and(
+        eq(captures.userId, userId),
+        ne(captures.status, 'archived'),
+        isNotNull(captures.tickTickTaskId),
+        isNotNull(captures.tickTickProjectId),
+      ),
+    )
+  const open = rows.filter((r) => r.state !== 'done' && r.state !== 'deleted')
+  if (!open.length) return
+
+  // The undone tasks of every list an open capture's task is in.
+  const undone = new Map<string, RemoteTask>()
+  for (const projectId of new Set(open.map((r) => r.projectId!))) {
+    // A list TickTick will not read (gone, or an Inbox it will not list) leaves its tasks to be looked up one by one.
+    const data = await tt.projectData(projectId)
+    for (const task of data?.tasks ?? []) undone.set(task.id, task)
+  }
+
+  // The user's other lists, read once and only when a task is found nowhere.
+  let elsewhere: Promise<{ undone: Map<string, { task: RemoteTask; list: string }>; ids: string[] }> | null = null
+  const otherLists = () =>
+    (elsewhere ??= (async () => {
+      const lists = (await tt.listProjects()).filter((p) => !p.closed)
+      // `/project` leaves out the Inbox; its real id is known from the tasks made there.
+      const inbox = rows.find((r) => r.projectId?.startsWith('inbox'))?.projectId
+      if (inbox) lists.push({ id: inbox, name: 'Inbox' })
+      const found = new Map<string, { task: RemoteTask; list: string }>()
+      for (const list of lists) {
+        const data = await tt.projectData(list.id)
+        for (const task of data?.tasks ?? []) found.set(task.id, { task, list: list.name })
+      }
+      return { undone: found, ids: lists.map((l) => l.id) }
+    })())
+
+  const save = (id: string, set: Partial<typeof captures.$inferInsert>) =>
+    db
+      .update(captures)
+      .set({ ...set, tickTickCheckedAt: new Date() })
+      .where(eq(captures.id, id))
+
+  const now = Date.now()
+  for (const r of rows) {
+    const seen = undone.get(r.taskId!)
+    if (seen) {
+      if (r.state !== 'open') await save(r.id, { tickTickState: 'open' })
+      continue
+    }
+    if (r.state === 'done' || r.state === 'deleted') continue
+    if (r.checkedAt && now - r.checkedAt.getTime() < LOOKUP_EVERY_MS) continue
+
+    const found = await tt.getTask(r.projectId!, r.taskId!)
+    if (found && !found.deleted && (!found.projectId || found.projectId === r.projectId)) {
+      await save(r.id, { tickTickState: tickTickTaskState(found) })
+      continue
+    }
+    if (found?.deleted) {
+      await save(r.id, { tickTickState: 'deleted' })
+      continue
+    }
+    // Not where it was: moved to another list (open there, or done there), or gone.
+    const other = await otherLists()
+    const moved = other.undone.get(r.taskId!)
+    if (moved) {
+      await save(r.id, { tickTickState: 'open', tickTickProjectId: moved.task.projectId, tickTickListName: moved.list })
+      continue
+    }
+    const state: TickTickTaskState = await doneElsewhere(tt, other.ids, r.taskId!, r.capturedAt)
+    await save(r.id, { tickTickState: state })
+  }
+}
+
+/** `done` when the task was completed in one of these lists since it was captured, else `deleted`. */
+async function doneElsewhere(tt: TickTickClient, projectIds: string[], taskId: string, since: Date) {
+  if (!projectIds.length) return 'deleted' as const
+  const done = await tt.completedBetween(projectIds, toTickTickDate(since), toTickTickDate(new Date()))
+  return done.some((t) => t.id === taskId) ? ('done' as const) : ('deleted' as const)
 }
 
 // ── Transcription ───────────────────────────────────────────────────────────

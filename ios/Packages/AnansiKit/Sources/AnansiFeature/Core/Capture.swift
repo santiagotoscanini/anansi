@@ -18,6 +18,11 @@ nonisolated struct Capture: Codable, Hashable, Sendable, Identifiable {
     var question: String?
     var noteId: String?
     var tickTickTaskId: String?
+    /// The TickTick list the task is in ("Inbox" for the Inbox), followed when it is moved there.
+    var tickTickListName: String?
+    /// What became of that task in TickTick, where it is triaged: `open`, `done` or `deleted`, as the server's
+    /// poller last saw it. Absent from older servers and before the first look: taken as open.
+    var tickTickState: String?
     /// `new`, `routed` or `archived`.
     var status: String
     var routeError: String?
@@ -64,17 +69,24 @@ nonisolated enum CaptureRules {
     /// Where a capture went, or why it is still in Anansi: the line under it in the Inbox.
     enum Destination: Hashable, Sendable {
         case question(String)
-        case tickTick
+        case tickTick(list: String?, state: TickTickState)
         case failed(String)
         case transcribing
         case kept
         case archived
     }
 
+    /// What became of a capture's TickTick task (the server's `TickTickTaskState`).
+    enum TickTickState: String, Hashable, Sendable {
+        case open, done, deleted
+    }
+
     static func destination(_ c: Capture) -> Destination {
         if c.status == "archived" { return .archived }
         if c.noteId != nil { return .question(c.question ?? "an open question") }
-        if c.tickTickTaskId != nil { return .tickTick }
+        if c.tickTickTaskId != nil {
+            return .tickTick(list: c.tickTickListName, state: c.tickTickState.flatMap(TickTickState.init) ?? .open)
+        }
         if let error = c.routeError { return .failed(error) }
         if c.isVoice && c.text == nil && c.transcriptStatus != "failed" { return .transcribing }
         return .kept
@@ -107,12 +119,20 @@ nonisolated enum CaptureRules {
     static func label(_ destination: Destination) -> String {
         switch destination {
         case .question(let q): "→ question: \(q)"
-        case .tickTick: "→ TickTick inbox"
+        case .tickTick(let list, .open): "→ TickTick · \(list ?? "Inbox")"
+        case .tickTick(let list, .done): list.map { "Done in TickTick · \($0)" } ?? "Done in TickTick"
+        case .tickTick(_, .deleted): "Deleted in TickTick"
         case .failed(let message): "Couldn't send it on: \(message)"
         case .transcribing: "Waiting for its words"
         case .kept: "Kept in Anansi"
         case .archived: "Archived"
         }
+    }
+
+    /// Dealt with in TickTick (done or deleted): the Inbox shows it stepped back.
+    static func isSettled(_ destination: Destination) -> Bool {
+        if case .tickTick(_, let state) = destination { return state != .open }
+        return false
     }
 
     /// What Siri or the Shortcuts banner says once a capture is saved.

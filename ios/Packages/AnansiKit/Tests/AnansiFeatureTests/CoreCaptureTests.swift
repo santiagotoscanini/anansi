@@ -26,15 +26,29 @@ struct CoreCaptureTests {
         #expect(title.hasSuffix("…"))
     }
 
+    @Test func decodesWhatBecameOfTheTickTickTask() throws {
+        let json = """
+        {"id":"c1","kind":"text","text":"x","questionId":null,"noteId":null,"tickTickTaskId":"t1",
+         "tickTickListName":"Loose threads","tickTickState":"deleted","status":"routed","routeError":null,
+         "capturedAt":"2026-11-24T10:00:00.000Z"}
+        """
+        let decoded = try JSONDecoder().decode(Capture.self, from: Data(json.utf8))
+        #expect(CaptureRules.destination(decoded) == .tickTick(list: "Loose threads", state: .deleted))
+    }
+
     @Test func whereACaptureWent() {
         #expect(CaptureRules.destination(capture()) == .kept)
         #expect(CaptureRules.destination(capture(status: "routed", noteId: "n", question: "Why?")) == .question("Why?"))
-        #expect(CaptureRules.destination(capture(status: "routed", task: "t")) == .tickTick)
+        #expect(CaptureRules.destination(capture(status: "routed", task: "t")) == .tickTick(list: nil, state: .open))
         #expect(CaptureRules.destination(capture(error: "boom")) == .failed("boom"))
         #expect(CaptureRules.destination(capture(kind: "voice", text: nil)) == .transcribing)
         #expect(CaptureRules.destination(capture(kind: "voice", text: "")) == .kept)
         #expect(CaptureRules.destination(capture(status: "archived", task: "t")) == .archived)
-        #expect(CaptureRules.label(.tickTick) == "→ TickTick inbox")
+        #expect(CaptureRules.label(.tickTick(list: nil, state: .open)) == "→ TickTick · Inbox")
+        #expect(CaptureRules.label(.tickTick(list: "Loose threads", state: .done)) == "Done in TickTick · Loose threads")
+        #expect(CaptureRules.label(.tickTick(list: "Inbox", state: .deleted)) == "Deleted in TickTick")
+        #expect(CaptureRules.isSettled(.tickTick(list: nil, state: .done)))
+        #expect(!CaptureRules.isSettled(.tickTick(list: nil, state: .open)))
         #expect(CaptureRules.label(.question("Why do I want to be a dad?")) == "→ question: Why do I want to be a dad?")
     }
 

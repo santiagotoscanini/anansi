@@ -1068,7 +1068,10 @@
     "dictionaryMeant": "Es (TickTick)",
     "dictionaryAdd": "Agregar",
     "dictionarySaveFailed": "No se pudo guardar esa palabra",
-    "dictionaryDeleteFailed": "No se pudo quitar esa palabra"
+    "dictionaryDeleteFailed": "No se pudo quitar esa palabra",
+    "doneInTickTick": "Hecha en TickTick",
+    "doneInTickTickList": "Hecha en TickTick · {{list}}",
+    "deletedInTickTick": "Borrada en TickTick"
   },
   "globalError": {
     "title": "Algo salió mal",

@@ -140,9 +140,9 @@ export function tickTick(token: string) {
         undefined,
         { notFoundIsNull: true },
       ),
-    completedBetween: async (projectId: string, start: string, end: string) =>
+    completedBetween: async (projectIds: string | string[], start: string, end: string) =>
       (await call<RemoteTask[]>(token, 'POST', '/task/completed', {
-        projectIds: [projectId],
+        projectIds: Array.isArray(projectIds) ? projectIds : [projectIds],
         startDate: start,
         endDate: end,
       })) ?? [],

@@ -141,6 +141,13 @@
       "when": 1795728605535,
       "tag": "0019_life",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795736756204,
+      "tag": "0020_capture_ticktick_state",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,7 @@ import {
   Archive,
   ArchiveRestore,
   BookA,
+  CircleCheck,
   CornerDownLeft,
   HelpCircle,
   Mic,
@@ -123,6 +124,8 @@ function CaptureItem({
   const destination = captureDestination(capture)
   const words = transcriptView(capture)
   const archived = capture.status === 'archived'
+  // Dealt with in TickTick: the row steps back like an archived one.
+  const settled = destination.kind === 'ticktick' && destination.state !== 'open'
   const Icon = capture.kind === 'voice' ? Mic : Type
 
   const act = (p: Promise<unknown>, failed: string) => void p.catch(() => toast.error(failed))
@@ -131,14 +134,25 @@ function CaptureItem({
     switch (destination.kind) {
       case 'question':
         return <span>{t('inbox.toQuestion', { question: capture.question ?? '…' })}</span>
-      case 'ticktick':
-        return (
-          <span>
-            {capture.tickTickListName
-              ? t('inbox.toTickTickList', { list: capture.tickTickListName })
-              : t('inbox.toTickTick')}
-          </span>
-        )
+      case 'ticktick': {
+        const list = capture.tickTickListName
+        // What became of the task in TickTick, where it is triaged (the poller looks every few minutes).
+        if (destination.state === 'done')
+          return (
+            <span className="inline-flex items-center gap-1" style={{ color: 'var(--moss)' }}>
+              <CircleCheck className="h-3.5 w-3.5" />
+              {list ? t('inbox.doneInTickTickList', { list }) : t('inbox.doneInTickTick')}
+            </span>
+          )
+        if (destination.state === 'deleted')
+          return (
+            <span className="inline-flex items-center gap-1">
+              <Trash2 className="h-3.5 w-3.5" />
+              {t('inbox.deletedInTickTick')}
+            </span>
+          )
+        return <span>{list ? t('inbox.toTickTickList', { list }) : t('inbox.toTickTick')}</span>
+      }
       case 'error':
         return (
           <span className="inline-flex flex-wrap items-center gap-2" style={{ color: 'var(--rust)' }}>
@@ -174,7 +188,7 @@ function CaptureItem({
       id={`capture-${capture.id}`}
       className="group -mx-2 flex items-start gap-3 rounded-md px-2 py-3 hover:bg-[var(--vellum)]/60"
       style={{
-        opacity: archived ? 0.6 : 1,
+        opacity: archived || settled ? 0.6 : 1,
         background: highlighted ? 'var(--vellum)' : undefined,
       }}
     >

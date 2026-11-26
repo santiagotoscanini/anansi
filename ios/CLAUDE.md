@@ -104,7 +104,9 @@
   again on foreground and every few seconds while one is pending, and lets a voice note's words be corrected
   (`TranscriptEditView`, `PATCH /api/v1/captures/{id}`), which makes them the user's: the server never replaces
   them. The `transcript` of a queued `voiceCapture` and the `captureTranscript` op are kept only so queues written
-  by builds that transcribed on the phone still decode and send. No speech-recognition permission. Pure rules
+  by builds that transcribed on the phone still decode and send. No speech-recognition permission. A capture sent to TickTick shows what became of its task there
+  (`tickTickState`: "→ TickTick · <list>", "Done in TickTick", "Deleted in TickTick", the settled ones faded), as
+  the server's poller last saw it. Pure rules
   (title, where a capture went, what its words line says) are `Core/Capture.swift`, the server's
   `src/lib/captures.ts`. The phone does not play a capture's audio back (the server serves it to the web only).
 - Recording without opening the app: "Record a thought" (`RecordThoughtIntent`, the Action Button, Siri, Shortcuts)

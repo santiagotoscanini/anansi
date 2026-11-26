@@ -4,6 +4,7 @@ import {
   CAPTURE_TITLE_MAX,
   captureBody,
   captureDestination,
+  tickTickTaskState,
   afterTranscribeAttempt,
   captureTitle,
   takesServerTranscript,
@@ -82,7 +83,14 @@ test('where a capture went', () => {
     kind: 'question',
     questionId: 'q',
   })
-  assert.deepEqual(captureDestination({ ...base, status: 'routed', tickTickTaskId: 't' }), { kind: 'ticktick' })
+  assert.deepEqual(captureDestination({ ...base, status: 'routed', tickTickTaskId: 't' }), {
+    kind: 'ticktick',
+    state: 'open',
+  })
+  assert.deepEqual(captureDestination({ ...base, status: 'routed', tickTickTaskId: 't', tickTickState: 'done' }), {
+    kind: 'ticktick',
+    state: 'done',
+  })
   assert.deepEqual(captureDestination({ ...base, routeError: 'boom' }), { kind: 'error', message: 'boom' })
   assert.deepEqual(captureDestination({ ...base, kind: 'voice', text: null }), { kind: 'transcribing' })
   assert.deepEqual(captureDestination({ ...base, kind: 'voice', text: '' }), { kind: 'kept' })
@@ -229,4 +237,13 @@ test('captureIdFrom: an id, or the Inbox link that carries one', () => {
     'rz8n69s1bp3fgbfecvqo7bu1',
   )
   assert.equal(captureIdFrom('/app/inbox?archived=true&capture=abc#x'), 'abc')
+})
+
+test("what became of a capture's TickTick task", () => {
+  assert.equal(tickTickTaskState(null), 'deleted')
+  assert.equal(tickTickTaskState({ status: 0, deleted: 1 }), 'deleted')
+  assert.equal(tickTickTaskState({ status: 0 }), 'open')
+  assert.equal(tickTickTaskState({}), 'open')
+  assert.equal(tickTickTaskState({ status: 2 }), 'done')
+  assert.equal(tickTickTaskState({ status: -1, deleted: 0 }), 'done')
 })

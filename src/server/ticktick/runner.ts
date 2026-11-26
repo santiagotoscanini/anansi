@@ -10,11 +10,12 @@
 // One run per user at a time; a request that lands during a run queues one
 // more. The poller lives in this process, started on the first request
 // (src/start.ts), and is a no-op where nobody is connected. Each round also
-// retries the captures that could not be routed (services/captures.ts).
+// retries the captures that could not be routed and reads what became of the
+// captures' TickTick tasks (services/captures.ts).
 import { and, eq, isNotNull } from 'drizzle-orm'
 import { db } from '~/lib/data'
 import { tickTickConnections } from '~/lib/data/schema'
-import { retryPending } from '~/server/services/captures'
+import { checkTickTickTasks, retryPending } from '~/server/services/captures'
 import { syncContext, syncUser, type SyncReport } from './sync'
 
 const DEBOUNCE_MS = 2_000
@@ -91,6 +92,10 @@ async function pollAll() {
     // that waited long enough for their words (services/captures.ts).
     await retryPending().catch((e: unknown) =>
       console.error('[captures] retry failed', e instanceof Error ? e.message : e),
+    )
+    // What became of the captures' TickTick tasks: done, deleted, moved.
+    await checkTickTickTasks().catch((e: unknown) =>
+      console.error('[captures] TickTick check failed', e instanceof Error ? e.message : e),
     )
   } finally {
     polling = false

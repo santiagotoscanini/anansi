@@ -135,6 +135,7 @@ src/
     sync-item.ts             # a sync item's pure rules: its mention ids, the picture limit, when a block folds
     personality.ts           # personality tests: the per-test details union, which result is newest, free-test links (pure; tested)
     personality-form.ts      # the manual result form's fields <-> a test's details (pure; tested)
+    computation/goal-progress.ts # goal progress (pure): the web hook memoizes it, the phone API runs it
     computation/arrange.ts   # the goal graph's automatic layout (pure; the Arrange button and arrange_goals)
     ticktick.ts              # the TickTick sync's pure rules: days in a zone, TickTick dates, the three-way merge
     life.ts                  # the Life tab: the grid of weeks, chapter ranges, loose dates, chapter colours (pure; tested)
@@ -805,6 +806,12 @@ Keys: created and revoked by the signed-in user in Profile → Devices (`src/ser
 | `/api/v1/templates` | GET, POST | `syncTemplates.list` / `create` |
 | `/api/v1/templates/{id}/items` | PUT `{trackingItemIds}` | `syncTemplates.setItems` |
 | `/api/v1/goals` | GET | `goals.list` (id, title, emoji) |
+| `/api/v1/goals/board` | GET | `loadGoalsForUser` + `computeGoalProgress` (`src/lib/computation/goal-progress.ts`, the web's engine): each goal with its tasks, own and total progress, importance, values and life chapters |
+| `/api/v1/tasks/{id}` | PATCH `{completed}` | `tasks.update` (the phone only ticks tasks) |
+| `/api/v1/life` | GET, PUT `{birthDate?, lifeExpectancyYears?}` | `life.overview` / `setSettings` (PUT answers the overview) |
+| `/api/v1/life/weeks/{day}` | GET | `life.week` (pictures read at `/api/v1/attachments/{id}`) |
+| `/api/v1/life/chapters` | POST | `life.createChapter` |
+| `/api/v1/life/chapters/{id}` | PATCH, DELETE | `life.updateChapter` / `removeChapter` |
 | `/api/v1/journal?from=&to=&personId=&q=&limit=` | GET | `journal.list` |
 | `/api/v1/journal/{day}` | GET (the entry or `null`), PUT `{content?, highlights?}`, DELETE | `journal.get` / `write` / `remove` |
 | `/api/v1/journal/{day}/attachments` | POST (body = the file; `?fileName=&fileType=`; `fileType=video\|audio` is streamed, up to 1 GiB) | `journal.uploadAttachment` / `uploadMedia` (read and deleted at `/api/v1/attachments/{id}`) |

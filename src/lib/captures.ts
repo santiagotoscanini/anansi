@@ -82,12 +82,19 @@ export type TickTickTaskState = 'open' | 'done' | 'deleted'
 
 /**
  * A task as a lookup found it (null: TickTick knows no such task) and what that
- * means. Status 0 is open; 2 (completed) and -1 (won't do) are both done. A task
- * in the trash comes back with `deleted` set.
+ * means. Status 2 (completed) and -1 (won't do) are both done. A task in the
+ * trash is still answered by id, as open and with no `deleted` flag (seen
+ * November 2026); the only sign of it is that its list's undone tasks leave it
+ * out. So `missingFromList` (the list was read and did not hold it) turns an
+ * "open" answer into deleted.
  */
-export function tickTickTaskState(found: { status?: number; deleted?: number | boolean } | null): TickTickTaskState {
+export function tickTickTaskState(
+  found: { status?: number; deleted?: number | boolean } | null,
+  missingFromList = false,
+): TickTickTaskState {
   if (!found || found.deleted) return 'deleted'
-  return !found.status ? 'open' : 'done'
+  if (found.status) return 'done'
+  return missingFromList ? 'deleted' : 'open'
 }
 
 export type CaptureDestination =

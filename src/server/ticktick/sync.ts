@@ -314,10 +314,10 @@ async function reconcile(
       if (here && isDoneStatus(found.status)) {
         closedNow.add(link.id)
         await saveLink(link, { remoteState: 'closed' })
-      } else if (here) {
-        // Open, just not in the list's data this time: nothing to act on.
-        remoteOf.set(link.id, found)
       } else {
+        // Not found, moved out of the list, or in the trash: a trashed task is
+        // still answered by id, as open and unflagged (seen November 2026), and
+        // its absence from the list's undone tasks is the only sign of it.
         newlyGone.add(link.id)
         await saveLink(link, { remoteState: 'gone' })
       }

@@ -762,7 +762,9 @@ export async function retryPending(): Promise<void> {
 // another list. The poller (runner.ts) looks each round, so the Inbox does not
 // show as waiting what is long dealt with. Per user: one read of each list that
 // holds an open capture's task; a task missing from its list's undone tasks is
-// looked up by itself (at most every LOOKUP_EVERY_MS), and one found nowhere is
+// looked up by itself (at most every LOOKUP_EVERY_MS: done when it says so; when
+// it says open it is in the trash, which TickTick answers by id as an open task),
+// and one not in its list any more is
 // looked for in the user's other lists, which is how a move is followed. A done
 // or deleted task is not looked up again, but turns open when it shows up in a
 // list read anyway (reopened, restored from the trash).
@@ -816,9 +818,11 @@ async function checkUserTasks(userId: string, tt: TickTickClient) {
 
   // The undone tasks of every list an open capture's task is in.
   const undone = new Map<string, RemoteTask>()
+  const read = new Set<string>()
   for (const projectId of new Set(open.map((r) => r.projectId!))) {
     // A list TickTick will not read (gone, or an Inbox it will not list) leaves its tasks to be looked up one by one.
     const data = await tt.projectData(projectId)
+    if (data) read.add(projectId)
     for (const task of data?.tasks ?? []) undone.set(task.id, task)
   }
 
@@ -856,7 +860,8 @@ async function checkUserTasks(userId: string, tt: TickTickClient) {
 
     const found = await tt.getTask(r.projectId!, r.taskId!)
     if (found && !found.deleted && (!found.projectId || found.projectId === r.projectId)) {
-      await save(r.id, { tickTickState: tickTickTaskState(found) })
+      // Not among its list's undone tasks yet answered as open: in the trash.
+      await save(r.id, { tickTickState: tickTickTaskState(found, read.has(r.projectId!)) })
       continue
     }
     if (found?.deleted) {

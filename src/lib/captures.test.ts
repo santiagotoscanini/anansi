@@ -246,4 +246,7 @@ test("what became of a capture's TickTick task", () => {
   assert.equal(tickTickTaskState({}), 'open')
   assert.equal(tickTickTaskState({ status: 2 }), 'done')
   assert.equal(tickTickTaskState({ status: -1, deleted: 0 }), 'done')
+  // In the trash: answered by id as open, but missing from its list's undone tasks.
+  assert.equal(tickTickTaskState({ status: 0 }, true), 'deleted')
+  assert.equal(tickTickTaskState({ status: 2 }, true), 'done')
 })

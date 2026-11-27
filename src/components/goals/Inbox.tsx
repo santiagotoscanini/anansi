@@ -8,9 +8,13 @@ import {
   CornerDownLeft,
   HelpCircle,
   Mic,
+  Monitor,
+  Smartphone,
+  Sparkles,
   RotateCw,
   Trash2,
   Type,
+  Watch,
   X,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -33,8 +37,12 @@ import { Route } from '~/routes/app.inbox'
 import { Btn, Page, ScreenHeader, Section } from './ui'
 
 // The Inbox: everything the user captured, from the phone's Action Button, Siri,
-// Claude or the box at the top, newest first and grouped by day, with where each
-// one went (an open question, a TickTick list) or why it is still here. A voice
+// Claude or the box at the top, newest first and grouped by day. Each row is the
+// words over a quiet line: the time, text or voice (with its length), the device.
+// Where it went is said only when it is news (an open question, a failure, words
+// on their way): a TickTick task is the usual case, so it says nothing while open,
+// and is struck through with a green check when done there, faded with a red bin
+// when deleted there (`tickTickState`, read by the poller). A voice
 // note shows its tidied title and notes, with the transcript one click away;
 // the Dictionary panel holds the words the transcriber keeps getting wrong.
 //
@@ -124,9 +132,19 @@ function CaptureItem({
   const destination = captureDestination(capture)
   const words = transcriptView(capture)
   const archived = capture.status === 'archived'
-  // Dealt with in TickTick: the row steps back like an archived one.
-  const settled = destination.kind === 'ticktick' && destination.state !== 'open'
-  const Icon = capture.kind === 'voice' ? Mic : Type
+  // Dealt with in TickTick: the row steps back like an archived one, a done one struck through.
+  const tickTick = destination.kind === 'ticktick' ? destination.state : null
+  const settled = tickTick === 'done' || tickTick === 'deleted'
+  const struck = tickTick === 'done' ? 'line-through' : undefined
+  const Kind = capture.kind === 'voice' ? Mic : Type
+  const origin =
+    capture.source === 'web'
+      ? { Icon: Monitor, label: t('inbox.fromWeb') }
+      : capture.source === 'mcp'
+        ? { Icon: Sparkles, label: t('inbox.fromClaude') }
+        : capture.device === 'watch'
+          ? { Icon: Watch, label: t('inbox.fromWatch') }
+          : { Icon: Smartphone, label: t('inbox.fromIphone') }
 
   const act = (p: Promise<unknown>, failed: string) => void p.catch(() => toast.error(failed))
 
@@ -134,25 +152,9 @@ function CaptureItem({
     switch (destination.kind) {
       case 'question':
         return <span>{t('inbox.toQuestion', { question: capture.question ?? '…' })}</span>
-      case 'ticktick': {
-        const list = capture.tickTickListName
-        // What became of the task in TickTick, where it is triaged (the poller looks every few minutes).
-        if (destination.state === 'done')
-          return (
-            <span className="inline-flex items-center gap-1" style={{ color: 'var(--moss)' }}>
-              <CircleCheck className="h-3.5 w-3.5" />
-              {list ? t('inbox.doneInTickTickList', { list }) : t('inbox.doneInTickTick')}
-            </span>
-          )
-        if (destination.state === 'deleted')
-          return (
-            <span className="inline-flex items-center gap-1">
-              <Trash2 className="h-3.5 w-3.5" />
-              {t('inbox.deletedInTickTick')}
-            </span>
-          )
-        return <span>{list ? t('inbox.toTickTickList', { list }) : t('inbox.toTickTick')}</span>
-      }
+      case 'ticktick':
+        // Always the same place, so not said; what became of the task is the row's mark.
+        return null
       case 'error':
         return (
           <span className="inline-flex flex-wrap items-center gap-2" style={{ color: 'var(--rust)' }}>
@@ -188,15 +190,16 @@ function CaptureItem({
       id={`capture-${capture.id}`}
       className="group -mx-2 flex items-start gap-3 rounded-md px-2 py-3 hover:bg-[var(--vellum)]/60"
       style={{
-        opacity: archived || settled ? 0.6 : 1,
+        opacity: archived || settled ? 0.55 : 1,
         background: highlighted ? 'var(--vellum)' : undefined,
       }}
     >
-      <Icon className="mt-1 h-4 w-4 shrink-0 text-[var(--ink-4)]" aria-label={t(`inbox.kind.${capture.kind}`)} />
       <div className="min-w-0 flex-1">
         {words.kind === 'text' && capture.title !== null ? (
           <>
-            <p className="text-[15px] font-medium break-words text-[var(--ink)]">{capture.title}</p>
+            <p className="text-[15px] font-medium break-words text-[var(--ink)]" style={{ textDecoration: struck }}>
+              {capture.title}
+            </p>
             {capture.notes && (
               <p className="mt-0.5 text-sm break-words whitespace-pre-wrap text-[var(--ink-2)]">{capture.notes}</p>
             )}
@@ -217,7 +220,12 @@ function CaptureItem({
             )}
           </>
         ) : words.kind === 'text' ? (
-          <p className="text-[15px] break-words whitespace-pre-wrap text-[var(--ink)]">{words.text}</p>
+          <p
+            className="text-[15px] break-words whitespace-pre-wrap text-[var(--ink)]"
+            style={{ textDecoration: struck }}
+          >
+            {words.text}
+          </p>
         ) : words.kind === 'empty' ? (
           <p className="text-[15px] text-[var(--ink-3)] italic">{t('inbox.noWords')}</p>
         ) : words.kind === 'transcribing' ? (
@@ -241,29 +249,32 @@ function CaptureItem({
           </p>
         )}
         {capture.audioUrl && (
-          <div className="mt-2 flex items-center gap-2">
-            <audio controls preload="none" src={capture.audioUrl} className="h-8 w-full max-w-sm" />
-            {duration(capture.durationMs) && (
-              <span className="text-xs text-[var(--ink-4)] tabular-nums">{duration(capture.durationMs)}</span>
-            )}
-          </div>
+          <audio controls preload="none" src={capture.audioUrl} className="mt-2 h-8 w-full max-w-sm" />
         )}
-        <p className="mt-1 text-[13px] text-[var(--ink-3)]">
-          {showTime && (
-            <span className="tabular-nums">
-              {timeOf(new Date(capture.capturedAt))}
-              {(where ?? capture.device) && ' · '}
-            </span>
-          )}
-          {capture.device && (
-            <span>
-              {t(capture.device === 'watch' ? 'inbox.fromWatch' : 'inbox.fromIphone')}
-              {where && ' · '}
-            </span>
-          )}
-          {where}
+        <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-[var(--ink-4)]">
+          {showTime && <span className="text-[var(--ink-3)] tabular-nums">{timeOf(new Date(capture.capturedAt))}</span>}
+          <span className="inline-flex items-center gap-1" title={t(`inbox.kind.${capture.kind}`)}>
+            <Kind className="h-3.5 w-3.5" aria-label={t(`inbox.kind.${capture.kind}`)} />
+            {capture.kind === 'voice' && duration(capture.durationMs) && (
+              <span className="tabular-nums">{duration(capture.durationMs)}</span>
+            )}
+          </span>
+          <span title={origin.label}>
+            <origin.Icon className="h-3.5 w-3.5" aria-label={origin.label} />
+          </span>
+          {where && <span className="text-[var(--ink-3)]">{where}</span>}
         </p>
       </div>
+      {tickTick === 'done' && (
+        <span className="mt-0.5 shrink-0" title={t('inbox.doneInTickTick')} style={{ color: 'var(--moss)' }}>
+          <CircleCheck className="h-4 w-4" aria-label={t('inbox.doneInTickTick')} />
+        </span>
+      )}
+      {tickTick === 'deleted' && (
+        <span className="mt-0.5 shrink-0" title={t('inbox.deletedInTickTick')} style={{ color: 'var(--rust)' }}>
+          <Trash2 className="h-4 w-4" aria-label={t('inbox.deletedInTickTick')} />
+        </span>
+      )}
       <div className="relative flex shrink-0 items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
         <button
           type="button"

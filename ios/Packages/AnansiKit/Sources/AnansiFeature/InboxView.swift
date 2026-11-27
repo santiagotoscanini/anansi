@@ -23,8 +23,8 @@ struct InboxView: View {
                 }
                 .anansiRow()
             }
-            Section {
-                if store.captures.isEmpty {
+            if store.captures.isEmpty {
+                Section {
                     if store.isLoading && !store.hasLoaded {
                         ProgressView("Loading…").font(AN.text(.subheadline))
                     } else if let error = store.error {
@@ -34,21 +34,27 @@ struct InboxView: View {
                             .font(AN.text(.body))
                             .foregroundStyle(AN.ink3)
                     }
-                } else {
-                    ForEach(store.captures) { capture in
-                        if capture.isVoice, capture.text != nil {
-                            Button { correcting = capture } label: { CaptureRow(capture: capture) }
-                                .buttonStyle(.plain)
-                                .accessibilityHint("Correct its words")
-                        } else {
-                            CaptureRow(capture: capture)
-                        }
-                    }
                 }
-            } header: {
-                Eyebrow(text: "Captured")
+                .anansiRow()
+            } else {
+                let today = LocalDay.today()
+                ForEach(CaptureRules.byDay(store.captures, calendar: .current), id: \.day) { group in
+                    Section {
+                        ForEach(group.captures) { capture in
+                            if capture.isVoice, capture.text != nil {
+                                Button { correcting = capture } label: { CaptureRow(capture: capture) }
+                                    .buttonStyle(.plain)
+                                    .accessibilityHint("Correct its words")
+                            } else {
+                                CaptureRow(capture: capture)
+                            }
+                        }
+                    } header: {
+                        Eyebrow(text: CaptureRules.dayTitle(group.day, today: today, calendar: .current))
+                    }
+                    .anansiRow()
+                }
             }
-            .anansiRow()
         }
         .anansiList()
         .refreshable {
@@ -134,60 +140,103 @@ struct TranscriptEditView: View {
     }
 }
 
-private func shownTime(_ iso: String) -> String {
-    guard let date = ISODate.parse(iso) else { return "" }
-    if Calendar.current.isDateInToday(date) { return date.formatted(date: .omitted, time: .shortened) }
-    return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute())
+private func timeOfDay(_ iso: String) -> String {
+    ISODate.parse(iso)?.formatted(date: .omitted, time: .shortened) ?? ""
 }
 
+/// One capture, under its day: the words (or a voice note's tidied title and notes), then a quiet line with the
+/// time, a voice note's length and the device it came from. Where it went is said only when it is not simply a task in
+/// TickTick (a question, a failure, words on their way); a task done there is struck through with a check, a task
+/// deleted there is faded with a red bin.
 struct CaptureRow: View {
     let capture: Capture
 
     var body: some View {
         let destination = CaptureRules.destination(capture)
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Image(systemName: capture.isVoice ? "mic" : "text.alignleft")
-                .font(.footnote)
-                .foregroundStyle(AN.ink4)
-            VStack(alignment: .leading, spacing: 4) {
-                Group {
-                    switch CaptureRules.words(capture) {
-                    case .text(let text):
-                        Text(text).foregroundStyle(AN.ink)
-                    case .failed(let message):
-                        Text(message.isEmpty ? "Couldn't transcribe it." : "Couldn't transcribe it: \(message)")
-                            .foregroundStyle(AN.rust)
-                    default:
-                        Text(CaptureRules.wordsLine(capture)).italic().foregroundStyle(AN.ink3)
+        let state = CaptureRules.tickTickState(destination)
+        let settled = CaptureRules.isSettled(destination)
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 5) {
+                words(struck: state == .done, faded: settled)
+                HStack(spacing: 8) {
+                    Text(timeOfDay(capture.capturedAt)).monospacedDigit()
+                    if capture.isVoice {
+                        HStack(spacing: 3) {
+                            Image(systemName: "mic")
+                            if let ms = capture.durationMs {
+                                Text(CaptureRules.duration(seconds: Double(ms) / 1000)).monospacedDigit()
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Voice note")
+                    } else {
+                        Image(systemName: "text.alignleft").accessibilityLabel("Written")
                     }
-                }
-                .font(AN.text(.body))
-                .lineLimit(6)
-                HStack(spacing: 6) {
-                    Text(shownTime(capture.capturedAt))
-                    if let ms = capture.durationMs, capture.isVoice {
-                        Text("· \(CaptureRules.duration(seconds: Double(ms) / 1000))")
+                    if let origin = CaptureRules.origin(capture) {
+                        Image(systemName: Self.symbol(origin)).accessibilityLabel(Self.name(origin))
                     }
-                    if capture.isFromWatch {
-                        Text("· Apple Watch")
+                    if let note = CaptureRules.note(destination) {
+                        Text(note)
+                            .foregroundStyle(destination.isFailure ? AN.rust : AN.ink3)
+                            .lineLimit(2)
                     }
-                    Text("· \(CaptureRules.label(destination))")
-                        .foregroundStyle(destinationColor(destination))
-                        .lineLimit(2)
                 }
                 .font(AN.ui(.caption))
-                .foregroundStyle(AN.ink3)
+                .foregroundStyle(AN.ink4)
+            }
+            Spacer(minLength: 0)
+            if state == .done {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(AN.moss)
+                    .accessibilityLabel("Done in TickTick")
+            } else if state == .deleted {
+                Image(systemName: "trash")
+                    .foregroundStyle(AN.rust)
+                    .accessibilityLabel("Deleted in TickTick")
             }
         }
         .padding(.vertical, 2)
-        .opacity(CaptureRules.isSettled(destination) ? 0.6 : 1)
+        .opacity(settled ? 0.55 : 1)
     }
 
-    private func destinationColor(_ d: CaptureRules.Destination) -> Color {
-        switch d {
-        case .failed: AN.rust
-        case .tickTick(_, .done): AN.moss
-        default: AN.ink3
+    @ViewBuilder private func words(struck: Bool, faded: Bool) -> some View {
+        let ink = faded ? AN.ink3 : AN.ink
+        switch CaptureRules.words(capture) {
+        case .text(let text):
+            if let title = capture.title, !title.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(AN.ui(.body).weight(.medium)).foregroundStyle(ink).strikethrough(struck)
+                    if let notes = capture.notes, !notes.isEmpty {
+                        Text(notes).font(AN.text(.subheadline)).foregroundStyle(AN.ink2).lineLimit(4)
+                    }
+                }
+            } else {
+                Text(text).font(AN.text(.body)).foregroundStyle(ink).strikethrough(struck).lineLimit(6)
+            }
+        case .failed(let message):
+            Text(message.isEmpty ? "Couldn't transcribe it." : "Couldn't transcribe it: \(message)")
+                .font(AN.text(.body))
+                .foregroundStyle(AN.rust)
+        default:
+            Text(CaptureRules.wordsLine(capture)).font(AN.text(.body)).italic().foregroundStyle(AN.ink3)
+        }
+    }
+
+    static func symbol(_ origin: CaptureRules.Origin) -> String {
+        switch origin {
+        case .iphone: "iphone"
+        case .watch: "applewatch"
+        case .web: "desktopcomputer"
+        case .claude: "sparkles"
+        }
+    }
+
+    static func name(_ origin: CaptureRules.Origin) -> String {
+        switch origin {
+        case .iphone: "From the iPhone"
+        case .watch: "From the Apple Watch"
+        case .web: "From the web"
+        case .claude: "From Claude"
         }
     }
 }
@@ -254,7 +303,7 @@ struct CaptureCard: View {
                                 .font(AN.text(.body))
                                 .foregroundStyle(AN.ink)
                                 .lineLimit(1)
-                            Text(CaptureRules.label(CaptureRules.destination(capture)))
+                            Text(CaptureRules.cardLine(capture, time: timeOfDay(capture.capturedAt)))
                                 .font(AN.ui(.caption))
                                 .foregroundStyle(AN.ink3)
                                 .lineLimit(1)

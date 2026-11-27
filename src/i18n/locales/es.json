@@ -1040,7 +1040,6 @@
     "retranscribeFailed": "No se pudo enviar al transcriptor",
     "noWords": "No se oyeron palabras",
     "toQuestion": "→ pregunta: {{question}}",
-    "toTickTick": "→ TickTick",
     "forQuestion": "Para la pregunta: {{question}}",
     "kept": "Guardada aquí (TickTick no está conectado)",
     "waitingWords": "Esperando sus palabras",
@@ -1056,7 +1055,6 @@
     "updateFailed": "No se pudo cambiar la captura",
     "confirmDelete": "¿Borrar esta captura y su audio? Lo que generó (una nota, una tarea de TickTick) se queda.",
     "deleteFailed": "No se pudo borrar la captura",
-    "toTickTickList": "→ TickTick · {{list}}",
     "fromWatch": "Apple Watch",
     "fromIphone": "iPhone",
     "showTranscript": "Transcripción",
@@ -1070,8 +1068,9 @@
     "dictionarySaveFailed": "No se pudo guardar esa palabra",
     "dictionaryDeleteFailed": "No se pudo quitar esa palabra",
     "doneInTickTick": "Hecha en TickTick",
-    "doneInTickTickList": "Hecha en TickTick · {{list}}",
-    "deletedInTickTick": "Borrada en TickTick"
+    "deletedInTickTick": "Borrada en TickTick",
+    "fromWeb": "Web",
+    "fromClaude": "Claude"
   },
   "globalError": {
     "title": "Algo salió mal",

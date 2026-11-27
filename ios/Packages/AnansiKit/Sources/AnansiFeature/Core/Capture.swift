@@ -12,6 +12,9 @@ nonisolated struct Capture: Codable, Hashable, Sendable, Identifiable {
     var kind: String
     /// The typed text, or a voice note's transcript once it arrived; `""` means no words were heard.
     var text: String?
+    /// A voice note tidied by the server: a short title and clean notes (null when not tidied).
+    var title: String?
+    var notes: String?
     var durationMs: Int?
     var questionId: String?
     /// The question's text, when the capture is aimed at one.
@@ -74,6 +77,11 @@ nonisolated enum CaptureRules {
         case transcribing
         case kept
         case archived
+
+        var isFailure: Bool {
+            if case .failed = self { return true }
+            return false
+        }
     }
 
     /// What became of a capture's TickTick task (the server's `TickTickTaskState`).
@@ -127,6 +135,64 @@ nonisolated enum CaptureRules {
         case .kept: "Kept in Anansi"
         case .archived: "Archived"
         }
+    }
+
+    /// The line under a capture when there is something to say beyond "it is in TickTick": a question, a failure,
+    /// words on their way, kept, archived. Nil for a TickTick task, open or not: the row's mark says what became of it.
+    static func note(_ destination: Destination) -> String? {
+        if case .tickTick = destination { return nil }
+        return label(destination)
+    }
+
+    /// Where a capture was made: the row's device mark.
+    enum Origin: Hashable, Sendable {
+        case iphone, watch, web, claude
+    }
+
+    static func origin(_ c: Capture) -> Origin? {
+        switch c.source {
+        case "web": .web
+        case "mcp": .claude
+        case "phone": c.isFromWatch ? .watch : .iphone
+        default: c.isFromWatch ? .watch : nil
+        }
+    }
+
+    /// The captures by the calendar day they were made on, in the order given (newest first).
+    static func byDay(_ captures: [Capture], calendar: Calendar) -> [(day: LocalDay, captures: [Capture])] {
+        var groups: [(day: LocalDay, captures: [Capture])] = []
+        for capture in captures {
+            let day = ISODate.parse(capture.capturedAt).map { LocalDay(date: $0, calendar: calendar) }
+                ?? LocalDay(year: 1970, month: 1, day: 1)
+            if groups.last?.day == day {
+                groups[groups.count - 1].captures.append(capture)
+            } else {
+                groups.append((day, [capture]))
+            }
+        }
+        return groups
+    }
+
+    /// "Today", "Yesterday", else "Tuesday 24 November" (and the year when it is not this one).
+    static func dayTitle(_ day: LocalDay, today: LocalDay, calendar: Calendar) -> String {
+        if day == today { return "Today" }
+        if day.adding(days: 1) == today { return "Yesterday" }
+        let date = day.date(in: calendar)
+        let style = Date.FormatStyle(calendar: calendar, timeZone: calendar.timeZone).weekday(.wide).day().month(.wide)
+        return day.year == today.year ? date.formatted(style) : date.formatted(style.year())
+    }
+
+    static func tickTickState(_ destination: Destination) -> TickTickState? {
+        if case .tickTick(_, let state) = destination { return state }
+        return nil
+    }
+
+    /// A capture's second line on Pulse: what became of it when that is news (done or deleted in TickTick, a
+    /// question, a failure), else the time it was made.
+    static func cardLine(_ c: Capture, time: String) -> String {
+        let destination = destination(c)
+        if isSettled(destination) { return label(destination) }
+        return note(destination) ?? time
     }
 
     /// Dealt with in TickTick (done or deleted): the Inbox shows it stepped back.

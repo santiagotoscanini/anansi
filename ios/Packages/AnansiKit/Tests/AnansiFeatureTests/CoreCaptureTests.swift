@@ -26,6 +26,42 @@ struct CoreCaptureTests {
         #expect(title.hasSuffix("…"))
     }
 
+    @Test func onlyWhatIsNewsIsSaidUnderACapture() {
+        #expect(CaptureRules.note(.tickTick(list: "Inbox", state: .open)) == nil)
+        #expect(CaptureRules.note(.tickTick(list: "Inbox", state: .done)) == nil)
+        #expect(CaptureRules.note(.question("Why?")) == "→ question: Why?")
+        #expect(CaptureRules.cardLine(capture(status: "routed", task: "t"), time: "14:05") == "14:05")
+        var done = capture(status: "routed", task: "t")
+        done.tickTickState = "done"
+        #expect(CaptureRules.cardLine(done, time: "14:05") == "Done in TickTick")
+    }
+
+    @Test func capturesAreGroupedByTheDayTheyWereMade() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Montevideo")!
+        var a = capture(), b = capture(), c = capture()
+        a.capturedAt = "2026-11-26T20:00:00.000Z" // 17:00 on the 26th
+        b.capturedAt = "2026-11-26T02:00:00.000Z" // 23:00 on the 25th
+        c.capturedAt = "2026-11-25T12:00:00.000Z"
+        let groups = CaptureRules.byDay([a, b, c], calendar: calendar)
+        #expect(groups.map(\.day) == [LocalDay(year: 2026, month: 11, day: 26), LocalDay(year: 2026, month: 11, day: 25)])
+        #expect(groups.map(\.captures.count) == [1, 2])
+        let today = LocalDay(year: 2026, month: 11, day: 26)
+        #expect(CaptureRules.dayTitle(today, today: today, calendar: calendar) == "Today")
+        #expect(CaptureRules.dayTitle(today.adding(days: -1), today: today, calendar: calendar) == "Yesterday")
+    }
+
+    @Test func whereACaptureWasMade() {
+        var c = capture()
+        #expect(CaptureRules.origin(c) == .iphone)
+        c.device = "watch"
+        #expect(CaptureRules.origin(c) == .watch)
+        c.source = "web"
+        #expect(CaptureRules.origin(c) == .web)
+        c.source = "mcp"
+        #expect(CaptureRules.origin(c) == .claude)
+    }
+
     @Test func decodesWhatBecameOfTheTickTickTask() throws {
         let json = """
         {"id":"c1","kind":"text","text":"x","questionId":null,"noteId":null,"tickTickTaskId":"t1",

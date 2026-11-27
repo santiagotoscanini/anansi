@@ -105,8 +105,9 @@
   (`TranscriptEditView`, `PATCH /api/v1/captures/{id}`), which makes them the user's: the server never replaces
   them. The `transcript` of a queued `voiceCapture` and the `captureTranscript` op are kept only so queues written
   by builds that transcribed on the phone still decode and send. No speech-recognition permission. A capture sent to TickTick shows what became of its task there
-  (`tickTickState`: "→ TickTick · <list>", "Done in TickTick", "Deleted in TickTick", the settled ones faded), as
-  the server's poller last saw it. Pure rules
+  (`tickTickState`: nothing while open, a green check and struck through when done, a red bin and faded when
+  deleted), as the server's poller last saw it. The Inbox is sectioned by day; a row is the words (or the tidied
+  title and notes) over one line of time, text or voice with its length, and the device (`CaptureRules.origin`). Pure rules
   (title, where a capture went, what its words line says) are `Core/Capture.swift`, the server's
   `src/lib/captures.ts`. The phone does not play a capture's audio back (the server serves it to the web only).
 - Recording without opening the app: "Record a thought" (`RecordThoughtIntent`, the Action Button, Siri, Shortcuts)
